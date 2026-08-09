@@ -1,0 +1,15 @@
+# EditorConfig — the shared bash style for every shell script in the repo (Scripts/*.sh). shfmt reads this from each file's directory upward, so it is the single source of
+# truth for shell-script layout. Apply it only through the wrapper: Scripts/format-bash.sh — never run shfmt by
+# hand (mirrors the Swift `swift-format`/`.swift-format` rule).
+
+root = true
+
+# Shell scripts: 2-space indent, indented `case` patterns, K&R braces, `&&`/`||` kept at end of line,
+# and no space after redirection operators (keep `>"$f"`, not `> "$f"`).
+[*.{sh,bash}]
+indent_style = space
+indent_size = 2
+switch_case_indent = true
+binary_next_line = false
+space_redirects = false
+function_next_line = false

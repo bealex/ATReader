@@ -1,0 +1,91 @@
+//
+//  Copyright © 2026 Alexander Babaev.
+//  Licensed under the MIT License. See LICENSE in the repository root.
+//
+
+import SwiftUI
+
+/// Decides between the sign-in screen and the signed-in tabs.
+enum RootScreen {
+    struct Component: View {
+        @Environment(SessionStore.self)
+        private var session
+
+        var body: some View {
+            Group {
+                switch session.state {
+                    case .restoring: restoring
+                    case .signedOut: LoginScreen.Component()
+                    case .signedIn: signedIn
+                }
+            }
+            .animation(.default, value: session.state)
+            .task {
+                guard case .restoring = session.state else { return }
+
+                #if DEBUG
+                    if await session.applyUITestOverrides() { return }
+                #endif
+
+                await session.restore()
+            }
+        }
+
+        @ViewBuilder
+        private var signedIn: some View {
+            #if DEBUG
+                // `-at-ui-test-reader <workId>` opens straight into the reader, so the page layout can
+                // be inspected without walking the tabs first. Debug builds only.
+                if let workId = Self.debugReaderWorkId {
+                    NavigationStack {
+                        ReaderScreen.Component(workId: workId, title: "", initialChapterId: nil)
+                    }
+                } else {
+                    MainTabs()
+                }
+            #else
+                MainTabs()
+            #endif
+        }
+
+        #if DEBUG
+            private static var debugReaderWorkId: Int? {
+                let arguments = ProcessInfo.processInfo.arguments
+
+                guard
+                    let index = arguments.firstIndex(of: "-at-ui-test-reader"),
+                    index + 1 < arguments.count
+                else { return nil }
+
+                return Int(arguments[index + 1])
+            }
+        #endif
+
+        private var restoring: some View {
+            ProgressView("Restoring your session…")
+                .controlSize(.large)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(Color(.systemGroupedBackground))
+                .accessibilityLabel("Restoring your session")
+        }
+    }
+
+    struct MainTabs: View {
+        var body: some View {
+            TabView {
+                Tab("Library", systemImage: "books.vertical.fill") {
+                    LibraryScreen.Component()
+                }
+                Tab("Search", systemImage: "magnifyingglass") {
+                    SearchScreen.Component()
+                }
+                Tab("Top", systemImage: "chart.bar.fill") {
+                    TopScreen.Component()
+                }
+                Tab("Profile", systemImage: "person.crop.circle") {
+                    ProfileScreen.Component()
+                }
+            }
+        }
+    }
+}

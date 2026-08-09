@@ -1,0 +1,6 @@
+# Shared shellcheck config for every shell script in the repo (Scripts/*.sh).
+# Run it only through the wrapper: Scripts/lint-bash.sh — never call shellcheck directly
+# (mirrors the Swift `swiftlint`/`.swiftlint.yml` rule).
+
+# Follow `source`d files where the path is statically resolvable.
+external-sources=true

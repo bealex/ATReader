@@ -1,0 +1,15 @@
+// ATReader.xcconfig
+//
+// Project-level base build settings. This file is committed and must NOT contain any
+// private/local values. Machine-specific and private settings live in `Local.xcconfig`
+// (git-ignored) and are pulled in by the optional include below.
+//
+// See README.md → "Signing" for setup.
+
+// Defaults (empty) so a fresh clone builds for the Simulator without any local setup.
+// Override both in Local.xcconfig to sign for a device.
+DEVELOPMENT_TEAM =
+AT_PROVISIONING_PROFILE_DEV =
+
+// Optional include (note the `?`): no error if the file is missing.
+#include? "Local.xcconfig"

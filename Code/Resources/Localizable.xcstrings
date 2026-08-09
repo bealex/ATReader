@@ -1,0 +1,1572 @@
+{
+  "sourceLanguage": "en",
+  "strings": {
+    "%@ read": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Прочитано %@"
+          }
+        }
+      }
+    },
+    "%@, %@ read": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@, прочитано %2$@"
+          }
+        }
+      }
+    },
+    "%@, currently reading": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@, читается сейчас"
+          }
+        }
+      }
+    },
+    "%@, locked": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@, недоступна"
+          }
+        }
+      }
+    },
+    "%lld": {
+      "shouldTranslate": false,
+      "extractionState": "manual"
+    },
+    "%lld new chapters": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "новых глав: %lld"
+          }
+        }
+      }
+    },
+    "%lld points": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld пт"
+          }
+        }
+      }
+    },
+    "%lld pp.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld стр."
+          }
+        }
+      }
+    },
+    "%lld pt": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld пт"
+          }
+        }
+      }
+    },
+    "@%@": {
+      "shouldTranslate": false,
+      "extractionState": "manual"
+    },
+    "A": {
+      "shouldTranslate": false,
+      "extractionState": "manual"
+    },
+    "ATReader": {
+      "shouldTranslate": false,
+      "extractionState": "manual"
+    },
+    "Add books to your library on author.today and they will show up here.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Добавьте книги в библиотеку на author.today — они появятся здесь."
+          }
+        }
+      }
+    },
+    "Alignment": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Выравнивание"
+          }
+        }
+      }
+    },
+    "All books": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Все книги"
+          }
+        }
+      }
+    },
+    "All genres": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Все жанры"
+          }
+        }
+      }
+    },
+    "Appearance": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Оформление"
+          }
+        }
+      }
+    },
+    "Author": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Автор"
+          }
+        }
+      }
+    },
+    "Blurb": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Аннотация"
+          }
+        }
+      }
+    },
+    "Book title or author name": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Название книги или имя автора"
+          }
+        }
+      }
+    },
+    "Books you are reading are checked daily; new chapters download and badge the icon.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Книги, которые вы читаете, проверяются ежедневно; новые главы скачиваются и попадают на значок."
+          }
+        }
+      }
+    },
+    "Building the chart…": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Собираем топ…"
+          }
+        }
+      }
+    },
+    "Cancel": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Отмена"
+          }
+        }
+      }
+    },
+    "Changes the order of the results": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Меняет порядок найденных книг"
+          }
+        }
+      }
+    },
+    "Changes the shelf in your library": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Меняет полку в вашей библиотеке"
+          }
+        }
+      }
+    },
+    "Chapter %lld/%lld · page %lld/%lld": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Глава %1$lld/%2$lld · страница %3$lld/%4$lld"
+          }
+        }
+      }
+    },
+    "Charter": {
+      "extractionState": "manual",
+      "shouldTranslate": false
+    },
+    "Choose a shelf": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Выбрать полку"
+          }
+        }
+      }
+    },
+    "Clear downloads": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Удалить загрузки"
+          }
+        }
+      }
+    },
+    "Close": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Закрыть"
+          }
+        }
+      }
+    },
+    "Collapse": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Свернуть"
+          }
+        }
+      }
+    },
+    "Confirm": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Подтвердить"
+          }
+        }
+      }
+    },
+    "Contents": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Оглавление"
+          }
+        }
+      }
+    },
+    "Continue reading": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Продолжить чтение"
+          }
+        }
+      }
+    },
+    "Couldn’t load the list.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Не удалось загрузить список."
+          }
+        }
+      }
+    },
+    "Couldn’t load this book.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Не удалось загрузить книгу."
+          }
+        }
+      }
+    },
+    "Couldn’t load this chapter.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Не удалось загрузить главу."
+          }
+        }
+      }
+    },
+    "Couldn’t load your library.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Не удалось загрузить библиотеку."
+          }
+        }
+      }
+    },
+    "Couldn’t open": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Не открылось"
+          }
+        }
+      }
+    },
+    "Couldn’t open this book.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Не удалось открыть книгу."
+          }
+        }
+      }
+    },
+    "Couldn’t sign in. Check your connection.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Не удалось войти. Проверьте соединение."
+          }
+        }
+      }
+    },
+    "Couldn’t update your library.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Не удалось обновить библиотеку."
+          }
+        }
+      }
+    },
+    "Done": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Готово"
+          }
+        }
+      }
+    },
+    "Downloaded books": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Загруженные книги"
+          }
+        }
+      }
+    },
+    "Downloaded books take up %lld bytes": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Загруженные книги занимают %lld байт"
+          }
+        }
+      }
+    },
+    "Enter a book title or an author’s name.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Введите название книги или имя автора."
+          }
+        }
+      }
+    },
+    "Enter the code you received": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Введите код, полученный при входе"
+          }
+        }
+      }
+    },
+    "Error": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ошибка"
+          }
+        }
+      }
+    },
+    "Error: %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ошибка: %@"
+          }
+        }
+      }
+    },
+    "Everywhere": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Везде"
+          }
+        }
+      }
+    },
+    "Expands the chapter list": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Разворачивает список глав"
+          }
+        }
+      }
+    },
+    "Filters the chart": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Фильтрует топ книг"
+          }
+        }
+      }
+    },
+    "Filters your library by shelf": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Фильтрует библиотеку по полке"
+          }
+        }
+      }
+    },
+    "Finished": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Написание завершено"
+          }
+        }
+      }
+    },
+    "Font and page settings for reading": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Настройки шрифта и фона для чтения"
+          }
+        }
+      }
+    },
+    "Font size": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Размер шрифта"
+          }
+        }
+      }
+    },
+    "Font, margins and page settings": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Настройки шрифта, полей и фона"
+          }
+        }
+      }
+    },
+    "Found: %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Найдено: %@"
+          }
+        }
+      }
+    },
+    "Georgia": {
+      "extractionState": "manual",
+      "shouldTranslate": false
+    },
+    "Go back to the username and password step": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Вернуться к вводу логина и пароля"
+          }
+        }
+      }
+    },
+    "Justified": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "По ширине"
+          }
+        }
+      }
+    },
+    "Last checked for updates": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Последняя проверка обновлений"
+          }
+        }
+      }
+    },
+    "Left-aligned": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "По левому краю"
+          }
+        }
+      }
+    },
+    "Library": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Библиотека"
+          }
+        }
+      }
+    },
+    "Line spacing": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Межстрочный интервал"
+          }
+        }
+      }
+    },
+    "Loading book": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Загружаем книгу"
+          }
+        }
+      }
+    },
+    "Loading book…": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Загружаем книгу…"
+          }
+        }
+      }
+    },
+    "Loading chapter": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Загружаем главу"
+          }
+        }
+      }
+    },
+    "Loading chapter…": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Загружаем главу…"
+          }
+        }
+      }
+    },
+    "Loading more": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Загружаем ещё"
+          }
+        }
+      }
+    },
+    "Loading top books": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Загружаем топ книг"
+          }
+        }
+      }
+    },
+    "Loading your library": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Загружаем библиотеку"
+          }
+        }
+      }
+    },
+    "Loading your library…": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Загружаем библиотеку…"
+          }
+        }
+      }
+    },
+    "Margins": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Поля"
+          }
+        }
+      }
+    },
+    "Match the system": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Как в системе"
+          }
+        }
+      }
+    },
+    "New York": {
+      "extractionState": "manual",
+      "shouldTranslate": false
+    },
+    "Next page": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Следующая страница"
+          }
+        }
+      }
+    },
+    "Night": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ночь"
+          }
+        }
+      }
+    },
+    "No chapters available to read.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Нет доступных для чтения глав."
+          }
+        }
+      }
+    },
+    "Nothing here yet": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Пока пусто"
+          }
+        }
+      }
+    },
+    "Nothing matched your search.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "По запросу ничего не нашлось."
+          }
+        }
+      }
+    },
+    "OK": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Понятно"
+          }
+        }
+      }
+    },
+    "Offline": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Офлайн"
+          }
+        }
+      }
+    },
+    "Ongoing": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Пишется"
+          }
+        }
+      }
+    },
+    "Opens the book at your last chapter": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Открывает книгу на последней прочитанной главе"
+          }
+        }
+      }
+    },
+    "Opens the chapter": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Открывает главу"
+          }
+        }
+      }
+    },
+    "Opens the reader": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Открывает читалку"
+          }
+        }
+      }
+    },
+    "Page": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Фон"
+          }
+        }
+      }
+    },
+    "Page %lld of %lld": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Страница %1$lld из %2$lld"
+          }
+        }
+      }
+    },
+    "Page margins": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Поля страницы"
+          }
+        }
+      }
+    },
+    "Paid": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Платно"
+          }
+        }
+      }
+    },
+    "Palatino": {
+      "extractionState": "manual",
+      "shouldTranslate": false
+    },
+    "Paper": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Бумага"
+          }
+        }
+      }
+    },
+    "Password": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Пароль"
+          }
+        }
+      }
+    },
+    "Previous page": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Предыдущая страница"
+          }
+        }
+      }
+    },
+    "Profile": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Профиль"
+          }
+        }
+      }
+    },
+    "Rank %lld. %@, %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Место %1$lld. %2$@, %3$@"
+          }
+        }
+      }
+    },
+    "Ranking": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Рейтинг"
+          }
+        }
+      }
+    },
+    "Ranking type": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Тип рейтинга"
+          }
+        }
+      }
+    },
+    "Read": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Читать"
+          }
+        }
+      }
+    },
+    "Read your author.today library": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Читайте свою библиотеку author.today"
+          }
+        }
+      }
+    },
+    "Reader appearance": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Оформление читалки"
+          }
+        }
+      }
+    },
+    "Reading": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Чтение"
+          }
+        }
+      }
+    },
+    "Removes chapters stored for offline reading": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Удаляет главы, сохранённые для чтения офлайн"
+          }
+        }
+      }
+    },
+    "Removes the stored token and returns to the sign-in screen": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Удаляет сохранённый токен и возвращает на экран входа"
+          }
+        }
+      }
+    },
+    "Restoring your session": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Восстанавливаем сессию"
+          }
+        }
+      }
+    },
+    "Restoring your session…": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Восстанавливаем сессию…"
+          }
+        }
+      }
+    },
+    "Results": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Результаты"
+          }
+        }
+      }
+    },
+    "SF Rounded": {
+      "extractionState": "manual",
+      "shouldTranslate": false
+    },
+    "San Francisco": {
+      "extractionState": "manual",
+      "shouldTranslate": false
+    },
+    "Search": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Поиск"
+          }
+        }
+      }
+    },
+    "Searching": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Идёт поиск"
+          }
+        }
+      }
+    },
+    "Searching…": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ищем…"
+          }
+        }
+      }
+    },
+    "Sepia": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сепия"
+          }
+        }
+      }
+    },
+    "Series: %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Цикл: %@"
+          }
+        }
+      }
+    },
+    "Sets the page background": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Задаёт фон страницы"
+          }
+        }
+      }
+    },
+    "Sets the reading typeface": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Задаёт шрифт для чтения"
+          }
+        }
+      }
+    },
+    "Shelf": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Полка"
+          }
+        }
+      }
+    },
+    "Show all %lld chapters": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Показать все %lld глав"
+          }
+        }
+      }
+    },
+    "Shows the chapter list": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Показывает список глав"
+          }
+        }
+      }
+    },
+    "Sign in": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Войти"
+          }
+        }
+      }
+    },
+    "Sign out": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Выйти из аккаунта"
+          }
+        }
+      }
+    },
+    "Sign out?": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Выйти из аккаунта?"
+          }
+        }
+      }
+    },
+    "Sign-in error: %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ошибка входа: %@"
+          }
+        }
+      }
+    },
+    "Signed in as %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Вы вошли как %@"
+          }
+        }
+      }
+    },
+    "Size": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Размер"
+          }
+        }
+      }
+    },
+    "Sort": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сортировка"
+          }
+        }
+      }
+    },
+    "Sort results": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сортировка результатов"
+          }
+        }
+      }
+    },
+    "Still being written": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Автор ещё пишет"
+          }
+        }
+      }
+    },
+    "Submits your sign-in details": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Отправляет данные для входа в аккаунт"
+          }
+        }
+      }
+    },
+    "Tags": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Метки"
+          }
+        }
+      }
+    },
+    "Tags: %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Метки: %@"
+          }
+        }
+      }
+    },
+    "Text alignment": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Выравнивание текста"
+          }
+        }
+      }
+    },
+    "This book has no chapters you can read yet.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "У этой книги пока нет доступных глав."
+          }
+        }
+      }
+    },
+    "Title": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Название"
+          }
+        }
+      }
+    },
+    "Title or author": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Название или автор"
+          }
+        }
+      }
+    },
+    "Top": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Топ"
+          }
+        }
+      }
+    },
+    "Top books": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Топ книг"
+          }
+        }
+      }
+    },
+    "Typeface": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Шрифт"
+          }
+        }
+      }
+    },
+    "Use a different account": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ввести другой логин"
+          }
+        }
+      }
+    },
+    "Username or email": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Логин или e-mail"
+          }
+        }
+      }
+    },
+    "Username or email address": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Логин или адрес электронной почты"
+          }
+        }
+      }
+    },
+    "Verification code": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Код подтверждения"
+          }
+        }
+      }
+    },
+    "What to read?": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Что почитать?"
+          }
+        }
+      }
+    },
+    "Yes, sign out": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Выйти"
+          }
+        }
+      }
+    },
+    "Your token is kept in the device keychain and removed when you sign out.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Токен хранится в связке ключей устройства и удаляется при выходе."
+          }
+        }
+      }
+    },
+    "complete": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "книга завершена"
+          }
+        }
+      }
+    },
+    "mail@example.com": {
+      "shouldTranslate": false,
+      "extractionState": "manual"
+    },
+    "still being written": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "книга пишется"
+          }
+        }
+      }
+    },
+    "· %@": {
+      "shouldTranslate": false,
+      "extractionState": "manual"
+    }
+  },
+  "version": "1.0"
+}

@@ -1,0 +1,177 @@
+# Development history
+
+How this was built, in the order it happened, including the wrong turns. The reasoning is more
+reusable than the result: most of it applies again the next time the service changes.
+
+## 1. Finding a specification
+
+The starting point was a Python client and a hunch that `api.author.today/help` was real. It is: a
+Swagger UI index. The useful discovery was the machine-readable document behind it at
+`/swagger/docs/v1`, which sits at none of the conventional `/swagger/v1/swagger.json` paths, all of
+which 404. 86 paths and 79 definitions, the whole surface.
+
+That turned the job from guesswork into reading a spec. The Python client still earned its keep for
+what a spec can't tell you: which headers the service expects a mobile client to send.
+
+**Lesson:** look for the raw OpenAPI document before modelling anything by hand, and try more than one
+conventional path.
+
+## 2. The two-factor wall
+
+The first live sign-in returned `twoFactorEnabled: true`, `twoFactorType: "Email"` and no token. That
+shaped the schedule. Everything account-scoped needed a human to read an email, so it got deferred and
+the whole catalogue side was built and tested against the guest token first.
+
+That turned out to be the right split anyway. The guest token reaches search, charts, work details,
+tables of contents, and chapter text for free works, which means the entire reading path, decryption
+included, is testable with no account at all.
+
+## 3. Working out chapter encryption
+
+The hard part, and the part that took the most attempts. Full write-up in
+[ChapterEncryption.md](ChapterEncryption.md); the short version of the process:
+
+0. Read what the vendor says. Their `/help` page for the endpoint states it returns the chapter "in
+   encrypted form" and names the fields: `Text` is the body, `Key` is the key. So the shape of the
+   problem was documented and the mechanism wasn't. Nothing in their spec mentions a cipher.
+1. Tried the scheme every public client uses, reversing the key, appending a separator and XORing
+   character codes. Garbage.
+2. Tried assorted AES modes with obvious key derivations. Garbage.
+3. Stopped guessing and measured. An index-of-coincidence sweep over candidate key periods 1–80 came
+   back flat at 1/256, uniformly random at every period. That's a proof rather than a hint: no
+   repeating-key XOR produces it. Every remaining XOR variant could be abandoned.
+4. Checked whether the payload was compressed by comparing decoded size against the API's own character
+   count. Russian UTF-8 is ~2 bytes/char, and the arithmetic landed almost exactly on the observed
+   size, so it wasn't compressed. Length was an exact multiple of 16: block cipher with padding.
+5. With the shape pinned down, the only unknown left was key derivation, which analysis can't recover.
+   A code search across public clients found `Elib2Ebook`, which implements it. Worked first try.
+
+**Lesson:** when guessing stops paying, measure something that eliminates a whole family of hypotheses.
+The IoC sweep took a few minutes and saved an unbounded number of further guesses.
+
+**A trap to repeat:** the most visible open-source "author.today decryptors" target the *web* endpoint,
+which uses a different and much weaker scheme with the key in a `reader-secret` header. They aren't
+wrong, they're answering a different question.
+
+## 4. Verifying the client before building UI on it
+
+Before writing a single view, the compiled Swift client was linked into a throwaway command-line binary
+and run against production: search, charts, genres, table of contents, chapter decryption, work
+details, and the unauthorised-request path.
+
+Cheap, and it meant every later UI failure was a UI failure. Do it again on any client rewrite.
+
+## 5. The app
+
+Screens follow the house pattern (namespace enum + `Model` + `Component`). The decisions that weren't
+mechanical:
+
+- **One row type.** Library entries, catalogue results and work details are three shapes for one idea.
+  Collapsing them into `WorkSummary` early meant one row view for every list, and later features like
+  new-chapter badges landed in one place.
+- **Search and charts share an engine.** They're the same endpoint with different queries, so
+  `CatalogFeed` serves both. The charts needed no new networking at all.
+- **Routes are shared, stacks aren't.** Each tab owns its own `NavigationStack` but they resolve routes
+  through one destination view, so a book opens identically from anywhere.
+
+## 6. Mid-flight requirement changes
+
+Four requirements arrived after the app was working. Notes on what each cost:
+
+**English primary, Russian secondary.** The app had been written in Russian throughout, the wrong call,
+made before it was specified, and about 150 strings of rework. Handled by a scripted Russian-to-English
+sweep across sources, then hand-authored String Catalogs for app and package.
+
+Two things didn't work as expected. First, string extraction never ran on a `xcodebuild` command-line
+build despite `SWIFT_EMIT_LOC_STRINGS`, so the catalogs stayed empty and entries were authored by hand.
+That turned out to be a property of the build rather than the setting: opening the project in the Xcode
+GUI extracts them fine, which is how seven stragglers appeared in the catalog late in the project, one
+of them genuinely untranslated. Useful to know if you work headlessly, and the reason
+`Scripts/check.sh` gates on translation coverage instead of trusting extraction to have happened.
+Second, package strings need their own catalog plus `defaultLocalization` and
+`String(localized:bundle: .module)`. Interpolated keys must use the non-positional form Swift generates
+(`"Rank %lld. %@, %@"`) while the Russian value may reorder positionally.
+
+Presentation strings that had been sitting on package enums (`LibraryState.title` and friends) stayed
+in the package but moved into its catalog, since they're service vocabulary rather than app copy.
+
+**Caching and a daily new-chapter badge.** The larger change. The package models needed `Codable`
+rather than `Decodable` to be cacheable, and the cache uses its own `.iso8601` encoder/decoder pair
+instead of the client's lenient date strategy, because a cache controls both ends and can afford to be
+strict.
+
+The sweep runs in the foreground as well as the background, because iOS doesn't promise background
+windows and `BGTaskScheduler.submit` never fires on the simulator. Without the foreground path the
+badge would be untestable and, on a real device, occasionally stale for days.
+
+**XcodeGen and manual signing** were already in place.
+
+## 7. The bug the live tests caught
+
+Late in testing, a full-suite run failed one test: a real sign-in reached neither the code field nor the
+library. The cause justified the whole exercise.
+
+`twoFactorType` is the string `"Email"` while a challenge is pending. Once the account no longer needs
+one, the same field comes back as the number `0`, next to a perfectly valid token. The strict `String`
+decode threw, failing the entire `LoginResult` and discarding the token with it. Every user signing in
+from a trusted device would have seen "couldn't sign in" with correct credentials.
+
+A unit test wouldn't have caught this. Any fixture would have been written to the shape already
+believed in. It took a real request to a real account whose two-factor state had changed.
+
+`LoginResult` now decodes that field leniently, with five regression tests over both shapes.
+
+**Lesson:** against an undocumented, loosely typed API, keep at least one test per feature talking to
+production. Assume any field can arrive absent, null, or as a different type.
+
+## 8. The reader rewrite
+
+Scrolling gave way to pagination, which forced a move off SwiftUI `Text` and onto CoreText: SwiftUI has
+no justified alignment, and pagination has to agree exactly with drawing. Measuring and drawing now go
+through the same framesetter, so a page can't show something pagination didn't measure.
+
+Two things surfaced only by testing on the simulator. Moving to CoreText silently removed the chapter
+body from the accessibility tree, since drawn text is invisible to VoiceOver; each page now publishes
+its text as an accessibility element. And two "test failures" turned out to be bad XCUITest queries
+rather than bugs, found by dumping the accessibility tree instead of guessing again.
+
+## 9. Moving the constants out of the repository
+
+The certificate and salt moved into a gitignored `.env`, read at build time by
+`Scripts/gen-secrets.sh` into a gitignored Swift file. `AuthorTodayClient.Configuration` now takes both
+as configuration instead of the package shipping them, so a clone contains neither value. See
+[THIRD-PARTY-NOTICES.md](../THIRD-PARTY-NOTICES.md).
+
+Testing the unconfigured path caught two bugs in that arrangement: the build phase never actually wrote
+its output, because user-script sandboxing permits writing only the declared output file and the
+temporary sibling was denied silently; and an empty certificate still hashed to a valid-looking value,
+so the server rejected the request and the app surfaced a generic Russian error instead of saying the
+build was unconfigured.
+
+## 10. Smaller things that cost time
+
+- `@Bindable var model = model` shadowing: pass `$model` to a helper expecting `Bindable<Model>`, not
+  `model`.
+- UI-test environment variables need a `TEST_RUNNER_` prefix. Without it suites silently skip and the
+  run still reports success.
+- SwiftUI doesn't instantiate offscreen `Form` cells, so `waitForExistence` can't find a control below
+  the fold. Scroll first.
+- An inline `Picker`'s options don't carry an accessibility identifier from their content view. The
+  reader's page-tint choice became explicit `Button` rows, which are testable and a better control.
+- The Simulator GUI app is absent from some Xcode layouts, which rules out AppleScript-driven UI
+  automation. XCUITest was the right tool regardless, and left durable tests behind.
+- Two concurrent `xcodebuild test` runs against one simulator contend, and one produces nothing.
+- GitHub's code-search API can return zero results for symbols that demonstrably exist in a repository.
+  Validate any negative search against a known positive before believing it.
+
+## Where it landed
+
+About 4,500 lines across a 15-file package, a 25-file app and 3 UI test suites. 15 unit tests and 12 UI
+tests, all passing, with `Scripts/check.sh` clean including full Russian translation coverage.
+
+Known gaps, both deliberate:
+
+- **The catalogue is gated behind sign-in** even though the API serves it to guests. Opening browsing
+  up pre-login is a small change if wanted.
+- **Background scheduling is unproven on device.** The simulator never fires it, so only the foreground
+  path has been exercised end to end.

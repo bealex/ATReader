@@ -1,0 +1,126 @@
+name: ATReader
+
+options:
+  bundleIdPrefix: com.lonelybytes
+  deploymentTarget:
+    iOS: "18.0"
+  createIntermediateGroups: true
+  groupSortPosition: top
+  developmentLanguage: en
+  knownRegions: [ en, ru, Base ]
+
+configFiles:
+  Debug: ATReader.xcconfig
+  Release: ATReader.xcconfig
+
+packages:
+  AuthorToday:
+    path: Frameworks/AuthorToday
+
+targets:
+  ATReader:
+    type: application
+    platform: iOS
+    sources:
+      - path: Code
+        excludes:
+          - "Generated/**"
+      # Written by Scripts/gen-secrets.sh from the gitignored .env; absent on a fresh clone until the
+      # pre-build phase runs, hence optional.
+      - path: Code/Generated/ATSecrets.generated.swift
+        optional: true
+      # Icon Composer bundle. `type: file` keeps it one reference rather than recursing into it.
+      - path: Resources/app-icon.icon
+        type: file
+    preBuildScripts:
+      - script: "\"$SRCROOT/Scripts/gen-secrets.sh\""
+        name: Generate service constants
+        # User-script sandboxing is on, so everything the phase reads must be declared.
+        inputFiles:
+          - $(SRCROOT)/Scripts/gen-secrets.sh
+          - $(SRCROOT)/.env
+        outputFiles:
+          - $(SRCROOT)/Code/Generated/ATSecrets.generated.swift
+        basedOnDependencyAnalysis: false
+    dependencies:
+      - package: AuthorToday
+        product: AuthorToday
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.lonelybytes.atreader
+        PRODUCT_NAME: ATReader
+        MARKETING_VERSION: "1.0"
+        CURRENT_PROJECT_VERSION: "1"
+        SWIFT_VERSION: "6.0"
+        SWIFT_STRICT_CONCURRENCY: complete
+        TARGETED_DEVICE_FAMILY: "1,2"
+        CODE_SIGN_STYLE: Manual
+        ENABLE_USER_SCRIPT_SANDBOXING: "YES"
+        GENERATE_INFOPLIST_FILE: "NO"
+        ASSETCATALOG_COMPILER_APPICON_NAME: app-icon
+        SWIFT_EMIT_LOC_STRINGS: "YES"
+        LOCALIZATION_PREFERS_STRING_CATALOGS: "YES"
+      configs:
+        # Only a development profile exists so far. Release deliberately carries none: it must be
+        # filled in when a distribution profile is created, rather than silently signing with the
+        # development one.
+        Debug:
+          CODE_SIGN_IDENTITY: "Apple Development"
+          "CODE_SIGN_IDENTITY[sdk=iphoneos*]": "iPhone Developer"
+          PROVISIONING_PROFILE_SPECIFIER: "$(AT_PROVISIONING_PROFILE_DEV)"
+          "PROVISIONING_PROFILE_SPECIFIER[sdk=iphoneos*]": "$(AT_PROVISIONING_PROFILE_DEV)"
+        Release:
+          CODE_SIGN_IDENTITY: ""
+          PROVISIONING_PROFILE_SPECIFIER: ""
+    info:
+      path: Code/Info.plist
+      properties:
+        CFBundleDisplayName: ATReader
+        CFBundleShortVersionString: "$(MARKETING_VERSION)"
+        CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
+        UILaunchScreen:
+          UIColorName: ""
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        UISupportedInterfaceOrientations~ipad:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        UIApplicationSupportsIndirectInputEvents: true
+        ITSAppUsesNonExemptEncryption: false
+        UIBackgroundModes:
+          - fetch
+        BGTaskSchedulerPermittedIdentifiers:
+          - com.lonelybytes.atreader.refresh
+
+  ATReaderUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - path: Tests/ATReaderUITests
+    dependencies:
+      - target: ATReader
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.lonelybytes.atreader.uitests
+        SWIFT_VERSION: "6.0"
+        CODE_SIGN_STYLE: Manual
+        CODE_SIGN_IDENTITY: "-"
+        TEST_TARGET_NAME: ATReader
+        GENERATE_INFOPLIST_FILE: "YES"
+
+schemes:
+  ATReader:
+    build:
+      targets:
+        ATReader: all
+        ATReaderUITests: [ test ]
+    run:
+      config: Debug
+    test:
+      config: Debug
+      targets:
+        - ATReaderUITests

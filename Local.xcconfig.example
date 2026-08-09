@@ -1,0 +1,18 @@
+// Local.xcconfig.example
+//
+// Copy this file to `Local.xcconfig` (which is git-ignored) and fill in your own values.
+// `ATReader.xcconfig` includes `Local.xcconfig` automatically, so anything set here overrides
+// the committed defaults and never lands in version control.
+//
+//   cp Local.xcconfig.example Local.xcconfig
+//
+// Both values are needed only to sign and run on a physical device. Simulator builds and the
+// UI tests need neither.
+
+// Your Apple Developer Team ID (Xcode → Settings → Accounts, or developer.apple.com → Membership).
+DEVELOPMENT_TEAM = YOUR_TEAM_ID
+
+// The name of your development provisioning profile for this app's bundle id, exactly as it appears
+// in Xcode → Settings → Accounts → Manage Certificates / developer.apple.com → Profiles.
+// Release carries no profile yet; add one here and wire it up in project.yml when you have it.
+AT_PROVISIONING_PROFILE_DEV = YOUR_DEV_PROFILE_NAME
