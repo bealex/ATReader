@@ -161,8 +161,8 @@ page ignores the safe area, its size and the notch and home-indicator insets com
 rather than from the layout, which also keeps a toolbar appearing from re-paginating the chapter.
 
 A tap in the middle third brings back the status bar and the controls, a second tap sends them away,
-and turning a page sends them away too. The controls are Liquid Glass where the system has it, and
-plain buttons on iOS 18. The bar is the reader's own rather than the navigation stack's, so it fades in
+and turning a page sends them away too. The controls are round Liquid Glass buttons, the size the
+system draws in a toolbar. The bar is the reader's own rather than the navigation stack's, so it fades in
 over the page instead of sliding the page down, and it carries a background of its own
 so the running head doesn't show through it. Only that background runs up to the screen edge: the
 overlay is laid out inside the safe area even though the page under it is not, so insetting the bar by

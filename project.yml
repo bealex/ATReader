@@ -3,7 +3,7 @@ name: ATReader
 options:
   bundleIdPrefix: com.lonelybytes
   deploymentTarget:
-    iOS: "18.0"
+    iOS: "27.0"
   createIntermediateGroups: true
   groupSortPosition: top
   developmentLanguage: en

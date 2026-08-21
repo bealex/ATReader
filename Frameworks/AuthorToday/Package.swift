@@ -9,7 +9,7 @@ import PackageDescription
 let package = Package(
     name: "AuthorToday",
     defaultLocalization: "en",
-    platforms: [ .iOS(.v18), .macOS(.v15) ],
+    platforms: [ .iOS("27.0"), .macOS(.v15) ],
     products: [
         .library(name: "AuthorToday", targets: [ "AuthorToday" ])
     ],

@@ -47,7 +47,7 @@ scheme, the architecture, the testing setup, and the development history with it
 
 ```
 ATReader/
-├── Code/                     # the app (SwiftUI, iOS 18+)
+├── Code/                     # the app (SwiftUI, iOS 27)
 │   ├── App/                  # entry point, root screen, routing
 │   ├── Components/           # shared row/cover views
 │   ├── Screens/              # one folder per screen: <Name>.Model.swift + <Name>.Component.swift

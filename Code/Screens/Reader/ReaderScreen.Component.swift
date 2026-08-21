@@ -6,18 +6,6 @@
 import AuthorToday
 import SwiftUI
 
-/// Liquid Glass on the reader's own controls, and nothing at all where the system doesn't have it.
-private extension View {
-    @ViewBuilder
-    func glassy() -> some View {
-        if #available(iOS 26.0, *) {
-            buttonStyle(.glass)
-        } else {
-            self
-        }
-    }
-}
-
 enum ReaderScreen {
     struct Component: View {
         let workId: Int
@@ -191,6 +179,25 @@ enum ReaderScreen {
             }
         }
 
+        /// One control of the reader's bar: round Liquid Glass, the size the system draws in a toolbar.
+        /// The square label is what keeps the three of them the same circle whatever their glyph.
+        private func glassButton(
+            _ title: LocalizedStringKey,
+            systemImage: String,
+            hint: LocalizedStringKey,
+            action: @escaping () -> Void
+        ) -> some View {
+            Button(action: action) {
+                Label(title, systemImage: systemImage)
+                    .labelStyle(.iconOnly)
+                    .frame(width: 22, height: 22)
+                    .contentShape(.circle)
+            }
+            .buttonStyle(.glass)
+            .buttonBorderShape(.circle)
+            .accessibilityHint(hint)
+        }
+
         private func toggleChrome() {
             withAnimation(.easeInOut(duration: Self.chromeFade)) { isChromeHidden.toggle() }
         }
@@ -230,10 +237,7 @@ enum ReaderScreen {
         /// The reader's own bar: back, the chapter's name, and the two sheets.
         private var chromeBar: some View {
             HStack(spacing: 12) {
-                Button("Back", systemImage: "chevron.backward", action: { dismiss() })
-                    .labelStyle(.iconOnly)
-                    .accessibilityHint("Leaves the book")
-                    .glassy()
+                glassButton("Back", systemImage: "chevron.backward", hint: "Leaves the book") { dismiss() }
 
                 Text(model?.chapterTitle ?? title)
                     .font(.headline)
@@ -246,22 +250,24 @@ enum ReaderScreen {
                         .accessibilityLabel("Reading from this device")
                 }
 
-                Button("Contents", systemImage: "list.bullet") { isShowingContents = true }
-                    .labelStyle(.iconOnly)
-                    .accessibilityHint("Shows the chapter list")
-                    .glassy()
+                glassButton("Contents", systemImage: "list.bullet", hint: "Shows the chapter list") {
+                    isShowingContents = true
+                }
 
-                Button("Appearance", systemImage: "textformat.size") { isShowingSettings = true }
-                    .labelStyle(.iconOnly)
-                    .accessibilityHint("Font, margins and page settings")
-                    .glassy()
+                glassButton(
+                    "Appearance",
+                    systemImage: "textformat.size",
+                    hint: "Font, margins and page settings"
+                ) {
+                    isShowingSettings = true
+                }
             }
             .font(.title3)
             .foregroundStyle(settings.theme.foreground)
             .padding(.horizontal, 16)
             // The overlay is laid out inside the safe area even though the page below it is not, so
             // the bar keeps a navigation bar's own height and only its background runs up to the edge.
-            .frame(height: 52)
+            .frame(height: 50)
             .background(settings.theme.background.ignoresSafeArea(edges: .top))
         }
     }
