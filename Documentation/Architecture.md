@@ -121,10 +121,15 @@ the page number are drawn on the page itself, so a turn carries them along with 
 page ignores the safe area, its size and the notch and home-indicator insets come from the window
 rather than from the layout, which also keeps a toolbar appearing from re-paginating the chapter.
 
-A tap in the middle third brings back the status bar and the controls, and a second tap sends them
-away again. The bar is the reader's own rather than the navigation stack's, so it fades in over the
-page instead of sliding the page down, and it carries a background of its own so the running head
-doesn't show through it.
+A tap in the middle third brings back the status bar and the controls, a second tap sends them away,
+and turning a page sends them away too. The bar is the reader's own rather than the navigation stack's,
+so it fades in over the page instead of sliding the page down, and it carries a background of its own
+so the running head doesn't show through it. Only that background runs up to the screen edge: the
+overlay is laid out inside the safe area even though the page under it is not, so insetting the bar by
+hand as well would push its controls a notch's worth too low.
+
+A turn in flight is dropped when the app leaves the screen, since the gesture that would have finished
+it is gone.
 
 `PageTurnView` handles the turn. The entire effect comes from one rule, that page `n + 1` always sits
 above page `n`, so a single offset drives both directions: turning forward slides page `n + 1` in from

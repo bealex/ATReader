@@ -28,9 +28,14 @@ struct PageTurnView<Page: View>: View {
     var onPastStart: () -> Void = {}
     /// A tap in the dead zone between the two turning thirds.
     var onMiddleTap: () -> Void = {}
+    /// The moment a turn takes hold, by tap or by finger.
+    var onTurnStarted: () -> Void = {}
 
     @ViewBuilder
     let page: (Int) -> Page
+
+    @Environment(\.scenePhase)
+    private var scenePhase
 
     private enum Turn {
         case forward
@@ -106,6 +111,10 @@ struct PageTurnView<Page: View>: View {
 
             advance()
         }
+        .onChange(of: scenePhase) { _, phase in
+            // A turn half-way through when the app leaves the screen has no gesture left to finish it.
+            if phase != .active { cancelTurn() }
+        }
         .accessibilityElement(children: .contain)
         .accessibilityAction(named: Text("Next page"), advance)
         .accessibilityAction(named: Text("Previous page"), retreat)
@@ -128,6 +137,8 @@ struct PageTurnView<Page: View>: View {
                     } else {
                         return
                     }
+
+                    onTurnStarted()
                 }
 
                 guard let turn else { return }
@@ -184,6 +195,21 @@ struct PageTurnView<Page: View>: View {
         return time.timeIntervalSince(grabbedAt) < Self.grabDuration
     }
 
+    /// Drops a turn in flight and leaves the reader on the page they were on.
+    private func cancelTurn() {
+        guard turn != nil else { return }
+
+        queued = 0
+        grabbedAt = nil
+
+        var transaction = Transaction()
+        transaction.disablesAnimations = true
+        withTransaction(transaction) {
+            progress = 0
+            turn = nil
+        }
+    }
+
     private func advance() {
         guard turn == nil else { return queued += 1 }
 
@@ -207,6 +233,7 @@ struct PageTurnView<Page: View>: View {
         }
 
         turn = direction
+        onTurnStarted()
         finish(direction, committing: true)
     }
 

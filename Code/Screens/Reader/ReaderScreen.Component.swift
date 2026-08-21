@@ -104,6 +104,7 @@ enum ReaderScreen {
                 onPastEnd: value.goToNextChapter,
                 onPastStart: value.goToPreviousChapter,
                 onMiddleTap: toggleChrome,
+                onTurnStarted: hideChrome,
                 page: { index in pageContent(value, at: index) }
             )
             .accessibilityIdentifier("reader.page")
@@ -167,7 +168,14 @@ enum ReaderScreen {
         }
 
         private func toggleChrome() {
-            withAnimation(.easeInOut(duration: 0.2)) { isChromeHidden.toggle() }
+            withAnimation(.easeInOut(duration: Self.chromeFade)) { isChromeHidden.toggle() }
+        }
+
+        /// Turning a page is reading, so the controls get out of the way.
+        private func hideChrome() {
+            guard !isChromeHidden else { return }
+
+            withAnimation(.easeInOut(duration: Self.chromeFade)) { isChromeHidden = true }
         }
 
         /// Everything pagination depends on. A change to any of it re-lays the chapter.
@@ -191,6 +199,9 @@ enum ReaderScreen {
             safeArea = EdgeInsets(top: insets.top, leading: insets.left, bottom: insets.bottom, trailing: insets.right)
             pageSize = window.bounds.size
         }
+
+        /// How long the controls take to fade in or out.
+        private static let chromeFade: Double = 0.25
 
         /// The reader's own bar: back, the chapter's name, and the two sheets.
         private var chromeBar: some View {
@@ -221,9 +232,10 @@ enum ReaderScreen {
             .font(.title3)
             .foregroundStyle(settings.theme.foreground)
             .padding(.horizontal, 18)
-            .padding(.vertical, 10)
-            .padding(.top, safeArea.top)
-            .background(settings.theme.background)
+            // The overlay is laid out inside the safe area even though the page below it is not, so
+            // the bar keeps a navigation bar's own height and only its background runs up to the edge.
+            .frame(height: 44)
+            .background(settings.theme.background.ignoresSafeArea(edges: .top))
         }
     }
 
