@@ -19,7 +19,7 @@
 #
 # Safety: the style-respace pass does structural rewrites (guard / expression-form surgery) that could, in a
 # rare unhandled edge case, lose content. So an in-place run refuses to touch any target file that has
-# uncommitted git changes — commit or stash first, so a bad transform is a `git diff` / `git checkout` away
+# uncommitted git changes. Commit or stash first, so a bad transform is a `git diff` / `git checkout` away
 # (override with --allow-dirty). `--check` never modifies and skips this guard.
 #
 # Config: .swift-format (repo root; also auto-discovered by editors/IDEs).

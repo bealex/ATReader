@@ -10,10 +10,10 @@
 #   Scripts/lint.sh PATH ...     # restrict to the given files/dirs
 #
 # The custom rules here are checkers only (they never modify code). `--fix` applies SwiftLint's built-in
-# correctors, which DO rewrite files — so, like format.sh, it refuses to touch a tree with uncommitted target
+# correctors, which DO rewrite files, so like format.sh it refuses to touch a tree with uncommitted target
 # changes unless --allow-dirty is given.
 #
-# Config: .swiftlint.yml (repo root) — indented switch cases, 120-col lines, mandatory trailing commas,
+# Config: .swiftlint.yml (repo root): indented switch cases, 120-col lines, mandatory trailing commas,
 # sorted imports, one-arg-per-line on wrapped calls, no blank lines hugging braces. Pure layout
 # (indentation, brace placement) is owned by Scripts/format.sh; this catches the lint-only concerns.
 #

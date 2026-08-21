@@ -107,7 +107,7 @@ and the library give a full `https://cm.author.today/…` URL, while the catalog
 `2026/07/25/<hash>.jpg`. Feeding that path to `URL(string:)` produces a schemeless URL that
 `URLSession` rejects with "unsupported URL", which is why catalogue covers silently failed to load at
 all. `CoverURL.absolute` passes absolute URLs through and rebuilds relative ones against the CDN,
-asking it to resize on the way — that alone turns a ~450 KB original into ~50 KB.
+asking it to resize on the way, which alone turns a ~450 KB original into ~50 KB.
 
 ## Offline and updates
 

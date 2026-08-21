@@ -2,7 +2,7 @@
 #
 # lint-bash.sh — run shellcheck over the project shell scripts.
 #
-# The bash analogue of lint.sh. Don't call shellcheck directly — go through this script (or
+# The bash analogue of lint.sh. Don't call shellcheck directly: go through this script (or
 # Scripts/check.sh, which runs it as one of its steps). Config: the repo-root .shellcheckrc.
 #
 # Usage (from anywhere; defaults to every *.sh under Scripts/ and FeediqPusher/):
@@ -48,7 +48,7 @@ if [ ${#FILES[@]} -eq 0 ]; then
 fi
 
 # -x follows `source`d files; shellcheck finds the repo-root .shellcheckrc from each file's own directory upward
-# (so no cd — a cd would break relative path args). gcc format = one line per finding.
+# (so no cd, which would break relative path args). gcc format = one line per finding.
 OUT="$("$LINT_BIN" -x -f gcc "${FILES[@]}" 2>&1)"
 if [ -n "$OUT" ]; then printf '%s\n' "$OUT" | sed "s#^$REPO/##"; fi
 

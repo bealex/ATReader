@@ -99,8 +99,8 @@ others:
 - Reader settings come from `UserDefaults`, which reads `-key value` launch arguments, so each suite
   pins the typography it depends on rather than inheriting the last run's.
 
-Some things XCUITest cannot express, and which are therefore verified by construction rather than by a
-test: a drag reversed into a flick before the finger lifts, and the app being backgrounded mid-gesture.
+Two things XCUITest cannot express, so they are verified by construction: a drag reversed into a flick
+before the finger lifts, and the app being backgrounded mid-gesture.
 Say so plainly when reporting on them.
 
 ### Watching a gesture that is still happening

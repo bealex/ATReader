@@ -4,7 +4,7 @@
 #
 # Runs all project checks in sequence and prints one concise block per step, so verifying a commit is
 # a single command. Every step runs even if an earlier one fails (you see all problems at once), and the
-# script exits non-zero if any step failed — so it doubles as a CI / pre-commit gate.
+# script exits non-zero if any step failed, so it doubles as a CI / pre-commit gate.
 #
 # Usage:
 #   Scripts/check.sh           # verify only: format --check, lint, loc-check, bash format/lint — modifies nothing
@@ -12,7 +12,7 @@
 #   Scripts/check.sh -h
 #
 # In --fix mode the formatter/linter rewrite files, so (like the scripts they wrap) they refuse a tree with
-# uncommitted target changes — that's the project flow: commit, then `check.sh --fix`, then amend.
+# uncommitted target changes. That's the project flow: commit, then `check.sh --fix`, then amend.
 #
 # Copyright © 2026 Alexander Babaev. MIT licence — see LICENSE.
 set -uo pipefail

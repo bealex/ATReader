@@ -10,7 +10,7 @@
 # A string counts as translated when it has a non-empty value whose state isn't "new"/"needs_review"
 # (machine-translated counts as translated). Stale (out-of-code) and don't-translate keys are skipped.
 # Exit status is non-zero when anything is missing or needs review, so it doubles as a CI gate. Wraps a
-# single python3 pass — no jq dependency.
+# single python3 pass, with no jq dependency.
 # Copyright © 2026 Alexander Babaev. MIT licence — see LICENSE.
 set -euo pipefail
 

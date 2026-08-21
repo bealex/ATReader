@@ -2,7 +2,7 @@
 #
 # format-bash.sh — reformat (or check) the project shell scripts to the shared bash style.
 #
-# The bash analogue of format.sh. Don't call shfmt directly — go through this script (or Scripts/check.sh,
+# The bash analogue of format.sh. Don't call shfmt directly: go through this script (or Scripts/check.sh,
 # which runs it as one of its steps). The style lives in the repo-root .editorconfig (2-space indent, indented
 # `case` patterns, K&R braces); shfmt reads it from each file's directory.
 #

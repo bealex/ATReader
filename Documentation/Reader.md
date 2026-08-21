@@ -1,6 +1,6 @@
 # The reader
 
-Chapters are paginated rather than scrolled, the text is set by TextKit, and the page fills the screen.
+Chapters are paginated, not scrolled, the text is set by TextKit, and the page fills the screen.
 Most of what follows exists because one of those three forced it.
 
 ## Why not SwiftUI, and why not CoreText
@@ -11,7 +11,7 @@ CoreText was the next choice and had to be abandoned as well, because it does no
 `hyphenationFactor` and `usesDefaultHyphenation` are TextKit settings and do nothing to a
 `CTFramesetter`. Soft hyphens are not a way round it: CoreText will break a line at one and then draw
 no hyphen, so a word splits with nothing to show for it, which is worse than not breaking at all. That
-was measured rather than assumed, by rendering a hyphenated line and reading the glyphs back.
+was measured, not assumed: a hyphenated line was rendered and its glyphs read back.
 
 Hyphenation matters more here than it would in an English-only reader. Russian words are long, the
 column is narrow, and a justified line that cannot break a word stretches the spaces between its
@@ -64,7 +64,7 @@ a run of hyphenated lines defeats it, and the leaks only closed at four.
 
 A chapter whose last page would carry a line or two is fed from the page before it.
 
-What the rules leave behind is spread between the lines of the page rather than dumped at its foot.
+What the rules leave behind is spread between the lines of the page instead of collecting at its foot.
 Each page gets its own leading, up to 3pt of air per gap, and a gap may be squeezed by 0.75pt to pull
 one more line on. A page left half empty is the end of a chapter, and keeps its ragged bottom.
 
@@ -86,8 +86,8 @@ order forwards, since each one depends on where the one before it ended. A chapt
 contents starts a page of its own, and is laid out again if the reader later reads into it from the
 chapter before.
 
-Because a page can show a chapter that hasn't arrived yet, the model's layout cache is observed rather
-than ignored: a neighbour landing has to redraw the page already on screen.
+Because a page can show a chapter that hasn't arrived yet, the model's layout cache is observed, not
+ignored: a neighbour landing has to redraw the page already on screen.
 
 ## The page
 
@@ -123,7 +123,7 @@ The page behind draws back by 5% and darkens as the page in front covers it, and
 carries a shadow along its edge, so the two read as one in front of the other whichever way the turn is
 going.
 
-At the very end of the book, or before its very start, there is no page to turn to and the current one
+At the end of the book, or before its start, there is no page to turn to and the current one
 gives instead: it follows the finger through a rubber band that yields less the harder it is pulled,
 reaching at most a fifth of the width, and springs back when the finger lifts.
 
@@ -132,7 +132,7 @@ chapter hands over to the next one, and past the start goes back to the previous
 The page the turn animates onto is the neighbouring chapter's own page, so the chapter swaps under the
 animation and the reader sees one continuous turn.
 
-Taps that arrive while a turn is still animating are queued rather than dropped, and the queue drains
+Taps that arrive while a turn is still animating are queued instead of dropped, and the queue drains
 as each turn commits, running faster while it has a backlog. A burst of taps stacks pages through and
 settles where the reader asked.
 
@@ -159,11 +159,11 @@ Nothing in a turn waits for work that could have been done earlier:
 
 - Parsing, language detection and word binding run in a detached task.
 - The chapters either side are laid out while the reader is busy with this one, so crossing a chapter
-  break costs a page turn rather than a round trip.
+  break costs a page turn instead of a round trip.
 - Chapter bodies come from `LocalStore` before the service is asked, and land there when they arrive.
 
 A chapter over 239 KB is long enough that the reader should be told what is happening, so the layout
-reports how far it has got and the page shows a progress bar rather than a spinner. Ordinary chapters
+reports how far it has got and the page shows a progress bar instead of a spinner. Ordinary chapters
 are a fiftieth of that and never see it.
 
 Re-pagination runs whenever the page size or the style changes, and the old layout stays on screen
