@@ -6,6 +6,18 @@
 import AuthorToday
 import SwiftUI
 
+/// Liquid Glass on the reader's own controls, and nothing at all where the system doesn't have it.
+private extension View {
+    @ViewBuilder
+    func glassy() -> some View {
+        if #available(iOS 26.0, *) {
+            buttonStyle(.glass)
+        } else {
+            self
+        }
+    }
+}
+
 enum ReaderScreen {
     struct Component: View {
         let workId: Int
@@ -217,10 +229,11 @@ enum ReaderScreen {
 
         /// The reader's own bar: back, the chapter's name, and the two sheets.
         private var chromeBar: some View {
-            HStack(spacing: 18) {
+            HStack(spacing: 12) {
                 Button("Back", systemImage: "chevron.backward", action: { dismiss() })
                     .labelStyle(.iconOnly)
                     .accessibilityHint("Leaves the book")
+                    .glassy()
 
                 Text(model?.chapterTitle ?? title)
                     .font(.headline)
@@ -236,17 +249,19 @@ enum ReaderScreen {
                 Button("Contents", systemImage: "list.bullet") { isShowingContents = true }
                     .labelStyle(.iconOnly)
                     .accessibilityHint("Shows the chapter list")
+                    .glassy()
 
                 Button("Appearance", systemImage: "textformat.size") { isShowingSettings = true }
                     .labelStyle(.iconOnly)
                     .accessibilityHint("Font, margins and page settings")
+                    .glassy()
             }
             .font(.title3)
             .foregroundStyle(settings.theme.foreground)
-            .padding(.horizontal, 18)
+            .padding(.horizontal, 16)
             // The overlay is laid out inside the safe area even though the page below it is not, so
             // the bar keeps a navigation bar's own height and only its background runs up to the edge.
-            .frame(height: 44)
+            .frame(height: 52)
             .background(settings.theme.background.ignoresSafeArea(edges: .top))
         }
     }
