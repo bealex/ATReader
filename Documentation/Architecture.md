@@ -149,6 +149,10 @@ The page behind draws back by 5% and darkens as the page in front covers it, and
 carries a shadow along its edge, so the two read as one in front of the other whichever way the turn is
 going.
 
+At the very end of the book, or before its very start, there is no page to turn to and the current one
+gives instead: it follows the finger through a rubber band that yields less the harder it is pulled,
+reaching at most a fifth of the width, and springs back when the finger lifts.
+
 Taps on either outer third turn forward and swiping right is the way back. Turning past the end of a
 chapter hands over to the next one, and past the start goes back
 to the previous chapter's last page. The page the turn animates onto is the neighbouring chapter's own

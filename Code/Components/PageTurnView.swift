@@ -65,6 +65,10 @@ struct PageTurnView<Page: View>: View {
     @State
     private var grabbedAt: Date?
 
+    /// How far the page has been pulled past the end of the book, or before its start.
+    @State
+    private var overscroll: CGFloat = 0
+
     private static var commitThreshold: CGFloat { 0.3 }
     private static var flickVelocity: CGFloat { 120 }
     /// A flick against the turn this small still cancels it.
@@ -73,6 +77,9 @@ struct PageTurnView<Page: View>: View {
     private static var grip: CGFloat { 20 }
     /// How long the page takes to come in from the screen edge and meet the finger.
     private static var grabDuration: Double { 0.3 }
+    /// The share of the width a pull past the end can reach, however hard it is pulled.
+    private static var overscrollLimit: CGFloat { 0.2 }
+    private static var springBack: Animation { .spring(response: 0.35, dampingFraction: 0.55) }
     /// How far the page behind draws back, as a fraction of its size, once it is fully covered.
     private static var recession: CGFloat { 0.05 }
     private static var dimming: CGFloat { 0.22 }
@@ -98,6 +105,7 @@ struct PageTurnView<Page: View>: View {
                 page(index)
             }
         }
+        .offset(x: overscroll)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .contentShape(.rect)
         .onGeometryChange(for: CGFloat.self, of: { $0.size.width }, action: { width = max(1, $0) })
@@ -135,6 +143,8 @@ struct PageTurnView<Page: View>: View {
                     } else if translation > 0, isReachable(index - 1) {
                         turn = .backward
                     } else {
+                        // Nowhere to go. The page gives a little, and springs back when the finger lifts.
+                        overscroll = rubberBand(translation)
                         return
                     }
 
@@ -158,7 +168,7 @@ struct PageTurnView<Page: View>: View {
                 withAnimation(.easeInOut(duration: Self.grabDuration)) { progress = target }
             }
             .onEnded { value in
-                guard let turn else { return }
+                guard let turn else { return releaseOverscroll() }
 
                 let translation = value.translation.width
                 let predicted = value.predictedEndTranslation.width
@@ -195,8 +205,22 @@ struct PageTurnView<Page: View>: View {
         return time.timeIntervalSince(grabbedAt) < Self.grabDuration
     }
 
+    /// Gives less the harder the page is pulled, the way a list does at its end.
+    private func rubberBand(_ distance: CGFloat) -> CGFloat {
+        let limit = width * Self.overscrollLimit
+        return distance * limit / (limit + abs(distance))
+    }
+
+    private func releaseOverscroll() {
+        guard overscroll != 0 else { return }
+
+        withAnimation(Self.springBack) { overscroll = 0 }
+    }
+
     /// Drops a turn in flight and leaves the reader on the page they were on.
     private func cancelTurn() {
+        releaseOverscroll()
+
         guard turn != nil else { return }
 
         queued = 0
