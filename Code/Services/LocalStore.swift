@@ -30,7 +30,7 @@ actor LocalStore {
 
     static let shared = LocalStore()
 
-    private static let log = Logger(subsystem: "com.lonelybytes.atreader", category: "store")
+    private static let logger = Logger(subsystem: "com.lonelybytes.atreader", category: "store")
 
     private let fileURL: URL
     private var database: OpaquePointer?
@@ -52,12 +52,12 @@ actor LocalStore {
     // MARK: - Books
 
     func works(in shelf: LibraryState? = nil) -> [WorkSummary] {
-        let sql =
+        let query =
             shelf == nil
             ? "SELECT payload FROM work WHERE library_state IS NOT NULL ORDER BY last_read_time DESC"
             : "SELECT payload FROM work WHERE library_state = ? ORDER BY last_read_time DESC"
 
-        guard let statement = Statement(open(), sql) else { return [] }
+        guard let statement = Statement(open(), query) else { return [] }
 
         if let shelf { statement.bind(1, shelf.rawValue) }
 
@@ -89,11 +89,11 @@ actor LocalStore {
 
         statement.bind(1, encode(tags))
         statement.bind(2, work.id)
-        statement.run()
+        statement.execute()
     }
 
     func store(works: [WorkSummary]) {
-        let sql = """
+        let query = """
             INSERT INTO work (id, title, author, library_state, last_read_time, reading_progress, updated_at, payload)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(id) DO UPDATE SET
@@ -107,7 +107,7 @@ actor LocalStore {
             """
 
         transaction {
-            guard let statement = Statement(open(), sql) else { return }
+            guard let statement = Statement(open(), query) else { return }
 
             for work in works {
                 statement.reset()
@@ -119,7 +119,7 @@ actor LocalStore {
                 statement.bind(6, work.readingProgress)
                 statement.bind(7, Date.now.timeIntervalSince1970)
                 statement.bind(8, encode(work))
-                statement.run()
+                statement.execute()
             }
         }
     }
@@ -135,9 +135,9 @@ actor LocalStore {
     // MARK: - Chapters
 
     func chapters(workId: Int) -> [ChapterInfo] {
-        let sql = "SELECT payload FROM chapter WHERE work_id = ? ORDER BY sort_order ASC, id ASC"
+        let query = "SELECT payload FROM chapter WHERE work_id = ? ORDER BY sort_order ASC, id ASC"
 
-        guard let statement = Statement(open(), sql) else { return [] }
+        guard let statement = Statement(open(), query) else { return [] }
 
         statement.bind(1, workId)
         var result: [ChapterInfo] = []
@@ -152,7 +152,7 @@ actor LocalStore {
     }
 
     func store(chapters: [ChapterInfo], workId: Int) {
-        let sql = """
+        let query = """
             INSERT INTO chapter (id, work_id, sort_order, is_readable, payload)
             VALUES (?, ?, ?, ?, ?)
             ON CONFLICT(id) DO UPDATE SET
@@ -163,7 +163,7 @@ actor LocalStore {
             """
 
         transaction {
-            guard let statement = Statement(open(), sql) else { return }
+            guard let statement = Statement(open(), query) else { return }
 
             for (index, chapter) in chapters.enumerated() {
                 statement.reset()
@@ -172,7 +172,7 @@ actor LocalStore {
                 statement.bind(3, chapter.sortOrder ?? index)
                 statement.bind(4, chapter.isReadable ? 1 : 0)
                 statement.bind(5, encode(chapter))
-                statement.run()
+                statement.execute()
             }
         }
     }
@@ -191,9 +191,9 @@ actor LocalStore {
     // MARK: - Chapter bodies
 
     func body(workId: Int, chapterId: Int) -> ChapterText? {
-        let sql = "SELECT title, html, last_modification_time FROM chapter_body WHERE chapter_id = ? AND work_id = ?"
+        let query = "SELECT title, html, last_modification_time FROM chapter_body WHERE chapter_id = ? AND work_id = ?"
 
-        guard let statement = Statement(open(), sql) else { return nil }
+        guard let statement = Statement(open(), query) else { return nil }
 
         statement.bind(1, chapterId)
         statement.bind(2, workId)
@@ -226,13 +226,13 @@ actor LocalStore {
         statement.bind(1, workId)
         var result: Set<Int> = []
 
-        while statement.step() { result.insert(statement.int(0)) }
+        while statement.step() { result.insert(statement.integer(0)) }
 
         return result
     }
 
     func store(body: ChapterText, workId: Int) {
-        let sql = """
+        let query = """
             INSERT INTO chapter_body (chapter_id, work_id, title, html, last_modification_time, stored_at)
             VALUES (?, ?, ?, ?, ?, ?)
             ON CONFLICT(chapter_id) DO UPDATE SET
@@ -243,7 +243,7 @@ actor LocalStore {
                 stored_at = excluded.stored_at
             """
 
-        guard let statement = Statement(open(), sql) else { return }
+        guard let statement = Statement(open(), query) else { return }
 
         statement.bind(1, body.id)
         statement.bind(2, workId)
@@ -251,15 +251,15 @@ actor LocalStore {
         statement.bind(4, body.html)
         statement.bind(5, body.lastModificationTime?.timeIntervalSince1970)
         statement.bind(6, Date.now.timeIntervalSince1970)
-        statement.run()
+        statement.execute()
     }
 
     // MARK: - Reading positions
 
     func position(workId: Int) -> ReadingPosition? {
-        let sql = "SELECT chapter_id, character_offset, updated_at FROM reading_position WHERE work_id = ?"
+        let query = "SELECT chapter_id, character_offset, updated_at FROM reading_position WHERE work_id = ?"
 
-        guard let statement = Statement(open(), sql) else { return nil }
+        guard let statement = Statement(open(), query) else { return nil }
 
         statement.bind(1, workId)
 
@@ -267,14 +267,14 @@ actor LocalStore {
 
         return ReadingPosition(
             workId: workId,
-            chapterId: statement.int(0),
-            characterOffset: statement.int(1),
+            chapterId: statement.integer(0),
+            characterOffset: statement.integer(1),
             updatedAt: statement.date(2) ?? .now
         )
     }
 
     func store(position: ReadingPosition) {
-        let sql = """
+        let query = """
             INSERT INTO reading_position (work_id, chapter_id, character_offset, updated_at)
             VALUES (?, ?, ?, ?)
             ON CONFLICT(work_id) DO UPDATE SET
@@ -283,13 +283,13 @@ actor LocalStore {
                 updated_at = excluded.updated_at
             """
 
-        guard let statement = Statement(open(), sql) else { return }
+        guard let statement = Statement(open(), query) else { return }
 
         statement.bind(1, position.workId)
         statement.bind(2, position.chapterId)
         statement.bind(3, position.characterOffset)
         statement.bind(4, position.updatedAt.timeIntervalSince1970)
-        statement.run()
+        statement.execute()
     }
 
     // MARK: - Housekeeping
@@ -305,7 +305,7 @@ actor LocalStore {
         guard let statement = Statement(open(), "SELECT SUM(LENGTH(html)) FROM chapter_body") else { return 0 }
         guard statement.step() else { return 0 }
 
-        return Int64(statement.int(0))
+        return Int64(statement.integer(0))
     }
 
     // MARK: - The database itself
@@ -320,7 +320,7 @@ actor LocalStore {
         guard
             sqlite3_open_v2(fileURL.path, &handle, flags, nil) == SQLITE_OK
         else {
-            Self.log.error("could not open \(self.fileURL.lastPathComponent, privacy: .public)")
+            Self.logger.error("could not open \(self.fileURL.lastPathComponent, privacy: .public)")
             return nil
         }
 
@@ -390,17 +390,17 @@ actor LocalStore {
         execute("COMMIT")
     }
 
-    private func execute(_ sql: String) {
+    private func execute(_ query: String) {
         guard let database = open() else { return }
-        guard sqlite3_exec(database, sql, nil, nil, nil) != SQLITE_OK else { return }
+        guard sqlite3_exec(database, query, nil, nil, nil) != SQLITE_OK else { return }
 
-        Self.log.error("\(String(cString: sqlite3_errmsg(database)), privacy: .public)")
+        Self.logger.error("\(String(cString: sqlite3_errmsg(database)), privacy: .public)")
     }
 
     private func encode(_ value: some Encodable) -> String? {
         guard let data = try? encoder.encode(value) else { return nil }
 
-        return String(decoding: data, as: UTF8.self)
+        return String(bytes: data, encoding: .utf8)
     }
 
     private func decode<Value: Decodable>(_ type: Value.Type, _ raw: String?) -> Value? {
@@ -422,12 +422,12 @@ actor LocalStore {
 
         private var handle: OpaquePointer?
 
-        init?(_ database: OpaquePointer?, _ sql: String) {
+        init?(_ database: OpaquePointer?, _ query: String) {
             guard let database else { return nil }
             guard
-                sqlite3_prepare_v2(database, sql, -1, &handle, nil) == SQLITE_OK
+                sqlite3_prepare_v2(database, query, -1, &handle, nil) == SQLITE_OK
             else {
-                LocalStore.log.error("\(String(cString: sqlite3_errmsg(database)), privacy: .public)")
+                LocalStore.logger.error("\(String(cString: sqlite3_errmsg(database)), privacy: .public)")
                 return nil
             }
         }
@@ -460,14 +460,14 @@ actor LocalStore {
         /// True when the step produced a row.
         func step() -> Bool { sqlite3_step(handle) == SQLITE_ROW }
 
-        func run() { _ = sqlite3_step(handle) }
+        func execute() { _ = sqlite3_step(handle) }
 
         func reset() {
             sqlite3_reset(handle)
             sqlite3_clear_bindings(handle)
         }
 
-        func int(_ column: Int32) -> Int { Int(sqlite3_column_int64(handle, column)) }
+        func integer(_ column: Int32) -> Int { Int(sqlite3_column_int64(handle, column)) }
 
         func date(_ column: Int32) -> Date? {
             guard sqlite3_column_type(handle, column) != SQLITE_NULL else { return nil }

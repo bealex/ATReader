@@ -1,6 +1,17 @@
 {
   "sourceLanguage": "en",
   "strings": {
+    "%@ points": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ пт"
+          }
+        }
+      }
+    },
     "%@ read": {
       "extractionState": "manual",
       "localizations": {
@@ -685,6 +696,17 @@
         }
       }
     },
+    "Letter spacing": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Межбуквенный интервал"
+          }
+        }
+      }
+    },
     "Library": {
       "extractionState": "manual",
       "localizations": {
@@ -1258,6 +1280,28 @@
           "stringUnit": {
             "state": "translated",
             "value": "Задаёт шрифт для чтения"
+          }
+        }
+      }
+    },
+    "Setting this chapter": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Вёрстка главы"
+          }
+        }
+      }
+    },
+    "Setting this chapter…": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Верстаем главу…"
           }
         }
       }

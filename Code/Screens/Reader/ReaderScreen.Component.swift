@@ -83,7 +83,13 @@ enum ReaderScreen {
 
             pageArea($model)
                 .overlay {
-                    if model.isLoading && model.layout == nil {
+                    if let progress = model.paginationProgress {
+                        ProgressView(value: progress) { Text("Setting this chapter…") }
+                            .progressViewStyle(.linear)
+                            .padding(.horizontal, 44)
+                            .accessibilityIdentifier("reader.pagination")
+                            .accessibilityLabel("Setting this chapter")
+                    } else if model.isLoading && model.layout == nil {
                         ProgressView("Loading chapter…")
                             .accessibilityLabel("Loading chapter")
                     } else if let message = model.errorMessage, model.layout == nil {
@@ -138,11 +144,17 @@ enum ReaderScreen {
                     )
                     .background(settings.theme.background)
                     .overlay(alignment: .bottom) { runningHead(footer, edge: .bottom, isCaption: isCurrent) }
-                case let .text(layout, page):
-                    ChapterPageView(layout: layout, pageIndex: page)
-                        .background(settings.theme.background)
-                        .overlay(alignment: .top) { runningHead(model.book?.title ?? title, edge: .top) }
-                        .overlay(alignment: .bottom) { runningHead(footer, edge: .bottom, isCaption: isCurrent) }
+                case let .text(pieces):
+                    // Two pieces where a chapter starts on the page the one before it ended on. Each
+                    // draws only its own lines, in its own place on the page.
+                    ZStack {
+                        ForEach(pieces) { piece in
+                            ChapterPageView(layout: piece.layout, pageIndex: piece.page)
+                        }
+                    }
+                    .background(settings.theme.background)
+                    .overlay(alignment: .top) { runningHead(model.book?.title ?? title, edge: .top) }
+                    .overlay(alignment: .bottom) { runningHead(footer, edge: .bottom, isCaption: isCurrent) }
                 case .blank:
                     settings.theme.background
             }
@@ -284,6 +296,15 @@ enum ReaderScreen {
                             .accessibilityIdentifier("reader.lineSpacing")
                             .accessibilityLabel("Line spacing")
                             .accessibilityValue("\(Int(settings.lineSpacing))")
+                    }
+
+                    Section("Letter spacing") {
+                        Slider(value: $settings.letterSpacing, in: ReaderSettings.letterSpacingRange, step: 0.1)
+                            .accessibilityIdentifier("reader.letterSpacing")
+                            .accessibilityLabel("Letter spacing")
+                            .accessibilityValue(
+                                "\(settings.letterSpacing.formatted(.number.precision(.fractionLength(1)))) points"
+                            )
                     }
 
                     Section {

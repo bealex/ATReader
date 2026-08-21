@@ -50,6 +50,8 @@ your own freely.
       hyphenates English and Russian from the system dictionaries and draws the hyphen. What it does
       not offer is the finer typographic rules: no limit on consecutive hyphenated lines, and no way to
       spare the last word of a paragraph or of a page.
+- [ ] The page breaker has no ladder control: nothing stops four hyphenated lines in a row, and a
+      paragraph's last line may still be a single short word.
 - [ ] Dynamic Type does nothing in the reader. That may be right, since it has its own size control,
       but the rest of the app still needs checking.
 - [ ] No brightness control, no haptics on a page turn, and the screen still sleeps while reading.

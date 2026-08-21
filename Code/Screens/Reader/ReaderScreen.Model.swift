@@ -13,15 +13,27 @@ extension ReaderScreen {
         /// Where to land once a chapter is laid out.
         enum PageAnchor: Equatable {
             case first
-            case last
+            /// A page counted from the start of the chapter's own text.
+            case page(Int)
+            /// The last page this chapter has to itself: not the one the next chapter starts on.
+            case lastOfItsOwn
             /// The character the reader stopped on, which survives a change of font.
             case offset(Int)
+        }
+
+        /// One chapter's page, drawn as part of a reader's page. A page carries two of these where a
+        /// chapter runs on from the end of the one before it.
+        struct Piece: Identifiable {
+            let layout: ChapterLayout
+            let page: Int
+
+            var id: String { "\(layout.chapterId).\(page)" }
         }
 
         /// What the reader draws at a given place in the book.
         enum Page {
             case title
-            case text(ChapterLayout, Int)
+            case text([Piece])
             case blank
         }
 
@@ -37,6 +49,10 @@ extension ReaderScreen {
 
         /// True when the last request to the service failed and the reader is running off the device.
         private(set) var isOffline = false
+
+        /// How far a long chapter has got through being laid out, `0…1`. Short chapters never set it:
+        /// they are done before a reader could read a progress bar.
+        private(set) var paginationProgress: Double?
 
         var currentPage = 0 {
             didSet {
@@ -57,14 +73,16 @@ extension ReaderScreen {
         private var context: ChapterLayout.Context?
 
         /// Chapters laid out for the current context: the one on screen and the ones either side of it.
-        @ObservationIgnored
+        ///
+        /// Observed, not ignored: a page shows the chapter that starts on it as well as the one that
+        /// ends there, so a neighbour arriving has to redraw the page the reader is looking at.
         private var layouts: [Int: ChapterLayout] = [:]
 
         @ObservationIgnored
         private var parsed: [Int: ChapterContent] = [:]
 
         @ObservationIgnored
-        private var preparing: [Int: Task<Void, Never>] = [:]
+        private var prefetch: Task<Void, Never>?
 
         @ObservationIgnored
         private var sessionId: String?
@@ -135,29 +153,64 @@ extension ReaderScreen {
 
         private func textIndex(for page: Int) -> Int { page - titlePageCount }
 
+        /// True when this chapter begins part-way down the page the one before it ended on.
+        private var runsOnFromPrevious: Bool { (layout?.startOffset ?? 0) > 0 }
+
+        /// True when the chapter after this one begins on this chapter's last page.
+        private var nextRunsOn: Bool {
+            guard let next = nextChapter else { return false }
+
+            return (layouts[next.id]?.startOffset ?? 0) > 0
+        }
+
         /// What sits at `index`, which runs from `-1` to ``pageCount`` so a turn can show the page in the
         /// neighbouring chapter it is about to land on.
         func page(at index: Int) -> Page {
-            if index < 0 {
-                guard let previous = previousChapter, let neighbour = layouts[previous.id] else { return .blank }
-
-                return .text(neighbour, max(0, neighbour.pageCount - 1))
-            }
+            if index < 0 { return pageBefore() }
 
             if hasTitlePage, index == 0 { return .title }
 
-            if let layout, layout.pageRanges.indices.contains(textIndex(for: index)) {
-                return .text(layout, textIndex(for: index))
+            let page = textIndex(for: index)
+
+            guard let layout, layout.pageRanges.indices.contains(page) else { return pageAfter(at: index) }
+
+            var pieces: [Piece] = []
+
+            if page == 0, runsOnFromPrevious, let previous = previousChapter, let before = layouts[previous.id] {
+                pieces.append(Piece(layout: before, page: before.pageCount - 1))
             }
 
-            guard
-                index >= pageCount,
-                let next = nextChapter,
-                let neighbour = layouts[next.id],
-                neighbour.pageCount > 0
-            else { return .blank }
+            pieces.append(Piece(layout: layout, page: page))
 
-            return .text(neighbour, 0)
+            if page == layout.pageCount - 1, nextRunsOn, let next = nextChapter, let after = layouts[next.id] {
+                pieces.append(Piece(layout: after, page: 0))
+            }
+
+            return .text(pieces)
+        }
+
+        /// The page before this chapter's first: the previous chapter's last, unless this chapter starts
+        /// on that very page, in which case it is the one before that.
+        private func pageBefore() -> Page {
+            guard let previous = previousChapter, let neighbour = layouts[previous.id] else { return .blank }
+
+            let target = neighbour.pageCount - 1 - (runsOnFromPrevious ? 1 : 0)
+
+            guard target >= 0 else { return .blank }
+
+            return .text([ Piece(layout: neighbour, page: target) ])
+        }
+
+        /// The page after this chapter's last: the next chapter's first, unless it already began on the
+        /// page this chapter ended on.
+        private func pageAfter(at index: Int) -> Page {
+            guard index >= pageCount, let next = nextChapter, let after = layouts[next.id] else { return .blank }
+
+            let target = after.startOffset > 0 ? 1 : 0
+
+            guard after.pageRanges.indices.contains(target) else { return .blank }
+
+            return .text([ Piece(layout: after, page: target) ])
         }
 
         /// The footer for one page: where that page sits in its chapter, and the chapter in the book.
@@ -170,13 +223,16 @@ extension ReaderScreen {
                     guard let layout else { return nil }
 
                     return caption(chapterId: layout.chapterId, number: 1, total: layout.pageCount + 1)
-                case let .text(pageLayout, textIndex):
-                    let extra = position(of: pageLayout.chapterId) == 0 ? 1 : 0
+                case let .text(pieces):
+                    // A shared page names the chapter that starts on it: that is the news.
+                    guard let piece = pieces.last else { return nil }
+
+                    let extra = position(of: piece.layout.chapterId) == 0 ? 1 : 0
 
                     return caption(
-                        chapterId: pageLayout.chapterId,
-                        number: textIndex + 1 + extra,
-                        total: pageLayout.pageCount + extra
+                        chapterId: piece.layout.chapterId,
+                        number: piece.page + 1 + extra,
+                        total: piece.layout.pageCount + extra
                     )
                 case .blank:
                     return nil
@@ -212,8 +268,8 @@ extension ReaderScreen {
 
         private func discardPreparedLayouts() {
             layouts.removeAll()
-            preparing.values.forEach { $0.cancel() }
-            preparing.removeAll()
+            prefetch?.cancel()
+            prefetch = nil
         }
 
         // MARK: - Opening the book
@@ -323,13 +379,15 @@ extension ReaderScreen {
         func goToNextChapter() {
             guard let next = nextChapter else { return }
 
-            open(chapterId: next.id, anchor: .first)
+            // Where the next chapter began on this chapter's last page, its first page is the one the
+            // reader is already looking at.
+            open(chapterId: next.id, anchor: nextRunsOn ? .page(1) : .first)
         }
 
         func goToPreviousChapter() {
             guard let previous = previousChapter else { return }
 
-            open(chapterId: previous.id, anchor: .last)
+            open(chapterId: previous.id, anchor: .lastOfItsOwn)
         }
 
         private func load(chapterId: Int, anchor: PageAnchor) async {
@@ -343,7 +401,17 @@ extension ReaderScreen {
                 return
             }
             guard currentChapterId == chapterId, let context else { return }
-            guard let built = await makeLayout(chapterId: chapterId, content: content, context: context) else { return }
+
+            let built = await makeLayout(
+                chapterId: chapterId,
+                content: content,
+                context: context,
+                startOffset: 0,
+                reportsProgress: true
+            )
+            paginationProgress = nil
+
+            guard let built else { return }
 
             install(built, anchor: anchor)
         }
@@ -354,9 +422,14 @@ extension ReaderScreen {
             currentChapterId = built.chapterId
 
             switch anchor {
-                case .first: currentPage = 0
-                case .last: currentPage = max(0, pageCount - 1)
-                case let .offset(offset): currentPage = built.pageIndex(containing: offset) + titlePageCount
+                case .first:
+                    currentPage = 0
+                case let .page(page):
+                    currentPage = min(max(0, page + titlePageCount), max(0, pageCount - 1))
+                case .lastOfItsOwn:
+                    currentPage = max(0, pageCount - 1 - (nextRunsOn ? 1 : 0))
+                case let .offset(offset):
+                    currentPage = built.pageIndex(containing: offset) + titlePageCount
             }
 
             isLoading = false
@@ -370,30 +443,84 @@ extension ReaderScreen {
 
         /// Lays out the chapters either side of this one while the reader is busy with this one, so a
         /// chapter break costs a page turn rather than a round trip.
+        ///
+        /// Forwards, they are laid out in order: where a chapter has room left on its last page, the one
+        /// after it starts there rather than on a page of its own, which means each layout depends on
+        /// the one before it.
         private func prefetchNeighbours() {
-            guard let index = currentIndex else { return }
-
-            let ahead = readableChapters[(index + 1) ..< min(index + 3, readableChapters.count)]
-            let behind = index > 0 ? [ readableChapters[index - 1] ] : []
-
-            for chapter in ahead + behind { prepare(chapterId: chapter.id) }
+            guard let index = currentIndex, let current = layout else { return }
 
             trimCaches(around: index)
+            prefetch?.cancel()
+            prefetch = Task { [weak self] in
+                await self?.prepareAhead(from: index, after: current)
+                await self?.prepareBehind(from: index)
+            }
         }
 
-        private func prepare(chapterId: Int) {
-            guard layouts[chapterId] == nil, preparing[chapterId] == nil, let context else { return }
+        private func prepareAhead(from index: Int, after current: ChapterLayout) async {
+            let chapters = readableChapters
+            var previous = current
 
-            preparing[chapterId] = Task { [weak self] in
-                defer { self?.preparing[chapterId] = nil }
+            for position in (index + 1) ..< min(index + 3, chapters.count) {
+                let id = chapters[position].id
+                let offset = startOffset(after: previous)
 
-                guard let content = await self?.content(for: chapterId) else { return }
-                guard
-                    let built = await self?.makeLayout(chapterId: chapterId, content: content, context: context)
-                else { return }
+                // A chapter opened from the contents was laid out on a page of its own. Reading into it
+                // from the chapter before, it belongs on that chapter's last page instead.
+                if let existing = layouts[id], existing.startOffset == offset {
+                    previous = existing
+                    continue
+                }
 
-                self?.layouts[chapterId] = built
+                guard !Task.isCancelled else { return }
+                guard let built = await prepare(chapterId: id, startOffset: offset) else { return }
+
+                previous = built
             }
+        }
+
+        private func prepareBehind(from index: Int) async {
+            guard index > 0 else { return }
+
+            let id = readableChapters[index - 1].id
+
+            guard layouts[id] == nil, !Task.isCancelled else { return }
+
+            _ = await prepare(chapterId: id, startOffset: 0)
+        }
+
+        @discardableResult
+        private func prepare(chapterId: Int, startOffset: CGFloat) async -> ChapterLayout? {
+            guard let context, let content = await content(for: chapterId) else { return nil }
+            guard
+                let built = await makeLayout(
+                    chapterId: chapterId,
+                    content: content,
+                    context: context,
+                    startOffset: startOffset,
+                    reportsProgress: false
+                )
+            else { return nil }
+
+            layouts[chapterId] = built
+            return built
+        }
+
+        /// Where a chapter starts on the page the one before it ended on, and how far down.
+        ///
+        /// A chapter only runs on when what is left of the page holds a decent piece of it; a heading
+        /// with two lines under it belongs on the next page instead.
+        private func startOffset(after previous: ChapterLayout) -> CGFloat {
+            guard let context, previous.pageCount > 1 else { return 0 }
+
+            let chapterGap = context.style.fontSize * 2.5
+            let lineHeight = context.style.fontSize + context.style.lineSpacing
+            let free = previous.tailFreeSpace - chapterGap
+
+            guard free >= max(lineHeight * 6, context.textSize.height * 0.25) else { return 0 }
+
+            return context.textSize.height - previous.tailFreeSpace + chapterGap
         }
 
         /// Keeps the laid-out chapters to the ones around the reader; a book has too many to hold them all.
@@ -406,15 +533,22 @@ extension ReaderScreen {
         private func makeLayout(
             chapterId: Int,
             content: ChapterContent,
-            context: ChapterLayout.Context
+            context: ChapterLayout.Context,
+            startOffset: CGFloat,
+            reportsProgress: Bool
         ) async -> ChapterLayout? {
             let position = (readableChapters.firstIndex { $0.id == chapterId } ?? 0) + 1
             let title = readableChapters.first { $0.id == chapterId }?.title
+            let report: (@MainActor (Double) -> Void)? = { [weak self] value in
+                self?.paginationProgress = value
+            }
             let built = await ChapterLayout.make(
                 chapterId: chapterId,
                 content: content,
                 heading: ChapterHeading.make(position: position, title: title),
-                context: context
+                context: context,
+                startOffset: startOffset,
+                onProgress: reportsProgress ? report : nil
             )
 
             // The style may have moved on while this was being measured.

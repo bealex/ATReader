@@ -16,12 +16,20 @@ struct ChapterContent: Sendable {
 
     var isEmpty: Bool { paragraphs.isEmpty }
 
-    /// Parses a chapter body and works out its language away from the main actor.
+    /// Parses a chapter body, works out its language and binds the words its typography won't let a
+    /// line break between, all away from the main actor.
     static func prepare(html: String) async -> ChapterContent {
         await Task.detached(priority: .userInitiated) {
             let paragraphs = ChapterHTML.paragraphs(from: html)
             let language = Self.language(of: paragraphs)
-            return ChapterContent(paragraphs: paragraphs, language: language)
+            let bound = paragraphs.map { paragraph in
+                ChapterHTML.Paragraph(
+                    id: paragraph.id,
+                    text: Typography.bound(paragraph.text, language: language),
+                    isCentered: paragraph.isCentered
+                )
+            }
+            return ChapterContent(paragraphs: bound, language: language)
         }.value
     }
 

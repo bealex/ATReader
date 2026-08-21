@@ -73,7 +73,7 @@ enum KeychainStore {
     static func store(value: (some Encodable)?, for key: Secret) {
         guard let value, let data = try? JSONEncoder().encode(value) else { return remove(key) }
 
-        store(String(decoding: data, as: UTF8.self), for: key)
+        store(String(bytes: data, encoding: .utf8), for: key)
     }
 
     static func remove(_ key: Secret) {

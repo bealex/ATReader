@@ -135,6 +135,8 @@ final class ReaderSettings {
 
     static let fontSizeRange: ClosedRange<Double> = 14 ... 30
     static let marginRange: ClosedRange<Double> = 0 ... 100
+    /// Tracking in points. A little either way is all a text face can take before it stops reading well.
+    static let letterSpacingRange: ClosedRange<Double> = -0.5 ... 2
 
     var fontSize: Double {
         didSet { UserDefaults.standard.set(fontSize, forKey: Keys.fontSize) }
@@ -142,6 +144,11 @@ final class ReaderSettings {
 
     var lineSpacing: Double {
         didSet { UserDefaults.standard.set(lineSpacing, forKey: Keys.lineSpacing) }
+    }
+
+    /// Space added between letters, in points.
+    var letterSpacing: Double {
+        didSet { UserDefaults.standard.set(letterSpacing, forKey: Keys.letterSpacing) }
     }
 
     /// Page inset in points, applied on every edge.
@@ -171,6 +178,7 @@ final class ReaderSettings {
         // `double(forKey:)` coerces whatever type the value was stored as, but returns 0 when absent —
         // and 0 is a legitimate margin, so presence has to be checked separately.
         margins = defaults.object(forKey: Keys.margins) == nil ? 24 : defaults.double(forKey: Keys.margins)
+        letterSpacing = defaults.double(forKey: Keys.letterSpacing)
         face = defaults.string(forKey: Keys.face).flatMap(Face.init(rawValue:)) ?? .serif
         alignment = defaults.string(forKey: Keys.alignment).flatMap(Alignment.init(rawValue:)) ?? .justified
         theme = defaults.string(forKey: Keys.theme).flatMap(Theme.init(rawValue:)) ?? .system
@@ -182,6 +190,7 @@ final class ReaderSettings {
             face: face,
             fontSize: fontSize,
             lineSpacing: lineSpacing,
+            letterSpacing: letterSpacing,
             isJustified: alignment == .justified,
             textColor: UIColor(theme.foreground)
         )
@@ -193,6 +202,7 @@ final class ReaderSettings {
     private enum Keys {
         static let fontSize = "reader.fontSize"
         static let lineSpacing = "reader.lineSpacing"
+        static let letterSpacing = "reader.letterSpacing"
         static let margins = "reader.margins"
         static let face = "reader.face"
         static let alignment = "reader.alignment"

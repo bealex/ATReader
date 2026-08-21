@@ -20,7 +20,7 @@ import UIKit
 actor CoverCache {
     static let shared = CoverCache()
 
-    private static let log = Logger(subsystem: "com.lonelybytes.atreader", category: "covers")
+    private static let logger = Logger(subsystem: "com.lonelybytes.atreader", category: "covers")
 
     /// The longest edge kept on disk, in pixels.
     ///
@@ -61,7 +61,7 @@ actor CoverCache {
     }
 
     func image(for url: URL) async -> UIImage? {
-        let key = Self.key(for: url)
+        let key = Self.fileKey(for: url)
 
         if let cached = memory.object(forKey: key as NSString) { return cached }
 
@@ -92,7 +92,7 @@ actor CoverCache {
 
     /// Warms the covers a list is about to show. Failures are silent — this is only ever an optimisation.
     func prefetch(_ urls: [URL]) async {
-        for url in urls where memory.object(forKey: Self.key(for: url) as NSString) == nil {
+        for url in urls where memory.object(forKey: Self.fileKey(for: url) as NSString) == nil {
             _ = await image(for: url)
         }
     }
@@ -109,26 +109,26 @@ actor CoverCache {
             guard
                 let image = downsample(data, maximumPixelSize: maximumPixelSize)
             else {
-                log.error("downsample returned nil")
+                logger.error("downsample returned nil")
                 return nil
             }
             guard
                 let encoded = image.jpegData(compressionQuality: 0.85)
             else {
-                log.error("jpegData returned nil")
+                logger.error("jpegData returned nil")
                 return image
             }
 
             do {
-                let destination = directory.appendingPathComponent("\(key(for: url)).jpg")
+                let destination = directory.appendingPathComponent("\(fileKey(for: url)).jpg")
                 try encoded.write(to: destination, options: .atomic)
             } catch {
-                log.error("write failed: \(error.localizedDescription, privacy: .public)")
+                logger.error("write failed: \(error.localizedDescription, privacy: .public)")
             }
 
             return image.preparingForDisplay() ?? image
         } catch {
-            log.error("download failed: \(error.localizedDescription, privacy: .public)")
+            logger.error("download failed: \(error.localizedDescription, privacy: .public)")
             return nil
         }
     }
@@ -216,7 +216,7 @@ actor CoverCache {
     }
 
     /// A stable, filesystem-safe name for a cover URL.
-    private static func key(for url: URL) -> String {
+    private static func fileKey(for url: URL) -> String {
         SHA256.hash(data: Data(url.absoluteString.utf8))
             .prefix(16)
             .map { String(format: "%02x", $0) }

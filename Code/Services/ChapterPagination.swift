@@ -4,7 +4,6 @@
 //
 
 import AuthorToday
-import CoreText
 import UIKit
 
 /// Everything about the page that changes how text lays out.
@@ -16,6 +15,8 @@ struct ChapterTextStyle: Equatable, Sendable {
     var face: ReaderSettings.Face
     var fontSize: Double
     var lineSpacing: Double
+    /// Tracking, in points, added between every pair of letters. Negative tightens.
+    var letterSpacing: Double
     var isJustified: Bool
     var textColor: UIColor
 
@@ -56,23 +57,31 @@ struct ChapterHeading: Equatable, Sendable {
     }
 }
 
-/// Turns a chapter into fixed-size pages.
+/// Sets a chapter as text: the heading, then the body, styled as the reader asked.
 enum ChapterPagination {
+    /// A chapter set as one attributed string, with the length of its heading, which the page breaker
+    /// needs so a heading is never left at the foot of a page without its text.
+    struct TypesetText {
+        var attributed: NSAttributedString
+        var headingLength: Int
+    }
+
     /// Builds the chapter as one attributed string: the heading, then one paragraph per block.
     ///
     /// Centred blocks (scene breaks, epigraphs) keep their own alignment whatever the reader chose —
     /// justifying a one-line epigraph looks like a bug.
-    static func attributedText(
-        for paragraphs: [ChapterHTML.Paragraph],
+    static func typeset(
+        paragraphs: [ChapterHTML.Paragraph],
         heading: ChapterHeading = ChapterHeading(),
         language: String? = nil,
         style: ChapterTextStyle
-    ) -> NSAttributedString {
+    ) -> TypesetText {
         let result = NSMutableAttributedString()
         let font = style.font
         let bodyAlignment: NSTextAlignment = style.isJustified ? .justified : .natural
 
         append(heading, to: result, style: style)
+        let headingLength = result.length
 
         for (index, paragraph) in paragraphs.enumerated() {
             let isCentered = paragraph.isCentered
@@ -93,10 +102,11 @@ enum ChapterPagination {
                 .paragraphStyle: paragraphStyle,
             ]
             attributes.merge(languageAttributes(language)) { current, _ in current }
+            if style.letterSpacing != 0 { attributes[.kern] = style.letterSpacing }
             result.append(NSAttributedString(string: paragraph.text + suffix, attributes: attributes))
         }
 
-        return result
+        return TypesetText(attributed: result, headingLength: headingLength)
     }
 
     /// Hyphenation needs to know the language. Without it, justified Russian stretches the space between
@@ -155,49 +165,5 @@ enum ChapterPagination {
         guard let descriptor = font.fontDescriptor.withSymbolicTraits(.traitBold) else { return font }
 
         return UIFont(descriptor: descriptor, size: font.pointSize)
-    }
-
-    /// Splits the text into the ranges that fit successive frames of `size`.
-    ///
-    /// `CTFrameGetVisibleStringRange` reports what actually fitted, so this walks the string a page at a
-    /// time rather than guessing from character counts.
-    static func pageRanges(in text: NSAttributedString, size: CGSize) -> [NSRange] {
-        guard text.length > 0, size.width > 1, size.height > 1 else { return [] }
-
-        let framesetter = CTFramesetterCreateWithAttributedString(text)
-        let path = CGPath(rect: CGRect(origin: .zero, size: size), transform: nil)
-        var ranges: [NSRange] = []
-        var location = 0
-
-        while location < text.length {
-            let frame = CTFramesetterCreateFrame(framesetter, CFRange(location: location, length: 0), path, nil)
-            let visible = CTFrameGetVisibleStringRange(frame)
-
-            // A page that fits nothing means the frame is too small for even one line; bail rather
-            // than spin forever.
-            guard visible.length > 0 else { break }
-
-            ranges.append(NSRange(location: location, length: visible.length))
-            location += visible.length
-        }
-
-        return ranges
-    }
-
-    /// Paginates away from the main actor.
-    ///
-    /// Typesetting a long chapter is the one part of opening one that takes long enough to stutter a
-    /// page turn, and none of it touches anything the main actor owns.
-    static func pageRanges(
-        for paragraphs: [ChapterHTML.Paragraph],
-        heading: ChapterHeading,
-        language: String?,
-        style: ChapterTextStyle,
-        size: CGSize
-    ) async -> [NSRange] {
-        await Task.detached(priority: .userInitiated) {
-            let text = attributedText(for: paragraphs, heading: heading, language: language, style: style)
-            return pageRanges(in: text, size: size)
-        }.value
     }
 }
