@@ -5,7 +5,6 @@
 
 import AuthorToday
 import CoreText
-import NaturalLanguage
 import UIKit
 
 /// Everything about the page that changes how text lays out.
@@ -83,8 +82,9 @@ enum ChapterPagination {
             paragraphStyle.paragraphSpacing = style.lineSpacing * 0.8
             paragraphStyle.firstLineHeadIndent = isCentered ? 0 : font.pointSize
             paragraphStyle.lineBreakMode = .byWordWrapping
-            // Justification hyphenates rather than opening rivers of white space in narrow columns.
-            paragraphStyle.hyphenationFactor = style.isJustified ? 1 : 0
+            // Hyphenation, from the system's dictionary for the language the run carries. Without it a
+            // justified narrow column pulls the words apart instead of breaking them.
+            paragraphStyle.usesDefaultHyphenation = true
 
             let suffix = index == paragraphs.count - 1 ? "" : "\n"
             var attributes: [NSAttributedString.Key: Any] = [
@@ -106,17 +106,6 @@ enum ChapterPagination {
 
         // `languageIdentifier` is CoreText's own `kCTLanguageAttributeName` under a Foundation name.
         return [ .languageIdentifier: language ]
-    }
-
-    /// The language the chapter is written in, for hyphenation.
-    static func language(of paragraphs: [ChapterHTML.Paragraph]) -> String? {
-        let sample = paragraphs.prefix(8).map(\.text).joined(separator: " ").prefix(1200)
-
-        guard !sample.isEmpty else { return nil }
-
-        let recognizer = NLLanguageRecognizer()
-        recognizer.processString(String(sample))
-        return recognizer.dominantLanguage?.rawValue
     }
 
     private static func append(_ heading: ChapterHeading, to text: NSMutableAttributedString, style: ChapterTextStyle) {

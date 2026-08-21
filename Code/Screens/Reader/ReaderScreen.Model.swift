@@ -42,7 +42,6 @@ extension ReaderScreen {
             didSet {
                 guard currentPage != oldValue else { return }
 
-                layout?.prepare(around: textIndex(for: currentPage))
                 savePosition()
                 reportProgress()
             }
@@ -62,7 +61,7 @@ extension ReaderScreen {
         private var layouts: [Int: ChapterLayout] = [:]
 
         @ObservationIgnored
-        private var parsed: [Int: [ChapterHTML.Paragraph]] = [:]
+        private var parsed: [Int: ChapterContent] = [:]
 
         @ObservationIgnored
         private var preparing: [Int: Task<Void, Never>] = [:]
@@ -335,7 +334,7 @@ extension ReaderScreen {
 
         private func load(chapterId: Int, anchor: PageAnchor) async {
             guard
-                let paragraphs = await paragraphs(for: chapterId)
+                let content = await content(for: chapterId)
             else {
                 guard currentChapterId == chapterId else { return }
 
@@ -344,9 +343,7 @@ extension ReaderScreen {
                 return
             }
             guard currentChapterId == chapterId, let context else { return }
-            guard
-                let built = await makeLayout(chapterId: chapterId, paragraphs: paragraphs, context: context)
-            else { return }
+            guard let built = await makeLayout(chapterId: chapterId, content: content, context: context) else { return }
 
             install(built, anchor: anchor)
         }
@@ -362,7 +359,6 @@ extension ReaderScreen {
                 case let .offset(offset): currentPage = built.pageIndex(containing: offset) + titlePageCount
             }
 
-            built.prepare(around: textIndex(for: currentPage))
             isLoading = false
             errorMessage = nil
             savePosition()
@@ -391,9 +387,9 @@ extension ReaderScreen {
             preparing[chapterId] = Task { [weak self] in
                 defer { self?.preparing[chapterId] = nil }
 
-                guard let paragraphs = await self?.paragraphs(for: chapterId) else { return }
+                guard let content = await self?.content(for: chapterId) else { return }
                 guard
-                    let built = await self?.makeLayout(chapterId: chapterId, paragraphs: paragraphs, context: context)
+                    let built = await self?.makeLayout(chapterId: chapterId, content: content, context: context)
                 else { return }
 
                 self?.layouts[chapterId] = built
@@ -409,14 +405,14 @@ extension ReaderScreen {
 
         private func makeLayout(
             chapterId: Int,
-            paragraphs: [ChapterHTML.Paragraph],
+            content: ChapterContent,
             context: ChapterLayout.Context
         ) async -> ChapterLayout? {
             let position = (readableChapters.firstIndex { $0.id == chapterId } ?? 0) + 1
             let title = readableChapters.first { $0.id == chapterId }?.title
             let built = await ChapterLayout.make(
                 chapterId: chapterId,
-                paragraphs: paragraphs,
+                content: content,
                 heading: ChapterHeading.make(position: position, title: title),
                 context: context
             )
@@ -427,31 +423,27 @@ extension ReaderScreen {
             return built
         }
 
-        /// The chapter's text: parsed already, else stored on the device, else from the service.
-        private func paragraphs(for chapterId: Int) async -> [ChapterHTML.Paragraph]? {
+        /// The chapter's text: prepared already, else stored on the device, else from the service.
+        private func content(for chapterId: Int) async -> ChapterContent? {
             if let cached = parsed[chapterId] { return cached }
 
             if let stored = await store.body(workId: workId, chapterId: chapterId) {
-                let blocks = await Self.parse(stored.html)
-                parsed[chapterId] = blocks
-                return blocks
+                let prepared = await ChapterContent.prepare(html: stored.html)
+                parsed[chapterId] = prepared
+                return prepared
             }
 
             do {
                 let chapter = try await session.client.chapterText(workId: workId, chapterId: chapterId)
                 await store.store(body: chapter, workId: workId)
-                let blocks = await Self.parse(chapter.html)
-                parsed[chapterId] = blocks
+                let prepared = await ChapterContent.prepare(html: chapter.html)
+                parsed[chapterId] = prepared
                 isOffline = false
-                return blocks
+                return prepared
             } catch {
                 isOffline = true
                 return nil
             }
-        }
-
-        private static func parse(_ html: String) async -> [ChapterHTML.Paragraph] {
-            await Task.detached(priority: .userInitiated) { ChapterHTML.paragraphs(from: html) }.value
         }
 
         // MARK: - Progress

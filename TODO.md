@@ -46,9 +46,10 @@ your own freely.
 
 - [ ] **VoiceOver gets a whole page as one label.** `ChapterPageView` publishes the page text as a
       single accessibility element, so there's no paragraph navigation and no rotor support.
-- [ ] **Justification still opens rivers in a narrow column.** The text now carries the language it is
-      written in, which is what `hyphenationFactor` needs, and the worst of the letter-stretching is
-      gone. Whether CoreText actually hyphenates Russian here has not been proven.
+- [x] **Justification opens rivers in a narrow column.** The reader lays out with TextKit now, which
+      hyphenates English and Russian from the system dictionaries and draws the hyphen. What it does
+      not offer is the finer typographic rules: no limit on consecutive hyphenated lines, and no way to
+      spare the last word of a paragraph or of a page.
 - [ ] Dynamic Type does nothing in the reader. That may be right, since it has its own size control,
       but the rest of the app still needs checking.
 - [ ] No brightness control, no haptics on a page turn, and the screen still sleeps while reading.

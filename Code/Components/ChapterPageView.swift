@@ -3,15 +3,13 @@
 //  Licensed under the MIT License. See LICENSE in the repository root.
 //
 
-import CoreText
 import SwiftUI
 import UIKit
 
 /// Draws one page of a chapter.
 ///
-/// This is CoreText rather than `Text` for two reasons: SwiftUI has no justified alignment, and drawing
-/// through the same framesetter that produced the page breaks guarantees the page shows exactly what
-/// pagination measured.
+/// The page holds a laid-out chapter rather than raw text, so a turn draws a page TextKit has already
+/// measured, and a page can never show something pagination didn't.
 struct ChapterPageView: UIViewRepresentable {
     let layout: ChapterLayout
     let pageIndex: Int
@@ -27,8 +25,6 @@ struct ChapterPageView: UIViewRepresentable {
         view.apply(layout: layout, pageIndex: pageIndex)
     }
 
-    /// The drawing surface. It holds a laid-out chapter rather than raw text, so a page turn draws an
-    /// already typeset frame instead of building one.
     final class PageView: UIView {
         private var layout: ChapterLayout?
         private var pageIndex = -1
@@ -51,18 +47,7 @@ struct ChapterPageView: UIViewRepresentable {
         }
 
         override func draw(_ rect: CGRect) {
-            guard
-                let context = UIGraphicsGetCurrentContext(),
-                let frame = layout?.frame(forPage: pageIndex)
-            else {
-                return
-            }
-
-            // CoreText draws bottom-up; flip into UIKit's coordinate space.
-            context.textMatrix = .identity
-            context.translateBy(x: 0, y: bounds.height)
-            context.scaleBy(x: 1, y: -1)
-            CTFrameDraw(frame, context)
+            layout?.draw(page: pageIndex)
         }
     }
 }

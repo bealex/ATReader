@@ -4,15 +4,15 @@
 //
 
 import AuthorToday
-import CoreText
 import SwiftUI
 import UIKit
 
 /// One chapter, laid out for one style and one page size.
 ///
-/// The layout owns the typesetter as well as the page breaks, so every page of a chapter is drawn from
-/// the same `CTFramesetter` that measured it. Frames are built once and kept, which is what lets a
-/// reader tap through pages faster than they can be typeset.
+/// TextKit rather than CoreText, because CoreText does not hyphenate: it treats a soft hyphen as a
+/// place it may break a word and then draws no hyphen there, which is worse than not breaking at all.
+/// `NSLayoutManager` hyphenates from the system's own dictionaries, justifies, and pages the chapter by
+/// flowing it through one text container per page.
 @MainActor
 final class ChapterLayout {
     /// How the pages of a chapter are laid out, before any text is fetched.
@@ -45,54 +45,67 @@ final class ChapterLayout {
 
     let chapterId: Int
     let context: Context
-    let text: NSAttributedString
-    let pageRanges: [NSRange]
 
-    private let framesetter: CTFramesetter
-    private var frames: [Int: CTFrame] = [:]
+    /// The character range each page covers, so a reading position survives a change of font.
+    private(set) var pageRanges: [NSRange] = []
 
-    /// Where CoreText lays the page out. Its own coordinates run bottom-up, so this is the drawing
-    /// rectangle flipped.
-    private let pathRect: CGRect
+    private let storage: NSTextStorage
+    private let manager = NSLayoutManager()
+    private var pages: [NSTextContainer] = []
 
-    init(chapterId: Int, text: NSAttributedString, pageRanges: [NSRange], context: Context) {
+    init(chapterId: Int, text: NSAttributedString, context: Context) {
         self.chapterId = chapterId
-        self.text = text
-        self.pageRanges = pageRanges
         self.context = context
-        self.framesetter = CTFramesetterCreateWithAttributedString(text)
-
-        let rect = context.textRect
-        self.pathRect = CGRect(
-            x: rect.minX,
-            y: context.pageSize.height - rect.maxY,
-            width: rect.width,
-            height: rect.height
-        )
+        self.storage = NSTextStorage(attributedString: text)
+        storage.addLayoutManager(manager)
     }
 
-    /// Lays a chapter out, keeping the typesetting off the main actor.
+    /// Lays a chapter out, a page at a time, yielding between pages so a long chapter never blocks a
+    /// page turn. TextKit is not thread-safe, so this stays where the drawing is.
     static func make(
         chapterId: Int,
-        paragraphs: [ChapterHTML.Paragraph],
+        content: ChapterContent,
         heading: ChapterHeading,
         context: Context
     ) async -> ChapterLayout {
-        let language = ChapterPagination.language(of: paragraphs)
-        let ranges = await ChapterPagination.pageRanges(
-            for: paragraphs,
-            heading: heading,
-            language: language,
-            style: context.style,
-            size: context.textSize
-        )
         let text = ChapterPagination.attributedText(
-            for: paragraphs,
+            for: content.paragraphs,
             heading: heading,
-            language: language,
+            language: content.language,
             style: context.style
         )
-        return ChapterLayout(chapterId: chapterId, text: text, pageRanges: ranges, context: context)
+        let layout = ChapterLayout(chapterId: chapterId, text: text, context: context)
+        await layout.paginate()
+        return layout
+    }
+
+    private func paginate() async {
+        guard context.isUsable, storage.length > 0 else { return }
+
+        while pageRanges.isEmpty || laidOutGlyphs < manager.numberOfGlyphs {
+            guard appendPage() else { return }
+
+            await Task.yield()
+        }
+    }
+
+    private var laidOutGlyphs = 0
+
+    /// Adds one page and flows as much of what's left into it. False when nothing more fits.
+    private func appendPage() -> Bool {
+        let container = NSTextContainer(size: context.textSize)
+        container.lineFragmentPadding = 0
+        manager.addTextContainer(container)
+        manager.ensureLayout(for: container)
+
+        let glyphs = manager.glyphRange(for: container)
+
+        guard glyphs.length > 0 else { return false }
+
+        pages.append(container)
+        pageRanges.append(manager.characterRange(forGlyphRange: glyphs, actualGlyphRange: nil))
+        laidOutGlyphs = glyphs.location + glyphs.length
+        return true
     }
 
     var pageCount: Int { pageRanges.count }
@@ -108,37 +121,19 @@ final class ChapterLayout {
         pageRanges.indices.contains(index) ? pageRanges[index].location : 0
     }
 
-    /// The typeset page, built on first use and kept for the pages around wherever the reader is.
-    func frame(forPage index: Int) -> CTFrame? {
-        guard pageRanges.indices.contains(index) else { return nil }
+    /// Draws a page where the reader's margins put it.
+    func draw(page index: Int) {
+        guard pages.indices.contains(index) else { return }
 
-        if let existing = frames[index] { return existing }
-        guard pathRect.width > 1, pathRect.height > 1 else { return nil }
-
-        let range = pageRanges[index]
-        let path = CGPath(rect: pathRect, transform: nil)
-        let frame = CTFramesetterCreateFrame(
-            framesetter,
-            CFRange(location: range.location, length: range.length),
-            path,
-            nil
-        )
-        frames[index] = frame
-        return frame
-    }
-
-    /// Typesets the pages around `index` ahead of the reader reaching them, and drops the ones left behind.
-    func prepare(around index: Int, radius: Int = 2) {
-        let window = (index - radius) ... (index + radius)
-        frames = frames.filter { window.contains($0.key) }
-
-        for page in window { _ = frame(forPage: page) }
+        let glyphs = manager.glyphRange(for: pages[index])
+        manager.drawBackground(forGlyphRange: glyphs, at: context.textRect.origin)
+        manager.drawGlyphs(forGlyphRange: glyphs, at: context.textRect.origin)
     }
 
     /// The page's text, for VoiceOver and for the reader's own accessibility label.
     func pageText(_ index: Int) -> String {
         guard pageRanges.indices.contains(index) else { return "" }
 
-        return (text.string as NSString).substring(with: pageRanges[index])
+        return (storage.string as NSString).substring(with: pageRanges[index])
     }
 }

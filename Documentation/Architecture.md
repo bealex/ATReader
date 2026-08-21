@@ -81,30 +81,33 @@ content.
 
 ## The reader
 
-Chapters are paginated rather than scrolled, and the whole thing is built on CoreText rather than
-SwiftUI `Text`. Two reasons forced that: SwiftUI has no justified alignment, and pagination has to
-agree exactly with drawing.
+Chapters are paginated rather than scrolled, and the text is laid out by TextKit rather than by SwiftUI
+`Text`, which has no justified alignment.
+
+CoreText was the first choice and had to be abandoned: it does not hyphenate. `hyphenationFactor` and
+`usesDefaultHyphenation` are TextKit settings and do nothing to a `CTFramesetter`, and although CoreText
+will break a line at a soft hyphen, it draws no hyphen when it does, which leaves a word split with
+nothing to show for it. Without hyphenation a justified narrow column pulls the letters of a Russian
+word apart to fill the line. `NSLayoutManager` hyphenates from the system's own dictionaries, in
+whichever language the run carries.
 
 `ChapterPagination` builds the chapter as one `NSAttributedString` from a `ChapterTextStyle` (face,
-size, line spacing, justification, colour) and then walks it a page at a time, asking
-`CTFrameGetVisibleStringRange` what actually fitted in each frame. Margins are deliberately not part of
-the style: they shrink the frame, not the text. The text carries a `languageIdentifier`, detected from
-the chapter itself, because justification without one stretches the gaps between letters instead of
-hyphenating.
+size, line spacing, justification, colour). Margins are deliberately not part of the style: they shrink
+the frame, not the text. `ChapterContent` parses the HTML and works out the language away from the main
+actor, and that language goes onto the text as `languageIdentifier`, which is what picks the
+hyphenation dictionary.
 
-`ChapterLayout` is the result: one chapter, laid out for one style and one page size, holding the text,
-the page ranges and the framesetter that measured them. It builds `CTFrame`s on first use and keeps the
-ones around the reader, so a page turn draws an already typeset frame. `ChapterPageView` takes a layout
-and a page index and does nothing but draw, which means a page can never show something pagination
-didn't measure.
+`ChapterLayout` is the result: one chapter laid out for one style and one page size, flowing through one
+`NSTextContainer` per page. A page is added at a time with a yield in between, so a chapter of fifty
+pages never blocks a turn even though TextKit has to stay on the main actor. `ChapterPageView` takes a
+layout and a page index and does nothing but draw, which means a page can never show something
+pagination didn't measure.
 
 Nothing in a turn waits for work that could have been done earlier:
 
-- Pagination runs in a detached task. Typesetting a long chapter is the only part of opening one slow
-  enough to stutter a turn, and none of it touches the main actor.
+- Parsing and language detection run in a detached task.
 - The model lays out the chapters either side of the current one while the reader is busy with it, so
   crossing a chapter break costs a page turn rather than a round trip.
-- `ChapterLayout.prepare(around:)` typesets the pages ahead of the reader and drops the ones behind.
 
 The view triggers re-pagination whenever the page size or the style changes, and the old layout stays
 on screen until the new one is ready. The reader's position survives it because the model remembers a
