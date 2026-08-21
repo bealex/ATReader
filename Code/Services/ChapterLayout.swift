@@ -5,6 +5,7 @@
 
 import AuthorToday
 import CoreText
+import SwiftUI
 import UIKit
 
 /// One chapter, laid out for one style and one page size.
@@ -15,14 +16,31 @@ import UIKit
 @MainActor
 final class ChapterLayout {
     /// How the pages of a chapter are laid out, before any text is fetched.
+    ///
+    /// A page fills the screen, so the text has to keep clear of the notch and the home indicator as
+    /// well as of the reader's own margins.
     struct Context: Equatable {
         var style: ChapterTextStyle
         var margins: Double
         var pageSize: CGSize
+        var safeArea: EdgeInsets
 
-        var textSize: CGSize { ChapterPagination.textSize(in: pageSize, margins: margins) }
+        /// The band kept at the top and bottom of every page for the book title and the page number.
+        static let runningHeadHeight: CGFloat = 22
 
-        var isUsable: Bool { pageSize.width > 1 && pageSize.height > 1 }
+        /// Where the body text is laid out and drawn, in the page's own coordinates.
+        var textRect: CGRect {
+            CGRect(origin: .zero, size: pageSize).inset(by: UIEdgeInsets(
+                top: safeArea.top + margins + Self.runningHeadHeight,
+                left: safeArea.leading + margins,
+                bottom: safeArea.bottom + margins + Self.runningHeadHeight,
+                right: safeArea.trailing + margins
+            ))
+        }
+
+        var textSize: CGSize { textRect.size }
+
+        var isUsable: Bool { textRect.width > 1 && textRect.height > 1 }
     }
 
     let chapterId: Int
@@ -33,8 +51,9 @@ final class ChapterLayout {
     private let framesetter: CTFramesetter
     private var frames: [Int: CTFrame] = [:]
 
-    /// The rectangle text is drawn into, in the page view's own coordinates.
-    let textRect: CGRect
+    /// Where CoreText lays the page out. Its own coordinates run bottom-up, so this is the drawing
+    /// rectangle flipped.
+    private let pathRect: CGRect
 
     init(chapterId: Int, text: NSAttributedString, pageRanges: [NSRange], context: Context) {
         self.chapterId = chapterId
@@ -42,8 +61,14 @@ final class ChapterLayout {
         self.pageRanges = pageRanges
         self.context = context
         self.framesetter = CTFramesetterCreateWithAttributedString(text)
-        self.textRect = CGRect(origin: .zero, size: context.pageSize)
-            .insetBy(dx: context.margins, dy: context.margins)
+
+        let rect = context.textRect
+        self.pathRect = CGRect(
+            x: rect.minX,
+            y: context.pageSize.height - rect.maxY,
+            width: rect.width,
+            height: rect.height
+        )
     }
 
     /// Lays a chapter out, keeping the typesetting off the main actor.
@@ -88,10 +113,10 @@ final class ChapterLayout {
         guard pageRanges.indices.contains(index) else { return nil }
 
         if let existing = frames[index] { return existing }
-        guard textRect.width > 1, textRect.height > 1 else { return nil }
+        guard pathRect.width > 1, pathRect.height > 1 else { return nil }
 
         let range = pageRanges[index]
-        let path = CGPath(rect: textRect, transform: nil)
+        let path = CGPath(rect: pathRect, transform: nil)
         let frame = CTFramesetterCreateFrame(
             framesetter,
             CFRange(location: range.location, length: range.length),

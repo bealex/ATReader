@@ -211,9 +211,4 @@ enum ChapterPagination {
             return pageRanges(in: text, size: size)
         }.value
     }
-
-    /// The area text is laid into, once the margins are taken out.
-    static func textSize(in bounds: CGSize, margins: Double) -> CGSize {
-        CGSize(width: max(1, bounds.width - margins * 2), height: max(1, bounds.height - margins * 2))
-    }
 }

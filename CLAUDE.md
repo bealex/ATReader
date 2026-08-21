@@ -106,6 +106,9 @@ licensing rather than secrecy. An unconfigured build must keep working for every
 - **`LocalStore` is one SQLite file and the app's first source for everything.** Books, contents,
   chapter bodies and reading positions live there, and screens draw from it before the service answers.
   A change that only writes to the service leaves the app wrong offline.
+- **The reader's page ignores the safe area, so the layout can't tell it how big it is.** Its size and
+  the device insets come from the window; measuring the layout gives the size before the page was let
+  out to the screen edges, and moves the text every time a toolbar appears.
 - **The reader's position is a character offset, not a page number.** Changing the font re-paginates,
   and a page index means nothing across a restyle.
 - **UI-test environment variables need a `TEST_RUNNER_` prefix** to reach the test process;

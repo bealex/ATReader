@@ -30,6 +30,15 @@ enum ReaderScreen {
         @State
         private var pageSize: CGSize = .zero
 
+        /// The notch and home-indicator bands, taken from the window rather than the layout: a toolbar
+        /// coming and going would otherwise re-paginate the chapter.
+        @State
+        private var safeArea = EdgeInsets()
+
+        /// A page fills the screen, and the controls are a tap in the middle away.
+        @State
+        private var isChromeHidden = true
+
         var body: some View {
             Group {
                 if let model {
@@ -42,9 +51,14 @@ enum ReaderScreen {
             .navigationTitle(model?.chapterTitle ?? title)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar(.hidden, for: .tabBar)
+            .toolbar(isChromeHidden ? .hidden : .visible, for: .navigationBar)
             .backSwipeDisabled()
+            .statusBarHidden(isChromeHidden)
             .toolbar { toolbar }
             .toolbarBackground(settings.theme.background, for: .navigationBar)
+            // The page runs under the bar, so the bar needs a background of its own or the book's
+            // title shows through the chapter's.
+            .toolbarBackground(.visible, for: .navigationBar)
             .preferredColorScheme(settings.theme.colorScheme)
             .sheet(isPresented: $isShowingSettings) { SettingsSheet() }
             .sheet(isPresented: $isShowingContents) {
@@ -69,26 +83,15 @@ enum ReaderScreen {
         private func page(_ model: Model) -> some View {
             @Bindable var model = model
 
-            VStack(spacing: 0) {
-                pageArea($model)
-
-                if let caption = model.pageCaption {
-                    Text(caption)
-                        .font(.caption2)
-                        .foregroundStyle(settings.theme.foreground.opacity(0.45))
-                        .padding(.bottom, 6)
-                        .accessibilityIdentifier("reader.caption")
-                        .accessibilityLabel(caption)
+            pageArea($model)
+                .overlay {
+                    if model.isLoading && model.layout == nil {
+                        ProgressView("Loading chapter…")
+                            .accessibilityLabel("Loading chapter")
+                    } else if let message = model.errorMessage, model.layout == nil {
+                        ContentUnavailableView("Couldn’t open", systemImage: "book.closed", description: Text(message))
+                    }
                 }
-            }
-            .overlay {
-                if model.isLoading && model.layout == nil {
-                    ProgressView("Loading chapter…")
-                        .accessibilityLabel("Loading chapter")
-                } else if let message = model.errorMessage, model.layout == nil {
-                    ContentUnavailableView("Couldn’t open", systemImage: "book.closed", description: Text(message))
-                }
-            }
         }
 
         @ViewBuilder
@@ -102,15 +105,24 @@ enum ReaderScreen {
                 hasPageAfter: value.hasPageAfter,
                 onPastEnd: value.goToNextChapter,
                 onPastStart: value.goToPreviousChapter,
+                onMiddleTap: toggleChrome,
                 page: { index in pageContent(value, at: index) }
             )
             .accessibilityIdentifier("reader.page")
-            .onGeometryChange(for: CGSize.self, of: { $0.size }, action: { pageSize = $0 })
+            .ignoresSafeArea()
+            // The window, not the layout: a page ignores the safe area, so the size its parent hands
+            // it is not the size it draws at, and a toolbar coming and going would move it besides.
+            .onGeometryChange(for: CGSize.self, of: { $0.size }, action: { _ in applyWindowMetrics() })
             .onChange(of: layoutContext, initial: true) { value.apply(context: layoutContext) }
         }
 
+        /// One page, drawn edge to edge: the text, the book's title above it and the page number below.
+        /// Both run with the page rather than sitting in chrome around it, so a turn moves everything.
         @ViewBuilder
         private func pageContent(_ model: Model, at index: Int) -> some View {
+            let footer = model.caption(at: index)
+            let isCurrent = index == model.currentPage
+
             switch model.page(at: index) {
                 case .title:
                     BookTitlePageView(
@@ -119,42 +131,97 @@ enum ReaderScreen {
                         seriesTitle: model.book?.seriesTitle,
                         coverURL: model.book?.coverURL,
                         style: settings.textStyle,
-                        margins: settings.margins
+                        margins: settings.margins,
+                        safeArea: safeArea
                     )
                     .background(settings.theme.background)
+                    .overlay(alignment: .bottom) { runningHead(footer, edge: .bottom, isCaption: isCurrent) }
                 case let .text(layout, page):
                     ChapterPageView(layout: layout, pageIndex: page)
                         .background(settings.theme.background)
+                        .overlay(alignment: .top) { runningHead(model.book?.title ?? title, edge: .top) }
+                        .overlay(alignment: .bottom) { runningHead(footer, edge: .bottom, isCaption: isCurrent) }
                 case .blank:
                     settings.theme.background
             }
         }
 
+        /// The book title above the text, or the page number below it.
+        @ViewBuilder
+        private func runningHead(_ text: String?, edge: VerticalEdge, isCaption: Bool = false) -> some View {
+            if let text, !text.isEmpty {
+                Text(text)
+                    .font(.caption2)
+                    .lineLimit(1)
+                    .foregroundStyle(settings.theme.foreground.opacity(0.4))
+                    .padding(.horizontal, settings.margins)
+                    .padding(.top, edge == .top ? safeArea.top + 4 : 0)
+                    .padding(.bottom, edge == .bottom ? safeArea.bottom + 4 : 0)
+                    .frame(maxWidth: .infinity)
+                    // Only the page the reader is on names itself, so a turn never puts two of these
+                    // on screen under the same identifier.
+                    .accessibilityIdentifier(isCaption ? "reader.caption" : "")
+                    .accessibilityHidden(!isCaption)
+            }
+        }
+
+        private func toggleChrome() {
+            withAnimation(.easeInOut(duration: 0.2)) { isChromeHidden.toggle() }
+        }
+
         /// Everything pagination depends on. A change to any of it re-lays the chapter.
         private var layoutContext: ChapterLayout.Context {
-            ChapterLayout.Context(style: settings.textStyle, margins: settings.margins, pageSize: pageSize)
+            ChapterLayout.Context(
+                style: settings.textStyle,
+                margins: settings.margins,
+                pageSize: pageSize,
+                safeArea: safeArea
+            )
+        }
+
+        /// Takes the page's size and the device's own insets from the window, which keeps both whatever
+        /// chrome is on screen.
+        private func applyWindowMetrics() {
+            let scene = UIApplication.shared.connectedScenes.first { $0 is UIWindowScene } as? UIWindowScene
+
+            guard let window = scene?.keyWindow else { return }
+
+            let insets = window.safeAreaInsets
+            safeArea = EdgeInsets(top: insets.top, leading: insets.left, bottom: insets.bottom, trailing: insets.right)
+            pageSize = window.bounds.size
         }
 
         @ToolbarContentBuilder
         private var toolbar: some ToolbarContent {
-            if model?.isOffline == true {
-                ToolbarItem(placement: .topBarLeading) {
-                    Image(systemName: "wifi.slash")
-                        .foregroundStyle(.secondary)
-                        .accessibilityLabel("Reading from this device")
+            // The title stays while the controls are away, greyed back so it reads as a marker rather
+            // than a heading.
+            ToolbarItem(placement: .principal) {
+                Text(model?.chapterTitle ?? title)
+                    .font(.headline)
+                    .lineLimit(1)
+                    .foregroundStyle(settings.theme.foreground.opacity(isChromeHidden ? 0.35 : 1))
+            }
+
+            if !isChromeHidden {
+                if model?.isOffline == true {
+                    ToolbarItem(placement: .topBarLeading) {
+                        Image(systemName: "wifi.slash")
+                            .foregroundStyle(.secondary)
+                            .accessibilityLabel("Reading from this device")
+                    }
                 }
-            }
 
-            ToolbarItem(placement: .topBarTrailing) {
-                Button("Contents", systemImage: "list.bullet") { isShowingContents = true }
-                    .labelStyle(.iconOnly)
-                    .accessibilityHint("Shows the chapter list")
-            }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Contents", systemImage: "list.bullet") { isShowingContents = true }
+                        .labelStyle(.iconOnly)
+                        .accessibilityHint("Shows the chapter list")
+                }
 
-            ToolbarItem(placement: .topBarTrailing) {
-                Button("Appearance", systemImage: "textformat.size") { isShowingSettings = true }
-                    .labelStyle(.iconOnly)
-                    .accessibilityHint("Font, margins and page settings")
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Appearance", systemImage: "textformat.size") { isShowingSettings = true }
+                        .labelStyle(.iconOnly)
+                        .accessibilityHint("Font, margins and page settings")
+                }
             }
         }
     }

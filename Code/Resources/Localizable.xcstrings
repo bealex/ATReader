@@ -1262,6 +1262,17 @@
         }
       }
     },
+    "Show or hide the reader controls": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Показать или скрыть элементы управления"
+          }
+        }
+      }
+    },
     "Shows the chapter list": {
       "extractionState": "manual",
       "localizations": {

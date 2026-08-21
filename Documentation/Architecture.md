@@ -116,6 +116,15 @@ preceded by a title page carrying the cover, title, author and series. `ChapterH
 number out when the chapter's own title already carries one, since "Chapter 4" above "Chapter 4. The
 Road" reads like a bug.
 
+A page fills the screen. There is no navigation bar and no strip below the text: the book's title and
+the page number are drawn on the page itself, so a turn carries them along with the text. Because the
+page ignores the safe area, its size and the notch and home-indicator insets come from the window
+rather than from the layout, which also keeps a toolbar appearing from re-paginating the chapter.
+
+A tap in the middle third brings back the status bar and the controls, and a second tap sends them
+away again. The bar draws over the page rather than moving it, and carries its own background so the
+running head doesn't show through.
+
 `PageTurnView` handles the turn. The entire effect comes from one rule, that page `n + 1` always sits
 above page `n`, so a single offset drives both directions: turning forward slides page `n + 1` in from
 the right, turning back slides that same page off to the right and uncovers page `n`. A half-finished
@@ -123,8 +132,18 @@ turn can therefore be reversed with no special handling. Progress runs `0…1`, 
 state and `1` is committed, and the gesture measures against the turn's own direction so a reversed
 finger unwinds it.
 
-The right third turns forward, the left third goes back, and the middle third is a dead zone a thumb
-can rest in. Turning past the end of a chapter hands over to the next one, and past the start goes back
+Dragging forward, the incoming page leaves the right edge, closes the gap to the finger over about
+80pt of travel and from there keeps its edge under it. Sliding it in by the finger's travel alone would
+leave the page's edge wherever the drag happened to start, which reads as pushing the page rather than
+pulling it. What lands the turn is the finger's own travel, not how far the page has come, and a flick
+back cancels it however far it had got.
+
+The page behind draws back by 5% and darkens as the page in front covers it, and the page in front
+carries a shadow along its edge, so the two read as one in front of the other whichever way the turn is
+going.
+
+Taps on either outer third turn forward and swiping right is the way back. Turning past the end of a
+chapter hands over to the next one, and past the start goes back
 to the previous chapter's last page. The page the turn animates onto is the neighbouring chapter's own
 page, so the chapter swaps under the animation and the reader sees one continuous turn.
 

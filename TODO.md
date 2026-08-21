@@ -21,8 +21,8 @@ your own freely.
 
 ## Decisions for you
 
-- [x] **Tap zones.** The left third now goes back and the right third forward, which is the convention
-      everywhere else. Say so if you want both thirds forward again.
+- [x] **Tap zones.** Settled: both outer thirds turn forward, as originally specified. Swiping right
+      is the way back.
 - [ ] **Catalogue behind sign-in.** The API serves search and the charts to guests, and the UI tests
       depend on that, but the app still gates them.
 - [ ] **Icon source art.** `Resources/*.png` is about 5 MB the app never bundles; only `app-icon.icon`
@@ -52,6 +52,8 @@ your own freely.
 - [ ] Dynamic Type does nothing in the reader. That may be right, since it has its own size control,
       but the rest of the app still needs checking.
 - [ ] No brightness control, no haptics on a page turn, and the screen still sleeps while reading.
+- [ ] The running head is the book's title on every page. A chapter title on the verso, the way a
+      printed book does it, would be more use.
 - [ ] Chapter downloads are budgeted per sweep (60 in the foreground, 15 in the background) and
       backfill what is missing, so a long absence fills in over several sweeps rather than at once.
 

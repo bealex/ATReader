@@ -161,18 +161,37 @@ extension ReaderScreen {
             return .text(neighbour, 0)
         }
 
-        /// The footer caption: where the reader is in the chapter, and the chapter in the book.
-        var pageCaption: String? {
-            guard pageCount > 0 else { return nil }
-            guard
-                let index = currentIndex
-            else {
-                return String(localized: "Page \(currentPage + 1) of \(pageCount)")
-            }
+        /// The footer for one page: where that page sits in its chapter, and the chapter in the book.
+        ///
+        /// Every page names itself rather than the reader's position, because the pages either side of
+        /// this one are on screen during a turn and belong to their own chapters.
+        func caption(at index: Int) -> String? {
+            switch page(at: index) {
+                case .title:
+                    guard let layout else { return nil }
 
-            return String(
-                localized: "Chapter \(index + 1)/\(readableChapters.count) · page \(currentPage + 1)/\(pageCount)"
-            )
+                    return caption(chapterId: layout.chapterId, number: 1, total: layout.pageCount + 1)
+                case let .text(pageLayout, textIndex):
+                    let extra = position(of: pageLayout.chapterId) == 0 ? 1 : 0
+
+                    return caption(
+                        chapterId: pageLayout.chapterId,
+                        number: textIndex + 1 + extra,
+                        total: pageLayout.pageCount + extra
+                    )
+                case .blank:
+                    return nil
+            }
+        }
+
+        private func caption(chapterId: Int, number: Int, total: Int) -> String? {
+            guard let position = position(of: chapterId), total > 0 else { return nil }
+
+            return String(localized: "Chapter \(position + 1)/\(readableChapters.count) · page \(number)/\(total)")
+        }
+
+        private func position(of chapterId: Int) -> Int? {
+            readableChapters.firstIndex { $0.id == chapterId }
         }
 
         // MARK: - Layout

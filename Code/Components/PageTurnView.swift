@@ -26,6 +26,8 @@ struct PageTurnView<Page: View>: View {
     var hasPageAfter = false
     var onPastEnd: () -> Void = {}
     var onPastStart: () -> Void = {}
+    /// A tap in the dead zone between the two turning thirds.
+    var onMiddleTap: () -> Void = {}
 
     @ViewBuilder
     let page: (Int) -> Page
@@ -55,6 +57,13 @@ struct PageTurnView<Page: View>: View {
 
     private static var commitThreshold: CGFloat { 0.3 }
     private static var flickVelocity: CGFloat { 120 }
+    /// A flick against the turn this small still cancels it.
+    private static var reverseFlickVelocity: CGFloat { 20 }
+    /// How far the finger travels while the incoming page closes the gap between the screen edge and it.
+    private static var catchDistance: CGFloat { 80 }
+    /// How far the page behind draws back, as a fraction of its size, once it is fully covered.
+    private static var recession: CGFloat { 0.05 }
+    private static var dimming: CGFloat { 0.22 }
 
     /// A queued turn runs faster, so a burst of taps reads as pages stacking rather than a slow crawl.
     private var turnDuration: Double { queued != 0 ? 0.09 : 0.22 }
@@ -62,12 +71,16 @@ struct PageTurnView<Page: View>: View {
     var body: some View {
         ZStack {
             if let turn, let lower = lowerIndex(turn), let upper = upperIndex(turn) {
+                let covered = coverage(turn)
+
                 page(lower)
+                    .scaleEffect(1 - Self.recession * covered)
+                    .overlay(Color.black.opacity(Self.dimming * covered).accessibilityHidden(true))
 
                 page(upper)
                     .background(Color.clear)
                     .compositingGroup()
-                    .shadow(color: .black.opacity(0.25), radius: 8, x: -3, y: 0)
+                    .shadow(color: .black.opacity(0.35), radius: 14, x: -5, y: 0)
                     .offset(x: offset(turn))
             } else {
                 page(index)
@@ -78,19 +91,18 @@ struct PageTurnView<Page: View>: View {
         .onGeometryChange(for: CGFloat.self, of: { $0.size.width }, action: { width = max(1, $0) })
         .gesture(drag)
         .onTapGesture(coordinateSpace: .local) { location in
-            // The middle third is a dead zone, so a reader can rest a thumb there without losing
-            // their place.
+            // Both outer thirds turn forward; the middle third is a dead zone so a reader can rest a
+            // thumb there without losing their place.
             let third = width / 3
 
-            if location.x < third {
-                retreat()
-            } else if location.x > width - third {
-                advance()
-            }
+            guard location.x < third || location.x > width - third else { return onMiddleTap() }
+
+            advance()
         }
         .accessibilityElement(children: .contain)
         .accessibilityAction(named: Text("Next page"), advance)
         .accessibilityAction(named: Text("Previous page"), retreat)
+        .accessibilityAction(named: Text("Show or hide the reader controls"), onMiddleTap)
     }
 
     private var drag: some Gesture {
@@ -113,18 +125,46 @@ struct PageTurnView<Page: View>: View {
                 guard let turn else { return }
 
                 // Measuring against the turn's own direction lets a reversed finger unwind the turn.
-                let travelled = turn == .forward ? -translation : translation
-                progress = min(1, max(0, travelled / width))
+                progress =
+                    switch turn {
+                        case .forward: forwardProgress(value)
+                        case .backward: min(1, max(0, translation / width))
+                    }
             }
             .onEnded { value in
                 guard let turn else { return }
 
                 let translation = value.translation.width
                 let predicted = value.predictedEndTranslation.width
+                let travelled = turn == .forward ? -translation : translation
                 let velocity = turn == .forward ? -(predicted - translation) : (predicted - translation)
-                let shouldCommit = progress > Self.commitThreshold || velocity > Self.flickVelocity
-                finish(turn, committing: shouldCommit)
+                finish(turn, committing: commits(travelled: travelled, velocity: velocity))
             }
+    }
+
+    /// Whether the turn lands.
+    ///
+    /// A flick back cancels it however far the page had already come, because the reader changing their
+    /// mind is the whole point of the gesture. Otherwise the finger's own travel decides, rather than
+    /// how far the page has come: the incoming page moves faster than the finger while it catches up.
+    private func commits(travelled: CGFloat, velocity: CGFloat) -> Bool {
+        if velocity < -Self.reverseFlickVelocity { return false }
+        if velocity > Self.flickVelocity { return true }
+
+        return travelled / width > Self.commitThreshold
+    }
+
+    /// Where the incoming page has got to, as `0…1`.
+    ///
+    /// It leaves the right edge, closes the gap to the finger over ``catchDistance``, and from there
+    /// its edge sits under the finger and moves with it. Sliding it in by the finger's travel alone
+    /// would leave the page's edge wherever the drag happened to start, which reads as pushing the page
+    /// rather than pulling it.
+    private func forwardProgress(_ value: DragGesture.Value) -> CGFloat {
+        let gap = max(0, width - value.startLocation.x)
+        let travelled = max(0, value.startLocation.x - value.location.x)
+        let edge = value.location.x + gap * exp(-travelled / Self.catchDistance)
+        return min(1, max(0, 1 - edge / width))
     }
 
     private func advance() {
@@ -202,6 +242,15 @@ struct PageTurnView<Page: View>: View {
     private func upperIndex(_ turn: Turn) -> Int? {
         let candidate = turn == .forward ? index + 1 : index
         return isReachable(candidate) ? candidate : nil
+    }
+
+    /// How much of the page behind the turning page covers, `0…1`. It draws back and darkens by this
+    /// much, so the page in front reads as the one nearer the reader whichever way the turn is going.
+    private func coverage(_ turn: Turn) -> CGFloat {
+        switch turn {
+            case .forward: progress
+            case .backward: 1 - progress
+        }
     }
 
     /// How far the upper page is pushed right: fully off-screen at rest when turning forward, flush at

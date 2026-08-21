@@ -13,6 +13,7 @@ struct BookTitlePageView: View {
     let coverURL: URL?
     let style: ChapterTextStyle
     let margins: Double
+    let safeArea: EdgeInsets
 
     private var foreground: Color { Color(style.textColor) }
 
@@ -42,6 +43,8 @@ struct BookTitlePageView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding(.horizontal, max(margins, 24))
+        .padding(.top, safeArea.top)
+        .padding(.bottom, safeArea.bottom)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(seriesTitle.map { "\(title), \(author), \($0)" } ?? "\(title), \(author)")
     }

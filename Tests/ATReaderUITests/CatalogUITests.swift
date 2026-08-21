@@ -117,8 +117,7 @@ final class CatalogUITests: XCTestCase {
         )
     }
 
-    /// The left third goes back, which is the convention every other reader follows.
-    func testTappingTheLeftThirdGoesBack() {
+    func testTappingTheLeftThirdTurnsThePage() {
         openReader()
 
         let caption = app.staticTexts["reader.caption"]
@@ -126,12 +125,9 @@ final class CatalogUITests: XCTestCase {
 
         let first = caption.label
         let page = app.otherElements["reader.page"].firstMatch
-        page.coordinate(withNormalizedOffset: CGVector(dx: 0.85, dy: 0.5)).tap()
-        XCTAssertTrue(waitForChange(of: caption, from: first), "tapping the right third did not turn the page")
-
-        let second = caption.label
         page.coordinate(withNormalizedOffset: CGVector(dx: 0.15, dy: 0.5)).tap()
-        XCTAssertTrue(waitForChange(of: caption, from: second), "tapping the left third did not go back")
+
+        XCTAssertTrue(waitForChange(of: caption, from: first), "tapping the left third did not turn the page")
     }
 
     /// Tapping faster than a turn animates has to land every tap rather than drop the extras.
@@ -173,6 +169,7 @@ final class CatalogUITests: XCTestCase {
         let caption = app.staticTexts["reader.caption"]
         XCTAssertTrue(caption.waitForExistence(timeout: 20))
 
+        showChrome()
         app.buttons["Appearance"].tap()
         XCTAssertTrue(app.navigationBars["Appearance"].waitForExistence(timeout: 10))
 
@@ -197,6 +194,7 @@ final class CatalogUITests: XCTestCase {
     func testMarginAndAlignmentControlsExist() {
         openReader()
 
+        showChrome()
         app.buttons["Appearance"].tap()
         XCTAssertTrue(app.navigationBars["Appearance"].waitForExistence(timeout: 10))
 
@@ -204,6 +202,21 @@ final class CatalogUITests: XCTestCase {
         XCTAssertTrue(scrollUntilVisible(app.segmentedControls["reader.alignment"]), "alignment control missing")
         XCTAssertTrue(app.buttons["Justified"].exists, "justified option missing")
         XCTAssertTrue(app.buttons["Left-aligned"].exists, "left-aligned option missing")
+    }
+
+    /// The page fills the screen and the controls live behind a tap in the middle third.
+    func testMiddleTapTogglesTheControls() {
+        openReader()
+        XCTAssertTrue(app.staticTexts["reader.caption"].waitForExistence(timeout: 20))
+        XCTAssertFalse(app.buttons["Appearance"].exists, "the reader opened with its controls showing")
+
+        showChrome()
+
+        app.otherElements["reader.page"].firstMatch
+            .coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+            .tap()
+
+        XCTAssertTrue(waitForAbsence(of: app.buttons["Appearance"]), "a second middle tap left the controls up")
     }
 
     /// A rightward swipe from the leading edge would normally pop the screen. In the reader it has to
@@ -254,6 +267,7 @@ final class CatalogUITests: XCTestCase {
         XCTAssertTrue(caption.waitForExistence(timeout: 20), "page caption missing")
         let before = caption.label
 
+        showChrome()
         app.buttons["Appearance"].tap()
         let sheetBar = app.navigationBars["Appearance"]
         XCTAssertTrue(sheetBar.waitForExistence(timeout: 10), "appearance sheet never opened")
@@ -298,6 +312,14 @@ final class CatalogUITests: XCTestCase {
         )
     }
 
+    /// The reader opens with no chrome at all; a tap in the middle third brings the controls back.
+    private func showChrome() {
+        app.otherElements["reader.page"].firstMatch
+            .coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+            .tap()
+        XCTAssertTrue(app.buttons["Appearance"].waitForExistence(timeout: 5), "the reader controls never appeared")
+    }
+
     /// Turns one page forward. A book opens on its title page, so reading tests step past it first.
     private func turnPage() {
         app.otherElements["reader.page"].firstMatch
@@ -324,6 +346,18 @@ final class CatalogUITests: XCTestCase {
         return page.label
     }
 
+    private func waitForAbsence(of element: XCUIElement, timeout: TimeInterval = 10) -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+
+        while Date() < deadline {
+            if !element.exists { return true }
+
+            _ = element.waitForExistence(timeout: 0.3)
+        }
+
+        return false
+    }
+
     private func waitForChange(of element: XCUIElement, from previous: String, timeout: TimeInterval = 10) -> Bool {
         let deadline = Date().addingTimeInterval(timeout)
 
@@ -339,6 +373,7 @@ final class CatalogUITests: XCTestCase {
     func testChapterListNavigation() {
         openReader()
 
+        showChrome()
         app.buttons["Contents"].tap()
         XCTAssertTrue(app.navigationBars["Contents"].waitForExistence(timeout: 10))
         XCTAssertGreaterThan(app.collectionViews.cells.count, 0, "table of contents was empty")
