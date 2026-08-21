@@ -8,12 +8,16 @@ because it was worked out rather than looked up.
 | [API.md](API.md) | Touching `Frameworks/AuthorToday`, or adding any endpoint. Where the spec lives, what it gets wrong, headers, auth, search, errors. |
 | [ChapterEncryption.md](ChapterEncryption.md) | Chapter text stops decrypting, or you need to know why decrypted chapters can't be shared between accounts. |
 | [Architecture.md](Architecture.md) | Adding a screen or a service, or wondering where something belongs. |
+| [Reader.md](Reader.md) | Anything about layout, pagination, typography or the page turn. |
 | [Testing.md](Testing.md) | Running or writing tests, or a UI test skips when it shouldn't. |
-| [DevelopmentHistory.md](DevelopmentHistory.md) | You want the reasoning behind the decisions above, including the dead ends. |
+| [History/](History) | You want the reasoning behind the decisions above, including the dead ends. One file per day. |
 
 Start with [API.md](API.md). The rest depends on it.
 
-## The three things most likely to trip you up
+Everything here except `History/` describes how the app works now, and is rewritten when that changes
+rather than added to. A day's findings go in `History/` so this stays short enough to read.
+
+## The four things most likely to trip you up
 
 1. **Chapter text is AES-encrypted and the key includes the signed-in account id.** Guest and
    signed-in responses for the same chapter don't share a key. The certificate and salt the derivation
@@ -22,6 +26,8 @@ Start with [API.md](API.md). The rest depends on it.
    and the number `0` otherwise. Assume any field can be absent, null, or a type you didn't expect.
 3. **Free-text search uses `q`, which is missing from the published spec.** With no `q`, the same
    endpoint is the charts API.
+4. **CoreText does not hyphenate, and breaks words without drawing a hyphen when asked to.** The
+   reader uses TextKit for that reason; see [Reader.md](Reader.md) before changing how text is drawn.
 
 ## House rules that outrank convenience
 

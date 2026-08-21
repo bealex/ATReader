@@ -122,6 +122,12 @@ licensing rather than secrecy. An unconfigured build must keep working for every
 
 ## Documentation
 
-`Documentation/` holds what was learned building this: the API reference, the encryption scheme, the
-architecture, and the development history with the dead ends. Read `Documentation/API.md` before
-touching the client, since the service has no official spec and those notes were expensive to get.
+`Documentation/` describes how the app works **now**: the API reference, the encryption scheme, the
+architecture, the reader, the testing setup. Read `Documentation/API.md` before touching the client,
+since the service has no official spec and those notes were expensive to get. Read
+`Documentation/Reader.md` before touching layout, pagination or the page turn.
+
+These documents are rewritten when the code changes, never appended to. Anything historical or
+append-only goes in `Documentation/History/<YYYY-MM>/<YYYY-MM-DD>.md` instead, one file per day in a
+directory per month: what happened that day, findings, measurements, approaches that failed. Keep the
+main documents short enough that someone will read them.

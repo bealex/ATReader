@@ -40,7 +40,7 @@ Three suites, deliberately layered by what they need:
 
 | Suite | Needs | Covers |
 | --- | --- | --- |
-| `CatalogUITests` | nothing (guest token) | search, author scope, charts + period filter, opening a book, reading a decrypted chapter, chapter list, typography |
+| `CatalogUITests` | nothing (guest token) | search, author scope, charts + period filter, opening a book, reading a decrypted chapter, chapter list, typography, page turns by tap and swipe, the controls toggle |
 | `LoginUITests` | credentials, optional | field validation, service error for bad credentials, a real end-to-end sign-in |
 | `LibraryUITests` | a token | library list, shelf filter, profile and sign-out |
 
@@ -82,6 +82,42 @@ the shape already believed in.
 
 Keep at least one test per feature talking to the real service.
 
+## Driving the reader
+
+The reader hides everything a test would normally reach for, so its suite works differently from the
+others:
+
+- It opens with no controls at all. A test that needs Contents or Appearance taps the middle third
+  first; `showChrome()` does that and waits for the buttons.
+- A book opens on its title page, so a test that wants text turns one page first.
+- The drawn page publishes its text under `reader.pageText`, and only the page the reader is actually
+  on carries `reader.caption`. That matters: during a turn two pages are on screen, and two elements
+  under one identifier make a query ambiguous.
+- Enumerating `app.staticTexts.allElementsBoundByIndex` while the reader is animating raises "no
+  matches found for element at index N", because the hierarchy changed between the count and the
+  access. Query by identifier instead. That was a flake, not a bug.
+- Reader settings come from `UserDefaults`, which reads `-key value` launch arguments, so each suite
+  pins the typography it depends on rather than inheriting the last run's.
+
+Some things XCUITest cannot express, and which are therefore verified by construction rather than by a
+test: a drag reversed into a flick before the finger lifts, and the app being backgrounded mid-gesture.
+Say so plainly when reporting on them.
+
+### Watching a gesture that is still happening
+
+`press(forDuration:thenDragTo:withVelocity:thenHoldForDuration:)` holds the finger down at the end of a
+drag. Run that test in the background and take screenshots from the host with `simctl io … screenshot`
+while it holds, and the half-finished gesture can be measured: that is how the incoming page was shown
+to sit 20pt to the left of the finger, and how the rubber band at the end of a book was measured at
+60.6pt against a predicted 60.3.
+
+### Instrumenting instead of eyeballing
+
+Typographic rules are easier to count than to look at. A temporary `#if DEBUG` print in the page
+breaker, reporting hyphens at a page foot, orphans, widows and short pages per chapter, turned "looks
+about right" into "no hyphens at a foot, no widows, one orphan in 87 pages" and showed that two lines
+of pull-back weren't enough. Write that instrumentation, read it, then delete it before committing.
+
 ## Gotchas
 
 - Offscreen `Form` cells don't exist. SwiftUI doesn't instantiate them, so `waitForExistence` won't
@@ -90,8 +126,6 @@ Keep at least one test per feature talking to the real service.
 - Inline `Picker` options don't carry an accessibility identifier from their content view. The reader's
   page-tint choice is built from explicit `Button` rows instead, which is both testable and a better
   control.
-- Don't run two `xcodebuild test` invocations against the same simulator at once. They contend and one
-  produces nothing.
 - Dump the tree instead of guessing at queries. A throwaway test that prints `app.debugDescription`
   settles in one run what several rounds of guessing won't. That's how the alignment control was found
   to be a `SegmentedControl`, and how the reader page turned out to have been exposing its text
@@ -100,6 +134,11 @@ Keep at least one test per feature talking to the real service.
   isn't a valid key path in an XCUITest predicate either; read the labels in Swift instead.
 - A `\.label` key path fails to compile in a UI test, because `label` is main-actor isolated. Use a
   closure.
+- `expectation(for:evaluatedWith:)` doesn't compile under Swift 6 either, since it sends the test case
+  across isolation. Poll in a loop, the way `waitForChange(of:from:)` does.
+- Two `xcodebuild` invocations against one simulator don't merely contend: the second run's test runner
+  fails to bootstrap ("test crashed with signal kill before establishing connection") and the first
+  loses tests it had queued. Run them one at a time.
 - Assert on identifiers rather than labels wherever a control is localized. Labels change per locale;
   identifiers don't. Search *queries* in the tests are Russian on purpose, since they're input to a
   Russian-language service rather than UI text.

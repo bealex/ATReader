@@ -38,9 +38,10 @@ Model` and a `struct Component: View`, split across `<Screen>.Model.swift` and
 
 ```
 App/          entry point, RootScreen (signed-in vs signed-out), AppRoute
-Components/   CoverImage, WorkRow, WorkSummary, shared across every list
+Components/   CoverImage, WorkRow, WorkSummary, ChapterPageView, PageTurnView
 Screens/      Login, Library, Search, Top, Work, Reader, Profile
-Services/     SessionStore, KeychainStore, LocalStore, CatalogFeed, ChapterLayout,
+Services/     SessionStore, KeychainStore, LocalStore, CoverCache, CatalogFeed,
+              ChapterContent, Typography, ChapterPagination, ChapterLayout,
               ChapterUpdateService, BackgroundRefresh, ReaderSettings
 ```
 
@@ -81,137 +82,15 @@ content.
 
 ## The reader
 
-Chapters are paginated rather than scrolled, and the text is laid out by TextKit rather than by SwiftUI
-`Text`, which has no justified alignment.
+Chapters are paginated rather than scrolled, the text is set by TextKit, and a page fills the screen.
+`ChapterContent` parses and binds the text away from the main actor, `ChapterPagination` sets it,
+`ChapterLayout` cuts the column into pages under a compositor's rules, `PageTurnView` turns them and
+`ChapterPageView` draws one.
 
-CoreText was the first choice and had to be abandoned: it does not hyphenate. `hyphenationFactor` and
-`usesDefaultHyphenation` are TextKit settings and do nothing to a `CTFramesetter`, and although CoreText
-will break a line at a soft hyphen, it draws no hyphen when it does, which leaves a word split with
-nothing to show for it. Without hyphenation a justified narrow column pulls the letters of a Russian
-word apart to fill the line. `NSLayoutManager` hyphenates from the system's own dictionaries, in
-whichever language the run carries.
+It is the most intricate part of the app and has its own document: [Reader.md](Reader.md). Read it
+before changing anything about layout, pagination or the page turn.
 
-`ChapterPagination` builds the chapter as one `NSAttributedString` from a `ChapterTextStyle` (face,
-size, line spacing, justification, colour). Margins are deliberately not part of the style: they shrink
-the frame, not the text. `ChapterContent` parses the HTML and works out the language away from the main
-actor, and that language goes onto the text as `languageIdentifier`, which is what picks the
-hyphenation dictionary.
-
-`ChapterLayout` is the result: one chapter laid out for one style and one page size. It is set as a
-single column, in slices with a yield between them so a long chapter never blocks a turn even though
-TextKit has to stay on the main actor, and then cut into pages line by line. `ChapterPageView` takes a
-layout and a page index and does nothing but draw, which means a page can never show something
-pagination didn't measure.
-
-### What the page breaker will not do
-
-Cutting the column by hand rather than letting TextKit fill page-sized containers is what makes the
-rules possible. A break moves back up to four lines to avoid any of these, stopping at four lines left
-on the page, which is the one rule that outranks the others:
-
-- a hyphen at the foot of a page,
-- an orphan: a paragraph's first line alone at the bottom,
-- a widow: a paragraph's last line alone at the top of the next page,
-- a heading with fewer than two lines of its chapter under it.
-
-A chapter whose last page would carry a line or two is fed from the page before it. What the rules leave
-behind is spread between the lines of the page rather than dumped at its foot: each page gets its own
-leading, up to 3pt of air per gap, and a gap may be squeezed by 0.75pt to pull one more line on. A page
-left half empty is the end of a chapter, and keeps its ragged bottom.
-
-Measured over four chapters of a novel: no hyphens at a page foot, no widows, one orphan in 87 pages,
-and pages steady at a median of 15 lines.
-
-Some line breaks are wrong before pagination sees them, and the two languages disagree about which.
-`Typography` binds them with no-break spaces when the chapter is parsed: Russian will not end a line on
-a one- or two-letter preposition nor begin one with a dash; English keeps an abbreviation with the name
-after it. Both keep a number with its unit and an initial with its surname.
-
-### Chapters that run on
-
-A chapter starts on the page the one before it ended on when what is left of that page holds a decent
-piece of it: six lines and a quarter of the page, after the air between them. `ChapterLayout` takes a
-`startOffset` for that, its first page being shorter by exactly that much, and the reader draws such a
-page from two pieces, one per chapter. Layouts are therefore prepared in order forwards, since each one
-depends on where the one before it ended; a chapter opened from the contents starts a page of its own,
-and is laid out again if the reader later arrives at it from the chapter before.
-
-Nothing in a turn waits for work that could have been done earlier:
-
-- Parsing and language detection run in a detached task.
-- The model lays out the chapters either side of the current one while the reader is busy with it, so
-  crossing a chapter break costs a page turn rather than a round trip.
-
-A chapter over 239 KB is long enough that the reader is told what is happening: the layout reports how
-far it has got and the page shows a progress bar instead of a spinner.
-
-The view triggers re-pagination whenever the page size or the style changes, and the old layout stays
-on screen until the new one is ready. The reader's position survives it because the model remembers a
-character offset rather than a page number. A larger font means the same text spans more pages, so the
-page index alone is meaningless across a restyle.
-
-A chapter opens with its number and title set above the body, and the first chapter of a book is
-preceded by a title page carrying the cover, title, author and series. `ChapterHeading` leaves the
-number out when the chapter's own title already carries one, since "Chapter 4" above "Chapter 4. The
-Road" reads like a bug.
-
-A page fills the screen. There is no navigation bar and no strip below the text: the book's title and
-the page number are drawn on the page itself, so a turn carries them along with the text. Because the
-page ignores the safe area, its size and the notch and home-indicator insets come from the window
-rather than from the layout, which also keeps a toolbar appearing from re-paginating the chapter.
-
-A tap in the middle third brings back the status bar and the controls, a second tap sends them away,
-and turning a page sends them away too. The controls are round Liquid Glass buttons, the size the
-system draws in a toolbar. The bar is the reader's own rather than the navigation stack's, so it fades in
-over the page instead of sliding the page down, and it carries a background of its own
-so the running head doesn't show through it. Only that background runs up to the screen edge: the
-overlay is laid out inside the safe area even though the page under it is not, so insetting the bar by
-hand as well would push its controls a notch's worth too low.
-
-A turn in flight is dropped when the app leaves the screen, since the gesture that would have finished
-it is gone.
-
-`PageTurnView` handles the turn. The entire effect comes from one rule, that page `n + 1` always sits
-above page `n`, so a single offset drives both directions: turning forward slides page `n + 1` in from
-the right, turning back slides that same page off to the right and uncovers page `n`. A half-finished
-turn can therefore be reversed with no special handling. Progress runs `0…1`, where `0` is the resting
-state and `1` is committed, and the gesture measures against the turn's own direction so a reversed
-finger unwinds it.
-
-Dragging forward, the incoming page eases in from the right edge to meet the finger over 0.3s and from
-then on is held 20pt inside its own leading edge, so the finger is on the page it is pulling.
-Sliding it in by the finger's travel alone would leave the page's edge wherever the drag happened to
-start, which reads as pushing a page along from a distance. Re-targeting the run-in animation on every
-gesture event keeps it smooth however fast the finger moves. What lands the turn is the finger's own
-travel, not how far the page has come, and a flick back cancels it however far it had got.
-
-The page behind draws back by 5% and darkens as the page in front covers it, and the page in front
-carries a shadow along its edge, so the two read as one in front of the other whichever way the turn is
-going.
-
-At the very end of the book, or before its very start, there is no page to turn to and the current one
-gives instead: it follows the finger through a rubber band that yields less the harder it is pulled,
-reaching at most a fifth of the width, and springs back when the finger lifts.
-
-Taps on either outer third turn forward and swiping right is the way back. Turning past the end of a
-chapter hands over to the next one, and past the start goes back
-to the previous chapter's last page. The page the turn animates onto is the neighbouring chapter's own
-page, so the chapter swaps under the animation and the reader sees one continuous turn.
-
-Taps that arrive while a turn is still animating are queued rather than dropped, and the queue drains
-as soon as each turn commits, running faster while it has a backlog. A burst of taps therefore stacks
-pages through in quick succession and settles on the page the reader asked for.
-
-The system's swipe-from-the-edge-to-go-back gesture is switched off here, because it competes with
-swiping back a page. SwiftUI has no modifier for that without also hiding the back button, so
-`backSwipeDisabled()` reaches the enclosing `UINavigationController` and re-enables the gesture on the
-way out.
-
-Drawn text is invisible to VoiceOver. `ChapterPageView` therefore publishes the page's text as its own
-accessibility label, and `PageTurnView` exposes next and previous page actions. Anything that changes
-how the page draws must keep that in step.
-
-### Covers
+## Covers
 
 `CoverCache` is an actor over a directory in Application Support rather than Caches. A shelf that
 empties itself the first time the device runs low on space is worse than one that holds a bounded
@@ -265,7 +144,12 @@ and sets the app icon badge through `UNUserNotificationCenter`. Opening a book c
 ## Testing seams
 
 `SessionStore.applyUITestOverrides` is a `#if DEBUG` hook reading launch arguments:
-`-at-ui-test-guest` browses with the guest token, and `-at-ui-test-token <token>` adopts a real one. It
-lets UI tests reach any screen without typing credentials, and compiles out of release builds entirely.
+`-at-ui-test-guest` browses with the guest token, and `-at-ui-test-token <token>` adopts a real one.
+`RootScreen` reads one more, `-at-ui-test-reader <workId>`, which opens straight into the reader.
+Together they let a test reach any screen without typing credentials, and all of it compiles out of
+release builds.
+
+Reader settings are read through `UserDefaults`, which also reads `-key value` launch arguments, so a
+test pins the typography it depends on rather than inheriting whatever the last run left behind.
 
 See [Testing.md](Testing.md).

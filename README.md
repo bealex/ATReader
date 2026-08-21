@@ -39,7 +39,9 @@ file. Without it the app still builds and runs, and says plainly that it can't o
 ## Documentation
 
 `Documentation/` holds what was learned building this: the API reference, the chapter-encryption
-scheme, the architecture, the testing setup, and the development history with its dead ends. Start at
+scheme, the architecture, the reader, and the testing setup. It describes how the app works now.
+What happened on the way, with the dead ends and the measurements, is a dated journal under
+[Documentation/History/](Documentation/History). Start at
 [Documentation/README.md](Documentation/README.md). Working rules for changing this codebase are in
 [CLAUDE.md](CLAUDE.md).
 
@@ -51,7 +53,7 @@ ATReader/
 │   ├── App/                  # entry point, root screen, routing
 │   ├── Components/           # shared row/cover views
 │   ├── Screens/              # one folder per screen: <Name>.Model.swift + <Name>.Component.swift
-│   ├── Services/             # session, keychain, cache, background refresh
+│   ├── Services/             # session, keychain, local store, covers, reader engine
 │   └── Resources/            # Localizable.xcstrings (en source, ru translation)
 ├── Frameworks/
 │   └── AuthorToday/          # the API client, as a standalone SwiftPM package
@@ -139,7 +141,11 @@ Endpoints in use: `account/login-by-password`, `account/current-user`, `account/
 `login-by-password` answers with a token. When the account has a second factor it answers instead with
 no token and a `twoFactorType` of `Email` or `Code`; repeat the call with `code` set to what the reader
 received. A successful sign-in may also return a `trustedCode`, and storing it lets the same device
-skip the challenge next time. Tokens are short-lived and kept in the keychain, never in user defaults.
+skip the challenge next time.
+
+Tokens last a day and live in the keychain, never in user defaults. The client renews one before it
+expires, and again behind any request the service rejects, so the app stays signed in the way the web
+site does. Only a token the service actually rejects returns the reader to the sign-in screen.
 
 ### Chapter bodies
 
@@ -157,17 +163,32 @@ plain   = AES-128-CBC-decrypt(base64Decode(text), key: aesKey, iv: aesKey)   // 
 The unit tests round-trip generated text through the real derivation, so they cover the algorithm
 without storing anything belonging to the service.
 
+## Reading
+
+The reader paginates rather than scrolls, sets its text with TextKit, and gives the page the whole
+screen: the book's title and the page number are drawn on the page itself, and a tap in the middle
+brings the controls back. Pages break the way a compositor would, with no widows, orphans or hyphens
+left at the foot of a page, and a chapter starts on the page the one before it ended on when there's
+room for a decent piece of it. Hyphenation comes from the system dictionaries, in English and Russian.
+
+[Documentation/Reader.md](Documentation/Reader.md) explains how, and why CoreText couldn't do it.
+
 ## Offline and background refresh
 
-Books on the Reading shelf are cached under Application Support, excluded from backup: tables of
-contents, and chapter bodies as they're read or prefetched. The reader shows the stored copy
-immediately and replaces it once the network answers, so a cached book stays readable offline.
+Everything the app shows comes from one SQLite file under Application Support before the service is
+asked: books and their shelves, tables of contents, chapter bodies and reading positions. Screens paint
+what the device has and replace it when the network answers, so the app opens and reads with no network
+at all. Reading positions live there and nowhere else, since the service accepts the position it is
+sent and stores nothing.
 
-Once a day a `BGAppRefresh` task walks the Reading shelf, diffs each table of contents against the
-previous sweep, downloads the bodies of newly published chapters (capped per run) and puts the count
-on the app icon. The same sweep runs in the foreground when the library opens and a day has passed, so
-the badge stays current even if the system never grants a background window. Opening a book clears its
-share of the badge.
+Once a day a `BGAppRefresh` task walks the library, counts the chapters this device has never seen,
+downloads them and then backfills whatever else is still missing, within a budget per sweep, and puts
+the count on the app icon. The same sweep runs in the foreground when the library opens and a day has
+passed, so the badge stays current even if the system never grants a background window. Opening a book
+clears its share of the badge.
+
+Covers are kept in Application Support too, downsampled on the way in, capped at 2000 with the least
+recently used dropped.
 
 ## Localization
 

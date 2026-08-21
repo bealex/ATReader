@@ -98,7 +98,12 @@ Each call without a code sends a new email code and invalidates the previous one
 > `LoginResult` decodes this field leniently for exactly that reason.
 
 Tokens last 24 hours (`issued`/`expires`). `POST /v1/account/refresh-token` exchanges the current token
-for a fresh one. Tokens belong in the keychain, never in user defaults.
+for a fresh one, and answers with a new `expires`. Tokens belong in the keychain, never in user
+defaults.
+
+`AuthorTodayClient` renews a token within twelve hours of its expiry, and retries once behind a refresh
+when a request comes back rejected. Concurrent failures collapse into one refresh, and the calls that
+mint tokens are excluded so a failure there cannot recurse.
 
 Related: `GET /v1/account/current-user` returns the profile, including the numeric `id` that the
 chapter key derivation needs.
@@ -118,6 +123,9 @@ via `inLibraryState` (`None`/`Reading`/`Saved`/`Finished`/`Disliked`), `lastChap
 
 Reading progress is best derived from `textLengthLastRead / textLength`, a character offset, falling
 back to `lastChapterProgress` when the offset is missing.
+
+The endpoint pages and gives no total page count, so a client that wants the whole library asks until a
+page comes back short; `fullUserLibrary` does that, bounded so a bad answer can't loop forever.
 
 `POST /v1/account/update-library-state` with `{ "ids": [ … ], "state": "Reading" }` moves books between
 shelves; state `None` removes them.
@@ -182,7 +190,9 @@ part of this API and the part most likely to break.
 
 Report progress in coarse steps (this client uses 5%) rather than on every scroll event.
 
-> **`update-progress` accepts writes but does not store them.** It answers 200 with an empty body and
+> **`update-progress` accepts writes but does not store them.** The reading position this app shows
+> comes from its own store; the call still goes out for whatever the service does with it elsewhere.
+> It answers 200 with an empty body and
 > the position never moves. Tested against a real account, on a work with an existing position and on
 > one without, with and without a `sessionId` from `reader/start`, with `workProgress` as a fraction
 > and as a character count, and with the full Android impersonation (`X-AT-Client` plus the `okhttp`
