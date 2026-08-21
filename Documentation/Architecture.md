@@ -40,7 +40,7 @@ Model` and a `struct Component: View`, split across `<Screen>.Model.swift` and
 App/          entry point, RootScreen (signed-in vs signed-out), AppRoute
 Components/   CoverImage, WorkRow, WorkSummary, shared across every list
 Screens/      Login, Library, Search, Top, Work, Reader, Profile
-Services/     SessionStore, KeychainStore, BookCache, CatalogFeed,
+Services/     SessionStore, KeychainStore, LocalStore, CatalogFeed, ChapterLayout,
               ChapterUpdateService, BackgroundRefresh, ReaderSettings
 ```
 
@@ -54,7 +54,17 @@ therefore lands on the same screen with the same behaviour, without the tabs sha
 
 `SessionStore` owns the client and the signed-in user, and is the only thing that touches
 `KeychainStore`. It exposes three states (restoring, signed out, signed in) and `RootScreen` switches
-on them. Token and account id go to the keychain; nothing sensitive reaches user defaults.
+on them. Token, its expiry, the account id and the last known `UserInfo` go to the keychain; nothing
+sensitive reaches user defaults.
+
+The session is meant to outlive the token. Tokens last a day, and three things keep one current:
+
+- `AuthorTodayClient` retries a request once behind a refresh when the service rejects the token, and
+  reports every token it adopts through `credentialsDidChange`, which is what persists it.
+- `SessionStore.refresh()` renews a token within twelve hours of expiry at launch and every time the
+  app comes back to the foreground.
+- Only a rejected token signs the reader out. A launch with no network restores the stored user and
+  sets `isOffline`, so the app opens on the library rather than the sign-in screen.
 
 ### One row type, three sources
 
@@ -77,13 +87,34 @@ agree exactly with drawing.
 
 `ChapterPagination` builds the chapter as one `NSAttributedString` from a `ChapterTextStyle` (face,
 size, line spacing, justification, colour) and then walks it a page at a time, asking
-`CTFrameGetVisibleStringRange` what actually fitted in each frame. `ChapterPageView` draws a page by
-handing the *same* framesetter the range for that page, so a page can never show something pagination
-didn't measure. Margins are deliberately not part of the style: they shrink the frame, not the text.
+`CTFrameGetVisibleStringRange` what actually fitted in each frame. Margins are deliberately not part of
+the style: they shrink the frame, not the text. The text carries a `languageIdentifier`, detected from
+the chapter itself, because justification without one stretches the gaps between letters instead of
+hyphenating.
 
-The view triggers re-pagination whenever the page size or the style changes. The reader's position
-survives it because the model remembers a character offset rather than a page number. A larger font
-means the same text spans more pages, so the page index alone is meaningless across a restyle.
+`ChapterLayout` is the result: one chapter, laid out for one style and one page size, holding the text,
+the page ranges and the framesetter that measured them. It builds `CTFrame`s on first use and keeps the
+ones around the reader, so a page turn draws an already typeset frame. `ChapterPageView` takes a layout
+and a page index and does nothing but draw, which means a page can never show something pagination
+didn't measure.
+
+Nothing in a turn waits for work that could have been done earlier:
+
+- Pagination runs in a detached task. Typesetting a long chapter is the only part of opening one slow
+  enough to stutter a turn, and none of it touches the main actor.
+- The model lays out the chapters either side of the current one while the reader is busy with it, so
+  crossing a chapter break costs a page turn rather than a round trip.
+- `ChapterLayout.prepare(around:)` typesets the pages ahead of the reader and drops the ones behind.
+
+The view triggers re-pagination whenever the page size or the style changes, and the old layout stays
+on screen until the new one is ready. The reader's position survives it because the model remembers a
+character offset rather than a page number. A larger font means the same text spans more pages, so the
+page index alone is meaningless across a restyle.
+
+A chapter opens with its number and title set above the body, and the first chapter of a book is
+preceded by a title page carrying the cover, title, author and series. `ChapterHeading` leaves the
+number out when the chapter's own title already carries one, since "Chapter 4" above "Chapter 4. The
+Road" reads like a bug.
 
 `PageTurnView` handles the turn. The entire effect comes from one rule, that page `n + 1` always sits
 above page `n`, so a single offset drives both directions: turning forward slides page `n + 1` in from
@@ -92,8 +123,10 @@ turn can therefore be reversed with no special handling. Progress runs `0…1`, 
 state and `1` is committed, and the gesture measures against the turn's own direction so a reversed
 finger unwinds it.
 
-Taps on either outer third turn forward; the middle third is a dead zone. Turning past the end of a
-chapter hands over to the next one, and past the start goes back to the previous chapter's last page.
+The right third turns forward, the left third goes back, and the middle third is a dead zone a thumb
+can rest in. Turning past the end of a chapter hands over to the next one, and past the start goes back
+to the previous chapter's last page. The page the turn animates onto is the neighbouring chapter's own
+page, so the chapter swaps under the animation and the reader sees one continuous turn.
 
 Taps that arrive while a turn is still animating are queued rather than dropped, and the queue drains
 as soon as each turn commits, running faster while it has a backlog. A burst of taps therefore stacks
@@ -110,12 +143,15 @@ how the page draws must keep that in step.
 
 ### Covers
 
-`CoverCache` is an actor over a directory in Caches. A cover is downloaded once, downsampled through
-ImageIO on the way in (which never allocates the full-size bitmap) and stored as JPEG, so scrolling
-back through a list costs nothing and a second launch shows covers immediately. Concurrent requests for
-the same URL share one download, and `CoverImage` loads only when its row appears, so a 30-item page
-fetches the handful of covers actually on screen. Horizontal strips use `LazyHStack` for the same
-reason: a plain `HStack` builds every card up front.
+`CoverCache` is an actor over a directory in Application Support rather than Caches. A shelf that
+empties itself the first time the device runs low on space is worse than one that holds a bounded
+number of small files, so it keeps 2000 covers and drops the least recently used beyond that.
+
+A cover is downloaded once, downsampled through ImageIO on the way in (which never allocates the
+full-size bitmap), stored as JPEG and handed back already decoded for display, so the main thread never
+decodes one. Concurrent requests for the same URL share one download. `CoverImage` loads when its row
+appears, and the library warms the whole shelf in the background once it has loaded, so covers are
+there before the row is.
 
 `CoverURL` is the other half. The service returns two different shapes for `coverUrl`: `work/details`
 and the library give a full `https://cm.author.today/…` URL, while the catalogue gives a bare path like
@@ -126,18 +162,23 @@ asking it to resize on the way — that alone turns a ~450 KB original into ~50 
 
 ## Offline and updates
 
-`BookCache` is an actor over a directory in Application Support, excluded from backup because
-everything in it is re-fetchable. It stores tables of contents, chapter bodies, the reading shelf, and
-per-book snapshots of which chapter ids were present at the last sweep.
+`LocalStore` is an actor over one SQLite file in Application Support, excluded from backup because
+everything in it is re-fetchable. It holds the books and their shelves, tables of contents, chapter
+bodies and the reading position.
 
-The reader is cache-first and network-authoritative: it paints the stored copy immediately, then
-replaces it if the network answers. If the network fails while a cached copy is on screen, the failure
-is recorded as an offline flag rather than an error, because a readable book beats an error message
-about refreshing it.
+Reading positions live here and nowhere else. The service accepts `reader/update-progress` and stores
+nothing (see [API.md](API.md)), so the character offset the store keeps is the only position that
+survives a relaunch.
 
-`ChapterUpdateService` is the sweep. It walks the Reading shelf, diffs each table of contents against
-the stored snapshot, downloads the bodies of newly published chapters (capped per run so a long absence
-can't run away with data), prunes books that left the shelf, and records the counts.
+Every screen is store-first and service-authoritative: it paints what the device has, then replaces it
+when the network answers. A failure while stored content is on screen sets an offline flag rather than
+raising an error, because a readable book beats a message about refreshing it.
+
+`ChapterUpdateService` is the sweep. It walks the library, stores every book and its contents, counts
+the chapters the device has never seen, downloads their bodies and then spends what's left of its
+budget backfilling chapters that are still missing, so a book on the Reading shelf converges on being
+readable offline. The budget is smaller in the background, where the window is short and overrunning it
+gets the app killed.
 
 Two things drive it:
 

@@ -83,6 +83,7 @@ final class CatalogUITests: XCTestCase {
 
     func testOpeningABookAndReadingAChapter() {
         openReader()
+        turnPage()
 
         // The page publishes its drawn text as its accessibility label, so a substantial label is
         // evidence the chapter decrypted and paginated.
@@ -116,7 +117,8 @@ final class CatalogUITests: XCTestCase {
         )
     }
 
-    func testTappingTheLeftThirdTurnsThePage() {
+    /// The left third goes back, which is the convention every other reader follows.
+    func testTappingTheLeftThirdGoesBack() {
         openReader()
 
         let caption = app.staticTexts["reader.caption"]
@@ -124,9 +126,28 @@ final class CatalogUITests: XCTestCase {
 
         let first = caption.label
         let page = app.otherElements["reader.page"].firstMatch
-        page.coordinate(withNormalizedOffset: CGVector(dx: 0.15, dy: 0.5)).tap()
+        page.coordinate(withNormalizedOffset: CGVector(dx: 0.85, dy: 0.5)).tap()
+        XCTAssertTrue(waitForChange(of: caption, from: first), "tapping the right third did not turn the page")
 
-        XCTAssertTrue(waitForChange(of: caption, from: first), "tapping the left third did not turn the page")
+        let second = caption.label
+        page.coordinate(withNormalizedOffset: CGVector(dx: 0.15, dy: 0.5)).tap()
+        XCTAssertTrue(waitForChange(of: caption, from: second), "tapping the left third did not go back")
+    }
+
+    /// Tapping faster than a turn animates has to land every tap rather than drop the extras.
+    func testRapidTapsKeepTurningPages() {
+        openReader()
+
+        let caption = app.staticTexts["reader.caption"]
+        XCTAssertTrue(caption.waitForExistence(timeout: 20))
+
+        let first = caption.label
+        let page = app.otherElements["reader.page"].firstMatch
+        let forward = page.coordinate(withNormalizedOffset: CGVector(dx: 0.85, dy: 0.5))
+
+        for _ in 0 ..< 8 { forward.tap() }
+
+        XCTAssertTrue(waitForChange(of: caption, from: first), "a burst of taps left the page where it started")
     }
 
     func testSwipingTurnsThePageBothWays() {
@@ -277,6 +298,13 @@ final class CatalogUITests: XCTestCase {
         )
     }
 
+    /// Turns one page forward. A book opens on its title page, so reading tests step past it first.
+    private func turnPage() {
+        app.otherElements["reader.page"].firstMatch
+            .coordinate(withNormalizedOffset: CGVector(dx: 0.85, dy: 0.5))
+            .tap()
+    }
+
     /// A Form does not instantiate cells below the fold, so a control has to be scrolled into being
     /// before it can be found at all.
     private func scrollUntilVisible(_ element: XCUIElement, swipes: Int = 6) -> Bool {
@@ -287,10 +315,13 @@ final class CatalogUITests: XCTestCase {
         return element.exists
     }
 
-    /// The drawn page exposes its whole text as one label; find the longest one on screen.
+    /// The drawn page exposes its whole text as one label under its own identifier.
     private func longestPageLabel() -> String {
-        let labels = app.staticTexts.allElementsBoundByIndex.map { $0.label }
-        return labels.max { $0.count < $1.count } ?? ""
+        let page = app.staticTexts["reader.pageText"].firstMatch
+
+        guard page.waitForExistence(timeout: 5) else { return "" }
+
+        return page.label
     }
 
     private func waitForChange(of element: XCUIElement, from previous: String, timeout: TimeInterval = 10) -> Bool {

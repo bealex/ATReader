@@ -82,10 +82,10 @@ enum ReaderScreen {
                 }
             }
             .overlay {
-                if model.isLoading && model.paragraphs.isEmpty {
+                if model.isLoading && model.layout == nil {
                     ProgressView("Loading chapter…")
                         .accessibilityLabel("Loading chapter")
-                } else if let message = model.errorMessage, model.paragraphs.isEmpty {
+                } else if let message = model.errorMessage, model.layout == nil {
                     ContentUnavailableView("Couldn’t open", systemImage: "book.closed", description: Text(message))
                 }
             }
@@ -98,40 +98,53 @@ enum ReaderScreen {
             PageTurnView(
                 pageCount: value.pageCount,
                 index: model.currentPage,
-                onPastEnd: { Task { await value.goToNextChapter() } },
-                onPastStart: { Task { await value.goToPreviousChapter() } },
-                page: { index in
-                    if value.pageRanges.indices.contains(index) {
-                        ChapterPageView(
-                            text: value.attributedText,
-                            range: value.pageRanges[index],
-                            margins: settings.margins
-                        )
-                        .background(settings.theme.background)
-                    } else {
-                        settings.theme.background
-                    }
-                }
+                hasPageBefore: value.hasPageBefore,
+                hasPageAfter: value.hasPageAfter,
+                onPastEnd: value.goToNextChapter,
+                onPastStart: value.goToPreviousChapter,
+                page: { index in pageContent(value, at: index) }
             )
             .accessibilityIdentifier("reader.page")
             .onGeometryChange(for: CGSize.self, of: { $0.size }, action: { pageSize = $0 })
-            .onChange(of: pageSize) { relayout(value) }
-            .onChange(of: settings.textStyle) { relayout(value) }
-            .onChange(of: settings.margins) { relayout(value) }
-            .onChange(of: value.layoutRevision) { relayout(value) }
+            .onChange(of: layoutContext, initial: true) { value.apply(context: layoutContext) }
         }
 
-        /// Re-paginates for the current page size and style. Cheap when nothing relevant changed — the
-        /// model short-circuits on an unchanged style and size.
-        private func relayout(_ model: Model) {
-            model.layout(
-                style: settings.textStyle,
-                textSize: ChapterPagination.textSize(in: pageSize, margins: settings.margins)
-            )
+        @ViewBuilder
+        private func pageContent(_ model: Model, at index: Int) -> some View {
+            switch model.page(at: index) {
+                case .title:
+                    BookTitlePageView(
+                        title: model.book?.title ?? title,
+                        author: model.book?.authorLine ?? "",
+                        seriesTitle: model.book?.seriesTitle,
+                        coverURL: model.book?.coverURL,
+                        style: settings.textStyle,
+                        margins: settings.margins
+                    )
+                    .background(settings.theme.background)
+                case let .text(layout, page):
+                    ChapterPageView(layout: layout, pageIndex: page)
+                        .background(settings.theme.background)
+                case .blank:
+                    settings.theme.background
+            }
+        }
+
+        /// Everything pagination depends on. A change to any of it re-lays the chapter.
+        private var layoutContext: ChapterLayout.Context {
+            ChapterLayout.Context(style: settings.textStyle, margins: settings.margins, pageSize: pageSize)
         }
 
         @ToolbarContentBuilder
         private var toolbar: some ToolbarContent {
+            if model?.isOffline == true {
+                ToolbarItem(placement: .topBarLeading) {
+                    Image(systemName: "wifi.slash")
+                        .foregroundStyle(.secondary)
+                        .accessibilityLabel("Reading from this device")
+                }
+            }
+
             ToolbarItem(placement: .topBarTrailing) {
                 Button("Contents", systemImage: "list.bullet") { isShowingContents = true }
                     .labelStyle(.iconOnly)
@@ -284,7 +297,7 @@ enum ReaderScreen {
                     Button(
                         action: {
                             isPresented = false
-                            Task { await model.open(chapterId: chapter.id) }
+                            model.open(chapterId: chapter.id)
                         },
                         label: {
                             HStack {

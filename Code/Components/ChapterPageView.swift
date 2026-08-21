@@ -13,9 +13,8 @@ import UIKit
 /// through the same framesetter that produced the page breaks guarantees the page shows exactly what
 /// pagination measured.
 struct ChapterPageView: UIViewRepresentable {
-    let text: NSAttributedString
-    let range: NSRange
-    let margins: Double
+    let layout: ChapterLayout
+    let pageIndex: Int
 
     func makeUIView(context: Context) -> PageView {
         let view = PageView()
@@ -25,40 +24,25 @@ struct ChapterPageView: UIViewRepresentable {
     }
 
     func updateUIView(_ view: PageView, context: Context) {
-        view.apply(text: text, range: range, margins: margins)
+        view.apply(layout: layout, pageIndex: pageIndex)
     }
 
-    /// The drawing surface. Keeps its framesetter between draws — rebuilding one per frame while a page
-    /// turn is animating is the difference between smooth and not.
+    /// The drawing surface. It holds a laid-out chapter rather than raw text, so a page turn draws an
+    /// already typeset frame instead of building one.
     final class PageView: UIView {
-        private var text: NSAttributedString?
-        private var range = NSRange(location: 0, length: 0)
-        private var margins: Double = 0
-        private var framesetter: CTFramesetter?
+        private var layout: ChapterLayout?
+        private var pageIndex = -1
 
-        func apply(text: NSAttributedString, range: NSRange, margins: Double) {
-            let textChanged = self.text != text
+        func apply(layout: ChapterLayout, pageIndex: Int) {
+            guard layout !== self.layout || pageIndex != self.pageIndex else { return }
 
-            if textChanged {
-                self.text = text
-                framesetter = CTFramesetterCreateWithAttributedString(text)
-            }
-
-            guard textChanged || range != self.range || margins != self.margins else { return }
-
-            self.range = range
-            self.margins = margins
-            updateAccessibility()
-            setNeedsDisplay()
-        }
-
-        /// Drawn text is invisible to VoiceOver, so the page publishes its own contents as one element.
-        private func updateAccessibility() {
-            guard let text, range.location >= 0, range.location + range.length <= text.length else { return }
-
+            self.layout = layout
+            self.pageIndex = pageIndex
             isAccessibilityElement = true
             accessibilityTraits = .staticText
-            accessibilityLabel = (text.string as NSString).substring(with: range)
+            accessibilityIdentifier = "reader.pageText"
+            accessibilityLabel = layout.pageText(pageIndex)
+            setNeedsDisplay()
         }
 
         override func layoutSubviews() {
@@ -67,24 +51,17 @@ struct ChapterPageView: UIViewRepresentable {
         }
 
         override func draw(_ rect: CGRect) {
-            guard let framesetter, let context = UIGraphicsGetCurrentContext(), range.length > 0 else { return }
-
-            let inset = CGRect(origin: .zero, size: bounds.size).insetBy(dx: margins, dy: margins)
-
-            guard inset.width > 1, inset.height > 1 else { return }
+            guard
+                let context = UIGraphicsGetCurrentContext(),
+                let frame = layout?.frame(forPage: pageIndex)
+            else {
+                return
+            }
 
             // CoreText draws bottom-up; flip into UIKit's coordinate space.
             context.textMatrix = .identity
             context.translateBy(x: 0, y: bounds.height)
             context.scaleBy(x: 1, y: -1)
-
-            let path = CGPath(rect: inset, transform: nil)
-            let frame = CTFramesetterCreateFrame(
-                framesetter,
-                CFRange(location: range.location, length: range.length),
-                path,
-                nil
-            )
             CTFrameDraw(frame, context)
         }
     }

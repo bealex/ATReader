@@ -7,18 +7,23 @@ import SwiftUI
 
 /// A paged container where the incoming page slides *over* the outgoing one, tracking the finger.
 ///
-/// The whole effect comes from one rule: **page `n + 1` always sits above page `n`**. Turning forward
-/// slides page `n + 1` in from the right edge; turning back slides that same page off to the right and
-/// uncovers page `n`. One offset drives both directions, so a half-finished turn in either direction can
-/// be reversed without any special handling.
+/// The whole effect comes from one rule: page `n + 1` always sits above page `n`. Turning forward slides
+/// page `n + 1` in from the right edge; turning back slides that same page off to the right and uncovers
+/// page `n`. One offset drives both directions, so a half-finished turn in either direction can be
+/// reversed without any special handling.
+///
+/// `page` is asked for `-1` and for `pageCount` as well when a neighbouring chapter exists: the turn that
+/// crosses a chapter boundary shows the page it is about to land on, so the swap happens invisibly under
+/// the animation.
 struct PageTurnView<Page: View>: View {
     let pageCount: Int
 
     @Binding
     var index: Int
 
-    /// Called when the reader turns past the last page or before the first — the reader uses these to
-    /// cross into the neighbouring chapter.
+    /// Whether the chapter either side exists, and what to do once the turn onto it commits.
+    var hasPageBefore = false
+    var hasPageAfter = false
     var onPastEnd: () -> Void = {}
     var onPastStart: () -> Void = {}
 
@@ -52,7 +57,7 @@ struct PageTurnView<Page: View>: View {
     private static var flickVelocity: CGFloat { 120 }
 
     /// A queued turn runs faster, so a burst of taps reads as pages stacking rather than a slow crawl.
-    private var turnDuration: Double { queued != 0 ? 0.12 : 0.25 }
+    private var turnDuration: Double { queued != 0 ? 0.09 : 0.22 }
 
     var body: some View {
         ZStack {
@@ -73,13 +78,15 @@ struct PageTurnView<Page: View>: View {
         .onGeometryChange(for: CGFloat.self, of: { $0.size.width }, action: { width = max(1, $0) })
         .gesture(drag)
         .onTapGesture(coordinateSpace: .local) { location in
-            // Both outer thirds turn forward; the middle third is a dead zone so a reader can rest a
-            // thumb there without losing their place.
+            // The middle third is a dead zone, so a reader can rest a thumb there without losing
+            // their place.
             let third = width / 3
 
-            guard location.x < third || location.x > width - third else { return }
-
-            advance()
+            if location.x < third {
+                retreat()
+            } else if location.x > width - third {
+                advance()
+            }
         }
         .accessibilityElement(children: .contain)
         .accessibilityAction(named: Text("Next page"), advance)
@@ -94,9 +101,9 @@ struct PageTurnView<Page: View>: View {
                 if turn == nil {
                     queued = 0
 
-                    if translation < 0, index + 1 < pageCount {
+                    if translation < 0, isReachable(index + 1) {
                         turn = .forward
-                    } else if translation > 0, index > 0 {
+                    } else if translation > 0, isReachable(index - 1) {
                         turn = .backward
                     } else {
                         return
@@ -110,26 +117,14 @@ struct PageTurnView<Page: View>: View {
                 progress = min(1, max(0, travelled / width))
             }
             .onEnded { value in
+                guard let turn else { return }
+
                 let translation = value.translation.width
                 let predicted = value.predictedEndTranslation.width
-
-                guard let turn else { return endAtBoundary(translation: translation) }
-
                 let velocity = turn == .forward ? -(predicted - translation) : (predicted - translation)
                 let shouldCommit = progress > Self.commitThreshold || velocity > Self.flickVelocity
                 finish(turn, committing: shouldCommit)
             }
-    }
-
-    /// A decisive swipe with nowhere left to go in this chapter hands over to the next one.
-    private func endAtBoundary(translation: CGFloat) {
-        guard abs(translation) > width * Self.commitThreshold else { return }
-
-        if translation < 0, index + 1 >= pageCount {
-            onPastEnd()
-        } else if translation > 0, index == 0 {
-            onPastStart()
-        }
     }
 
     private func advance() {
@@ -144,17 +139,14 @@ struct PageTurnView<Page: View>: View {
         begin(.backward)
     }
 
-    /// Starts a turn, or hands over to the neighbouring chapter when there is nowhere left to go.
     private func begin(_ direction: Turn) {
-        switch direction {
-            case .forward where index + 1 >= pageCount:
-                queued = 0
-                return onPastEnd()
-            case .backward where index == 0:
-                queued = 0
-                return onPastStart()
-            default:
-                break
+        let target = direction == .forward ? index + 1 : index - 1
+
+        guard
+            isReachable(target)
+        else {
+            queued = 0
+            return
         }
 
         turn = direction
@@ -165,16 +157,22 @@ struct PageTurnView<Page: View>: View {
         withAnimation(.easeOut(duration: turnDuration), completionCriteria: .logicallyComplete) {
             progress = committing ? 1 : 0
         } completion: {
-            if committing {
-                switch turn {
-                    case .forward: index = min(index + 1, pageCount - 1)
-                    case .backward: index = max(index - 1, 0)
-                }
-            }
+            if committing { commit(turn) }
 
             self.turn = nil
             progress = 0
             drainQueue()
+        }
+    }
+
+    /// Lands the turn. Crossing out of the chapter hands over to the reader, which swaps in the chapter
+    /// whose page is already on screen.
+    private func commit(_ turn: Turn) {
+        switch turn {
+            case .forward where index + 1 < pageCount: index += 1
+            case .forward: onPastEnd()
+            case .backward where index > 0: index -= 1
+            case .backward: onPastStart()
         }
     }
 
@@ -187,14 +185,23 @@ struct PageTurnView<Page: View>: View {
         begin(direction)
     }
 
+    /// Pages `-1` and `pageCount` exist only when there is a chapter to cross into.
+    private func isReachable(_ candidate: Int) -> Bool {
+        switch candidate {
+            case -1: hasPageBefore
+            case pageCount: hasPageAfter
+            default: (0 ..< pageCount).contains(candidate)
+        }
+    }
+
     private func lowerIndex(_ turn: Turn) -> Int? {
         let candidate = turn == .forward ? index : index - 1
-        return (0 ..< pageCount).contains(candidate) ? candidate : nil
+        return isReachable(candidate) ? candidate : nil
     }
 
     private func upperIndex(_ turn: Turn) -> Int? {
         let candidate = turn == .forward ? index + 1 : index
-        return (0 ..< pageCount).contains(candidate) ? candidate : nil
+        return isReachable(candidate) ? candidate : nil
     }
 
     /// How far the upper page is pushed right: fully off-screen at rest when turning forward, flush at

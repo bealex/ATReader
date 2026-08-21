@@ -10,7 +10,11 @@ import Security
 enum KeychainStore {
     enum Secret: String, CaseIterable {
         case token
+        /// When the service said the token stops working, so it can be refreshed before it does.
+        case tokenExpiry
         case userId
+        /// The signed-in reader, so a launch without a network still knows who is reading.
+        case user
         /// Lets a returning reader skip the two-factor challenge on the next sign-in.
         case trustedCode
     }
@@ -34,6 +38,16 @@ enum KeychainStore {
         string(for: key).flatMap(Int.init)
     }
 
+    static func date(for key: Secret) -> Date? {
+        string(for: key).flatMap(Double.init).map(Date.init(timeIntervalSince1970:))
+    }
+
+    static func value<Value: Decodable>(_ type: Value.Type, for key: Secret) -> Value? {
+        guard let raw = string(for: key) else { return nil }
+
+        return try? JSONDecoder().decode(Value.self, from: Data(raw.utf8))
+    }
+
     static func store(_ value: String?, for key: Secret) {
         guard let value else { return remove(key) }
 
@@ -50,6 +64,16 @@ enum KeychainStore {
 
     static func store(_ value: Int?, for key: Secret) {
         store(value.map(String.init), for: key)
+    }
+
+    static func store(_ value: Date?, for key: Secret) {
+        store(value.map { String($0.timeIntervalSince1970) }, for: key)
+    }
+
+    static func store(value: (some Encodable)?, for key: Secret) {
+        guard let value, let data = try? JSONEncoder().encode(value) else { return remove(key) }
+
+        store(String(decoding: data, as: UTF8.self), for: key)
     }
 
     static func remove(_ key: Secret) {

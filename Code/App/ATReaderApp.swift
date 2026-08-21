@@ -26,9 +26,12 @@ struct ATReaderApp: App {
             await BackgroundRefresh.runSweep(session: session)
         }
         .onChange(of: scenePhase) { _, phase in
-            guard phase == .background else { return }
-
-            BackgroundRefresh.scheduleNext()
+            switch phase {
+                case .background: BackgroundRefresh.scheduleNext()
+                // Tokens last a day, so coming back to the app is the moment to renew one.
+                case .active: Task { await session.refresh() }
+                default: break
+            }
         }
     }
 }

@@ -36,6 +36,7 @@ enum BackgroundRefresh {
 
         guard let client else { return }
 
-        _ = try? await ChapterUpdateService(client: client).check()
+        _ = try? await ChapterUpdateService(client: client)
+            .check(chapterBudget: ChapterUpdateService.backgroundChapterBudget)
     }
 }

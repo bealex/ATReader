@@ -46,7 +46,7 @@ enum ProfileScreen {
 
                         Button("Clear downloads", systemImage: "trash") {
                             Task {
-                                await BookCache.shared.clear()
+                                await LocalStore.shared.clearDownloads()
                                 await CoverCache.shared.clear()
                                 cacheSize = 0
                             }
@@ -81,7 +81,7 @@ enum ProfileScreen {
                 }
                 .navigationTitle("Profile")
                 .task {
-                    cacheSize = await BookCache.shared.diskUsage() + CoverCache.shared.diskUsage()
+                    cacheSize = await LocalStore.shared.downloadSize() + CoverCache.shared.diskUsage()
                     await UpdateBadge.requestBadgePermission()
                 }
                 .confirmationDialog(

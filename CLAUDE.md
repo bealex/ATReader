@@ -34,6 +34,25 @@ Run `Scripts/check.sh` before you call a change done (`--fix` applies formatting
 swift-format, SwiftLint, shell scripts and the String Catalogs in one pass. Never invoke
 `swift-format` or `swiftlint` directly.
 
+## Writing
+
+**Every piece of prose a human will read gets a deslop pass before it counts as done.** That means the
+README, everything under `Documentation/`, `TODO.md`, this file, commit messages and PR descriptions.
+Run the `deslop` skill and apply what it finds instead of eyeballing it.
+
+The patterns this repository keeps producing, worst first:
+
+- **Em-dashes bolted onto sentences.** The first draft of the docs had 112 of them. Use a full stop when
+  the aside is its own claim, a colon when it explains the clause before it, a comma when it is genuinely
+  parenthetical.
+- **Mid-sentence bold** used to sell a phrase. Bold belongs on list-item leaders and headings. Let
+  sentence position carry the emphasis instead.
+- **Filler openers**: "it's worth noting", "worth knowing", "worth recording". Say the thing.
+- **"Not X, it is Y"** where the negation adds nothing. Keep the positive half.
+- **Prose with no contractions**, which reads like a specification rather than a person.
+- **The same point restated across sections.** Say it once, in the strongest place, and link to it from
+  the others.
+
 ## Localization
 
 English is the source language; Russian is a full second locale. Every user-facing string must be
@@ -82,8 +101,11 @@ licensing rather than secrecy. An unconfigured build must keep working for every
   `ChapterPageView` publishes the page's text as its own accessibility label. Keep that in step with
   any drawing change.
 - **Reading position never syncs to the service.** `/v1/reader/update-progress` returns 200 and stores
-  nothing; see the note in `Documentation/API.md`. Don't "fix" the call, and don't assume the position
-  a device shows came from the server.
+  nothing; see the note in `Documentation/API.md`. The position a device shows comes from `LocalStore`,
+  which is the only place it survives. Don't "fix" the call.
+- **`LocalStore` is one SQLite file and the app's first source for everything.** Books, contents,
+  chapter bodies and reading positions live there, and screens draw from it before the service answers.
+  A change that only writes to the service leaves the app wrong offline.
 - **The reader's position is a character offset, not a page number.** Changing the font re-paginates,
   and a page index means nothing across a restyle.
 - **UI-test environment variables need a `TEST_RUNNER_` prefix** to reach the test process;

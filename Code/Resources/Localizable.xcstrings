@@ -248,6 +248,17 @@
         }
       }
     },
+    "Chapter %lld": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Глава %lld"
+          }
+        }
+      }
+    },
     "Chapter %lld/%lld · page %lld/%lld": {
       "extractionState": "manual",
       "localizations": {
@@ -1074,6 +1085,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Чтение"
+          }
+        }
+      }
+    },
+    "Reading from this device": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Читается с устройства"
           }
         }
       }

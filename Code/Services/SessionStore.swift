@@ -29,8 +29,16 @@ final class SessionStore {
 
     private(set) var state: State = .restoring
 
+    /// True while the app is running on a token it could not confirm with the service.
+    private(set) var isOffline = false
+
     init(client: AuthorTodayClient = SessionStore.makeClient()) {
         self.client = client
+        client.credentialsDidChange { credentials in
+            // The client refreshes tokens for itself, so persisting has to follow the client rather
+            // than the sign-in call.
+            Task { @MainActor in SessionStore.persist(credentials) }
+        }
     }
 
     /// Builds the client from the constants `Scripts/gen-secrets.sh` wrote out of `.env`. When the
@@ -65,8 +73,18 @@ final class SessionStore {
     /// The code that lets this device skip the two-factor challenge, if the service issued one.
     var trustedCode: String? { KeychainStore.string(for: .trustedCode) }
 
-    /// Adopts a token left over from an earlier launch. A rejected token is discarded silently — the
-    /// reader simply lands on the sign-in screen.
+    private static func persist(_ credentials: AuthorTodayClient.Credentials) {
+        guard let token = credentials.token else { return }
+
+        KeychainStore.store(token, for: .token)
+        KeychainStore.store(credentials.expiresAt, for: .tokenExpiry)
+        KeychainStore.store(credentials.userId, for: .userId)
+    }
+
+    /// Picks up the stored token and keeps it alive.
+    ///
+    /// The reader is signed in again before the service is asked anything, so a launch with no network
+    /// still opens the library. Only a token the service actually rejects signs them out.
     func restore() async {
         guard
             let token = KeychainStore.string(for: .token)
@@ -75,16 +93,45 @@ final class SessionStore {
             return
         }
 
+        client.update(credentials: .init(
+            token: token,
+            userId: KeychainStore.integer(for: .userId),
+            expiresAt: KeychainStore.date(for: .tokenExpiry)
+        ))
+
+        if let cached = storedUser() { state = .signedIn(cached) }
+
+        await refresh()
+    }
+
+    /// Renews a token close to expiry and confirms the account behind it.
+    func refresh() async {
+        guard KeychainStore.string(for: .token) != nil else { return }
+
         do {
-            let user = try await client.restoreSession(token: token)
+            try await client.refreshTokenIfNeeded()
+            let user = try await client.currentUser()
+            KeychainStore.store(value: user, for: .user)
             KeychainStore.store(user.id, for: .userId)
             state = .signedIn(user)
+            isOffline = false
+        } catch let error as AuthorTodayError where error.requiresReauthentication {
+            signOut()
         } catch {
-            KeychainStore.remove(.token)
-            KeychainStore.remove(.userId)
-            client.signOut()
-            state = .signedOut
+            // A network that is down is not a reason to throw the session away.
+            isOffline = true
+
+            if case .restoring = state {
+                state = storedUser().map(State.signedIn) ?? .signedOut
+            }
         }
+    }
+
+    /// The reader as the last successful sign-in saw them, falling back to the bare account id.
+    private func storedUser() -> UserInfo? {
+        if let stored = KeychainStore.value(UserInfo.self, for: .user) { return stored }
+
+        return KeychainStore.integer(for: .userId).map { UserInfo(id: $0) }
     }
 
     /// Signs in, returning the service's answer so the caller can drive a two-factor challenge.
@@ -98,12 +145,12 @@ final class SessionStore {
 
         if let trusted = result.trustedCode { KeychainStore.store(trusted, for: .trustedCode) }
 
-        guard let token = result.token else { return result }
+        guard result.token != nil else { return result }
 
-        KeychainStore.store(token, for: .token)
         let user = try await client.currentUser()
-        KeychainStore.store(user.id, for: .userId)
+        KeychainStore.store(value: user, for: .user)
         state = .signedIn(user)
+        isOffline = false
         return result
     }
 

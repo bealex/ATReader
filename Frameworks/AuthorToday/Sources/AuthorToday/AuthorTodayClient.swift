@@ -10,6 +10,9 @@ import Synchronization
 /// A client for the author.today mobile API (`https://api.author.today`).
 ///
 /// The client is safe to share: the mutable part is only the credential pair, guarded by a `Mutex`.
+///
+/// Tokens last a day. A request that fails because the token expired is retried once behind a refresh,
+/// and ``credentialsDidChange`` reports every new token so the caller can persist it.
 public final class AuthorTodayClient: Sendable {
     /// Host, user agent and the certificate the service binds chapter keys to.
     public struct Configuration: Sendable {
@@ -63,22 +66,38 @@ public final class AuthorTodayClient: Sendable {
         }
     }
 
-    /// The token used for requests plus the account id the chapter key derivation needs.
+    /// The token used for requests, when it runs out, and the account id the chapter key derivation needs.
     public struct Credentials: Sendable, Equatable {
         public var token: String?
         public var userId: Int?
+        /// When the service said the token stops working. `nil` when it never said.
+        public var expiresAt: Date?
 
-        public init(token: String? = nil, userId: Int? = nil) {
+        public init(token: String? = nil, userId: Int? = nil, expiresAt: Date? = nil) {
             self.token = token
             self.userId = userId
+            self.expiresAt = expiresAt
         }
 
         public static let guest = Credentials()
 
         public var isAuthenticated: Bool { token != nil }
 
+        /// True when the token runs out within `window`. An unknown expiry counts as expiring, so a
+        /// token restored from an older build is refreshed rather than trusted.
+        public func expires(within window: TimeInterval) -> Bool {
+            guard isAuthenticated else { return false }
+            guard let expiresAt else { return true }
+
+            return expiresAt.timeIntervalSinceNow < window
+        }
+
         var authorizationValue: String { "Bearer \(token ?? "guest")" }
     }
+
+    /// Called on every credential change, including the ones the client makes for itself when it
+    /// refreshes an expired token.
+    public typealias CredentialsObserver = @Sendable (Credentials) -> Void
 
     enum Method: String, Sendable {
         case get = "GET"
@@ -90,12 +109,16 @@ public final class AuthorTodayClient: Sendable {
         var path: String
         var query: [URLQueryItem] = []
         var body: Data?
+        /// False for the calls that mint tokens, so a failure there cannot recurse into a refresh.
+        var allowsTokenRefresh = true
     }
 
     public let configuration: Configuration
 
     private let session: URLSession
     private let storage: Mutex<Credentials>
+    private let observer: Mutex<CredentialsObserver?>
+    private let refresh: Mutex<Task<Void, any Error>?>
 
     public init(
         configuration: Configuration = .unconfigured,
@@ -105,16 +128,24 @@ public final class AuthorTodayClient: Sendable {
         self.configuration = configuration
         self.session = session
         self.storage = Mutex(credentials)
+        self.observer = Mutex(nil)
+        self.refresh = Mutex(nil)
     }
 
     public var credentials: Credentials { storage.withLock { $0 } }
 
     public func update(credentials: Credentials) {
         storage.withLock { $0 = credentials }
+        observer.withLock { $0 }?(credentials)
+    }
+
+    /// Watches every token the client adopts, so the caller can keep its own copy current.
+    public func credentialsDidChange(_ handler: CredentialsObserver?) {
+        observer.withLock { $0 = handler }
     }
 
     public func signOut() {
-        storage.withLock { $0 = .guest }
+        update(credentials: .guest)
     }
 
     func send<Response: Decodable>(_ endpoint: Endpoint) async throws -> Response {
@@ -129,6 +160,19 @@ public final class AuthorTodayClient: Sendable {
 
     @discardableResult
     func sendUnparsed(_ endpoint: Endpoint) async throws -> Data {
+        do {
+            return try await perform(endpoint)
+        } catch let error as AuthorTodayError where endpoint.allowsTokenRefresh && error.isTokenRejection {
+            let stale = credentials.token
+
+            guard stale != nil else { throw error }
+
+            try await refreshCredentials(replacing: stale)
+            return try await perform(endpoint)
+        }
+    }
+
+    private func perform(_ endpoint: Endpoint) async throws -> Data {
         let (data, response) = try await session.data(for: makeRequest(endpoint))
 
         guard let http = response as? HTTPURLResponse else { throw AuthorTodayError.unexpectedStatus(0) }
@@ -139,6 +183,26 @@ public final class AuthorTodayClient: Sendable {
         }
 
         throw AuthorTodayError.unexpectedStatus(http.statusCode)
+    }
+
+    /// Swaps the stale token for a fresh one, collapsing everything that noticed the same expiry into
+    /// one call to the service.
+    func refreshCredentials(replacing staleToken: String?) async throws {
+        guard credentials.token == staleToken else { return }
+
+        let task = refresh.withLock { running -> Task<Void, any Error> in
+            if let running { return running }
+
+            let started = Task<Void, any Error> {
+                defer { self.refresh.withLock { $0 = nil } }
+
+                try await self.refreshToken()
+            }
+            running = started
+            return started
+        }
+
+        try await task.value
     }
 
     private func makeRequest(_ endpoint: Endpoint) throws -> URLRequest {

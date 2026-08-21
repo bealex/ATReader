@@ -19,14 +19,21 @@ extension LibraryScreen {
         private(set) var errorMessage: String?
         private(set) var hasLoaded = false
 
+        /// True while the list is the stored one and the service could not be reached.
+        private(set) var isOffline = false
+
         @ObservationIgnored
         private var shelfByWork: [Int: LibraryState] = [:]
 
         @ObservationIgnored
         private let session: SessionStore
 
-        init(session: SessionStore) {
+        @ObservationIgnored
+        private let store: LocalStore
+
+        init(session: SessionStore, store: LocalStore = .shared) {
             self.session = session
+            self.store = store
         }
 
         /// The rows after the shelf filter and the local title/author filter.
@@ -66,8 +73,19 @@ extension LibraryScreen {
         func loadIfNeeded() async {
             guard !hasLoaded else { return }
 
+            await showStoredLibrary()
             await reload()
             await sweepForNewChaptersIfDue()
+        }
+
+        /// Draws the shelf the device already has before the service is asked anything, so the library
+        /// opens instantly and opens at all with no network.
+        private func showStoredLibrary() async {
+            let stored = await store.works()
+
+            guard !stored.isEmpty, works.isEmpty else { return }
+
+            apply(entries: stored, counts: nil)
         }
 
         /// The daily check also runs in the foreground, so the badge is current even when the system
@@ -92,28 +110,41 @@ extension LibraryScreen {
             errorMessage = nil
 
             do {
-                let library = try await session.client.userLibrary(page: 1, pageSize: 200)
-                let entries = library.worksInLibrary
-
-                shelfByWork = Dictionary(
-                    entries.map { ($0.id, $0.inLibraryState ?? .none) },
-                    uniquingKeysWith: { first, _ in first }
-                )
-                works = entries.map(WorkSummary.init)
-                counts = Dictionary(
-                    LibraryState.shelves.compactMap { state in
-                        library.count(for: state).map { (state, $0) }
-                    },
-                    uniquingKeysWith: { first, _ in first }
-                )
+                let library = try await session.client.fullUserLibrary()
+                let entries = library.worksInLibrary.map(WorkSummary.init)
+                apply(entries: entries, counts: library)
+                await store.replaceLibrary(with: entries)
+                isOffline = false
                 hasLoaded = true
-            } catch let error as AuthorTodayError {
+            } catch let error as AuthorTodayError where error.requiresReauthentication {
                 errorMessage = error.localizedDescription
             } catch {
-                errorMessage = "Couldn’t load your library."
+                // The stored shelf is already on screen; say the list is stale rather than replacing it
+                // with an error.
+                isOffline = true
+
+                if works.isEmpty { errorMessage = String(localized: "Couldn’t load your library.") }
             }
 
             isLoading = false
+        }
+
+        private func apply(entries: [WorkSummary], counts library: UserLibrary?) {
+            shelfByWork = Dictionary(
+                entries.map { ($0.id, $0.libraryState ?? .none) },
+                uniquingKeysWith: { first, _ in first }
+            )
+            works = entries
+            Task { await CoverCache.shared.prefetch(entries.compactMap(\.coverURL)) }
+
+            guard let library else { return }
+
+            counts = Dictionary(
+                LibraryState.shelves.compactMap { state in
+                    library.count(for: state).map { (state, $0) }
+                },
+                uniquingKeysWith: { first, _ in first }
+            )
         }
     }
 }

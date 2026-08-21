@@ -47,7 +47,7 @@ public struct AccessToken: Decodable, Sendable {
 }
 
 /// The signed-in reader.
-public struct UserInfo: Decodable, Sendable, Identifiable {
+public struct UserInfo: Codable, Sendable, Identifiable {
     public let id: Int
     public let userName: String?
     public let fio: String?
@@ -87,7 +87,7 @@ public struct UserInfo: Decodable, Sendable, Identifiable {
 
 /// The reader's library page, with the per-shelf totals the service keeps.
 public struct UserLibrary: Decodable, Sendable {
-    public let worksInLibrary: [WorkMetaInfo]
+    public var worksInLibrary: [WorkMetaInfo]
     public let readingCount: Int?
     public let savedCount: Int?
     public let finishedCount: Int?

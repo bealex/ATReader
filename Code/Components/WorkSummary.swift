@@ -8,7 +8,7 @@ import Foundation
 
 /// One shape for the three sources of book rows — the library, the catalogue and a work's own details —
 /// so a single row view serves every list.
-struct WorkSummary: Identifiable, Hashable, Sendable {
+struct WorkSummary: Codable, Identifiable, Hashable, Sendable {
     let id: Int
     let title: String
     let authorLine: String

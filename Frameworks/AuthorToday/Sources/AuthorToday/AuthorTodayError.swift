@@ -46,6 +46,15 @@ public enum AuthorTodayError: Error, Sendable {
         public static let fallback: Self = .unknown
     }
 
+    /// True when the service rejected the token itself, so a refresh is worth trying.
+    var isTokenRejection: Bool {
+        switch self {
+            case let .api(code, _, status): status == 401 || code == .invalidToken || code == .expiredToken
+            case let .unexpectedStatus(status): status == 401
+            default: false
+        }
+    }
+
     /// True when the stored token is stale and the caller should sign in again.
     public var requiresReauthentication: Bool {
         switch self {

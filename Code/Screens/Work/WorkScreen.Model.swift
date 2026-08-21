@@ -23,14 +23,21 @@ extension WorkScreen {
         private let session: SessionStore
 
         @ObservationIgnored
+        private let store: LocalStore
+
+        @ObservationIgnored
         private var hasLoaded = false
 
-        init(workId: Int, session: SessionStore) {
+        /// The book as the device has it, shown until the service answers and kept when it does not.
+        private(set) var storedSummary: WorkSummary?
+
+        init(workId: Int, session: SessionStore, store: LocalStore = .shared) {
             self.workId = workId
             self.session = session
+            self.store = store
         }
 
-        var summary: WorkSummary? { details.map(WorkSummary.init) }
+        var summary: WorkSummary? { details.map(WorkSummary.init) ?? storedSummary }
 
         var readableChapters: [ChapterInfo] { chapters.filter(\.isReadable) }
 
@@ -51,7 +58,17 @@ extension WorkScreen {
             guard !hasLoaded else { return }
 
             hasLoaded = true
+            await showStored()
             await reload()
+        }
+
+        private func showStored() async {
+            guard let stored = await store.work(id: workId) else { return }
+
+            storedSummary = stored.summary
+            tags = stored.tags
+            libraryState = stored.summary.libraryState ?? .none
+            chapters = await store.chapters(workId: workId)
         }
 
         func reload() async {
@@ -67,10 +84,14 @@ extension WorkScreen {
                 chapters = loadedChapters.sorted { ($0.sortOrder ?? 0) < ($1.sortOrder ?? 0) }
                 tags = loadedDetails.tags ?? []
                 libraryState = loadedDetails.inLibraryState ?? .none
-            } catch let error as AuthorTodayError {
+
+                await store.store(work: WorkSummary(loadedDetails), tags: tags)
+                await store.store(chapters: chapters, workId: workId)
+            } catch let error as AuthorTodayError where error.requiresReauthentication {
                 errorMessage = error.localizedDescription
             } catch {
-                errorMessage = "Couldn’t load this book."
+                // A stored copy on screen beats an error message about refreshing it.
+                if storedSummary == nil { errorMessage = String(localized: "Couldn’t load this book.") }
             }
 
             isLoading = false

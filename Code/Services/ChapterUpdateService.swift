@@ -9,8 +9,9 @@ import UserNotifications
 
 /// Finds chapters published since the last sweep of the reader's "reading" shelf.
 ///
-/// It doubles as the offline-cache warmer: while it is walking the shelf it stores each table of contents
-/// and pulls the bodies of the chapters it just discovered, so new material is readable without a network.
+/// It doubles as the offline warmer: while it is walking the shelf it stores every book and its contents,
+/// downloads the chapters it just discovered, and then backfills whatever else is still missing, so a
+/// book on the shelf becomes readable without a network.
 struct ChapterUpdateService: Sendable {
     /// What one sweep turned up.
     struct Result: Sendable {
@@ -20,74 +21,71 @@ struct ChapterUpdateService: Sendable {
         var total: Int { newChaptersByWork.values.reduce(0, +) }
     }
 
-    /// How many freshly found chapters to download per sweep, so a long absence cannot run away with data.
-    static let chapterPrefetchLimit = 25
+    /// How many chapter bodies to download per sweep, so a long absence cannot run away with data.
+    /// Newly published chapters come first; the rest of the budget backfills what is still missing.
+    static let foregroundChapterBudget = 60
+    /// A background window is short and killed when it overruns, so it takes a smaller bite.
+    static let backgroundChapterBudget = 15
 
     private let client: AuthorTodayClient
-    private let cache: BookCache
+    private let store: LocalStore
 
-    init(client: AuthorTodayClient, cache: BookCache = .shared) {
+    init(client: AuthorTodayClient, store: LocalStore = .shared) {
         self.client = client
-        self.cache = cache
+        self.store = store
     }
 
     /// Walks the reading shelf and reports what is new. Throws only when the shelf itself cannot be read.
     @discardableResult
-    func check(prefetchBodies: Bool = true) async throws -> Result {
-        let library = try await client.userLibrary(page: 1, pageSize: 200)
-        let reading = library.worksInLibrary.filter { $0.inLibraryState == .reading }
+    func check(chapterBudget: Int = ChapterUpdateService.foregroundChapterBudget) async throws -> Result {
+        let library = try await client.fullUserLibrary()
+        let works = library.worksInLibrary.map(WorkSummary.init)
 
-        await cache.store(readingShelf: reading)
-        await cache.retainOnly(workIds: Set(reading.map(\.id)))
+        await store.replaceLibrary(with: works)
 
-        var snapshots = await cache.snapshots()
+        let reading = works.filter { $0.libraryState == .reading }
         var counts: [Int: Int] = [:]
         var titles: [Int: String] = [:]
-        var prefetched = 0
+        var budget = chapterBudget
 
         for work in reading {
             guard let contents = try? await client.workContents(id: work.id) else { continue }
 
-            let readable = contents.filter(\.isReadable).sorted { ($0.sortOrder ?? 0) < ($1.sortOrder ?? 0) }
-            let ids = readable.map(\.id)
-
-            await cache.store(contents: contents, workId: work.id)
-
-            // The first sweep only records a baseline — everything already published is not "new".
-            guard
-                let previous = snapshots[work.id]
-            else {
-                snapshots[work.id] = BookCache.Snapshot(chapterIds: ids, checkedAt: .now, title: work.title)
-                continue
-            }
-
-            let fresh = previous.newChapters(against: ids)
+            let fresh = await store.unseenChapters(workId: work.id, in: contents)
+            await store.store(chapters: contents, workId: work.id)
 
             if !fresh.isEmpty {
                 counts[work.id] = fresh.count
                 titles[work.id] = work.title
             }
 
-            if prefetchBodies {
-                for chapterId in fresh where prefetched < Self.chapterPrefetchLimit {
-                    guard await !cache.hasChapter(workId: work.id, chapterId: chapterId) else { continue }
-                    guard
-                        let chapter = try? await client.chapterText(workId: work.id, chapterId: chapterId)
-                    else { continue }
+            guard budget > 0 else { continue }
 
-                    await cache.store(chapter: chapter, workId: work.id)
-                    prefetched += 1
-                }
-            }
+            let readable = contents.filter(\.isReadable).sorted { ($0.sortOrder ?? 0) < ($1.sortOrder ?? 0) }
+            let stored = await store.storedBodyIds(workId: work.id)
+            let missing = fresh + readable.map(\.id).filter { !fresh.contains($0) && !stored.contains($0) }
 
-            snapshots[work.id] = BookCache.Snapshot(chapterIds: ids, checkedAt: .now, title: work.title)
+            budget -= await download(chapters: missing.prefix(budget), workId: work.id)
         }
-
-        await cache.store(snapshots: snapshots)
 
         let result = Result(newChaptersByWork: counts, titlesByWork: titles)
         await UpdateBadge.record(result)
         return result
+    }
+
+    /// Downloads chapter bodies, reporting how many actually landed.
+    private func download(chapters: some Sequence<Int>, workId: Int) async -> Int {
+        var downloaded = 0
+
+        for chapterId in chapters {
+            guard await !store.hasBody(workId: workId, chapterId: chapterId) else { continue }
+            guard let chapter = try? await client.chapterText(workId: workId, chapterId: chapterId) else { continue }
+
+            await store.store(body: chapter, workId: workId)
+            downloaded += 1
+        }
+
+        return downloaded
     }
 }
 
