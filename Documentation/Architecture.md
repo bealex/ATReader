@@ -138,8 +138,8 @@ turn can therefore be reversed with no special handling. Progress runs `0…1`, 
 state and `1` is committed, and the gesture measures against the turn's own direction so a reversed
 finger unwinds it.
 
-Dragging forward, the incoming page comes in from the right edge to meet the finger over 0.15s and
-from then on is held 20pt inside its own leading edge, so the finger is on the page it is pulling.
+Dragging forward, the incoming page eases in from the right edge to meet the finger over 0.3s and from
+then on is held 20pt inside its own leading edge, so the finger is on the page it is pulling.
 Sliding it in by the finger's travel alone would leave the page's edge wherever the drag happened to
 start, which reads as pushing a page along from a distance. Re-targeting the run-in animation on every
 gesture event keeps it smooth however fast the finger moves. What lands the turn is the finger's own

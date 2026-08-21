@@ -72,7 +72,7 @@ struct PageTurnView<Page: View>: View {
     /// How far inside its leading edge the incoming page is held.
     private static var grip: CGFloat { 20 }
     /// How long the page takes to come in from the screen edge and meet the finger.
-    private static var grabDuration: Double { 0.15 }
+    private static var grabDuration: Double { 0.3 }
     /// How far the page behind draws back, as a fraction of its size, once it is fully covered.
     private static var recession: CGFloat { 0.05 }
     private static var dimming: CGFloat { 0.22 }
@@ -155,7 +155,7 @@ struct PageTurnView<Page: View>: View {
                 // running keeps that smooth however fast the finger is moving.
                 guard isGrabbing(at: value.time) else { return progress = target }
 
-                withAnimation(.easeOut(duration: Self.grabDuration)) { progress = target }
+                withAnimation(.easeInOut(duration: Self.grabDuration)) { progress = target }
             }
             .onEnded { value in
                 guard let turn else { return }
