@@ -122,8 +122,9 @@ page ignores the safe area, its size and the notch and home-indicator insets com
 rather than from the layout, which also keeps a toolbar appearing from re-paginating the chapter.
 
 A tap in the middle third brings back the status bar and the controls, and a second tap sends them
-away again. The bar draws over the page rather than moving it, and carries its own background so the
-running head doesn't show through.
+away again. The bar is the reader's own rather than the navigation stack's, so it fades in over the
+page instead of sliding the page down, and it carries a background of its own so the running head
+doesn't show through it.
 
 `PageTurnView` handles the turn. The entire effect comes from one rule, that page `n + 1` always sits
 above page `n`, so a single offset drives both directions: turning forward slides page `n + 1` in from
@@ -132,11 +133,12 @@ turn can therefore be reversed with no special handling. Progress runs `0…1`, 
 state and `1` is committed, and the gesture measures against the turn's own direction so a reversed
 finger unwinds it.
 
-Dragging forward, the incoming page leaves the right edge, closes the gap to the finger over about
-80pt of travel and from there keeps its edge under it. Sliding it in by the finger's travel alone would
-leave the page's edge wherever the drag happened to start, which reads as pushing the page rather than
-pulling it. What lands the turn is the finger's own travel, not how far the page has come, and a flick
-back cancels it however far it had got.
+Dragging forward, the incoming page comes in from the right edge to meet the finger over 0.15s and
+from then on is held 20pt inside its own leading edge, so the finger is on the page it is pulling.
+Sliding it in by the finger's travel alone would leave the page's edge wherever the drag happened to
+start, which reads as pushing a page along from a distance. Re-targeting the run-in animation on every
+gesture event keeps it smooth however fast the finger moves. What lands the turn is the finger's own
+travel, not how far the page has come, and a flick back cancels it however far it had got.
 
 The page behind draws back by 5% and darkens as the page in front covers it, and the page in front
 carries a shadow along its edge, so the two read as one in front of the other whichever way the turn is

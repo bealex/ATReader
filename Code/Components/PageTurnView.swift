@@ -55,12 +55,19 @@ struct PageTurnView<Page: View>: View {
     @State
     private var queued = 0
 
+    /// When the current drag took hold of a page, so the page's run in from the screen edge can be
+    /// animated and the tracking that follows cannot be.
+    @State
+    private var grabbedAt: Date?
+
     private static var commitThreshold: CGFloat { 0.3 }
     private static var flickVelocity: CGFloat { 120 }
     /// A flick against the turn this small still cancels it.
     private static var reverseFlickVelocity: CGFloat { 20 }
-    /// How far the finger travels while the incoming page closes the gap between the screen edge and it.
-    private static var catchDistance: CGFloat { 80 }
+    /// How far inside its leading edge the incoming page is held.
+    private static var grip: CGFloat { 20 }
+    /// How long the page takes to come in from the screen edge and meet the finger.
+    private static var grabDuration: Double { 0.15 }
     /// How far the page behind draws back, as a fraction of its size, once it is fully covered.
     private static var recession: CGFloat { 0.05 }
     private static var dimming: CGFloat { 0.22 }
@@ -112,6 +119,7 @@ struct PageTurnView<Page: View>: View {
 
                 if turn == nil {
                     queued = 0
+                    grabbedAt = value.time
 
                     if translation < 0, isReachable(index + 1) {
                         turn = .forward
@@ -125,11 +133,18 @@ struct PageTurnView<Page: View>: View {
                 guard let turn else { return }
 
                 // Measuring against the turn's own direction lets a reversed finger unwind the turn.
-                progress =
+                let target: CGFloat =
                     switch turn {
                         case .forward: forwardProgress(value)
                         case .backward: min(1, max(0, translation / width))
                     }
+
+                // The incoming page has to come in from the screen edge to meet the finger. Animating
+                // the first moments of the drag carries it there, and re-targeting an animation already
+                // running keeps that smooth however fast the finger is moving.
+                guard isGrabbing(at: value.time) else { return progress = target }
+
+                withAnimation(.easeOut(duration: Self.grabDuration)) { progress = target }
             }
             .onEnded { value in
                 guard let turn else { return }
@@ -156,15 +171,17 @@ struct PageTurnView<Page: View>: View {
 
     /// Where the incoming page has got to, as `0…1`.
     ///
-    /// It leaves the right edge, closes the gap to the finger over ``catchDistance``, and from there
-    /// its edge sits under the finger and moves with it. Sliding it in by the finger's travel alone
-    /// would leave the page's edge wherever the drag happened to start, which reads as pushing the page
-    /// rather than pulling it.
+    /// The page is held ``grip`` inside its own leading edge, so the finger sits on the page it is
+    /// pulling rather than pushing one along from a distance.
     private func forwardProgress(_ value: DragGesture.Value) -> CGFloat {
-        let gap = max(0, width - value.startLocation.x)
-        let travelled = max(0, value.startLocation.x - value.location.x)
-        let edge = value.location.x + gap * exp(-travelled / Self.catchDistance)
-        return min(1, max(0, 1 - edge / width))
+        min(1, max(0, 1 - (value.location.x - Self.grip) / width))
+    }
+
+    /// True while the page is still on its way to the finger.
+    private func isGrabbing(at time: Date) -> Bool {
+        guard let grabbedAt else { return false }
+
+        return time.timeIntervalSince(grabbedAt) < Self.grabDuration
     }
 
     private func advance() {

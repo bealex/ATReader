@@ -18,6 +18,9 @@ enum ReaderScreen {
         @Environment(ReaderSettings.self)
         private var settings
 
+        @Environment(\.dismiss)
+        private var dismiss
+
         @State
         private var model: Model?
 
@@ -49,16 +52,11 @@ enum ReaderScreen {
             }
             .background(settings.theme.background.ignoresSafeArea())
             .navigationTitle(model?.chapterTitle ?? title)
-            .navigationBarTitleDisplayMode(.inline)
             .toolbar(.hidden, for: .tabBar)
-            .toolbar(isChromeHidden ? .hidden : .visible, for: .navigationBar)
+            // The reader draws its own bar, so it can fade rather than slide in over the page.
+            .toolbar(.hidden, for: .navigationBar)
             .backSwipeDisabled()
             .statusBarHidden(isChromeHidden)
-            .toolbar { toolbar }
-            .toolbarBackground(settings.theme.background, for: .navigationBar)
-            // The page runs under the bar, so the bar needs a background of its own or the book's
-            // title shows through the chapter's.
-            .toolbarBackground(.visible, for: .navigationBar)
             .preferredColorScheme(settings.theme.colorScheme)
             .sheet(isPresented: $isShowingSettings) { SettingsSheet() }
             .sheet(isPresented: $isShowingContents) {
@@ -110,6 +108,9 @@ enum ReaderScreen {
             )
             .accessibilityIdentifier("reader.page")
             .ignoresSafeArea()
+            .overlay(alignment: .top) {
+                if !isChromeHidden { chromeBar.transition(.opacity) }
+            }
             // The window, not the layout: a page ignores the safe area, so the size its parent hands
             // it is not the size it draws at, and a toolbar coming and going would move it besides.
             .onGeometryChange(for: CGSize.self, of: { $0.size }, action: { _ in applyWindowMetrics() })
@@ -191,38 +192,38 @@ enum ReaderScreen {
             pageSize = window.bounds.size
         }
 
-        @ToolbarContentBuilder
-        private var toolbar: some ToolbarContent {
-            // The title stays while the controls are away, greyed back so it reads as a marker rather
-            // than a heading.
-            ToolbarItem(placement: .principal) {
+        /// The reader's own bar: back, the chapter's name, and the two sheets.
+        private var chromeBar: some View {
+            HStack(spacing: 18) {
+                Button("Back", systemImage: "chevron.backward", action: { dismiss() })
+                    .labelStyle(.iconOnly)
+                    .accessibilityHint("Leaves the book")
+
                 Text(model?.chapterTitle ?? title)
                     .font(.headline)
                     .lineLimit(1)
-                    .foregroundStyle(settings.theme.foreground.opacity(isChromeHidden ? 0.35 : 1))
-            }
+                    .frame(maxWidth: .infinity)
 
-            if !isChromeHidden {
                 if model?.isOffline == true {
-                    ToolbarItem(placement: .topBarLeading) {
-                        Image(systemName: "wifi.slash")
-                            .foregroundStyle(.secondary)
-                            .accessibilityLabel("Reading from this device")
-                    }
+                    Image(systemName: "wifi.slash")
+                        .foregroundStyle(.secondary)
+                        .accessibilityLabel("Reading from this device")
                 }
 
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button("Contents", systemImage: "list.bullet") { isShowingContents = true }
-                        .labelStyle(.iconOnly)
-                        .accessibilityHint("Shows the chapter list")
-                }
+                Button("Contents", systemImage: "list.bullet") { isShowingContents = true }
+                    .labelStyle(.iconOnly)
+                    .accessibilityHint("Shows the chapter list")
 
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button("Appearance", systemImage: "textformat.size") { isShowingSettings = true }
-                        .labelStyle(.iconOnly)
-                        .accessibilityHint("Font, margins and page settings")
-                }
+                Button("Appearance", systemImage: "textformat.size") { isShowingSettings = true }
+                    .labelStyle(.iconOnly)
+                    .accessibilityHint("Font, margins and page settings")
             }
+            .font(.title3)
+            .foregroundStyle(settings.theme.foreground)
+            .padding(.horizontal, 18)
+            .padding(.vertical, 10)
+            .padding(.top, safeArea.top)
+            .background(settings.theme.background)
         }
     }
 

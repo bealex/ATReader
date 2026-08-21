@@ -171,6 +171,17 @@
         }
       }
     },
+    "Back": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Назад"
+          }
+        }
+      }
+    },
     "Blurb": {
       "extractionState": "manual",
       "localizations": {
@@ -648,6 +659,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Последняя проверка обновлений"
+          }
+        }
+      }
+    },
+    "Leaves the book": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Выход из книги"
           }
         }
       }
