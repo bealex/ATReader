@@ -34,16 +34,11 @@ struct WorkBadge: View {
 /// The pills a book carries. Which of them a screen shows differs, so each is asked for by name.
 struct WorkBadges: View {
     let work: WorkSummary
-    var showsLength = false
     var showsProgress = false
     var showsUpdated = false
 
     var body: some View {
         FlowLayout {
-            if showsLength, let length = WorkFormatting.length(work.textLength) {
-                WorkBadge(title: length, systemImage: "doc.text")
-            }
-
             if let likes = WorkFormatting.likes(work.likeCount) {
                 WorkBadge(title: likes, systemImage: "heart.fill", tint: .pink)
             }
@@ -71,11 +66,11 @@ struct WorkBadges: View {
         if showsProgress, work.isFinishedReading {
             WorkBadge(title: String(localized: "Finished"), systemImage: "checkmark.circle.fill", tint: .green)
         } else {
-            WorkBadge(
-                title: work.isOngoing ? String(localized: "Ongoing") : String(localized: "Complete"),
-                systemImage: work.isOngoing ? "pencil" : "checkmark.seal",
-                tint: work.isOngoing ? .orange : .green
-            )
+            // Only a book still being written says so. A finished one is the ordinary case, and a pill
+            // for it would sit on nearly every row saying nothing.
+            if work.isOngoing {
+                WorkBadge(title: String(localized: "Ongoing"), systemImage: "pencil", tint: .orange)
+            }
 
             if showsProgress, work.isCaughtUp {
                 WorkBadge(title: String(localized: "Caught up"), systemImage: "hourglass", tint: .teal)

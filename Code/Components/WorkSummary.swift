@@ -128,13 +128,6 @@ extension WorkSummary {
 
 /// Shared number and date wording, so every screen phrases a book's size the same way.
 enum WorkFormatting {
-    static func length(_ characters: Int?) -> String? {
-        guard let characters, characters > 0 else { return nil }
-
-        let pages = max(1, characters / 1800)
-        return String(localized: "\(pages) pp.")
-    }
-
     static func likes(_ count: Int?) -> String? {
         guard let count, count > 0 else { return nil }
 

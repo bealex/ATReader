@@ -17,9 +17,6 @@ enum WorkScreen {
         @State
         private var model: Model?
 
-        @State
-        private var isShowingContents = false
-
         var body: some View {
             ScrollView {
                 if let model {
@@ -156,17 +153,16 @@ enum WorkScreen {
         }
 
         private func tagCloud(_ tags: [String]) -> some View {
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 8) {
-                    ForEach(tags, id: \.self) { label in
-                        Text(label)
-                            .font(.caption)
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 5)
-                            .background(Color(.tertiarySystemFill), in: .capsule)
-                    }
+            FlowLayout(spacing: 8, lineSpacing: 8) {
+                ForEach(tags, id: \.self) { label in
+                    Text(label)
+                        .font(.caption)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 5)
+                        .background(Color(.tertiarySystemFill), in: .capsule)
                 }
             }
+            .accessibilityElement(children: .ignore)
             .accessibilityLabel("Tags: \(tags.joined(separator: ", "))")
         }
 
@@ -174,23 +170,12 @@ enum WorkScreen {
         private func contentsSection(_ model: Model) -> some View {
             section("Contents") {
                 VStack(alignment: .leading, spacing: 0) {
-                    let visible = isShowingContents ? model.chapters : Array(model.chapters.prefix(5))
-
-                    ForEach(visible) { chapter in
+                    ForEach(model.chapters) { chapter in
                         chapterRow(model, chapter: chapter)
 
-                        if chapter.id != visible.last?.id {
+                        if chapter.id != model.chapters.last?.id {
                             Divider()
                         }
-                    }
-
-                    if model.chapters.count > 5 {
-                        Button(isShowingContents ? "Collapse" : "Show all \(model.chapters.count) chapters") {
-                            withAnimation { isShowingContents.toggle() }
-                        }
-                        .font(.footnote)
-                        .padding(.top, 10)
-                        .accessibilityHint("Expands the chapter list")
                     }
                 }
             }

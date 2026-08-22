@@ -82,17 +82,6 @@
         }
       }
     },
-    "%lld pp.": {
-      "extractionState": "manual",
-      "localizations": {
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%lld стр."
-          }
-        }
-      }
-    },
     "%lld pt": {
       "extractionState": "manual",
       "localizations": {
@@ -351,28 +340,6 @@
         }
       }
     },
-    "Collapse": {
-      "extractionState": "manual",
-      "localizations": {
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Свернуть"
-          }
-        }
-      }
-    },
-    "Complete": {
-      "extractionState": "manual",
-      "localizations": {
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Дописана"
-          }
-        }
-      }
-    },
     "Confirm": {
       "extractionState": "manual",
       "localizations": {
@@ -527,6 +494,17 @@
         }
       }
     },
+    "English": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Английский"
+          }
+        }
+      }
+    },
     "Enter a book title or an author’s name.": {
       "extractionState": "manual",
       "localizations": {
@@ -578,17 +556,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Везде"
-          }
-        }
-      }
-    },
-    "Expands the chapter list": {
-      "extractionState": "manual",
-      "localizations": {
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Разворачивает список глав"
           }
         }
       }
@@ -1265,6 +1232,17 @@
         }
       }
     },
+    "Russian": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Русский"
+          }
+        }
+      }
+    },
     "SF Rounded": {
       "extractionState": "manual",
       "shouldTranslate": false
@@ -1379,17 +1357,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Показывать"
-          }
-        }
-      }
-    },
-    "Show all %lld chapters": {
-      "extractionState": "manual",
-      "localizations": {
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Показать все %lld глав"
           }
         }
       }
@@ -1533,17 +1500,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Метки: %@"
-          }
-        }
-      }
-    },
-    "Text alignment": {
-      "extractionState": "manual",
-      "localizations": {
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Выравнивание текста"
           }
         }
       }

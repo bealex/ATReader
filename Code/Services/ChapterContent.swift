@@ -10,6 +10,10 @@ import NaturalLanguage
 /// A chapter's text, parsed and ready to lay out.
 struct ChapterContent: Sendable {
     var paragraphs: [ChapterHTML.Paragraph]
+    /// The same paragraphs with every break point the language's dictionary allows already marked.
+    /// Justified setting uses these; working them out costs about as much as laying the chapter out,
+    /// so it happens once here rather than on every re-pagination.
+    var hyphenated: [ChapterHTML.Paragraph]
     /// The language the chapter is written in, which decides which hyphenation dictionary lays it out
     /// and how it is shaped.
     var language: String?
@@ -29,7 +33,14 @@ struct ChapterContent: Sendable {
                     isCentered: paragraph.isCentered
                 )
             }
-            return ChapterContent(paragraphs: bound, language: language)
+            let hyphenated = bound.map { paragraph in
+                ChapterHTML.Paragraph(
+                    id: paragraph.id,
+                    text: Typography.hyphenated(paragraph.text, language: language),
+                    isCentered: paragraph.isCentered
+                )
+            }
+            return ChapterContent(paragraphs: bound, hyphenated: hyphenated, language: language)
         }.value
     }
 

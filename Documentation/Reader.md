@@ -41,6 +41,38 @@ size, line spacing, letter spacing, justification, colour. Margins are deliberat
 style, because they shrink the frame rather than the text. The language the parser detected rides along
 as `languageIdentifier`, which is what picks the hyphenation dictionary.
 
+Justification is settled per language, and the style carries both answers because which language a
+chapter is in isn't known until it has been parsed. Russian is justified by default: its hyphenation
+dictionary is good and its words are long enough to fill a line. English is left-aligned by default,
+since a justified narrow column of short words pulls them apart. The reader can set either.
+
+### Hyphenating a justified column
+
+TextKit finds its own break points and settles for fewer than the dictionary knows, which in a narrow
+justified column leaves lines it stretches instead of lines it breaks. `hyphenationFactor = 1` moves
+one line in a page.
+
+So the breaks are marked before the text is laid out. `Typography.hyphenated` walks every word through
+`CFStringGetHyphenationLocationBeforeIndex` and puts a soft hyphen at each position the language's own
+dictionary allows, keeping two letters either side of a break. TextKit always sees a soft hyphen, and
+draws a hyphen when it breaks there.
+
+Measured on one chapter, 19pt serif at 24pt margins: 34 pages before, 33 after; four hyphens on a page
+became seven, and the line that had been stretched letter by letter to fill its measure now breaks the
+word after it.
+
+Two things follow from putting characters into the text:
+
+- **Positions are counted without them.** A soft hyphen lands roughly every eight characters, so a
+  position that counted them would move the moment the alignment changed. `ChapterLayout` converts
+  both ways at its edge, and the rest of the app only ever sees offsets into the text as it arrived.
+- **The work happens once.** Marking a chapter costs about as much as laying it out, so it runs in the
+  same detached task that parses it, not on every re-pagination. `ChapterContent` carries the marked
+  paragraphs beside the plain ones and the layout picks by alignment.
+
+A line broken at a soft hyphen counts as a hyphenated line for the page rules, which is what keeps a
+hyphen off the foot of a page. The page's accessibility label strips them.
+
 A chapter opens with its number and title above the body, and `ChapterHeading` leaves the number out
 when the chapter's own title already carries one: "Chapter 4" over "Chapter 4. The Road" reads like a
 bug. The first chapter of a book is preceded by a title page carrying the cover, title, author and
@@ -146,7 +178,9 @@ A tap in the middle third brings back the status bar and the navigation bar, a s
 away, and turning a page sends them away too. The bar is the navigation stack's own, so the back
 button, the chapter's name and the two sheet buttons sit and size themselves the way the system draws
 them everywhere else. It carries the page's own colour rather than glass, because the running head
-passes underneath.
+passes underneath, and a shadow below it so a bar the colour of the page still has an edge.
+`readerBarAppearance` sets both on the enclosing `UINavigationController`: `toolbarBackground` takes a
+colour but has no way to ask for a shadow.
 
 Showing it moves no text: the page ignores the safe area and takes its size from the window, so
 nothing pagination depends on changes when a bar appears.

@@ -17,10 +17,17 @@ struct ChapterTextStyle: Equatable, Sendable {
     var lineSpacing: Double
     /// Tracking, in points, added between every pair of letters. Negative tightens.
     var letterSpacing: Double
-    var isJustified: Bool
+    /// Justification is settled per language, and which one a chapter is in isn't known until it has
+    /// been parsed, so the style carries both answers and the typesetter picks.
+    var justifiesRussian: Bool
+    var justifiesEnglish: Bool
     var textColor: UIColor
 
     var font: UIFont { face.font(size: fontSize) }
+
+    func justifies(_ language: String?) -> Bool {
+        Typography.isRussian(language) ? justifiesRussian : justifiesEnglish
+    }
 }
 
 /// The heading a chapter opens with.
@@ -78,7 +85,7 @@ enum ChapterPagination {
     ) -> TypesetText {
         let result = NSMutableAttributedString()
         let font = style.font
-        let bodyAlignment: NSTextAlignment = style.isJustified ? .justified : .natural
+        let bodyAlignment: NSTextAlignment = style.justifies(language) ? .justified : .natural
 
         append(heading, to: result, style: style)
         let headingLength = result.length
@@ -93,7 +100,16 @@ enum ChapterPagination {
             paragraphStyle.lineBreakMode = .byWordWrapping
             // Hyphenation, from the system's dictionary for the language the run carries. Without it a
             // justified narrow column pulls the words apart instead of breaking them.
-            paragraphStyle.usesDefaultHyphenation = true
+            //
+            // Justified text asks for every break the dictionary can give: the factor is the fullness
+            // below which TextKit bothers to look for one, and the system's own value leaves lines it
+            // could have broken, which is where the stretched lines came from. Ragged-right keeps the
+            // system's restraint, since nothing there needs filling.
+            if bodyAlignment == .justified {
+                paragraphStyle.hyphenationFactor = 1
+            } else {
+                paragraphStyle.usesDefaultHyphenation = true
+            }
 
             let suffix = index == paragraphs.count - 1 ? "" : "\n"
             var attributes: [NSAttributedString.Key: Any] = [

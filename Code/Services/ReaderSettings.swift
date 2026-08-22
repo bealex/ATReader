@@ -160,8 +160,15 @@ final class ReaderSettings {
         didSet { UserDefaults.standard.set(face.rawValue, forKey: Keys.face) }
     }
 
-    var alignment: Alignment {
-        didSet { UserDefaults.standard.set(alignment.rawValue, forKey: Keys.alignment) }
+    /// Russian sets well justified: its hyphenation dictionary is good and its words are long enough
+    /// to fill a line. English justified in a narrow column pulls the words apart instead.
+    var russianAlignment: Alignment {
+        didSet { UserDefaults.standard.set(russianAlignment.rawValue, forKey: Keys.russianAlignment) }
+    }
+
+    /// Used for every language that isn't Russian.
+    var englishAlignment: Alignment {
+        didSet { UserDefaults.standard.set(englishAlignment.rawValue, forKey: Keys.englishAlignment) }
     }
 
     var theme: Theme {
@@ -180,7 +187,10 @@ final class ReaderSettings {
         margins = defaults.object(forKey: Keys.margins) == nil ? 24 : defaults.double(forKey: Keys.margins)
         letterSpacing = defaults.double(forKey: Keys.letterSpacing)
         face = defaults.string(forKey: Keys.face).flatMap(Face.init(rawValue:)) ?? .serif
-        alignment = defaults.string(forKey: Keys.alignment).flatMap(Alignment.init(rawValue:)) ?? .justified
+        russianAlignment =
+            defaults.string(forKey: Keys.russianAlignment).flatMap(Alignment.init(rawValue:)) ?? .justified
+        englishAlignment =
+            defaults.string(forKey: Keys.englishAlignment).flatMap(Alignment.init(rawValue:)) ?? .leading
         theme = defaults.string(forKey: Keys.theme).flatMap(Theme.init(rawValue:)) ?? .system
     }
 
@@ -191,7 +201,8 @@ final class ReaderSettings {
             fontSize: fontSize,
             lineSpacing: lineSpacing,
             letterSpacing: letterSpacing,
-            isJustified: alignment == .justified,
+            justifiesRussian: russianAlignment == .justified,
+            justifiesEnglish: englishAlignment == .justified,
             textColor: UIColor(theme.foreground)
         )
     }
@@ -205,7 +216,8 @@ final class ReaderSettings {
         static let letterSpacing = "reader.letterSpacing"
         static let margins = "reader.margins"
         static let face = "reader.face"
-        static let alignment = "reader.alignment"
+        static let russianAlignment = "reader.alignment.ru"
+        static let englishAlignment = "reader.alignment.en"
         static let theme = "reader.theme"
     }
 }

@@ -53,10 +53,9 @@ enum ReaderScreen {
             .toolbar(.hidden, for: .tabBar)
             // The system's own bar, so its buttons sit and size themselves the way they do elsewhere.
             .toolbar(isChromeHidden ? .hidden : .visible, for: .navigationBar)
-            // The page's colour behind the bar: the running head passes under it, and glass would
-            // show that through.
-            .toolbarBackground(settings.theme.background, for: .navigationBar)
-            .toolbarBackgroundVisibility(.visible, for: .navigationBar)
+            // The page's colour behind the bar, with a shadow to part it from the page: the running
+            // head passes under it, and glass would show that through.
+            .readerBarAppearance(background: settings.theme.background, isVisible: !isChromeHidden)
             .toolbar { controls }
             .backSwipeDisabled()
             .statusBarHidden(isChromeHidden)
@@ -306,15 +305,8 @@ enum ReaderScreen {
                     }
 
                     Section("Alignment") {
-                        Picker("Text alignment", selection: $settings.alignment) {
-                            ForEach(ReaderSettings.Alignment.allCases) { alignment in
-                                Label(alignment.title, systemImage: alignment.systemImage)
-                                    .tag(alignment)
-                            }
-                        }
-                        .pickerStyle(.segmented)
-                        .accessibilityIdentifier("reader.alignment")
-                        .accessibilityLabel("Text alignment")
+                        alignmentPicker("Russian", selection: $settings.russianAlignment, key: "ru")
+                        alignmentPicker("English", selection: $settings.englishAlignment, key: "en")
                     }
 
                     Section("Page") {
@@ -335,6 +327,30 @@ enum ReaderScreen {
             // landing on the real text rather than on a sample.
             .presentationDetents([ .medium ])
             .presentationBackgroundInteraction(.disabled)
+        }
+
+        /// Alignment is set per language: a language's own typography decides whether justifying it
+        /// reads well, and a reader with books in both wants both answers kept.
+        private func alignmentPicker(
+            _ title: LocalizedStringKey,
+            selection: Binding<ReaderSettings.Alignment>,
+            key: String
+        ) -> some View {
+            LabeledContent(title) {
+                // A segmented picker inside a form drops its own label, so the language it belongs to
+                // has to be a label of its own.
+                Picker(title, selection: selection) {
+                    ForEach(ReaderSettings.Alignment.allCases) { alignment in
+                        Image(systemName: alignment.systemImage)
+                            .accessibilityLabel(alignment.title)
+                            .tag(alignment)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .frame(width: 130)
+                .accessibilityIdentifier("reader.alignment.\(key)")
+            }
         }
 
         /// A tappable row per page tint. Explicit rows rather than a `Picker` so each option carries its

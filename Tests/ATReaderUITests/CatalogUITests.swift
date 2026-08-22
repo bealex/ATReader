@@ -24,7 +24,8 @@ final class CatalogUITests: XCTestCase {
             "-reader.lineSpacing", "7",
             "-reader.margins", "24",
             "-reader.face", "serif",
-            "-reader.alignment", "justified",
+            "-reader.alignment.ru", "justified",
+            "-reader.alignment.en", "justified",
             "-reader.theme", "system"
         ]
         app.launch()
@@ -199,7 +200,10 @@ final class CatalogUITests: XCTestCase {
         XCTAssertTrue(app.navigationBars["Appearance"].waitForExistence(timeout: 10))
 
         XCTAssertTrue(scrollUntilVisible(app.sliders["reader.margins"]), "margin control missing")
-        XCTAssertTrue(scrollUntilVisible(app.segmentedControls["reader.alignment"]), "alignment control missing")
+        XCTAssertTrue(
+            scrollUntilVisible(app.segmentedControls["reader.alignment.ru"]),
+            "alignment control missing"
+        )
         XCTAssertTrue(app.buttons["Justified"].exists, "justified option missing")
         XCTAssertTrue(app.buttons["Left-aligned"].exists, "left-aligned option missing")
     }
@@ -329,9 +333,13 @@ final class CatalogUITests: XCTestCase {
 
     /// A Form does not instantiate cells below the fold, so a control has to be scrolled into being
     /// before it can be found at all.
-    private func scrollUntilVisible(_ element: XCUIElement, swipes: Int = 6) -> Bool {
-        for _ in 0 ..< swipes where !element.exists {
-            app.swipeUp()
+    /// Scrolls a fifth of the screen at a time. A full swipe carries a short sheet past several rows
+    /// at once, and a control it skipped never gets instantiated to be found.
+    private func scrollUntilVisible(_ element: XCUIElement, steps: Int = 12) -> Bool {
+        for _ in 0 ..< steps where !element.exists {
+            let start = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.8))
+            let end = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.6))
+            start.press(forDuration: 0.05, thenDragTo: end)
         }
 
         return element.exists

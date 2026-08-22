@@ -48,7 +48,7 @@ struct WorkRow: View {
                         .lineLimit(1)
                 }
 
-                WorkBadges(work: work, showsLength: true)
+                WorkBadges(work: work, showsProgress: showsProgress)
                     .padding(.top, 2)
             }
             .frame(maxWidth: .infinity, alignment: .leading)

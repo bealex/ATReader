@@ -132,7 +132,9 @@ final class ChapterLayout {
         onProgress: (@MainActor (Double) -> Void)? = nil
     ) async -> ChapterLayout {
         let text = ChapterPagination.typeset(
-            paragraphs: content.paragraphs,
+            // Justified setting takes every break the dictionary offers; ragged-right needs no
+            // filling, so it is set as it was written.
+            paragraphs: context.style.justifies(content.language) ? content.hyphenated : content.paragraphs,
             heading: heading,
             language: content.language,
             style: context.style
@@ -213,6 +215,9 @@ final class ChapterLayout {
         let ending = range.location + range.length
 
         guard ending > 0, ending < string.length else { return false }
+
+        // A line broken at a soft hyphen carries that hyphen, and the page rules count it as one.
+        if string.character(at: ending - 1) == softHyphen { return true }
 
         let letters = CharacterSet.letters
         let before = Unicode.Scalar(string.character(at: ending - 1))
@@ -376,12 +381,45 @@ final class ChapterLayout {
 
     /// The page a character offset falls on, so a change of font keeps the reader's place.
     func pageIndex(containing offset: Int) -> Int {
-        pageRanges.firstIndex { NSLocationInRange(offset, $0) } ?? max(0, min(offset, pageCount - 1))
+        let laidOut = laidOutOffset(offset)
+        return pageRanges.firstIndex { NSLocationInRange(laidOut, $0) } ?? max(0, min(offset, pageCount - 1))
     }
 
     func characterOffset(ofPage index: Int) -> Int {
-        pageRanges.indices.contains(index) ? pageRanges[index].location : 0
+        pageRanges.indices.contains(index) ? sourceOffset(pageRanges[index].location) : 0
     }
+
+    /// A position is counted in the text as it arrived, not in the text as it was set.
+    ///
+    /// Justified text carries a soft hyphen at every break the dictionary allows, roughly one character
+    /// in eight. Counting those would move a stored position whenever the alignment changed, which is
+    /// the one thing a stored position must never do.
+    private func sourceOffset(_ laidOut: Int) -> Int {
+        let string = storage.string as NSString
+        var result = 0
+
+        for index in 0 ..< min(laidOut, string.length) where string.character(at: index) != Self.softHyphen {
+            result += 1
+        }
+
+        return result
+    }
+
+    private func laidOutOffset(_ source: Int) -> Int {
+        let string = storage.string as NSString
+        var remaining = source
+        var index = 0
+
+        while index < string.length, remaining > 0 {
+            if string.character(at: index) != Self.softHyphen { remaining -= 1 }
+
+            index += 1
+        }
+
+        return index
+    }
+
+    private static let softHyphen = unichar(0x00AD)
 
     /// Draws a page, line by line, so the page's own leading can be applied as it goes.
     func draw(page index: Int) {
@@ -401,6 +439,9 @@ final class ChapterLayout {
     func pageText(_ index: Int) -> String {
         guard pageRanges.indices.contains(index) else { return "" }
 
-        return (storage.string as NSString).substring(with: pageRanges[index])
+        // Without stripping them, VoiceOver reads a page full of soft hyphens.
+        return (storage.string as NSString)
+            .substring(with: pageRanges[index])
+            .replacingOccurrences(of: String(Typography.softHyphen), with: "")
     }
 }
