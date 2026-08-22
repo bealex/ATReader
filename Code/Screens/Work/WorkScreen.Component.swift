@@ -131,29 +131,28 @@ enum WorkScreen {
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
 
-                shelfPicker(model)
+                libraryButton(model)
             }
         }
 
-        private func shelfPicker(_ model: Model) -> some View {
-            HStack(spacing: 8) {
-                ForEach(LibraryState.shelves, id: \.self) { state in
-                    Button(
-                        action: { Task { await model.setLibraryState(state) } },
-                        label: {
-                            Label(state.title, systemImage: state.systemImage)
-                                .font(.caption)
-                                .frame(maxWidth: .infinity, minHeight: 26)
-                        }
-                    )
-                    .buttonStyle(.bordered)
-                    .tint(model.libraryState == state ? .accentColor : .secondary)
-                    .disabled(model.isUpdatingLibrary)
-                    .accessibilityLabel(state.title)
-                    .accessibilityAddTraits(model.libraryState == state ? [ .isSelected ] : [])
-                    .accessibilityHint("Changes the shelf in your library")
-                }
+        private func libraryButton(_ model: Model) -> some View {
+            Button {
+                Task { await model.setInLibrary(!model.isInLibrary) }
+            } label: {
+                Label(
+                    model.isInLibrary ? "In your library" : "Add to library",
+                    systemImage: model.isInLibrary ? "checkmark" : "plus"
+                )
+                .font(.subheadline)
+                .frame(maxWidth: .infinity, minHeight: 28)
             }
+            .buttonStyle(.bordered)
+            .tint(model.isInLibrary ? .accentColor : .secondary)
+            .disabled(model.isUpdatingLibrary)
+            .accessibilityIdentifier("work.library")
+            .accessibilityHint(
+                model.isInLibrary ? "Removes the book from your library" : "Adds the book to your library"
+            )
         }
 
         private func tagCloud(_ tags: [String]) -> some View {

@@ -19,9 +19,43 @@ extension LibraryScreen {
             let recency: Date
         }
 
-        /// Which shelf the list is showing. `nil` means everything the reader has added; the books
-        /// being read now are what the library opens on.
-        var shelf: LibraryState? = .reading
+        /// What the list is showing. The service's shelves say nothing dependable about where a reader
+        /// has got to, so the app decides this from what has been written and what has been read.
+        enum Filter: String, CaseIterable, Identifiable {
+            /// The author is still writing it, or there is text left to read. Both mean "open me".
+            case reading
+            /// Written to its end and read to its end.
+            case finished
+            case everything
+
+            var id: String { rawValue }
+
+            var title: String {
+                switch self {
+                    case .reading: String(localized: "Reading")
+                    case .finished: String(localized: "Finished")
+                    case .everything: String(localized: "All books")
+                }
+            }
+
+            var systemImage: String {
+                switch self {
+                    case .reading: "book"
+                    case .finished: "checkmark.circle"
+                    case .everything: "books.vertical"
+                }
+            }
+
+            func includes(_ work: WorkSummary) -> Bool {
+                switch self {
+                    case .reading: !work.isFinishedReading
+                    case .finished: work.isFinishedReading
+                    case .everything: true
+                }
+            }
+        }
+
+        var filter: Filter = .reading
         var searchText = ""
 
         private(set) var works: [WorkSummary] = []
@@ -31,9 +65,6 @@ extension LibraryScreen {
 
         /// True while the list is the stored one and the service could not be reached.
         private(set) var isOffline = false
-
-        @ObservationIgnored
-        private var shelfByWork: [Int: LibraryState] = [:]
 
         @ObservationIgnored
         private let session: SessionStore
@@ -46,9 +77,9 @@ extension LibraryScreen {
             self.store = store
         }
 
-        /// The rows after the shelf filter and the local title/author filter.
+        /// The rows after the filter and the local title/author search.
         var visibleWorks: [WorkSummary] {
-            let result = works.filter { isOnShelf($0, shelf) }
+            let result = works.filter(filter.includes)
             let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
 
             guard !query.isEmpty else { return result }
@@ -56,14 +87,6 @@ extension LibraryScreen {
             return result.filter {
                 $0.title.lowercased().contains(query) || $0.authorLine.lowercased().contains(query)
             }
-        }
-
-        /// What a shelf holds, minus what has been read to its end: the service leaves a finished book
-        /// on Reading, and there is nothing left there to read.
-        private func isOnShelf(_ work: WorkSummary, _ shelf: LibraryState?) -> Bool {
-            guard let shelf else { return true }
-
-            return shelfByWork[work.id] == shelf && (shelf != .reading || !work.isReadToTheEnd)
         }
 
         /// By author, and within an author by series, with whatever was last read or last updated on top.
@@ -145,11 +168,11 @@ extension LibraryScreen {
                 .map { $0 }
         }
 
-        /// Counted the way the list counts, so the number beside a shelf is the number of rows it opens.
-        func count(for shelf: LibraryState?) -> Int? {
+        /// Counted the way the list counts, so the number beside a filter is the number of rows it opens.
+        func count(for filter: Filter) -> Int? {
             guard !works.isEmpty else { return nil }
 
-            return works.count { isOnShelf($0, shelf) }
+            return works.count(where: filter.includes)
         }
 
         func newChapters(for workId: Int) -> Int { UpdateBadge.newChapters(for: workId) }
@@ -164,8 +187,8 @@ extension LibraryScreen {
             await sweepForNewChaptersIfDue()
         }
 
-        /// Draws the shelf the device already has before the service is asked anything, so the library
-        /// opens instantly and opens at all with no network.
+        /// Draws the library the device already has before the service is asked anything, so it opens
+        /// instantly and opens at all with no network.
         private func showStoredLibrary() async {
             let stored = await store.works()
 
@@ -205,8 +228,8 @@ extension LibraryScreen {
             } catch let error as AuthorTodayError where error.requiresReauthentication {
                 errorMessage = error.localizedDescription
             } catch {
-                // The stored shelf is already on screen; say the list is stale rather than replacing it
-                // with an error.
+                // The stored library is already on screen; say the list is stale rather than replacing
+                // it with an error.
                 isOffline = true
 
                 if works.isEmpty { errorMessage = String(localized: "Couldn’t load your library.") }
@@ -215,46 +238,29 @@ extension LibraryScreen {
             isLoading = false
         }
 
-        /// Moves one book to another shelf, or off the shelves entirely with ``LibraryState/none``.
-        func move(_ work: WorkSummary, to state: LibraryState) async {
-            guard session.isSignedIn, shelfByWork[work.id] != state else { return }
+        /// Takes a book out of the reader's library. Removing it is the one thing left that the
+        /// service's library state is good for.
+        func remove(_ work: WorkSummary) async {
+            guard session.isSignedIn else { return }
 
-            let previous = shelfByWork[work.id] ?? .none
-            apply(state: state, to: work.id)
+            works.removeAll { $0.id == work.id }
 
             do {
-                try await session.client.updateLibraryState(workIds: [ work.id ], state: state)
-                await persistShelves()
+                try await session.client.updateLibraryState(workIds: [ work.id ], state: LibraryState.none)
+                await persistLibrary()
             } catch {
-                apply(state: previous, to: work.id)
-                // The shelf the service reports wins, so a refused move leaves a truthful list behind.
-                // The message goes on after the reload, which clears it.
+                // The library the service holds wins, and the message goes on after the reload, which
+                // clears it.
                 await reload()
                 errorMessage = error.localizedDescription
             }
         }
 
-        private func apply(state: LibraryState, to workId: Int) {
-            guard let index = works.firstIndex(where: { $0.id == workId }) else { return }
-
-            if state == .none {
-                works.remove(at: index)
-                shelfByWork[workId] = nil
-            } else {
-                works[index].libraryState = state
-                shelfByWork[workId] = state
-            }
-        }
-
-        private func persistShelves() async {
+        private func persistLibrary() async {
             await store.replaceLibrary(with: works)
         }
 
         private func apply(entries: [WorkSummary]) {
-            shelfByWork = Dictionary(
-                entries.map { ($0.id, $0.libraryState ?? .none) },
-                uniquingKeysWith: { first, _ in first }
-            )
             works = entries
             Task { await CoverCache.shared.prefetch(entries.compactMap(\.coverURL)) }
         }

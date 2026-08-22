@@ -7,11 +7,11 @@ import AuthorToday
 import Foundation
 import UserNotifications
 
-/// Finds chapters published since the last sweep of the reader's "reading" shelf.
+/// Finds chapters published since the last sweep of the books the reader has open.
 ///
-/// It doubles as the offline warmer: while it is walking the shelf it stores every book and its contents,
+/// It doubles as the offline warmer: while it is walking them it stores every book and its contents,
 /// downloads the chapters it just discovered, and then backfills whatever else is still missing, so a
-/// book on the shelf becomes readable without a network.
+/// book being read becomes readable without a network.
 struct ChapterUpdateService: Sendable {
     /// What one sweep turned up.
     struct Result: Sendable {
@@ -35,7 +35,7 @@ struct ChapterUpdateService: Sendable {
         self.store = store
     }
 
-    /// Walks the reading shelf and reports what is new. Throws only when the shelf itself cannot be read.
+    /// Walks the books being read and reports what is new. Throws only when the library cannot be read.
     @discardableResult
     func check(chapterBudget: Int = ChapterUpdateService.foregroundChapterBudget) async throws -> Result {
         let library = try await client.fullUserLibrary()
@@ -43,7 +43,9 @@ struct ChapterUpdateService: Sendable {
 
         await store.replaceLibrary(with: works)
 
-        let reading = works.filter { $0.libraryState == .reading }
+        // Started, and with something still to come: a book nobody has opened has no chapters to
+        // miss, and one written and read to its end has none left.
+        let reading = works.filter { $0.hasStartedReading && !$0.isFinishedReading }
         var counts: [Int: Int] = [:]
         var titles: [Int: String] = [:]
         var budget = chapterBudget

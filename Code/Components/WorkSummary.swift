@@ -36,8 +36,17 @@ struct WorkSummary: Codable, Identifiable, Hashable, Sendable {
     /// The author is still adding chapters.
     var isOngoing: Bool { isFinished != true }
 
-    /// The reader has been through it.
+    /// The author has written its last chapter.
+    var isComplete: Bool { isFinished == true }
+
+    /// The reader has been through everything published so far.
     var isReadToTheEnd: Bool { (readingProgress ?? 0) >= Self.readThreshold }
+
+    /// Written to its end and read to its end. Only both together finish a book.
+    var isFinishedReading: Bool { isComplete && isReadToTheEnd }
+
+    /// Read as far as the book goes, with the author still writing it.
+    var isCaughtUp: Bool { isOngoing && isReadToTheEnd }
 
     var isPaid: Bool { status == .sales || status == .subscription }
 

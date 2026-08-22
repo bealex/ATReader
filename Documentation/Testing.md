@@ -42,7 +42,7 @@ Three suites, deliberately layered by what they need:
 | --- | --- | --- |
 | `CatalogUITests` | nothing (guest token) | search, author scope, charts + period filter, opening a book, reading a decrypted chapter, chapter list, typography, page turns by tap and swipe, the controls toggle |
 | `LoginUITests` | credentials, optional | field validation, service error for bad credentials, a real end-to-end sign-in |
-| `LibraryUITests` | a token | library list, shelf filter, profile and sign-out |
+| `LibraryUITests` | a token | library list, the filter, profile and sign-out |
 
 Suites needing an account `XCTSkip` without one, so a run with no credentials is still green.
 `CatalogUITests` needs no account, but its chapter-reading tests do need `.env`. Without it the app

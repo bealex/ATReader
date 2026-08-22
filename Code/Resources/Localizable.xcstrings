@@ -127,6 +127,28 @@
         }
       }
     },
+    "Add to library": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Добавить в библиотеку"
+          }
+        }
+      }
+    },
+    "Adds the book to your library": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Добавляет книгу в библиотеку"
+          }
+        }
+      }
+    },
     "Alignment": {
       "extractionState": "manual",
       "localizations": {
@@ -248,6 +270,17 @@
         }
       }
     },
+    "Caught up": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Всё прочитано"
+          }
+        }
+      }
+    },
     "Changes the order of the results": {
       "extractionState": "manual",
       "localizations": {
@@ -255,17 +288,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Меняет порядок найденных книг"
-          }
-        }
-      }
-    },
-    "Changes the shelf in your library": {
-      "extractionState": "manual",
-      "localizations": {
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Меняет полку в вашей библиотеке"
           }
         }
       }
@@ -296,13 +318,13 @@
       "extractionState": "manual",
       "shouldTranslate": false
     },
-    "Choose a shelf": {
+    "Choose what to show": {
       "extractionState": "manual",
       "localizations": {
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Выбрать полку"
+            "value": "Выберите, что показывать"
           }
         }
       }
@@ -336,6 +358,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Свернуть"
+          }
+        }
+      }
+    },
+    "Complete": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Дописана"
           }
         }
       }
@@ -571,13 +604,13 @@
         }
       }
     },
-    "Filters your library by shelf": {
+    "Filters your library": {
       "extractionState": "manual",
       "localizations": {
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Фильтрует библиотеку по полке"
+            "value": "Фильтрует библиотеку"
           }
         }
       }
@@ -588,7 +621,7 @@
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Написание завершено"
+            "value": "Прочитано"
           }
         }
       }
@@ -648,6 +681,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Вернуться к вводу логина и пароля"
+          }
+        }
+      }
+    },
+    "In your library": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "В библиотеке"
           }
         }
       }
@@ -1166,6 +1210,17 @@
         }
       }
     },
+    "Removes the book from your library": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Убирает книгу из библиотеки"
+          }
+        }
+      }
+    },
     "Removes the stored token and returns to the sign-in screen": {
       "extractionState": "manual",
       "localizations": {
@@ -1317,13 +1372,13 @@
         }
       }
     },
-    "Shelf": {
+    "Show": {
       "extractionState": "manual",
       "localizations": {
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Полка"
+            "value": "Показывать"
           }
         }
       }

@@ -34,16 +34,16 @@ final class LibraryUITests: XCTestCase {
         XCTAssertTrue(hasBooks || emptyState, "library showed neither books nor an empty state")
     }
 
-    func testShelfFilterIsAvailable() throws {
+    func testFilterIsAvailable() throws {
         try launchSignedIn()
 
         XCTAssertTrue(app.tabBars.buttons["Library"].waitForExistence(timeout: 30))
 
-        let shelfButton = app.buttons["Choose a shelf"]
-        XCTAssertTrue(shelfButton.waitForExistence(timeout: 20), "shelf filter missing")
-        shelfButton.tap()
+        let filterButton = app.buttons["Choose what to show"]
+        XCTAssertTrue(filterButton.waitForExistence(timeout: 20), "filter missing")
+        filterButton.tap()
 
-        XCTAssertTrue(app.buttons["All books"].waitForExistence(timeout: 10), "shelf menu did not open")
+        XCTAssertTrue(app.buttons["All books"].waitForExistence(timeout: 10), "filter menu did not open")
     }
 
     func testProfileShowsTheSignedInReaderAndCanSignOut() throws {

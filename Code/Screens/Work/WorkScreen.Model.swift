@@ -16,7 +16,7 @@ extension WorkScreen {
         private(set) var tags: [String] = []
         private(set) var isLoading = false
         private(set) var errorMessage: String?
-        private(set) var libraryState: LibraryState = .none
+        private(set) var isInLibrary = false
         private(set) var isUpdatingLibrary = false
 
         @ObservationIgnored
@@ -50,8 +50,6 @@ extension WorkScreen {
             return readableChapters.first?.id
         }
 
-        var isInLibrary: Bool { libraryState != .none }
-
         var canRead: Bool { !readableChapters.isEmpty }
 
         func loadIfNeeded() async {
@@ -67,7 +65,7 @@ extension WorkScreen {
 
             storedSummary = stored.summary
             tags = stored.tags
-            libraryState = stored.summary.libraryState ?? .none
+            isInLibrary = (stored.summary.libraryState ?? .none) != .none
             chapters = await store.chapters(workId: workId)
         }
 
@@ -83,7 +81,7 @@ extension WorkScreen {
                 details = loadedDetails
                 chapters = loadedChapters.sorted { ($0.sortOrder ?? 0) < ($1.sortOrder ?? 0) }
                 tags = loadedDetails.tags ?? []
-                libraryState = loadedDetails.inLibraryState ?? .none
+                isInLibrary = (loadedDetails.inLibraryState ?? .none) != .none
 
                 await store.store(work: WorkSummary(loadedDetails), tags: tags)
                 await store.store(chapters: chapters, workId: workId)
@@ -97,21 +95,24 @@ extension WorkScreen {
             isLoading = false
         }
 
-        /// Adds the book to a shelf, or removes it when the same shelf is chosen again.
-        func setLibraryState(_ state: LibraryState) async {
+        /// Puts the book in the reader's library, or takes it out. A book goes in as one being read;
+        /// where it stands after that is worked out from what has been written and what has been read.
+        func setInLibrary(_ inLibrary: Bool) async {
             guard session.isSignedIn, !isUpdatingLibrary else { return }
 
-            let target = state == libraryState ? LibraryState.none : state
-            let previous = libraryState
+            let previous = isInLibrary
 
             isUpdatingLibrary = true
-            libraryState = target
+            isInLibrary = inLibrary
 
             do {
-                try await session.client.updateLibraryState(workIds: [ workId ], state: target)
+                try await session.client.updateLibraryState(
+                    workIds: [ workId ],
+                    state: inLibrary ? .reading : LibraryState.none
+                )
             } catch {
-                libraryState = previous
-                errorMessage = "Couldn’t update your library."
+                isInLibrary = previous
+                errorMessage = error.localizedDescription
             }
 
             isUpdatingLibrary = false

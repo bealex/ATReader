@@ -63,10 +63,10 @@ enum LibraryScreen {
             }
             .listStyle(.plain)
             .accessibilityIdentifier("library.list")
-            .navigationSubtitle(model.shelf?.title ?? String(localized: "All books"))
+            .navigationSubtitle(model.filter.title)
             .searchable(text: $model.searchText, prompt: "Title or author")
             .refreshable { await model.reload() }
-            .toolbar { shelfMenu(model) }
+            .toolbar { filterMenu(model) }
             .overlay {
                 if model.isLoading && !model.hasLoaded {
                     ProgressView("Loading your library…")
@@ -92,7 +92,7 @@ enum LibraryScreen {
             .buttonStyle(.plain)
             .accessibilityAddTraits(.isButton)
             .listRowSeparator(.hidden)
-            .contextMenu { shelfActions(model, work: work) }
+            .contextMenu { bookActions(model, work: work) }
         }
 
         @ViewBuilder
@@ -114,20 +114,9 @@ enum LibraryScreen {
         }
 
         @ViewBuilder
-        private func shelfActions(_ model: Model, work: WorkSummary) -> some View {
-            ForEach(LibraryState.shelves, id: \.self) { state in
-                Button {
-                    Task { await model.move(work, to: state) }
-                } label: {
-                    Label(state.title, systemImage: state.systemImage)
-                }
-                .disabled(work.libraryState == state)
-            }
-
-            Divider()
-
+        private func bookActions(_ model: Model, work: WorkSummary) -> some View {
             Button(role: .destructive) {
-                Task { await model.move(work, to: .none) }
+                Task { await model.remove(work) }
             } label: {
                 Label("Remove from library", systemImage: "trash")
             }
@@ -148,7 +137,7 @@ enum LibraryScreen {
                                 ContinueCard(work: work)
                             }
                             .buttonStyle(.plain)
-                            .contextMenu { shelfActions(model, work: work) }
+                            .contextMenu { bookActions(model, work: work) }
                         }
                     }
                     .padding(.vertical, 4)
@@ -174,34 +163,32 @@ enum LibraryScreen {
         }
 
         @ToolbarContentBuilder
-        private func shelfMenu(_ model: Model) -> some ToolbarContent {
+        private func filterMenu(_ model: Model) -> some ToolbarContent {
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {
                     Picker(
-                        "Shelf",
-                        selection: .init(get: { model.shelf }, set: { model.shelf = $0 }),
+                        "Show",
+                        selection: .init(get: { model.filter }, set: { model.filter = $0 }),
                         content: {
-                            Text("All books").tag(LibraryState?.none)
-
-                            ForEach(LibraryState.shelves, id: \.self) { state in
-                                Label(shelfTitle(state, count: model.count(for: state)), systemImage: state.systemImage)
-                                    .tag(LibraryState?.some(state))
+                            ForEach(Model.Filter.allCases) { filter in
+                                Label(title(filter, count: model.count(for: filter)), systemImage: filter.systemImage)
+                                    .tag(filter)
                             }
                         }
                     )
                 } label: {
-                    Label("Shelf", systemImage: "line.3.horizontal.decrease.circle")
+                    Label("Show", systemImage: "line.3.horizontal.decrease.circle")
                         .labelStyle(.iconOnly)
                 }
-                .accessibilityLabel("Choose a shelf")
-                .accessibilityHint("Filters your library by shelf")
+                .accessibilityLabel("Choose what to show")
+                .accessibilityHint("Filters your library")
             }
         }
 
-        private func shelfTitle(_ state: LibraryState, count: Int?) -> String {
-            guard let count else { return state.title }
+        private func title(_ filter: Model.Filter, count: Int?) -> String {
+            guard let count else { return filter.title }
 
-            return "\(state.title) (\(count))"
+            return "\(filter.title) (\(count))"
         }
     }
 

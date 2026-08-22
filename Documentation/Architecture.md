@@ -76,13 +76,21 @@ Adding a fourth source means adding an initialiser, not a view.
 
 ### The library
 
-The list opens on the Reading shelf, and the toolbar filter widens it to the other shelves or to
-everything. A book read to its end drops out of Reading, whatever shelf the service still has it on.
+The service's shelves (`Reading`, `Saved`, `Finished`) are the reader's own filing and say nothing
+dependable about where they have got to, so the app ignores them and works the state out itself:
+
+- **finished** — written to its end and read to its end. Both, or it isn't finished.
+- **caught up** — read as far as it goes, with the author still writing.
+- everything else is being read.
+
+The list opens on the books that aren't finished, and the toolbar filter switches to the finished ones
+or to all of them, with the count beside each counted through the same rule. The library state the
+service keeps is left doing the one job it does honestly: whether a book is in the library at all. The
+book page adds or removes it, a long press in the list removes it, and nothing else writes it.
+
 Books are grouped by author and, within an author, by series, with whatever was last read or last
-gained a chapter on top, and a series runs latest book first. Rows are buttons rather than `NavigationLink`s, which is the only way
-a `List` row goes without a disclosure chevron, and a long press moves a book between shelves or off
-them, from the list and from the strip alike. A move the service refuses reports what it said and
-reloads, so the shelves on screen are the ones the service holds.
+gained a chapter on top, and a series runs latest book first. Rows are buttons rather than
+`NavigationLink`s, which is the only way a `List` row goes without a disclosure chevron.
 
 How far the reader has got is a ring on the cover, always 30pt across whatever the cover's size, with
 a tick in place of the figure once the book is finished. The "continue reading" strip is covers alone,
@@ -144,8 +152,9 @@ raising an error, because a readable book beats a message about refreshing it.
 
 `ChapterUpdateService` is the sweep. It walks the library, stores every book and its contents, counts
 the chapters the device has never seen, downloads their bodies and then spends what's left of its
-budget backfilling chapters that are still missing, so a book on the Reading shelf converges on being
-readable offline. The budget is smaller in the background, where the window is short and overrunning it
+budget backfilling chapters that are still missing, so a book being read converges on being readable
+offline. It sweeps the books the reader has started and not finished, which is the set that can have a
+chapter they haven't seen. The budget is smaller in the background, where the window is short and overrunning it
 gets the app killed.
 
 Two things drive it:

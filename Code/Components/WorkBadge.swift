@@ -48,22 +48,37 @@ struct WorkBadges: View {
                 WorkBadge(title: likes, systemImage: "heart.fill", tint: .pink)
             }
 
-            WorkBadge(
-                title: work.isOngoing ? String(localized: "Ongoing") : String(localized: "Finished"),
-                systemImage: work.isOngoing ? "pencil" : "checkmark.seal.fill",
-                tint: work.isOngoing ? .orange : .green
-            )
+            state
 
             if work.isPaid {
                 WorkBadge(title: String(localized: "Paid"), systemImage: "lock.fill", tint: .indigo)
             }
 
-            if showsProgress, let percent = WorkFormatting.progress(work.readingProgress) {
+            if showsProgress, !work.isReadToTheEnd, let percent = WorkFormatting.progress(work.readingProgress) {
                 WorkBadge(title: String(localized: "\(percent) read"), systemImage: "book.fill", tint: .accentColor)
             }
 
             if showsUpdated, let updated = WorkFormatting.updated(work.lastUpdateTime) {
                 WorkBadge(title: updated, systemImage: "clock")
+            }
+        }
+    }
+
+    /// Where the book stands: written to its end and read to its end is finished, and nothing else is.
+    /// A book read as far as it goes while its author writes on says so instead.
+    @ViewBuilder
+    private var state: some View {
+        if showsProgress, work.isFinishedReading {
+            WorkBadge(title: String(localized: "Finished"), systemImage: "checkmark.circle.fill", tint: .green)
+        } else {
+            WorkBadge(
+                title: work.isOngoing ? String(localized: "Ongoing") : String(localized: "Complete"),
+                systemImage: work.isOngoing ? "pencil" : "checkmark.seal",
+                tint: work.isOngoing ? .orange : .green
+            )
+
+            if showsProgress, work.isCaughtUp {
+                WorkBadge(title: String(localized: "Caught up"), systemImage: "hourglass", tint: .teal)
             }
         }
     }
