@@ -101,8 +101,11 @@ enum ReaderScreen {
                             .accessibilityIdentifier("reader.pagination")
                             .accessibilityLabel("Setting this chapter")
                     } else if model.isLoading && model.layout == nil {
-                        ProgressView("Loading chapter…")
-                            .accessibilityLabel("Loading chapter")
+                        LoadingOverlay(
+                            title: "Loading chapter…",
+                            label: "Loading chapter",
+                            background: settings.theme.background
+                        )
                     } else if let message = model.errorMessage, model.layout == nil {
                         ContentUnavailableView("Couldn’t open", systemImage: "book.closed", description: Text(message))
                     }

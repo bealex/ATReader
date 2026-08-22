@@ -70,8 +70,7 @@ enum TopScreen {
             .refreshable { await model.reload() }
             .overlay {
                 if model.feed.isLoading {
-                    ProgressView("Building the chart…")
-                        .accessibilityLabel("Loading top books")
+                    LoadingCard(title: "Building the chart…", label: "Loading top books")
                 } else if let message = model.feed.errorMessage {
                     ContentUnavailableView("Error", systemImage: "exclamationmark.triangle", description: Text(message))
                 }

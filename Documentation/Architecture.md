@@ -38,8 +38,8 @@ Model` and a `struct Component: View`, split across `<Screen>.Model.swift` and
 
 ```
 App/          entry point, RootScreen (signed-in vs signed-out), AppRoute
-Components/   CoverImage, WorkRow, WorkBadge, FlowLayout, WorkSummary, ChapterPageView,
-              PageTurnView
+Components/   CoverImage, WorkRow, WorkBadge, FlowLayout, LoadingOverlay, WorkSummary,
+              ChapterPageView, PageTurnView
 Screens/      Login, Library, Search, Top, Work, Reader, Profile
 Services/     SessionStore, KeychainStore, LocalStore, CoverCache, CatalogFeed,
               ChapterContent, Typography, ChapterPagination, ChapterLayout,

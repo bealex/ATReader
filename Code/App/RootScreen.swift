@@ -62,11 +62,11 @@ enum RootScreen {
         #endif
 
         private var restoring: some View {
-            ProgressView("Restoring your session…")
-                .controlSize(.large)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(Color(.systemGroupedBackground))
-                .accessibilityLabel("Restoring your session")
+            LoadingOverlay(
+                title: "Restoring your session…",
+                label: "Restoring your session",
+                background: Color(.systemGroupedBackground)
+            )
         }
     }
 

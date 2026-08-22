@@ -33,8 +33,11 @@ enum WorkScreen {
             .task { await model?.loadIfNeeded() }
             .overlay {
                 if let model, model.isLoading, model.details == nil {
-                    ProgressView("Loading book…")
-                        .accessibilityLabel("Loading book")
+                    LoadingOverlay(
+                        title: "Loading book…",
+                        label: "Loading book",
+                        background: Color(.systemGroupedBackground)
+                    )
                 }
             }
         }

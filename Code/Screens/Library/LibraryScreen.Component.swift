@@ -69,8 +69,7 @@ enum LibraryScreen {
             .toolbar { filterMenu(model) }
             .overlay {
                 if model.isLoading && !model.hasLoaded {
-                    ProgressView("Loading your library…")
-                        .accessibilityLabel("Loading your library")
+                    LoadingOverlay(title: "Loading your library…", label: "Loading your library")
                 }
             }
             .alert(

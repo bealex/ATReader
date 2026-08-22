@@ -124,8 +124,7 @@ enum SearchScreen {
         @ViewBuilder
         private func overlay(_ feed: CatalogFeed) -> some View {
             if feed.isLoading {
-                ProgressView("Searching…")
-                    .accessibilityLabel("Searching")
+                LoadingCard(title: "Searching…", label: "Searching")
             } else if let message = feed.errorMessage {
                 ContentUnavailableView("Error", systemImage: "exclamationmark.triangle", description: Text(message))
             } else if !feed.hasLoaded {
