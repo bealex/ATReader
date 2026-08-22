@@ -15,6 +15,8 @@ extension LibraryScreen {
             let author: String
             let series: String?
             let works: [WorkSummary]
+            /// The last time any book here was read or gained a chapter, which is what orders the list.
+            let recency: Date
         }
 
         /// Which shelf the list is showing. `nil` means everything the reader has added; the books
@@ -62,7 +64,7 @@ extension LibraryScreen {
             }
         }
 
-        /// By author, and within an author by series. Standalone titles come first.
+        /// By author, and within an author by series, with whatever was last read or last updated on top.
         var groups: [Group] {
             let byHeading = Dictionary(grouping: visibleWorks) { work in
                 Heading(author: work.authorLine, series: work.seriesTitle?.isEmpty == false ? work.seriesTitle : nil)
@@ -75,7 +77,9 @@ extension LibraryScreen {
                         id: "\(heading.author)|\(heading.series ?? "")",
                         author: heading.author,
                         series: heading.series,
-                        works: works.sorted(by: Self.withinSeries)
+                        // A series reads in its own order; loose titles by an author read newest first.
+                        works: works.sorted(by: heading.series == nil ? Self.byRecency : Self.withinSeries),
+                        recency: works.map(Self.recency).max() ?? .distantPast
                     )
                 }
                 .sorted(by: Self.byHeading)
@@ -84,6 +88,20 @@ extension LibraryScreen {
         private struct Heading: Hashable {
             let author: String
             let series: String?
+        }
+
+        private static func recency(_ work: WorkSummary) -> Date {
+            max(work.lastReadTime ?? .distantPast, work.lastUpdateTime ?? .distantPast)
+        }
+
+        private static func byRecency(_ left: WorkSummary, _ right: WorkSummary) -> Bool {
+            guard
+                recency(left) == recency(right)
+            else {
+                return recency(left) > recency(right)
+            }
+
+            return left.title.localizedStandardCompare(right.title) == .orderedAscending
         }
 
         private static func withinSeries(_ left: WorkSummary, _ right: WorkSummary) -> Bool {
@@ -97,6 +115,11 @@ extension LibraryScreen {
         }
 
         private static func byHeading(_ left: Group, _ right: Group) -> Bool {
+            guard
+                left.recency == right.recency
+            else {
+                return left.recency > right.recency
+            }
             guard
                 left.author == right.author
             else {
@@ -199,7 +222,10 @@ extension LibraryScreen {
                 await persistShelves()
             } catch {
                 apply(state: previous, to: work.id)
-                errorMessage = String(localized: "Couldn’t update your library.")
+                // The shelf the service reports wins, so a refused move leaves a truthful list behind.
+                // The message goes on after the reload, which clears it.
+                await reload()
+                errorMessage = error.localizedDescription
             }
         }
 

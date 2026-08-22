@@ -54,6 +54,7 @@ enum TopScreen {
                     }
                     .buttonStyle(.plain)
                     .accessibilityAddTraits(.isButton)
+                    .listRowSeparator(.hidden)
                     .task { await model.feed.loadMoreIfNeeded(currentItem: work) }
                 }
 

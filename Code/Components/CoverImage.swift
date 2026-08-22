@@ -91,12 +91,22 @@ struct ReadingProgressRing: View {
                 .padding(2)
                 .rotationEffect(.degrees(-90))
 
-            Text(progress.formatted(.percent.precision(.fractionLength(0))))
-                .font(.system(size: 9, weight: .semibold).monospacedDigit())
+            label
+                .font(.system(size: 7.2, weight: .semibold).monospacedDigit())
                 .minimumScaleFactor(0.7)
                 .foregroundStyle(.primary)
         }
         .frame(width: Self.size, height: Self.size)
         .accessibilityHidden(true)
+    }
+
+    /// A finished book says so with a tick; there is no room for "100%" and no need for it.
+    @ViewBuilder
+    private var label: some View {
+        if progress >= 0.995 {
+            Image(systemName: "checkmark")
+        } else {
+            Text(progress.formatted(.percent.precision(.fractionLength(0))))
+        }
     }
 }

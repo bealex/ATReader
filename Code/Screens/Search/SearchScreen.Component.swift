@@ -77,6 +77,7 @@ enum SearchScreen {
                     }
                     .buttonStyle(.plain)
                     .accessibilityAddTraits(.isButton)
+                    .listRowSeparator(.hidden)
                     .task { await feed.loadMoreIfNeeded(currentItem: work) }
                 }
 

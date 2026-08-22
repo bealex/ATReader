@@ -91,6 +91,7 @@ enum LibraryScreen {
             }
             .buttonStyle(.plain)
             .accessibilityAddTraits(.isButton)
+            .listRowSeparator(.hidden)
             .contextMenu { shelfActions(model, work: work) }
         }
 
@@ -147,6 +148,7 @@ enum LibraryScreen {
                                 ContinueCard(work: work)
                             }
                             .buttonStyle(.plain)
+                            .contextMenu { shelfActions(model, work: work) }
                         }
                     }
                     .padding(.vertical, 4)
