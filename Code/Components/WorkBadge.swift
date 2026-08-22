@@ -8,7 +8,8 @@ import SwiftUI
 
 /// One fact about a book, as a tinted pill: a glyph and a short phrase.
 struct WorkBadge: View {
-    let title: String
+    /// A badge with no title is its glyph alone.
+    let title: String?
     let systemImage: String
     var tint: Color = .secondary
 
@@ -18,16 +19,18 @@ struct WorkBadge: View {
                 .font(.caption2)
                 .imageScale(.small)
 
-            Text(title)
-                .font(.caption2.weight(.medium))
-                .lineLimit(1)
+            if let title {
+                Text(title)
+                    .font(.caption2.weight(.medium))
+                    .lineLimit(1)
+            }
         }
         .foregroundStyle(tint)
         .padding(.horizontal, 7)
         .padding(.vertical, 3)
         .background(tint.opacity(0.14), in: .capsule)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(title)
+        .accessibilityLabel(title ?? String(localized: "Costs money"))
     }
 }
 
@@ -36,17 +39,20 @@ struct WorkBadges: View {
     let work: WorkSummary
     var showsProgress = false
     var showsUpdated = false
+    /// Overrides what the row itself can work out, for a screen that knows better. The book page can
+    /// see which chapters are closed; a list has only what the book says about itself.
+    var costsMoney: Bool?
 
     var body: some View {
         FlowLayout {
-            if let likes = WorkFormatting.likes(work.likeCount) {
-                WorkBadge(title: likes, systemImage: "heart.fill", tint: .pink)
-            }
-
             state
 
-            if work.isPaid {
-                WorkBadge(title: String(localized: "Paid"), systemImage: "lock.fill", tint: .indigo)
+            if costsMoney ?? work.needsBuying {
+                WorkBadge(title: nil, systemImage: "dollarsign", tint: .indigo)
+            }
+
+            if let likes = WorkFormatting.likes(work.likeCount) {
+                WorkBadge(title: likes, systemImage: "heart.fill", tint: .pink)
             }
 
             if showsProgress, !work.isReadToTheEnd, let percent = WorkFormatting.progress(work.readingProgress) {
@@ -59,22 +65,15 @@ struct WorkBadges: View {
         }
     }
 
-    /// Where the book stands: written to its end and read to its end is finished, and nothing else is.
-    /// A book read as far as it goes while its author writes on says so instead.
+    /// Where the book stands, which is the first thing a row says about it. A book its author has
+    /// finished says nothing here: that is the ordinary case, and a pill for it would sit on every row.
+    /// Being caught up is the ring's business.
     @ViewBuilder
     private var state: some View {
         if showsProgress, work.isFinishedReading {
             WorkBadge(title: String(localized: "Finished"), systemImage: "checkmark.circle.fill", tint: .green)
-        } else {
-            // Only a book still being written says so. A finished one is the ordinary case, and a pill
-            // for it would sit on nearly every row saying nothing.
-            if work.isOngoing {
-                WorkBadge(title: String(localized: "Ongoing"), systemImage: "pencil", tint: .orange)
-            }
-
-            if showsProgress, work.isCaughtUp {
-                WorkBadge(title: String(localized: "Caught up"), systemImage: "hourglass", tint: .teal)
-            }
+        } else if work.isOngoing {
+            WorkBadge(title: String(localized: "Ongoing"), systemImage: "pencil", tint: .orange)
         }
     }
 }

@@ -88,13 +88,29 @@ or to all of them, with the count beside each counted through the same rule. The
 service keeps is left doing the one job it does honestly: whether a book is in the library at all. The
 book page adds or removes it, a long press in the list removes it, and nothing else writes it.
 
-Books are grouped by author and, within an author, by series, with whatever was last read or last
-gained a chapter on top, and a series runs latest book first. Rows are buttons rather than
+Books in a series stand together under its name, latest book first; a book in no series stands on its
+own. A series can carry more than one author, so the author belongs to the row rather than the heading.
+Whatever was last read or last gained a chapter comes first. Rows are buttons rather than
 `NavigationLink`s, which is the only way a `List` row goes without a disclosure chevron.
 
 How far the reader has got is a ring on the cover, always 30pt across whatever the cover's size, with
-a tick in place of the figure once the book is finished. The "continue reading" strip is covers alone,
-the most recently updated book first.
+a tick in place of the figure once the book has been read to its end.
+
+### The book page
+
+The chapter list is a checklist. The device keeps one reading position per book, so the rest is
+arithmetic on the chapter order: everything before the chapter it names has been read, the chapter
+itself is filled as far as the position goes, and the rest are untouched. A chapter that costs money
+carries a `$` in place of its mark, and the ones without it in a paid book are the free ones.
+
+Whether a book still has to be bought is read off what is locked rather than off `isPurchased`: the
+service leaves that field out for a guest, and a missing field is not a "no". A sold book with a
+chapter closed to this reader has not been bought. A list row has no contents to go on, so it shows
+the marker only where the service positively says the book is unbought.
+
+The blurb is cut to five lines with a control to open it. Whether it was cut at all takes measuring: a
+hidden copy with no limit is laid out at the same width, and being taller than the visible one is what
+puts the control there.
 
 ### CatalogFeed
 
@@ -138,6 +154,17 @@ asking it to resize on the way, which alone turns a ~450 KB original into ~50 KB
 
 ## Offline and updates
 
+Positions come back from the service even though they never go to it. `adoptServerPositions` reads
+`/v1/account/reading-progress` when the library loads and takes any position newer than the device's
+own, which is how a book read on the website opens here where it was left. Progress arrives as a
+percentage of the chapter, and the chapter's stored length turns it into the offset the reader works
+in; where the device has no contents for that book yet, the position lands at the chapter's start.
+
+Reading progress is otherwise the device's own. The service accepts what it is sent and stores nothing, so its
+figure only moves when the reader reads somewhere else; `LocalStore` keeps a column beside each book
+that the reader writes as it goes, that "mark as read" fills, and that a refresh from the service can
+raise but never lower.
+
 `LocalStore` is an actor over one SQLite file in Application Support, excluded from backup because
 everything in it is re-fetchable. It holds the books and their shelves, tables of contents, chapter
 bodies and the reading position.
@@ -147,7 +174,8 @@ nothing (see [API.md](API.md)), so the character offset the store keeps is the o
 survives a relaunch.
 
 Every screen is store-first and service-authoritative: it paints what the device has, then replaces it
-when the network answers. A failure while stored content is on screen sets an offline flag rather than
+when the network answers. A loading overlay covers the screen only while there is nothing on it, since
+the stored copy is the whole point of keeping one. A failure while stored content is on screen sets an offline flag rather than
 raising an error, because a readable book beats a message about refreshing it.
 
 `ChapterUpdateService` is the sweep. It walks the library, stores every book and its contents, counts

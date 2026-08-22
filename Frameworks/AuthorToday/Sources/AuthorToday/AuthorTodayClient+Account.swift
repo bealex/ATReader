@@ -117,11 +117,11 @@ extension AuthorTodayClient {
         guard credentials.isAuthenticated else { throw AuthorTodayError.notAuthenticated }
 
         struct Request: Encodable {
-            let ids: [Int]
+            let workIds: [Int]
             let state: String
         }
 
-        let body = try Self.makeBody(Request(ids: workIds, state: state.rawValue))
+        let body = try Self.makeBody(Request(workIds: workIds, state: state.rawValue))
         try await sendUnparsed(Endpoint(method: .post, path: "/v1/account/update-library-state", body: body))
     }
 }

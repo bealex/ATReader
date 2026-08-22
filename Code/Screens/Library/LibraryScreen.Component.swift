@@ -42,10 +42,6 @@ enum LibraryScreen {
             @Bindable var model = model
 
             List {
-                if !model.continueReading.isEmpty && model.searchText.isEmpty {
-                    continueSection(model)
-                }
-
                 if model.groups.isEmpty {
                     emptyRow(model)
                 } else {
@@ -55,20 +51,21 @@ enum LibraryScreen {
                                 bookRow(model, work: work)
                             }
                         } header: {
-                            groupHeader(group)
+                            if let series = group.series { seriesHeader(series) }
                         }
                     }
                     .id(model.newChapterRevision)
                 }
             }
             .listStyle(.plain)
+            .listSectionSpacing(.compact)
             .accessibilityIdentifier("library.list")
             .navigationSubtitle(model.filter.title)
             .searchable(text: $model.searchText, prompt: "Title or author")
             .refreshable { await model.reload() }
             .toolbar { filterMenu(model) }
             .overlay {
-                if model.isLoading && !model.hasLoaded {
+                if model.isLoading && model.works.isEmpty {
                     LoadingOverlay(title: "Loading your library…", label: "Loading your library")
                 }
             }
@@ -94,54 +91,30 @@ enum LibraryScreen {
             .contextMenu { bookActions(model, work: work) }
         }
 
-        @ViewBuilder
-        private func groupHeader(_ group: Model.Group) -> some View {
-            VStack(alignment: .leading, spacing: 1) {
-                Text(group.author)
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.primary)
-
-                if let series = group.series {
-                    Text(series)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-            }
-            .textCase(nil)
-            .padding(.vertical, 2)
-            .accessibilityElement(children: .combine)
+        /// The series a run of books belongs to. Its own row insets keep it close to them: the header's
+        /// default gap reads as a break between sections rather than a name over a list.
+        private func seriesHeader(_ series: String) -> some View {
+            Text(series)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.primary)
+                .textCase(nil)
+                .listRowInsets(EdgeInsets(top: 10, leading: 16, bottom: 2, trailing: 16))
+                .accessibilityAddTraits(.isHeader)
         }
 
         @ViewBuilder
         private func bookActions(_ model: Model, work: WorkSummary) -> some View {
+            Button {
+                Task { await model.markAsRead(work) }
+            } label: {
+                Label("Mark as read", systemImage: "checkmark.circle")
+            }
+            .disabled(work.isReadToTheEnd)
+
             Button(role: .destructive) {
                 Task { await model.remove(work) }
             } label: {
                 Label("Remove from library", systemImage: "trash")
-            }
-        }
-
-        private func continueSection(_ model: Model) -> some View {
-            Section("Continue reading") {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    // Lazy on purpose: a plain HStack builds every card up front, which would fetch
-                    // covers for books scrolled well off the right-hand edge.
-                    LazyHStack(alignment: .top, spacing: 14) {
-                        ForEach(model.continueReading) { work in
-                            NavigationLink(
-                                value: AppRoute.reader(
-                                    .init(workId: work.id, title: work.title, chapterId: work.lastChapterId)
-                                )
-                            ) {
-                                ContinueCard(work: work)
-                            }
-                            .buttonStyle(.plain)
-                            .contextMenu { bookActions(model, work: work) }
-                        }
-                    }
-                    .padding(.vertical, 4)
-                }
-                .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
             }
         }
 
@@ -188,25 +161,6 @@ enum LibraryScreen {
             guard let count else { return filter.title }
 
             return "\(filter.title) (\(count))"
-        }
-    }
-
-    /// The cover alone, with the reader's position on it.
-    struct ContinueCard: View {
-        let work: WorkSummary
-
-        var body: some View {
-            CoverImage(url: work.coverURL, width: 92, progress: work.readingProgress)
-                .accessibilityElement(children: .ignore)
-                .accessibilityLabel(accessibilityLabel)
-                .accessibilityAddTraits(.isButton)
-                .accessibilityHint("Opens the book at your last chapter")
-        }
-
-        private var accessibilityLabel: String {
-            guard let percent = WorkFormatting.progress(work.readingProgress) else { return work.title }
-
-            return "\(work.title), \(percent) read"
         }
     }
 }

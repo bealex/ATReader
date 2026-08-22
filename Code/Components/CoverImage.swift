@@ -18,8 +18,6 @@ struct CoverImage: View {
     @State
     private var image: UIImage?
 
-    private var height: CGFloat { width * 1.5 }
-
     /// Drawn in the first frame when the cover is already decoded, so a view rebuilt under a new
     /// identity — what a page turn does to the title page — doesn't blink through the placeholder.
     private var cover: UIImage? { image ?? url.flatMap(CoverImages.image(for:)) }
@@ -27,15 +25,18 @@ struct CoverImage: View {
     var body: some View {
         Group {
             if let cover {
+                // Fitted, not filled: the service's covers are not all the same shape, and filling a
+                // box of one shape with an image of another cuts the edges off.
                 Image(uiImage: cover)
                     .resizable()
-                    .aspectRatio(contentMode: .fill)
+                    .aspectRatio(contentMode: .fit)
                     .transition(.opacity)
             } else {
                 placeholder
+                    .frame(height: width * 1.5)
             }
         }
-        .frame(width: width, height: height)
+        .frame(width: width)
         .clipShape(.rect(cornerRadius: width * 0.08))
         .overlay {
             RoundedRectangle(cornerRadius: width * 0.08)
@@ -76,37 +77,42 @@ struct ReadingProgressRing: View {
 
     static let size: CGFloat = 30
 
+    /// The ring is inset by half its own width, so its outer edge lands on the badge's edge and no
+    /// backing shows around it.
+    private static let lineWidth: CGFloat = 3.2
+
     var body: some View {
         ZStack {
             Circle()
                 .fill(.thinMaterial)
 
             Circle()
-                .stroke(Color.primary.opacity(0.15), lineWidth: 3)
-                .padding(2)
+                .stroke(Color.primary.opacity(0.15), lineWidth: Self.lineWidth)
+                .padding(Self.lineWidth / 2)
 
             Circle()
                 .trim(from: 0, to: min(1, max(0, progress)))
-                .stroke(Color.accentColor, style: StrokeStyle(lineWidth: 3, lineCap: .round))
-                .padding(2)
+                .stroke(Color.accentColor, style: StrokeStyle(lineWidth: Self.lineWidth, lineCap: .round))
+                .padding(Self.lineWidth / 2)
                 .rotationEffect(.degrees(-90))
 
             label
-                .font(.system(size: 7.2, weight: .semibold).monospacedDigit())
-                .minimumScaleFactor(0.7)
                 .foregroundStyle(.primary)
         }
         .frame(width: Self.size, height: Self.size)
         .accessibilityHidden(true)
     }
 
-    /// A finished book says so with a tick; there is no room for "100%" and no need for it.
+    /// A book read to its end says so with a tick, which is the mark the eye finds without reading it.
     @ViewBuilder
     private var label: some View {
         if progress >= WorkSummary.readThreshold {
             Image(systemName: "checkmark")
+                .font(.system(size: 13, weight: .bold))
         } else {
             Text(progress.formatted(.percent.precision(.fractionLength(0))))
+                .font(.system(size: 7.2, weight: .semibold).monospacedDigit())
+                .minimumScaleFactor(0.7)
         }
     }
 }

@@ -21,10 +21,11 @@ struct WorkSummary: Codable, Identifiable, Hashable, Sendable {
     let likeCount: Int?
     let isFinished: Bool?
     let status: WorkStatus?
+    let isPurchased: Bool?
     let adultOnly: Bool?
     let lastUpdateTime: Date?
 
-    let readingProgress: Double?
+    var readingProgress: Double?
     let hasStartedReading: Bool
     let lastReadTime: Date?
     let lastChapterId: Int?
@@ -50,6 +51,20 @@ struct WorkSummary: Codable, Identifiable, Hashable, Sendable {
 
     var isPaid: Bool { status == .sales || status == .subscription }
 
+    /// The series this book belongs to, where the service named one.
+    var series: String? {
+        guard let seriesTitle, !seriesTitle.isEmpty else { return nil }
+
+        return seriesTitle
+    }
+
+    /// Sold outright, and the service has said it isn't bought.
+    ///
+    /// Nothing less certain counts. A missing `isPurchased` is not a "no", and a subscription is read
+    /// by subscribing rather than by buying, so neither earns a price marker: telling a reader to buy
+    /// what they already own is worse than saying nothing.
+    var needsBuying: Bool { status == .sales && isPurchased == false }
+
     func hash(into hasher: inout Hasher) { hasher.combine(id) }
 
     static func == (lhs: Self, rhs: Self) -> Bool { lhs.id == rhs.id }
@@ -69,6 +84,7 @@ extension WorkSummary {
             likeCount: work.likeCount,
             isFinished: work.isFinished,
             status: work.status,
+            isPurchased: work.isPurchased,
             adultOnly: work.adultOnly,
             lastUpdateTime: work.lastUpdateTime ?? work.lastModificationTime,
             readingProgress: work.readingProgress,
@@ -92,6 +108,7 @@ extension WorkSummary {
             likeCount: work.likeCount,
             isFinished: work.isFinished,
             status: work.status,
+            isPurchased: work.isPurchased,
             adultOnly: work.adultOnly,
             lastUpdateTime: work.lastModificationTime,
             readingProgress: nil,
@@ -115,6 +132,7 @@ extension WorkSummary {
             likeCount: work.likeCount,
             isFinished: work.isFinished,
             status: work.status,
+            isPurchased: work.isPurchased,
             adultOnly: work.adultOnly,
             lastUpdateTime: work.lastUpdateTime,
             readingProgress: work.readingProgress,

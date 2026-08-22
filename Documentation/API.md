@@ -127,8 +127,10 @@ back to `lastChapterProgress` when the offset is missing.
 The endpoint pages and gives no total page count, so a client that wants the whole library asks until a
 page comes back short; `fullUserLibrary` does that, bounded so a bad answer can't loop forever.
 
-`POST /v1/account/update-library-state` with `{ "ids": [ … ], "state": "Reading" }` moves books between
-shelves; state `None` removes them.
+`POST /v1/account/update-library-state` with `{ "workIds": [ … ], "state": "Reading" }` moves books
+between shelves; state `None` removes them. The field is `workIds`: send `ids` and the service answers
+500 `InternalServerError`, because its own field is left null. States are `None`, `Reading`, `Saved`,
+`Finished` and `Disliked`, and `/v1/account/batch-update-library-state` takes a state per work.
 
 ## Search
 
@@ -190,21 +192,33 @@ part of this API and the part most likely to break.
 
 Report progress in coarse steps (this client uses 5%) rather than on every scroll event.
 
-> **`update-progress` accepts writes but does not store them.** The reading position this app shows
-> comes from its own store; the call still goes out for whatever the service does with it elsewhere.
-> It answers 200 with an empty body and
-> the position never moves. Tested against a real account, on a work with an existing position and on
-> one without, with and without a `sessionId` from `reader/start`, with `workProgress` as a fraction
-> and as a character count, and with the full Android impersonation (`X-AT-Client` plus the `okhttp`
-> User-Agent) restored. Neither `/v1/account/reading-progress` nor the library entry changed in any
-> combination.
+> **The service keeps positions. It just won't take ours.**
+>
+> `GET /v1/account/reading-progress?lastSyncTime=` returns real positions: 20 entries for a live
+> account, with chapter ids and timestamps months apart, written by the website's own reader. This app
+> adopts them, which is how a book read on the site opens here where it was left.
+>
+> `POST /v1/reader/update-progress` still records nothing. Tested with every variable eliminated: a
+> value the service had not seen (1.0 → 2.0), in its own percent units, carrying a `sessionId` from a
+> live `reader/start`, spaced out so the rate limit could not interfere. The call succeeds and the
+> position stays where it was. Earlier rounds covered a work with an existing position and one without,
+> with and without a session, and with the full Android impersonation restored.
+>
+> **`reading-progress` allows one call a second per IP** and says so: `Too many requests! Rate limimt
+> by your ip to this endpoint allow only 1 per Second` (its spelling). Two calls close together read as
+> a timeout rather than an error, which is worth knowing before reading it as a hang.
+>
+> **Progress is a percentage, not a fraction.** The read side returns values like `93.022125` and
+> `96.119712`, so `0…100` is the unit for both `chapterProgress` and `workProgress`. This client used
+> to clamp its writes to `0…1`, which said "half a percent in" whatever the reader had done. Fixing
+> the clamp did not make the writes stick, but it is the unit the service itself speaks.
 >
 > The two `sync-reading-stats` endpoints are not an alternative: both return a server-side
 > `NullReferenceException` from the same `ReverseString` helper the chapter key derivation uses, so
 > they expect a derived field that isn't in the Swagger document.
 >
-> The client still sends the call, since it matches the documented contract and costs nothing. Reading
-> position is effectively local-only until the real requirement is found.
+> So the position this device makes stays local, and the position the service holds is read and
+> adopted. Reading here does not show up there.
 
 ## Endpoints this client doesn't use
 

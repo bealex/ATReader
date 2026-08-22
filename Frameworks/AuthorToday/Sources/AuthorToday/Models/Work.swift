@@ -185,6 +185,14 @@ public struct ReaderStats: Decodable, Sendable {
     public let sessionId: String?
 }
 
+/// One position from `/v1/account/reading-progress`: where the service thinks a reader stopped.
+public struct ReadingProgressInfo: Decodable, Sendable {
+    public let workId: Int
+    public let chapterId: Int?
+    public let chapterProgress: Double?
+    public let lastReadTime: Date?
+}
+
 /// A genre from `/v1/work/genres`.
 public struct Genre: Decodable, Sendable, Identifiable, Hashable {
     public let id: Int

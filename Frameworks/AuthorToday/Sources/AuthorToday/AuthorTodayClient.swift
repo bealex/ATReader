@@ -5,6 +5,7 @@
 
 import CryptoKit
 import Foundation
+import OSLog
 import Synchronization
 
 /// A client for the author.today mobile API (`https://api.author.today`).
@@ -178,12 +179,22 @@ public final class AuthorTodayClient: Sendable {
         guard let http = response as? HTTPURLResponse else { throw AuthorTodayError.unexpectedStatus(0) }
         guard !(200 ..< 300).contains(http.statusCode) else { return data }
 
+        // A refused call says why in the log, so a failure on a device can be read out of Console
+        // rather than guessed at. The body is the service's own error envelope, never book text.
+        Self.logger.error(
+            """
+            \(endpoint.method.rawValue, privacy: .public) \(endpoint.path, privacy: .public)             → \(http.statusCode, privacy: .public) \(String(bytes: data, encoding: .utf8) ?? "", privacy: .public)
+            """
+        )
+
         if let failure = try? Self.makeDecoder().decode(Failure.self, from: data) {
             throw AuthorTodayError.api(failure.code, message: failure.message, statusCode: http.statusCode)
         }
 
         throw AuthorTodayError.unexpectedStatus(http.statusCode)
     }
+
+    private static let logger = Logger(subsystem: "com.lonelybytes.authortoday", category: "network")
 
     /// Swaps the stale token for a fresh one, collapsing everything that noticed the same expiry into
     /// one call to the service.

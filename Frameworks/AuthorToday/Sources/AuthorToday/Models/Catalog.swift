@@ -40,6 +40,7 @@ public struct CatalogWork: Decodable, Sendable, Identifiable, Hashable {
 
     public let price: Double?
     public let discount: Double?
+    public let isPurchased: Bool?
     public let status: WorkStatus?
     public let formEnum: WorkForm?
     public let format: WorkFormat?

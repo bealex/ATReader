@@ -23,6 +23,17 @@
         }
       }
     },
+    "%@, %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@, %2$@"
+          }
+        }
+      }
+    },
     "%@, %@ read": {
       "extractionState": "manual",
       "localizations": {
@@ -30,6 +41,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "%1$@, прочитано %2$@"
+          }
+        }
+      }
+    },
+    "%@, %@, %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@, %2$@, %3$@"
           }
         }
       }
@@ -56,9 +78,31 @@
         }
       }
     },
+    "%@, paid": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@, платная"
+          }
+        }
+      }
+    },
+    "%@, read": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@, прочитана"
+          }
+        }
+      }
+    },
     "%lld": {
-      "shouldTranslate": false,
-      "extractionState": "manual"
+      "extractionState": "manual",
+      "shouldTranslate": false
     },
     "%lld new chapters": {
       "extractionState": "manual",
@@ -94,16 +138,16 @@
       }
     },
     "@%@": {
-      "shouldTranslate": false,
-      "extractionState": "manual"
+      "extractionState": "manual",
+      "shouldTranslate": false
     },
     "A": {
-      "shouldTranslate": false,
-      "extractionState": "manual"
+      "extractionState": "manual",
+      "shouldTranslate": false
     },
     "ATReader": {
-      "shouldTranslate": false,
-      "extractionState": "manual"
+      "extractionState": "manual",
+      "shouldTranslate": false
     },
     "Add books to your library on author.today and they will show up here.": {
       "extractionState": "manual",
@@ -259,17 +303,6 @@
         }
       }
     },
-    "Caught up": {
-      "extractionState": "manual",
-      "localizations": {
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Всё прочитано"
-          }
-        }
-      }
-    },
     "Changes the order of the results": {
       "extractionState": "manual",
       "localizations": {
@@ -369,6 +402,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Продолжить чтение"
+          }
+        }
+      }
+    },
+    "Costs money": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Платная"
           }
         }
       }
@@ -839,6 +883,17 @@
         }
       }
     },
+    "Mark as read": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Отметить прочитанной"
+          }
+        }
+      }
+    },
     "Match the system": {
       "extractionState": "manual",
       "localizations": {
@@ -1004,17 +1059,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Поля страницы"
-          }
-        }
-      }
-    },
-    "Paid": {
-      "extractionState": "manual",
-      "localizations": {
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Платно"
           }
         }
       }
@@ -1350,6 +1394,17 @@
         }
       }
     },
+    "Shortens the text": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сворачивает текст"
+          }
+        }
+      }
+    },
     "Show": {
       "extractionState": "manual",
       "localizations": {
@@ -1357,6 +1412,28 @@
           "stringUnit": {
             "state": "translated",
             "value": "Показывать"
+          }
+        }
+      }
+    },
+    "Show less": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Свернуть"
+          }
+        }
+      }
+    },
+    "Show more": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Показать полностью"
           }
         }
       }
@@ -1379,6 +1456,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Показывает список глав"
+          }
+        }
+      }
+    },
+    "Shows the rest of the text": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Показывает текст целиком"
           }
         }
       }
@@ -1670,8 +1758,8 @@
       }
     },
     "mail@example.com": {
-      "shouldTranslate": false,
-      "extractionState": "manual"
+      "extractionState": "manual",
+      "shouldTranslate": false
     },
     "still being written": {
       "extractionState": "manual",

@@ -588,6 +588,7 @@ extension ReaderScreen {
             guard let layout, let chapterId = currentChapterId else { return }
 
             let offset = layout.characterOffset(ofPage: textIndex(for: currentPage))
+            let overall = bookProgress
             positionSaver?.cancel()
             positionSaver = Task { [store, workId] in
                 try? await Task.sleep(for: .milliseconds(400))
@@ -600,6 +601,7 @@ extension ReaderScreen {
                     characterOffset: offset,
                     updatedAt: .now
                 ))
+                await store.store(progress: overall, workId: workId)
             }
         }
 
@@ -615,6 +617,7 @@ extension ReaderScreen {
             guard let layout, let chapterId = currentChapterId else { return }
 
             let offset = layout.characterOffset(ofPage: textIndex(for: currentPage))
+            let overall = bookProgress
 
             Task { [store, workId] in
                 await store.store(position: .init(
@@ -623,6 +626,7 @@ extension ReaderScreen {
                     characterOffset: offset,
                     updatedAt: .now
                 ))
+                await store.store(progress: overall, workId: workId)
             }
 
             reportProgress(force: true)
@@ -648,6 +652,14 @@ extension ReaderScreen {
                     sessionId: sessionId
                 )
             }
+        }
+
+        /// How far into the whole book this page sits. The library draws its ring from this, since the
+        /// service keeps no progress of its own.
+        private var bookProgress: Double {
+            guard pageCount > 0 else { return 0 }
+
+            return overallProgress(chapterProgress: Double(currentPage + 1) / Double(pageCount))
         }
 
         /// Weighs the finished chapters by their length so the book-level figure tracks characters read.

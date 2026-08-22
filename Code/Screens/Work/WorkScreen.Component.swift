@@ -30,9 +30,13 @@ enum WorkScreen {
             .onAppear {
                 if model == nil { model = Model(workId: workId, session: session) }
             }
-            .task { await model?.loadIfNeeded() }
+            .task {
+                await model?.loadIfNeeded()
+                // Reading moves the position, so coming back from the reader picks the new one up.
+                await model?.refreshPosition()
+            }
             .overlay {
-                if let model, model.isLoading, model.details == nil {
+                if let model, model.isLoading, model.summary == nil {
                     LoadingOverlay(
                         title: "Loading book…",
                         label: "Loading book",
@@ -46,15 +50,14 @@ enum WorkScreen {
         private func content(_ model: Model) -> some View {
             VStack(alignment: .leading, spacing: 20) {
                 if let summary = model.summary {
-                    heading(summary)
+                    heading(model, work: summary)
                     actions(model, summary: summary)
                 }
 
                 if let annotation = model.details?.annotation, !annotation.isEmpty {
                     section("Blurb") {
-                        Text(ChapterHTML.paragraphs(from: annotation).map(\.text).joined(separator: "\n\n"))
+                        ExpandableText(ChapterHTML.paragraphs(from: annotation).map(\.text).joined(separator: "\n\n"))
                             .font(.callout)
-                            .fixedSize(horizontal: false, vertical: true)
                     }
                 }
 
@@ -79,7 +82,7 @@ enum WorkScreen {
             .frame(maxWidth: .infinity, alignment: .leading)
         }
 
-        private func heading(_ work: WorkSummary) -> some View {
+        private func heading(_ model: Model, work: WorkSummary) -> some View {
             HStack(alignment: .top, spacing: 16) {
                 CoverImage(url: work.coverURL, width: 116, progress: work.readingProgress)
 
@@ -98,15 +101,15 @@ enum WorkScreen {
                             .foregroundStyle(.tertiary)
                     }
 
-                    statistics(work)
+                    statistics(work, costsMoney: model.isLockedByPrice)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
             .accessibilityElement(children: .combine)
         }
 
-        private func statistics(_ work: WorkSummary) -> some View {
-            WorkBadges(work: work, showsProgress: true, showsUpdated: true)
+        private func statistics(_ work: WorkSummary, costsMoney: Bool) -> some View {
+            WorkBadges(work: work, showsProgress: true, showsUpdated: true, costsMoney: costsMoney)
                 .padding(.top, 4)
         }
 
@@ -190,31 +193,67 @@ enum WorkScreen {
                 NavigationLink(
                     value: AppRoute.reader(.init(workId: model.workId, title: summary.title, chapterId: chapter.id))
                 ) {
-                    chapterLabel(chapter, isLocked: false)
+                    chapterLabel(chapter, marker: nil, state: model.state(of: chapter))
                 }
                 .buttonStyle(.plain)
             } else {
-                chapterLabel(chapter, isLocked: true)
+                // In a book that has to be bought, a chapter is closed because it costs money rather
+                // than because it isn't finished. The ones without a mark are the free ones.
+                chapterLabel(chapter, marker: model.isLockedByPrice ? .paid : .locked)
             }
         }
 
-        private func chapterLabel(_ chapter: ChapterInfo, isLocked: Bool) -> some View {
+        private enum ChapterMarker {
+            case paid
+            case locked
+
+            var systemImage: String {
+                switch self {
+                    case .paid: "dollarsign"
+                    case .locked: "lock.fill"
+                }
+            }
+        }
+
+        private func chapterLabel(
+            _ chapter: ChapterInfo,
+            marker: ChapterMarker?,
+            state: Model.ChapterState = .unread
+        ) -> some View {
             HStack {
                 Text(chapter.displayTitle)
                     .font(.callout)
-                    .foregroundStyle(isLocked ? .secondary : .primary)
+                    .foregroundStyle(marker == nil ? .primary : .secondary)
                     .frame(maxWidth: .infinity, alignment: .leading)
 
-                if isLocked {
-                    Image(systemName: "lock.fill")
+                if let marker {
+                    Image(systemName: marker.systemImage)
                         .font(.caption)
-                        .foregroundStyle(.tertiary)
+                        .foregroundStyle(marker == .paid ? AnyShapeStyle(Color.indigo) : AnyShapeStyle(.tertiary))
                         .accessibilityHidden(true)
+                } else {
+                    ChapterMark(state: state)
                 }
             }
             .padding(.vertical, 9)
             .contentShape(.rect)
-            .accessibilityLabel(isLocked ? "\(chapter.displayTitle), locked" : chapter.displayTitle)
+            .accessibilityLabel(label(chapter, marker: marker, state: state))
+        }
+
+        private func label(_ chapter: ChapterInfo, marker: ChapterMarker?, state: Model.ChapterState) -> String {
+            switch marker {
+                case .paid: return String(localized: "\(chapter.displayTitle), paid")
+                case .locked: return String(localized: "\(chapter.displayTitle), locked")
+                case .none: break
+            }
+
+            switch state {
+                case .unread: return chapter.displayTitle
+                case .read: return String(localized: "\(chapter.displayTitle), read")
+                case let .reading(progress):
+                    let percent = WorkFormatting.progress(progress) ?? ""
+                    return String(localized: "\(chapter.displayTitle), \(percent) read")
+            }
         }
 
         @ViewBuilder
@@ -228,6 +267,47 @@ enum WorkScreen {
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(14)
             .background(Color(.secondarySystemGroupedBackground), in: .rect(cornerRadius: 14))
+        }
+    }
+
+    /// A chapter's own progress: a tick once it has been read, a ring filled as far as the reader got,
+    /// and an outline for one they have not opened.
+    struct ChapterMark: View {
+        let state: Model.ChapterState
+
+        private static let size: CGFloat = 16
+        private static let lineWidth: CGFloat = 2
+
+        var body: some View {
+            ZStack {
+                switch state {
+                    case .unread:
+                        track
+                    case let .reading(progress):
+                        track
+
+                        Circle()
+                            .trim(from: 0, to: max(0.04, min(1, progress)))
+                            .stroke(Color.accentColor, style: StrokeStyle(lineWidth: Self.lineWidth, lineCap: .round))
+                            .padding(Self.lineWidth / 2)
+                            .rotationEffect(.degrees(-90))
+                    case .read:
+                        Circle()
+                            .fill(Color.accentColor)
+
+                        Image(systemName: "checkmark")
+                            .font(.system(size: 9, weight: .bold))
+                            .foregroundStyle(.white)
+                }
+            }
+            .frame(width: Self.size, height: Self.size)
+            .accessibilityHidden(true)
+        }
+
+        private var track: some View {
+            Circle()
+                .stroke(Color.primary.opacity(0.15), lineWidth: Self.lineWidth)
+                .padding(Self.lineWidth / 2)
         }
     }
 }

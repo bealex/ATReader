@@ -54,8 +54,11 @@ actor LocalStore {
     func works(in shelf: LibraryState? = nil) -> [WorkSummary] {
         let query =
             shelf == nil
-            ? "SELECT payload FROM work WHERE library_state IS NOT NULL ORDER BY last_read_time DESC"
-            : "SELECT payload FROM work WHERE library_state = ? ORDER BY last_read_time DESC"
+            ? """
+            SELECT payload, reading_progress FROM work
+            WHERE library_state IS NOT NULL ORDER BY last_read_time DESC
+            """
+            : "SELECT payload, reading_progress FROM work WHERE library_state = ? ORDER BY last_read_time DESC"
 
         guard let statement = Statement(open(), query) else { return [] }
 
@@ -64,8 +67,9 @@ actor LocalStore {
         var result: [WorkSummary] = []
 
         while statement.step() {
-            guard let summary = decode(WorkSummary.self, statement.string(0)) else { continue }
+            guard var summary = decode(WorkSummary.self, statement.string(0)) else { continue }
 
+            summary.readingProgress = progress(statement.number(1), or: summary.readingProgress)
             result.append(summary)
         }
 
@@ -73,13 +77,33 @@ actor LocalStore {
     }
 
     func work(id: Int) -> StoredWork? {
-        guard let statement = Statement(open(), "SELECT payload, tags FROM work WHERE id = ?") else { return nil }
+        let query = "SELECT payload, tags, reading_progress FROM work WHERE id = ?"
+
+        guard let statement = Statement(open(), query) else { return nil }
 
         statement.bind(1, id)
 
-        guard statement.step(), let summary = decode(WorkSummary.self, statement.string(0)) else { return nil }
+        guard statement.step(), var summary = decode(WorkSummary.self, statement.string(0)) else { return nil }
 
+        summary.readingProgress = progress(statement.number(2), or: summary.readingProgress)
         return StoredWork(summary: summary, tags: decode([ String ].self, statement.string(1)) ?? [])
+    }
+
+    /// How far this device knows the reader has got, which is further than the service knows: the
+    /// service stores nothing it is sent, so its own figure only moves when the reader reads elsewhere.
+    private func progress(_ stored: Double?, or reported: Double?) -> Double? {
+        guard let stored, stored > 0 else { return reported }
+
+        return max(stored, reported ?? 0)
+    }
+
+    /// Records where this device believes the reader has got to in a book, `0…1`.
+    func store(progress: Double, workId: Int) {
+        guard let statement = Statement(open(), "UPDATE work SET reading_progress = ? WHERE id = ?") else { return }
+
+        statement.bind(1, min(1, max(0, progress)))
+        statement.bind(2, workId)
+        statement.execute()
     }
 
     func store(work: WorkSummary, tags: [String]? = nil) {
@@ -101,7 +125,7 @@ actor LocalStore {
                 author = excluded.author,
                 library_state = excluded.library_state,
                 last_read_time = excluded.last_read_time,
-                reading_progress = excluded.reading_progress,
+                reading_progress = MAX(COALESCE(work.reading_progress, 0), COALESCE(excluded.reading_progress, 0)),
                 updated_at = excluded.updated_at,
                 payload = excluded.payload
             """
@@ -468,6 +492,12 @@ actor LocalStore {
         }
 
         func integer(_ column: Int32) -> Int { Int(sqlite3_column_int64(handle, column)) }
+
+        func number(_ column: Int32) -> Double? {
+            guard sqlite3_column_type(handle, column) != SQLITE_NULL else { return nil }
+
+            return sqlite3_column_double(handle, column)
+        }
 
         func date(_ column: Int32) -> Date? {
             guard sqlite3_column_type(handle, column) != SQLITE_NULL else { return nil }

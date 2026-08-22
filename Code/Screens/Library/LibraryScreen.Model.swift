@@ -9,10 +9,10 @@ import Foundation
 extension LibraryScreen {
     @Observable @MainActor
     final class Model {
-        /// One heading of the list: an author, and one of their series where the books belong to one.
+        /// One heading of the list: a series, or a single book that belongs to none. A series can carry
+        /// more than one author, so the authors are left to the rows.
         struct Group: Identifiable {
             let id: String
-            let author: String
             let series: String?
             let works: [WorkSummary]
             /// The last time any book here was read or gained a chapter, which is what orders the list.
@@ -89,48 +89,33 @@ extension LibraryScreen {
             }
         }
 
-        /// By author, and within an author by series, with whatever was last read or last updated on top.
+        /// Books in a series stand together under its name, latest first; a book in no series stands
+        /// alone. Whatever was last read or last gained a chapter comes first.
         var groups: [Group] {
-            let byHeading = Dictionary(grouping: visibleWorks) { work in
-                Heading(author: work.authorLine, series: work.seriesTitle?.isEmpty == false ? work.seriesTitle : nil)
+            let visible = visibleWorks
+            let series = Dictionary(grouping: visible.filter { $0.series != nil }) { $0.series ?? "" }
+
+            let grouped = series.map { title, works in
+                Group(
+                    id: "series:\(title)",
+                    series: title,
+                    works: works.sorted(by: Self.withinSeries),
+                    recency: works.map(Self.recency).max() ?? .distantPast
+                )
+            }
+            let alone = visible.filter { $0.series == nil }.map { work in
+                Group(id: "work:\(work.id)", series: nil, works: [ work ], recency: Self.recency(work))
             }
 
-            return
-                byHeading
-                .map { heading, works in
-                    Group(
-                        id: "\(heading.author)|\(heading.series ?? "")",
-                        author: heading.author,
-                        series: heading.series,
-                        // A series reads in its own order; loose titles by an author read newest first.
-                        works: works.sorted(by: heading.series == nil ? Self.byRecency : Self.withinSeries),
-                        recency: works.map(Self.recency).max() ?? .distantPast
-                    )
-                }
-                .sorted(by: Self.byHeading)
-        }
-
-        private struct Heading: Hashable {
-            let author: String
-            let series: String?
+            return (grouped + alone).sorted(by: Self.byRecency)
         }
 
         private static func recency(_ work: WorkSummary) -> Date {
             max(work.lastReadTime ?? .distantPast, work.lastUpdateTime ?? .distantPast)
         }
 
-        private static func byRecency(_ left: WorkSummary, _ right: WorkSummary) -> Bool {
-            guard
-                recency(left) == recency(right)
-            else {
-                return recency(left) > recency(right)
-            }
-
-            return left.title.localizedStandardCompare(right.title) == .orderedAscending
-        }
-
         /// Latest book in the series first, which is the one with a chapter still arriving. Titles
-        /// compare numerically, so a series with no order on it still lands newest first.
+        /// compare numerically, so a series the service gives no order for still lands newest first.
         private static func withinSeries(_ left: WorkSummary, _ right: WorkSummary) -> Bool {
             guard
                 left.seriesOrder == right.seriesOrder
@@ -141,31 +126,14 @@ extension LibraryScreen {
             return left.title.localizedStandardCompare(right.title) == .orderedDescending
         }
 
-        private static func byHeading(_ left: Group, _ right: Group) -> Bool {
+        private static func byRecency(_ left: Group, _ right: Group) -> Bool {
             guard
                 left.recency == right.recency
             else {
                 return left.recency > right.recency
             }
-            guard
-                left.author == right.author
-            else {
-                return left.author.localizedStandardCompare(right.author) == .orderedAscending
-            }
-            guard let leftSeries = left.series else { return right.series != nil }
-            guard let rightSeries = right.series else { return false }
 
-            return leftSeries.localizedStandardCompare(rightSeries) == .orderedAscending
-        }
-
-        /// Books with a position to return to, the most recently updated first: a book the author has
-        /// just added a chapter to is the one worth picking up.
-        var continueReading: [WorkSummary] {
-            works
-                .filter { $0.hasStartedReading && ($0.readingProgress ?? 0) < 1 }
-                .sorted { ($0.lastUpdateTime ?? .distantPast) > ($1.lastUpdateTime ?? .distantPast) }
-                .prefix(10)
-                .map { $0 }
+            return left.id.localizedStandardCompare(right.id) == .orderedAscending
         }
 
         /// Counted the way the list counts, so the number beside a filter is the number of rows it opens.
@@ -184,8 +152,46 @@ extension LibraryScreen {
 
             await showStoredLibrary()
             await reload()
+            await adoptServerPositions()
             await sweepForNewChaptersIfDue()
         }
+
+        /// Adopts the positions the service holds where they are newer than this device's own.
+        ///
+        /// The service records nothing this app sends, but it does record what its own site does, so a
+        /// book read on author.today opens here where it was left. Progress comes back as a percentage
+        /// of the chapter, which the chapter's own length turns into the offset the reader works in.
+        private func adoptServerPositions() async {
+            guard session.isSignedIn else { return }
+            guard
+                let entries = try? await session.client.readingProgress(
+                    since: .now.addingTimeInterval(-Self.positionWindow)
+                )
+            else { return }
+
+            for entry in entries {
+                guard let chapterId = entry.chapterId, let readAt = entry.lastReadTime else { continue }
+
+                let mine = await store.position(workId: entry.workId)
+
+                guard (mine?.updatedAt ?? .distantPast) < readAt else { continue }
+
+                let length =
+                    await store.chapters(workId: entry.workId)
+                    .first { $0.id == chapterId }?
+                    .textLength ?? 0
+
+                await store.store(position: .init(
+                    workId: entry.workId,
+                    chapterId: chapterId,
+                    characterOffset: Int((entry.chapterProgress ?? 0) / 100 * Double(length)),
+                    updatedAt: readAt
+                ))
+            }
+        }
+
+        /// How far back to ask for positions. The service answers with everything touched since.
+        private static let positionWindow: TimeInterval = 90 * 24 * 60 * 60
 
         /// Draws the library the device already has before the service is asked anything, so it opens
         /// instantly and opens at all with no network.
@@ -218,11 +224,16 @@ extension LibraryScreen {
             isLoading = true
             errorMessage = nil
 
+            defer { isLoading = false }
+
             do {
                 let library = try await session.client.fullUserLibrary()
                 let entries = library.worksInLibrary.map(WorkSummary.init)
-                apply(entries: entries)
                 await store.replaceLibrary(with: entries)
+                // Read back rather than painting what arrived: the service carries no progress this
+                // device made, so its copy would undo a book marked read the moment it landed.
+                let merged = await store.works()
+                apply(entries: merged.isEmpty ? entries : merged)
                 isOffline = false
                 hasLoaded = true
             } catch let error as AuthorTodayError where error.requiresReauthentication {
@@ -234,8 +245,54 @@ extension LibraryScreen {
 
                 if works.isEmpty { errorMessage = String(localized: "Couldn’t load your library.") }
             }
+        }
 
-            isLoading = false
+        /// Marks a book read through: the ring fills, and the book page's chapter marks fill with it,
+        /// which means putting the position at the end of the last chapter it has.
+        func markAsRead(_ work: WorkSummary) async {
+            if let index = works.firstIndex(where: { $0.id == work.id }) {
+                works[index].readingProgress = 1
+            }
+
+            await store.store(progress: 1, workId: work.id)
+
+            // The service keeps no progress, but it does keep a shelf, and Finished is its way of
+            // saying the reader is done with a book.
+            try? await session.client.updateLibraryState(workIds: [ work.id ], state: .finished)
+
+            if let index = works.firstIndex(where: { $0.id == work.id }) {
+                works[index].libraryState = .finished
+                await store.store(work: works[index])
+            }
+
+            guard let last = await contents(of: work.id).last(where: \.isReadable) else { return }
+
+            await store.store(position: .init(
+                workId: work.id,
+                chapterId: last.id,
+                // Past the end when the chapter's length is unknown; the reader clamps to its last page.
+                characterOffset: last.textLength ?? .max,
+                updatedAt: .now
+            ))
+            // The service stores no progress it is sent, so this is a courtesy rather than the record.
+            try? await session.client.updateProgress(
+                workId: work.id,
+                chapterId: last.id,
+                workProgress: 1,
+                chapterProgress: 1,
+                sessionId: nil
+            )
+        }
+
+        /// The book's chapters as the device has them, fetched if it has none.
+        private func contents(of workId: Int) async -> [ChapterInfo] {
+            let stored = await store.chapters(workId: workId)
+
+            guard stored.isEmpty else { return stored }
+            guard let fetched = try? await session.client.workContents(id: workId) else { return [] }
+
+            await store.store(chapters: fetched, workId: workId)
+            return fetched.sorted { ($0.sortOrder ?? 0) < ($1.sortOrder ?? 0) }
         }
 
         /// Takes a book out of the reader's library. Removing it is the one thing left that the

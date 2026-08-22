@@ -11,6 +11,21 @@ extension AuthorTodayClient {
         try await send(Endpoint(path: "/v1/reader/start/\(workId)/\(chapterId)"))
     }
 
+    /// The positions the service holds, changed since `date`.
+    ///
+    /// This is the read half of the position sync. The service records nothing this client sends, but
+    /// it does record what its own site does, so this is how reading done elsewhere gets here.
+    public func readingProgress(since date: Date) async throws -> [ReadingProgressInfo] {
+        guard credentials.isAuthenticated else { throw AuthorTodayError.notAuthenticated }
+
+        let formatter = ISO8601DateFormatter()
+        let endpoint = Endpoint(
+            path: "/v1/account/reading-progress",
+            query: [ URLQueryItem(name: "lastSyncTime", value: formatter.string(from: date)) ]
+        )
+        return try await send(endpoint)
+    }
+
     /// Pushes the reading position back to the service so other devices pick it up.
     ///
     /// Both progress values are fractions in `0…1`.
@@ -34,8 +49,8 @@ extension AuthorTodayClient {
         let body = try Self.makeBody(Request(
             workId: workId,
             chapterId: chapterId,
-            workProgress: min(1, max(0, workProgress)),
-            chapterProgress: min(1, max(0, chapterProgress)),
+            workProgress: min(100, max(0, workProgress)),
+            chapterProgress: min(100, max(0, chapterProgress)),
             sessionId: sessionId
         ))
         try await sendUnparsed(Endpoint(method: .post, path: "/v1/reader/update-progress", body: body))
