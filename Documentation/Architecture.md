@@ -77,8 +77,9 @@ Adding a fourth source means adding an initialiser, not a view.
 ### The library
 
 The list opens on the Reading shelf, and the toolbar filter widens it to the other shelves or to
-everything. Books are grouped by author and, within an author, by series, with whatever was last read
-or last gained a chapter on top. Rows are buttons rather than `NavigationLink`s, which is the only way
+everything. A book read to its end drops out of Reading, whatever shelf the service still has it on.
+Books are grouped by author and, within an author, by series, with whatever was last read or last
+gained a chapter on top, and a series runs latest book first. Rows are buttons rather than `NavigationLink`s, which is the only way
 a `List` row goes without a disclosure chevron, and a long press moves a book between shelves or off
 them, from the list and from the strip alike. A move the service refuses reports what it said and
 reloads, so the shelves on screen are the ones the service holds.

@@ -30,8 +30,14 @@ struct WorkSummary: Codable, Identifiable, Hashable, Sendable {
     let lastChapterId: Int?
     var libraryState: LibraryState?
 
+    /// Where "read to the end" starts. The service's character offset rarely lands on the last one.
+    static let readThreshold = 0.995
+
     /// The author is still adding chapters.
     var isOngoing: Bool { isFinished != true }
+
+    /// The reader has been through it.
+    var isReadToTheEnd: Bool { (readingProgress ?? 0) >= Self.readThreshold }
 
     var isPaid: Bool { status == .sales || status == .subscription }
 

@@ -25,7 +25,6 @@ extension LibraryScreen {
         var searchText = ""
 
         private(set) var works: [WorkSummary] = []
-        private(set) var counts: [LibraryState: Int] = [:]
         private(set) var isLoading = false
         private(set) var errorMessage: String?
         private(set) var hasLoaded = false
@@ -49,12 +48,7 @@ extension LibraryScreen {
 
         /// The rows after the shelf filter and the local title/author filter.
         var visibleWorks: [WorkSummary] {
-            var result = works
-
-            if let shelf {
-                result = result.filter { shelfByWork[$0.id] == shelf }
-            }
-
+            let result = works.filter { isOnShelf($0, shelf) }
             let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
 
             guard !query.isEmpty else { return result }
@@ -62,6 +56,14 @@ extension LibraryScreen {
             return result.filter {
                 $0.title.lowercased().contains(query) || $0.authorLine.lowercased().contains(query)
             }
+        }
+
+        /// What a shelf holds, minus what has been read to its end: the service leaves a finished book
+        /// on Reading, and there is nothing left there to read.
+        private func isOnShelf(_ work: WorkSummary, _ shelf: LibraryState?) -> Bool {
+            guard let shelf else { return true }
+
+            return shelfByWork[work.id] == shelf && (shelf != .reading || !work.isReadToTheEnd)
         }
 
         /// By author, and within an author by series, with whatever was last read or last updated on top.
@@ -104,14 +106,16 @@ extension LibraryScreen {
             return left.title.localizedStandardCompare(right.title) == .orderedAscending
         }
 
+        /// Latest book in the series first, which is the one with a chapter still arriving. Titles
+        /// compare numerically, so a series with no order on it still lands newest first.
         private static func withinSeries(_ left: WorkSummary, _ right: WorkSummary) -> Bool {
             guard
                 left.seriesOrder == right.seriesOrder
             else {
-                return (left.seriesOrder ?? .max) < (right.seriesOrder ?? .max)
+                return (left.seriesOrder ?? .min) > (right.seriesOrder ?? .min)
             }
 
-            return left.title.localizedStandardCompare(right.title) == .orderedAscending
+            return left.title.localizedStandardCompare(right.title) == .orderedDescending
         }
 
         private static func byHeading(_ left: Group, _ right: Group) -> Bool {
@@ -141,10 +145,11 @@ extension LibraryScreen {
                 .map { $0 }
         }
 
+        /// Counted the way the list counts, so the number beside a shelf is the number of rows it opens.
         func count(for shelf: LibraryState?) -> Int? {
-            guard let shelf else { return works.isEmpty ? nil : works.count }
+            guard !works.isEmpty else { return nil }
 
-            return counts[shelf]
+            return works.count { isOnShelf($0, shelf) }
         }
 
         func newChapters(for workId: Int) -> Int { UpdateBadge.newChapters(for: workId) }
@@ -166,7 +171,7 @@ extension LibraryScreen {
 
             guard !stored.isEmpty, works.isEmpty else { return }
 
-            apply(entries: stored, counts: nil)
+            apply(entries: stored)
         }
 
         /// The daily check also runs in the foreground, so the badge is current even when the system
@@ -193,7 +198,7 @@ extension LibraryScreen {
             do {
                 let library = try await session.client.fullUserLibrary()
                 let entries = library.worksInLibrary.map(WorkSummary.init)
-                apply(entries: entries, counts: library)
+                apply(entries: entries)
                 await store.replaceLibrary(with: entries)
                 isOffline = false
                 hasLoaded = true
@@ -239,33 +244,19 @@ extension LibraryScreen {
                 works[index].libraryState = state
                 shelfByWork[workId] = state
             }
-
-            counts = Dictionary(
-                LibraryState.shelves.map { state in (state, works.filter { shelfByWork[$0.id] == state }.count) },
-                uniquingKeysWith: { first, _ in first }
-            )
         }
 
         private func persistShelves() async {
             await store.replaceLibrary(with: works)
         }
 
-        private func apply(entries: [WorkSummary], counts library: UserLibrary?) {
+        private func apply(entries: [WorkSummary]) {
             shelfByWork = Dictionary(
                 entries.map { ($0.id, $0.libraryState ?? .none) },
                 uniquingKeysWith: { first, _ in first }
             )
             works = entries
             Task { await CoverCache.shared.prefetch(entries.compactMap(\.coverURL)) }
-
-            guard let library else { return }
-
-            counts = Dictionary(
-                LibraryState.shelves.compactMap { state in
-                    library.count(for: state).map { (state, $0) }
-                },
-                uniquingKeysWith: { first, _ in first }
-            )
         }
     }
 }

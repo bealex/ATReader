@@ -103,7 +103,7 @@ struct ReadingProgressRing: View {
     /// A finished book says so with a tick; there is no room for "100%" and no need for it.
     @ViewBuilder
     private var label: some View {
-        if progress >= 0.995 {
+        if progress >= WorkSummary.readThreshold {
             Image(systemName: "checkmark")
         } else {
             Text(progress.formatted(.percent.precision(.fractionLength(0))))
