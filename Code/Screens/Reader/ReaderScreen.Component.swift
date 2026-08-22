@@ -18,6 +18,9 @@ enum ReaderScreen {
         @Environment(ReaderSettings.self)
         private var settings
 
+        @Environment(\.scenePhase)
+        private var scenePhase
+
         @State
         private var model: Model?
 
@@ -77,6 +80,12 @@ enum ReaderScreen {
                 }
             }
             .task { await model?.loadIfNeeded() }
+            // Where the reader stopped is worth writing the moment they stop: an app on its way to
+            // the background will not run a task that is still waiting.
+            .onChange(of: scenePhase) { _, phase in
+                if phase != .active { model?.flushPosition() }
+            }
+            .onDisappear { model?.flushPosition() }
         }
 
         @ViewBuilder
@@ -241,6 +250,9 @@ enum ReaderScreen {
     struct SettingsSheet: View {
         @Environment(ReaderSettings.self)
         private var settings
+
+        @Environment(\.scenePhase)
+        private var scenePhase
 
         @Environment(\.dismiss)
         private var dismiss

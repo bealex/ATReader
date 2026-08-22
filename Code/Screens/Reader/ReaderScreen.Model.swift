@@ -603,13 +603,38 @@ extension ReaderScreen {
             }
         }
 
+        /// Writes the position at once and tells the service where the reader stopped, whatever the
+        /// last coarse step reported.
+        ///
+        /// The ordinary save waits 400ms so a run of page turns writes once, and a suspended app never
+        /// runs that task. Leaving the reader, and the app leaving the screen, are the two moments the
+        /// wait has to be given up.
+        func flushPosition() {
+            positionSaver?.cancel()
+
+            guard let layout, let chapterId = currentChapterId else { return }
+
+            let offset = layout.characterOffset(ofPage: textIndex(for: currentPage))
+
+            Task { [store, workId] in
+                await store.store(position: .init(
+                    workId: workId,
+                    chapterId: chapterId,
+                    characterOffset: offset,
+                    updatedAt: .now
+                ))
+            }
+
+            reportProgress(force: true)
+        }
+
         /// Syncs the position upstream in coarse steps rather than on every page.
-        private func reportProgress() {
+        private func reportProgress(force: Bool = false) {
             guard pageCount > 0, session.isSignedIn, let chapterId = currentChapterId else { return }
 
             let chapterProgress = Double(currentPage + 1) / Double(pageCount)
 
-            guard chapterProgress - lastReportedProgress >= 0.05 || chapterProgress >= 0.999 else { return }
+            guard force || chapterProgress - lastReportedProgress >= 0.05 || chapterProgress >= 0.999 else { return }
 
             lastReportedProgress = chapterProgress
             let overall = overallProgress(chapterProgress: chapterProgress)

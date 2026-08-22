@@ -299,6 +299,51 @@ final class CatalogUITests: XCTestCase {
     }
 
     /// Walks from a chart to a book to its reader — the path every reading test starts with.
+    /// Where the reader stopped comes back after the app is put away and killed.
+    func testPositionSurvivesBeingBackgroundedAndKilled() throws {
+        openBookPage()
+        let book = app.navigationBars.firstMatch.identifier
+        app.buttons["work.read"].tap()
+
+        let caption = app.staticTexts["reader.caption"]
+        XCTAssertTrue(caption.waitForExistence(timeout: 40), "reader never rendered a page")
+        turnPage()
+        turnPage()
+        turnPage()
+        sleep(1)
+        let stoppedAt = caption.label
+
+        XCUIDevice.shared.press(.home)
+        sleep(2)
+        app.terminate()
+        app.launch()
+
+        openBookPage()
+
+        guard
+            app.navigationBars.firstMatch.identifier == book
+        else {
+            throw XCTSkip("the chart moved between launches, so this is a different book")
+        }
+
+        app.buttons["work.read"].tap()
+        XCTAssertTrue(caption.waitForExistence(timeout: 40), "reader never rendered a page")
+        XCTAssertEqual(caption.label, stoppedAt, "the reader did not reopen where it stopped")
+    }
+
+    /// Opens the second book of the chart and waits for its page to offer a read action.
+    private func openBookPage() {
+        app.tabBars.buttons["Top"].tap()
+
+        let book = app.collectionViews.cells.element(boundBy: 1)
+        XCTAssertTrue(book.waitForExistence(timeout: 30), "no book to open")
+        book.tap()
+        XCTAssertTrue(
+            app.buttons["work.read"].waitForExistence(timeout: 30),
+            "book page never offered a read action"
+        )
+    }
+
     private func openReader() {
         app.tabBars.buttons["Top"].tap()
 
@@ -331,10 +376,9 @@ final class CatalogUITests: XCTestCase {
             .tap()
     }
 
-    /// A Form does not instantiate cells below the fold, so a control has to be scrolled into being
-    /// before it can be found at all.
-    /// Scrolls a fifth of the screen at a time. A full swipe carries a short sheet past several rows
-    /// at once, and a control it skipped never gets instantiated to be found.
+    /// Scrolls a fifth of the screen at a time. A Form does not instantiate cells below the fold, and
+    /// a full swipe carries a short sheet past several rows at once, so a control it skipped never
+    /// comes into being to be found.
     private func scrollUntilVisible(_ element: XCUIElement, steps: Int = 12) -> Bool {
         for _ in 0 ..< steps where !element.exists {
             let start = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.8))

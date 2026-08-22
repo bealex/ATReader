@@ -203,3 +203,7 @@ until the new one is ready. The reader's position survives it because the model 
 offset rather than a page number: a larger font means the same text spans more pages, so a page index
 means nothing across a restyle. That offset is also the only reading position that survives a
 relaunch, since the service accepts the one it is sent and stores nothing.
+
+A page turn writes it 400ms later, so a run of turns writes once. Leaving the reader and the app
+leaving the screen give that wait up: `flushPosition` writes at once and reports upstream whatever the
+last coarse step sent, because a suspended app never runs a task that is still waiting.
