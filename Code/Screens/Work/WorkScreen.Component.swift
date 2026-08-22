@@ -81,7 +81,7 @@ enum WorkScreen {
 
         private func heading(_ work: WorkSummary) -> some View {
             HStack(alignment: .top, spacing: 16) {
-                CoverImage(url: work.coverURL, width: 116)
+                CoverImage(url: work.coverURL, width: 116, progress: work.readingProgress)
 
                 VStack(alignment: .leading, spacing: 6) {
                     Text(work.title)
@@ -106,27 +106,8 @@ enum WorkScreen {
         }
 
         private func statistics(_ work: WorkSummary) -> some View {
-            VStack(alignment: .leading, spacing: 4) {
-                HStack(spacing: 12) {
-                    if let length = WorkFormatting.length(work.textLength) {
-                        Label(length, systemImage: "doc.text")
-                    }
-
-                    if let likes = WorkFormatting.likes(work.likeCount) {
-                        Label(likes, systemImage: "heart")
-                    }
-                }
-                .font(.caption)
-                .foregroundStyle(.secondary)
-
-                Label(
-                    work.isOngoing ? "Still being written" : "Finished",
-                    systemImage: work.isOngoing ? "pencil.circle" : "checkmark.seal"
-                )
-                .font(.caption)
-                .foregroundStyle(work.isOngoing ? .orange : .green)
-            }
-            .padding(.top, 2)
+            WorkBadges(work: work, showsProgress: true, showsUpdated: true)
+                .padding(.top, 4)
         }
 
         @ViewBuilder
@@ -148,19 +129,6 @@ enum WorkScreen {
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                         .frame(maxWidth: .infinity, alignment: .leading)
-                }
-
-                if let progress = summary.readingProgress, progress > 0 {
-                    VStack(alignment: .leading, spacing: 4) {
-                        ProgressView(value: progress)
-                            .tint(.accentColor)
-
-                        Text("\(WorkFormatting.progress(progress) ?? "") read")
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
-                    }
-                    .accessibilityElement(children: .ignore)
-                    .accessibilityLabel("\(WorkFormatting.progress(progress) ?? "") read")
                 }
 
                 shelfPicker(model)

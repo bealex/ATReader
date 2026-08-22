@@ -42,27 +42,28 @@ enum LibraryScreen {
             @Bindable var model = model
 
             List {
-                if !model.continueReading.isEmpty && model.shelf == nil && model.searchText.isEmpty {
+                if !model.continueReading.isEmpty && model.searchText.isEmpty {
                     continueSection(model)
                 }
 
-                Section {
-                    if model.visibleWorks.isEmpty {
-                        emptyRow(model)
-                    } else {
-                        ForEach(model.visibleWorks) { work in
-                            NavigationLink(value: AppRoute.work(id: work.id, title: work.title)) {
-                                WorkRow(work: work, newChapters: model.newChapters(for: work.id))
+                if model.groups.isEmpty {
+                    emptyRow(model)
+                } else {
+                    ForEach(model.groups) { group in
+                        Section {
+                            ForEach(group.works) { work in
+                                bookRow(model, work: work)
                             }
+                        } header: {
+                            groupHeader(group)
                         }
-                        .id(model.newChapterRevision)
                     }
-                } header: {
-                    Text(model.shelf?.title ?? "All books")
+                    .id(model.newChapterRevision)
                 }
             }
             .listStyle(.plain)
             .accessibilityIdentifier("library.list")
+            .navigationSubtitle(model.shelf?.title ?? String(localized: "All books"))
             .searchable(text: $model.searchText, prompt: "Title or author")
             .refreshable { await model.reload() }
             .toolbar { shelfMenu(model) }
@@ -74,10 +75,61 @@ enum LibraryScreen {
             }
             .alert(
                 "Error",
-                isPresented: .init(get: { model.errorMessage != nil }, set: { _ in }),
+                isPresented: .init(get: { model.errorMessage != nil }, set: { _ in model.dismissError() }),
                 actions: { Button("OK", role: .cancel, action: {}) },
                 message: { Text(model.errorMessage ?? "") }
             )
+        }
+
+        /// A button rather than a `NavigationLink`: a link is what draws the disclosure chevron.
+        private func bookRow(_ model: Model, work: WorkSummary) -> some View {
+            Button {
+                path.append(.work(id: work.id, title: work.title))
+            } label: {
+                WorkRow(work: work, showsSeries: false, newChapters: model.newChapters(for: work.id))
+                    .contentShape(.rect)
+            }
+            .buttonStyle(.plain)
+            .accessibilityAddTraits(.isButton)
+            .contextMenu { shelfActions(model, work: work) }
+        }
+
+        @ViewBuilder
+        private func groupHeader(_ group: Model.Group) -> some View {
+            VStack(alignment: .leading, spacing: 1) {
+                Text(group.author)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.primary)
+
+                if let series = group.series {
+                    Text(series)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .textCase(nil)
+            .padding(.vertical, 2)
+            .accessibilityElement(children: .combine)
+        }
+
+        @ViewBuilder
+        private func shelfActions(_ model: Model, work: WorkSummary) -> some View {
+            ForEach(LibraryState.shelves, id: \.self) { state in
+                Button {
+                    Task { await model.move(work, to: state) }
+                } label: {
+                    Label(state.title, systemImage: state.systemImage)
+                }
+                .disabled(work.libraryState == state)
+            }
+
+            Divider()
+
+            Button(role: .destructive) {
+                Task { await model.move(work, to: .none) }
+            } label: {
+                Label("Remove from library", systemImage: "trash")
+            }
         }
 
         private func continueSection(_ model: Model) -> some View {
@@ -151,29 +203,16 @@ enum LibraryScreen {
         }
     }
 
-    /// A compact cover-first card for the "continue reading" strip.
+    /// The cover alone, with the reader's position on it.
     struct ContinueCard: View {
         let work: WorkSummary
 
         var body: some View {
-            VStack(alignment: .leading, spacing: 6) {
-                CoverImage(url: work.coverURL, width: 92)
-
-                Text(work.title)
-                    .font(.caption.weight(.semibold))
-                    .lineLimit(2)
-                    .frame(width: 92, alignment: .leading)
-
-                if let progress = work.readingProgress {
-                    ProgressView(value: progress)
-                        .frame(width: 92)
-                        .tint(.accentColor)
-                }
-            }
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel(accessibilityLabel)
-            .accessibilityAddTraits(.isButton)
-            .accessibilityHint("Opens the book at your last chapter")
+            CoverImage(url: work.coverURL, width: 92, progress: work.readingProgress)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(accessibilityLabel)
+                .accessibilityAddTraits(.isButton)
+                .accessibilityHint("Opens the book at your last chapter")
         }
 
         private var accessibilityLabel: String {

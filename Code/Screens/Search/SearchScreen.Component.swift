@@ -69,9 +69,14 @@ enum SearchScreen {
                 }
 
                 ForEach(visibleWorks(feed)) { work in
-                    NavigationLink(value: AppRoute.work(id: work.id, title: work.title)) {
+                    Button {
+                        path.append(.work(id: work.id, title: work.title))
+                    } label: {
                         WorkRow(work: work, showsProgress: false)
+                            .contentShape(.rect)
                     }
+                    .buttonStyle(.plain)
+                    .accessibilityAddTraits(.isButton)
                     .task { await feed.loadMoreIfNeeded(currentItem: work) }
                 }
 

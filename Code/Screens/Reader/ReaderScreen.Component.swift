@@ -18,9 +18,6 @@ enum ReaderScreen {
         @Environment(ReaderSettings.self)
         private var settings
 
-        @Environment(\.dismiss)
-        private var dismiss
-
         @State
         private var model: Model?
 
@@ -52,9 +49,15 @@ enum ReaderScreen {
             }
             .background(settings.theme.background.ignoresSafeArea())
             .navigationTitle(model?.chapterTitle ?? title)
+            .navigationBarTitleDisplayMode(.inline)
             .toolbar(.hidden, for: .tabBar)
-            // The reader draws its own bar, so it can fade rather than slide in over the page.
-            .toolbar(.hidden, for: .navigationBar)
+            // The system's own bar, so its buttons sit and size themselves the way they do elsewhere.
+            .toolbar(isChromeHidden ? .hidden : .visible, for: .navigationBar)
+            // The page's colour behind the bar: the running head passes under it, and glass would
+            // show that through.
+            .toolbarBackground(settings.theme.background, for: .navigationBar)
+            .toolbarBackgroundVisibility(.visible, for: .navigationBar)
+            .toolbar { controls }
             .backSwipeDisabled()
             .statusBarHidden(isChromeHidden)
             .preferredColorScheme(settings.theme.colorScheme)
@@ -115,9 +118,6 @@ enum ReaderScreen {
             )
             .accessibilityIdentifier("reader.page")
             .ignoresSafeArea()
-            .overlay(alignment: .top) {
-                if !isChromeHidden { chromeBar.transition(.opacity) }
-            }
             // The window, not the layout: a page ignores the safe area, so the size its parent hands
             // it is not the size it draws at, and a toolbar coming and going would move it besides.
             .onGeometryChange(for: CGSize.self, of: { $0.size }, action: { _ in applyWindowMetrics() })
@@ -179,25 +179,6 @@ enum ReaderScreen {
             }
         }
 
-        /// One control of the reader's bar: round Liquid Glass, the size the system draws in a toolbar.
-        /// The square label is what keeps the three of them the same circle whatever their glyph.
-        private func glassButton(
-            _ title: LocalizedStringKey,
-            systemImage: String,
-            hint: LocalizedStringKey,
-            action: @escaping () -> Void
-        ) -> some View {
-            Button(action: action) {
-                Label(title, systemImage: systemImage)
-                    .labelStyle(.iconOnly)
-                    .frame(width: 22, height: 22)
-                    .contentShape(.circle)
-            }
-            .buttonStyle(.glass)
-            .buttonBorderShape(.circle)
-            .accessibilityHint(hint)
-        }
-
         private func toggleChrome() {
             withAnimation(.easeInOut(duration: Self.chromeFade)) { isChromeHidden.toggle() }
         }
@@ -234,41 +215,26 @@ enum ReaderScreen {
         /// How long the controls take to fade in or out.
         private static let chromeFade: Double = 0.25
 
-        /// The reader's own bar: back, the chapter's name, and the two sheets.
-        private var chromeBar: some View {
-            HStack(spacing: 12) {
-                glassButton("Back", systemImage: "chevron.backward", hint: "Leaves the book") { dismiss() }
-
-                Text(model?.chapterTitle ?? title)
-                    .font(.headline)
-                    .lineLimit(1)
-                    .frame(maxWidth: .infinity)
-
-                if model?.isOffline == true {
+        /// The bar's own controls. Back and the chapter's name come from the navigation stack.
+        @ToolbarContentBuilder
+        private var controls: some ToolbarContent {
+            if model?.isOffline == true {
+                ToolbarItem(placement: .topBarTrailing) {
                     Image(systemName: "wifi.slash")
                         .foregroundStyle(.secondary)
                         .accessibilityLabel("Reading from this device")
                 }
-
-                glassButton("Contents", systemImage: "list.bullet", hint: "Shows the chapter list") {
-                    isShowingContents = true
-                }
-
-                glassButton(
-                    "Appearance",
-                    systemImage: "textformat.size",
-                    hint: "Font, margins and page settings"
-                ) {
-                    isShowingSettings = true
-                }
             }
-            .font(.title3)
-            .foregroundStyle(settings.theme.foreground)
-            .padding(.horizontal, 16)
-            // The overlay is laid out inside the safe area even though the page below it is not, so
-            // the bar keeps a navigation bar's own height and only its background runs up to the edge.
-            .frame(height: 50)
-            .background(settings.theme.background.ignoresSafeArea(edges: .top))
+
+            ToolbarItem(placement: .topBarTrailing) {
+                Button("Contents", systemImage: "list.bullet") { isShowingContents = true }
+                    .accessibilityHint("Shows the chapter list")
+            }
+
+            ToolbarItem(placement: .topBarTrailing) {
+                Button("Appearance", systemImage: "textformat.size") { isShowingSettings = true }
+                    .accessibilityHint("Font, margins and page settings")
+            }
         }
     }
 

@@ -248,3 +248,20 @@ actor CoverCache {
         return UIImage(cgImage: thumbnail)
     }
 }
+
+/// The covers already decoded this run, reachable without an `await`.
+///
+/// ``CoverCache`` is an actor, so a view rebuilt under a new identity draws its placeholder until the
+/// hop returns. A cover already in hand appears in the first frame instead.
+@MainActor
+enum CoverImages {
+    private static let images: NSCache<NSURL, UIImage> = {
+        let cache = NSCache<NSURL, UIImage>()
+        cache.countLimit = 300
+        return cache
+    }()
+
+    static func image(for url: URL) -> UIImage? { images.object(forKey: url as NSURL) }
+
+    static func remember(_ image: UIImage, for url: URL) { images.setObject(image, forKey: url as NSURL) }
+}

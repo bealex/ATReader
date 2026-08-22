@@ -38,7 +38,8 @@ Model` and a `struct Component: View`, split across `<Screen>.Model.swift` and
 
 ```
 App/          entry point, RootScreen (signed-in vs signed-out), AppRoute
-Components/   CoverImage, WorkRow, WorkSummary, ChapterPageView, PageTurnView
+Components/   CoverImage, WorkRow, WorkBadge, FlowLayout, WorkSummary, ChapterPageView,
+              PageTurnView
 Screens/      Login, Library, Search, Top, Work, Reader, Profile
 Services/     SessionStore, KeychainStore, LocalStore, CoverCache, CatalogFeed,
               ChapterContent, Typography, ChapterPagination, ChapterLayout,
@@ -73,6 +74,16 @@ The library, the catalogue and a work's own details return three different shape
 `WorkSummary` is the single presentation struct they all map into, so `WorkRow` serves every list.
 Adding a fourth source means adding an initialiser, not a view.
 
+### The library
+
+The list opens on the Reading shelf, and the toolbar filter widens it to the other shelves or to
+everything. Books are grouped by author and, within an author, by series. Rows are buttons rather than
+`NavigationLink`s, which is the only way a `List` row goes without a disclosure chevron, and a long
+press moves a book between shelves or off them.
+
+How far the reader has got is a ring on the cover, always 30pt across whatever the cover's size. The
+"continue reading" strip is covers alone, the most recently updated book first.
+
 ### CatalogFeed
 
 Search and the charts hit the same endpoint with different queries, so they share one paging engine.
@@ -101,6 +112,10 @@ full-size bitmap), stored as JPEG and handed back already decoded for display, s
 decodes one. Concurrent requests for the same URL share one download. `CoverImage` loads when its row
 appears, and the library warms the whole shelf in the background once it has loaded, so covers are
 there before the row is.
+
+Decoded covers are kept on the main actor as well, so a view rebuilt under a new identity draws its
+cover in its first frame. A page turn does exactly that to the reader's title page, and going back
+through the actor made the cover blink each time.
 
 `CoverURL` is the other half. The service returns two different shapes for `coverUrl`: `work/details`
 and the library give a full `https://cm.author.today/…` URL, while the catalogue gives a bare path like

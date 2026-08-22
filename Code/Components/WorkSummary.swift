@@ -15,21 +15,25 @@ struct WorkSummary: Codable, Identifiable, Hashable, Sendable {
     let coverURL: URL?
     let annotation: String?
     let seriesTitle: String?
+    let seriesOrder: Int?
 
     let textLength: Int?
     let likeCount: Int?
     let isFinished: Bool?
     let status: WorkStatus?
     let adultOnly: Bool?
+    let lastUpdateTime: Date?
 
     let readingProgress: Double?
     let hasStartedReading: Bool
     let lastReadTime: Date?
     let lastChapterId: Int?
-    let libraryState: LibraryState?
+    var libraryState: LibraryState?
 
     /// The author is still adding chapters.
     var isOngoing: Bool { isFinished != true }
+
+    var isPaid: Bool { status == .sales || status == .subscription }
 
     func hash(into hasher: inout Hasher) { hasher.combine(id) }
 
@@ -45,11 +49,13 @@ extension WorkSummary {
             coverURL: work.coverURL,
             annotation: nil,
             seriesTitle: work.seriesTitle,
+            seriesOrder: work.seriesOrder,
             textLength: work.textLength,
             likeCount: work.likeCount,
             isFinished: work.isFinished,
             status: work.status,
             adultOnly: work.adultOnly,
+            lastUpdateTime: work.lastUpdateTime ?? work.lastModificationTime,
             readingProgress: work.readingProgress,
             hasStartedReading: work.hasStartedReading,
             lastReadTime: work.lastReadTime,
@@ -66,11 +72,13 @@ extension WorkSummary {
             coverURL: work.coverURL,
             annotation: work.annotation,
             seriesTitle: work.seriesTitle,
+            seriesOrder: nil,
             textLength: work.textLength,
             likeCount: work.likeCount,
             isFinished: work.isFinished,
             status: work.status,
             adultOnly: work.adultOnly,
+            lastUpdateTime: work.lastModificationTime,
             readingProgress: nil,
             hasStartedReading: false,
             lastReadTime: nil,
@@ -87,11 +95,13 @@ extension WorkSummary {
             coverURL: work.coverURL,
             annotation: work.annotation,
             seriesTitle: work.seriesTitle,
+            seriesOrder: nil,
             textLength: work.textLength,
             likeCount: work.likeCount,
             isFinished: work.isFinished,
             status: work.status,
             adultOnly: work.adultOnly,
+            lastUpdateTime: work.lastUpdateTime,
             readingProgress: work.readingProgress,
             hasStartedReading: work.lastChapterId != nil,
             lastReadTime: nil,
@@ -122,9 +132,9 @@ enum WorkFormatting {
         return (value).formatted(.percent.precision(.fractionLength(0)))
     }
 
-    static func lastRead(_ date: Date?) -> String? {
+    static func updated(_ date: Date?) -> String? {
         guard let date else { return nil }
 
-        return date.formatted(.relative(presentation: .named))
+        return String(localized: "Updated \(date.formatted(.relative(presentation: .named)))")
     }
 }

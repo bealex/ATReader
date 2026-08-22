@@ -9,8 +9,17 @@ import Foundation
 extension LibraryScreen {
     @Observable @MainActor
     final class Model {
-        /// Which shelf the list is showing. `nil` means everything the reader has added.
-        var shelf: LibraryState?
+        /// One heading of the list: an author, and one of their series where the books belong to one.
+        struct Group: Identifiable {
+            let id: String
+            let author: String
+            let series: String?
+            let works: [WorkSummary]
+        }
+
+        /// Which shelf the list is showing. `nil` means everything the reader has added; the books
+        /// being read now are what the library opens on.
+        var shelf: LibraryState? = .reading
         var searchText = ""
 
         private(set) var works: [WorkSummary] = []
@@ -53,11 +62,58 @@ extension LibraryScreen {
             }
         }
 
-        /// Books with a position to return to, most recently opened first.
+        /// By author, and within an author by series. Standalone titles come first.
+        var groups: [Group] {
+            let byHeading = Dictionary(grouping: visibleWorks) { work in
+                Heading(author: work.authorLine, series: work.seriesTitle?.isEmpty == false ? work.seriesTitle : nil)
+            }
+
+            return
+                byHeading
+                .map { heading, works in
+                    Group(
+                        id: "\(heading.author)|\(heading.series ?? "")",
+                        author: heading.author,
+                        series: heading.series,
+                        works: works.sorted(by: Self.withinSeries)
+                    )
+                }
+                .sorted(by: Self.byHeading)
+        }
+
+        private struct Heading: Hashable {
+            let author: String
+            let series: String?
+        }
+
+        private static func withinSeries(_ left: WorkSummary, _ right: WorkSummary) -> Bool {
+            guard
+                left.seriesOrder == right.seriesOrder
+            else {
+                return (left.seriesOrder ?? .max) < (right.seriesOrder ?? .max)
+            }
+
+            return left.title.localizedStandardCompare(right.title) == .orderedAscending
+        }
+
+        private static func byHeading(_ left: Group, _ right: Group) -> Bool {
+            guard
+                left.author == right.author
+            else {
+                return left.author.localizedStandardCompare(right.author) == .orderedAscending
+            }
+            guard let leftSeries = left.series else { return right.series != nil }
+            guard let rightSeries = right.series else { return false }
+
+            return leftSeries.localizedStandardCompare(rightSeries) == .orderedAscending
+        }
+
+        /// Books with a position to return to, the most recently updated first: a book the author has
+        /// just added a chapter to is the one worth picking up.
         var continueReading: [WorkSummary] {
             works
                 .filter { $0.hasStartedReading && ($0.readingProgress ?? 0) < 1 }
-                .sorted { ($0.lastReadTime ?? .distantPast) > ($1.lastReadTime ?? .distantPast) }
+                .sorted { ($0.lastUpdateTime ?? .distantPast) > ($1.lastUpdateTime ?? .distantPast) }
                 .prefix(10)
                 .map { $0 }
         }
@@ -69,6 +125,8 @@ extension LibraryScreen {
         }
 
         func newChapters(for workId: Int) -> Int { UpdateBadge.newChapters(for: workId) }
+
+        func dismissError() { errorMessage = nil }
 
         func loadIfNeeded() async {
             guard !hasLoaded else { return }
@@ -127,6 +185,43 @@ extension LibraryScreen {
             }
 
             isLoading = false
+        }
+
+        /// Moves one book to another shelf, or off the shelves entirely with ``LibraryState/none``.
+        func move(_ work: WorkSummary, to state: LibraryState) async {
+            guard session.isSignedIn, shelfByWork[work.id] != state else { return }
+
+            let previous = shelfByWork[work.id] ?? .none
+            apply(state: state, to: work.id)
+
+            do {
+                try await session.client.updateLibraryState(workIds: [ work.id ], state: state)
+                await persistShelves()
+            } catch {
+                apply(state: previous, to: work.id)
+                errorMessage = String(localized: "Couldn’t update your library.")
+            }
+        }
+
+        private func apply(state: LibraryState, to workId: Int) {
+            guard let index = works.firstIndex(where: { $0.id == workId }) else { return }
+
+            if state == .none {
+                works.remove(at: index)
+                shelfByWork[workId] = nil
+            } else {
+                works[index].libraryState = state
+                shelfByWork[workId] = state
+            }
+
+            counts = Dictionary(
+                LibraryState.shelves.map { state in (state, works.filter { shelfByWork[$0.id] == state }.count) },
+                uniquingKeysWith: { first, _ in first }
+            )
+        }
+
+        private func persistShelves() async {
+            await store.replaceLibrary(with: works)
         }
 
         private func apply(entries: [WorkSummary], counts library: UserLibrary?) {

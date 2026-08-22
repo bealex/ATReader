@@ -142,16 +142,14 @@ swiping back a page. SwiftUI has no modifier for that without also hiding the ba
 
 ## The controls
 
-A tap in the middle third brings back the status bar and the controls, a second tap sends them away,
-and turning a page sends them away too. They are the reader's own bar rather than the navigation
-stack's, which is what lets them fade in over the page instead of sliding the page down, and the bar
-carries a background of its own so the running head doesn't show through it.
+A tap in the middle third brings back the status bar and the navigation bar, a second tap sends them
+away, and turning a page sends them away too. The bar is the navigation stack's own, so the back
+button, the chapter's name and the two sheet buttons sit and size themselves the way the system draws
+them everywhere else. It carries the page's own colour rather than glass, because the running head
+passes underneath.
 
-Only that background runs up to the screen edge. Insetting the bar by hand as well would push its
-controls a notch's worth too low, because the overlay is already laid out inside the safe area.
-
-The buttons are round Liquid Glass, 36pt across, which is what the system draws in a toolbar. A square
-label under the glass is what keeps all three the same circle whatever the glyph inside.
+Showing it moves no text: the page ignores the safe area and takes its size from the window, so
+nothing pagination depends on changes when a bar appears.
 
 ## Staying ahead of the reader
 

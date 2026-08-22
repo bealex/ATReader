@@ -1144,6 +1144,17 @@
         }
       }
     },
+    "Remove from library": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Убрать из библиотеки"
+          }
+        }
+      }
+    },
     "Removes chapters stored for offline reading": {
       "extractionState": "manual",
       "localizations": {
@@ -1438,17 +1449,6 @@
         }
       }
     },
-    "Still being written": {
-      "extractionState": "manual",
-      "localizations": {
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Автор ещё пишет"
-          }
-        }
-      }
-    },
     "Submits your sign-in details": {
       "extractionState": "manual",
       "localizations": {
@@ -1559,6 +1559,17 @@
         }
       }
     },
+    "Updated %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Обновлено %@"
+          }
+        }
+      }
+    },
     "Use a different account": {
       "extractionState": "manual",
       "localizations": {
@@ -1661,10 +1672,6 @@
           }
         }
       }
-    },
-    "· %@": {
-      "shouldTranslate": false,
-      "extractionState": "manual"
     }
   },
   "version": "1.0"

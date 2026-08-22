@@ -46,9 +46,14 @@ enum TopScreen {
                 }
 
                 ForEach(Array(model.feed.works.enumerated()), id: \.element.id) { position, work in
-                    NavigationLink(value: AppRoute.work(id: work.id, title: work.title)) {
+                    Button {
+                        path.append(.work(id: work.id, title: work.title))
+                    } label: {
                         RankedRow(rank: position + 1, work: work)
+                            .contentShape(.rect)
                     }
+                    .buttonStyle(.plain)
+                    .accessibilityAddTraits(.isButton)
                     .task { await model.feed.loadMoreIfNeeded(currentItem: work) }
                 }
 
