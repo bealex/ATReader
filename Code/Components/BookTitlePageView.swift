@@ -23,19 +23,19 @@ struct BookTitlePageView: View {
                 .padding(.bottom, 32)
 
             Text(title)
-                .font(Font(style.face.font(size: style.fontSize * 1.7)))
+                .font(Font(style.face.font(size: style.fontSize * 1.7, weight: style.weight.uiWeight)))
                 .foregroundStyle(foreground)
                 .multilineTextAlignment(.center)
                 .padding(.bottom, 14)
 
             Text(author)
-                .font(Font(style.face.font(size: style.fontSize)))
+                .font(Font(style.face.font(size: style.fontSize, weight: style.weight.uiWeight)))
                 .foregroundStyle(foreground.opacity(0.7))
                 .multilineTextAlignment(.center)
 
             if let seriesTitle, !seriesTitle.isEmpty {
                 Text(seriesTitle)
-                    .font(Font(style.face.font(size: style.fontSize * 0.85)))
+                    .font(Font(style.face.font(size: style.fontSize * 0.85, weight: style.weight.uiWeight)))
                     .foregroundStyle(foreground.opacity(0.5))
                     .multilineTextAlignment(.center)
                     .padding(.top, 18)

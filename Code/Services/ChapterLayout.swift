@@ -443,5 +443,6 @@ final class ChapterLayout {
         return (storage.string as NSString)
             .substring(with: pageRanges[index])
             .replacingOccurrences(of: String(Typography.softHyphen), with: "")
+            .replacingOccurrences(of: "\u{2060}", with: "")
     }
 }

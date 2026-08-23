@@ -659,6 +659,17 @@
         }
       }
     },
+    "Font weight": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Насыщенность шрифта"
+          }
+        }
+      }
+    },
     "Font, margins and page settings": {
       "extractionState": "manual",
       "localizations": {
@@ -692,6 +703,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Вернуться к вводу логина и пароля"
+          }
+        }
+      }
+    },
+    "Green": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Зелёная"
           }
         }
       }
@@ -769,6 +791,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Библиотека"
+          }
+        }
+      }
+    },
+    "Light": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Тонкий"
           }
         }
       }
@@ -901,6 +934,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Как в системе"
+          }
+        }
+      }
+    },
+    "Medium": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Средний"
           }
         }
       }
@@ -1199,6 +1243,17 @@
         }
       }
     },
+    "Regular": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Обычный"
+          }
+        }
+      }
+    },
     "Remove from library": {
       "extractionState": "manual",
       "localizations": {
@@ -1324,6 +1379,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Ищем…"
+          }
+        }
+      }
+    },
+    "Semibold": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Полужирный"
           }
         }
       }
@@ -1709,6 +1775,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Код подтверждения"
+          }
+        }
+      }
+    },
+    "Weight": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Насыщенность"
           }
         }
       }

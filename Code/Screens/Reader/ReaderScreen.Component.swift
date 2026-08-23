@@ -276,6 +276,17 @@ enum ReaderScreen {
                         .pickerStyle(.menu)
                         .accessibilityIdentifier("reader.face")
                         .accessibilityLabel("Typeface")
+
+                        Picker("Weight", selection: $settings.weight) {
+                            ForEach(ReaderSettings.Weight.allCases) { weight in
+                                Text(weight.title)
+                                    .font(Font(settings.face.font(size: 17, weight: weight.uiWeight)))
+                                    .tag(weight)
+                            }
+                        }
+                        .pickerStyle(.menu)
+                        .accessibilityIdentifier("reader.weight")
+                        .accessibilityLabel("Font weight")
                     }
 
                     Section("Size") {

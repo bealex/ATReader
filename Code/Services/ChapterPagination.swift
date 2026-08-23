@@ -13,6 +13,7 @@ import UIKit
 /// text is laid into rather than the text itself.
 struct ChapterTextStyle: Equatable, Sendable {
     var face: ReaderSettings.Face
+    var weight: ReaderSettings.Weight
     var fontSize: Double
     var lineSpacing: Double
     /// Tracking, in points, added between every pair of letters. Negative tightens.
@@ -23,7 +24,7 @@ struct ChapterTextStyle: Equatable, Sendable {
     var justifiesEnglish: Bool
     var textColor: UIColor
 
-    var font: UIFont { face.font(size: fontSize) }
+    var font: UIFont { face.font(size: fontSize, weight: weight.uiWeight) }
 
     func justifies(_ language: String?) -> Bool {
         Typography.isRussian(language) ? justifiesRussian : justifiesEnglish
@@ -145,7 +146,7 @@ enum ChapterPagination {
             text.append(NSAttributedString(
                 string: number.uppercased() + "\n",
                 attributes: [
-                    .font: style.face.font(size: style.fontSize * 0.8),
+                    .font: style.face.font(size: style.fontSize * 0.8, weight: style.weight.uiWeight),
                     .foregroundColor: style.textColor.withAlphaComponent(0.55),
                     .kern: style.fontSize * 0.08,
                     .paragraphStyle: paragraphStyle,
@@ -161,7 +162,7 @@ enum ChapterPagination {
             text.append(NSAttributedString(
                 string: title + "\n",
                 attributes: [
-                    .font: bold(style.face.font(size: style.fontSize * 1.25)),
+                    .font: bold(style.face.font(size: style.fontSize * 1.25, weight: style.weight.uiWeight)),
                     .foregroundColor: style.textColor,
                     .paragraphStyle: paragraphStyle,
                 ]
@@ -171,10 +172,8 @@ enum ChapterPagination {
         // A blank line of its own, so the body starts clear of the heading whatever the line spacing is.
         let spacer = NSMutableParagraphStyle()
         spacer.paragraphSpacing = 0
-        text.append(NSAttributedString(
-            string: "\n",
-            attributes: [ .font: style.face.font(size: style.fontSize * 0.7), .paragraphStyle: spacer ]
-        ))
+        let spacerFont = style.face.font(size: style.fontSize * 0.7, weight: style.weight.uiWeight)
+        text.append(NSAttributedString(string: "\n", attributes: [ .font: spacerFont, .paragraphStyle: spacer ]))
     }
 
     private static func bold(_ font: UIFont) -> UIFont {

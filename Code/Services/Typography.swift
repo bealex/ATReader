@@ -12,7 +12,13 @@ import Foundation
 /// with a dash; English is easier on short words but keeps an abbreviation with the name it belongs to.
 /// The way to say so is a no-break space, put in before the text is laid out.
 enum Typography {
-    static let noBreakSpace = "\u{00A0}"
+    /// A space that cannot be broken at, and that still stretches when a line is justified.
+    ///
+    /// A no-break space would be simpler, but it is rigid: justification cannot take it up, so the slack
+    /// piles into the ordinary spaces around it and then into the gaps between letters. It is a
+    /// different width from an ordinary space in most book faces too, which shows even ragged-right. An
+    /// ordinary space followed by a word joiner reads as one elastic space that no line may break at.
+    static let boundSpace = " \u{2060}"
     /// Invisible until a line breaks there, where the layout draws a hyphen.
     static let softHyphen: Character = "\u{00AD}"
 
@@ -39,7 +45,7 @@ enum Typography {
             let previous = tokens[index - 1]
             let next = tokens[index]
             let binds = binds(previous, to: next, russian: russian)
-            result += binds ? noBreakSpace : " "
+            result += binds ? boundSpace : " "
             result += next
         }
 

@@ -14,6 +14,7 @@ final class ReaderSettings {
         case paper
         case sepia
         case night
+        case green
 
         var id: String { rawValue }
 
@@ -23,6 +24,7 @@ final class ReaderSettings {
                 case .paper: String(localized: "Paper")
                 case .sepia: String(localized: "Sepia")
                 case .night: String(localized: "Night")
+                case .green: String(localized: "Green")
             }
         }
 
@@ -32,6 +34,7 @@ final class ReaderSettings {
                 case .paper: Color(red: 0.99, green: 0.99, blue: 0.97)
                 case .sepia: Color(red: 0.96, green: 0.91, blue: 0.82)
                 case .night: Color(red: 0.09, green: 0.09, blue: 0.11)
+                case .green: Color(red: 0.02, green: 0.02, blue: 0.02)
             }
         }
 
@@ -41,6 +44,7 @@ final class ReaderSettings {
                 case .paper: Color(red: 0.11, green: 0.11, blue: 0.12)
                 case .sepia: Color(red: 0.25, green: 0.19, blue: 0.11)
                 case .night: Color(red: 0.85, green: 0.85, blue: 0.88)
+                case .green: Color(red: 0.29, green: 0.63, blue: 0.35)
             }
         }
 
@@ -49,7 +53,7 @@ final class ReaderSettings {
             switch self {
                 case .system: nil
                 case .paper, .sepia: .light
-                case .night: .dark
+                case .night, .green: .dark
             }
         }
     }
@@ -96,8 +100,10 @@ final class ReaderSettings {
         }
 
         /// Falls back to the system face when a family is missing, rather than dropping to Helvetica.
-        func font(size: CGFloat) -> UIFont {
-            let system = UIFont.systemFont(ofSize: size)
+        ///
+        /// A named family carries only the weights it ships; the descriptor picks the nearest.
+        func font(size: CGFloat, weight: UIFont.Weight = .regular) -> UIFont {
+            let system = UIFont.systemFont(ofSize: size, weight: weight)
 
             guard
                 let familyName
@@ -107,7 +113,40 @@ final class ReaderSettings {
                 return UIFont(descriptor: descriptor, size: size)
             }
 
-            return UIFont(name: familyName, size: size) ?? system
+            let descriptor = UIFontDescriptor(fontAttributes: [
+                .family: familyName,
+                .traits: [ UIFontDescriptor.TraitKey.weight: weight ],
+            ])
+            return UIFont(descriptor: descriptor, size: size)
+        }
+    }
+
+    /// How heavy the page is set. A face reads differently at each of these, and a dark theme takes a
+    /// little more weight than a light one.
+    enum Weight: String, CaseIterable, Identifiable {
+        case light
+        case regular
+        case medium
+        case semibold
+
+        var id: String { rawValue }
+
+        var title: String {
+            switch self {
+                case .light: String(localized: "Light")
+                case .regular: String(localized: "Regular")
+                case .medium: String(localized: "Medium")
+                case .semibold: String(localized: "Semibold")
+            }
+        }
+
+        var uiWeight: UIFont.Weight {
+            switch self {
+                case .light: .light
+                case .regular: .regular
+                case .medium: .medium
+                case .semibold: .semibold
+            }
         }
     }
 
@@ -160,6 +199,10 @@ final class ReaderSettings {
         didSet { UserDefaults.standard.set(face.rawValue, forKey: Keys.face) }
     }
 
+    var weight: Weight {
+        didSet { UserDefaults.standard.set(weight.rawValue, forKey: Keys.weight) }
+    }
+
     /// Russian sets well justified: its hyphenation dictionary is good and its words are long enough
     /// to fill a line. English justified in a narrow column pulls the words apart instead.
     var russianAlignment: Alignment {
@@ -187,6 +230,7 @@ final class ReaderSettings {
         margins = defaults.object(forKey: Keys.margins) == nil ? 24 : defaults.double(forKey: Keys.margins)
         letterSpacing = defaults.double(forKey: Keys.letterSpacing)
         face = defaults.string(forKey: Keys.face).flatMap(Face.init(rawValue:)) ?? .serif
+        weight = defaults.string(forKey: Keys.weight).flatMap(Weight.init(rawValue:)) ?? .regular
         russianAlignment =
             defaults.string(forKey: Keys.russianAlignment).flatMap(Alignment.init(rawValue:)) ?? .justified
         englishAlignment =
@@ -198,6 +242,7 @@ final class ReaderSettings {
     var textStyle: ChapterTextStyle {
         ChapterTextStyle(
             face: face,
+            weight: weight,
             fontSize: fontSize,
             lineSpacing: lineSpacing,
             letterSpacing: letterSpacing,
@@ -208,7 +253,7 @@ final class ReaderSettings {
     }
 
     /// A preview of the current face for the settings sheet.
-    var previewFont: Font { Font(face.font(size: fontSize)) }
+    var previewFont: Font { Font(face.font(size: fontSize, weight: weight.uiWeight)) }
 
     private enum Keys {
         static let fontSize = "reader.fontSize"
@@ -216,6 +261,7 @@ final class ReaderSettings {
         static let letterSpacing = "reader.letterSpacing"
         static let margins = "reader.margins"
         static let face = "reader.face"
+        static let weight = "reader.weight"
         static let russianAlignment = "reader.alignment.ru"
         static let englishAlignment = "reader.alignment.en"
         static let theme = "reader.theme"
