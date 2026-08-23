@@ -90,7 +90,9 @@ book page adds or removes it, a long press in the list removes it, and nothing e
 
 Books in a series stand together under its name, latest book first; a book in no series stands on its
 own. A series can carry more than one author, so the author belongs to the row rather than the heading.
-Whatever was last read or last gained a chapter comes first. Rows are buttons rather than
+The newest book comes first, by the service's own update time. Reading a book is not a change to it,
+so the list holds still while the reader reads instead of rearranging under them, and books the service
+dates identically keep a fixed order rather than whatever the grouping happened to produce. Rows are buttons rather than
 `NavigationLink`s, which is the only way a `List` row goes without a disclosure chevron.
 
 How far the reader has got is a ring on the cover, always 30pt across whatever the cover's size, with

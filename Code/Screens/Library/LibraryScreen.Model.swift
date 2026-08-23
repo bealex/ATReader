@@ -15,8 +15,8 @@ extension LibraryScreen {
             let id: String
             let series: String?
             let works: [WorkSummary]
-            /// The last time any book here was read or gained a chapter, which is what orders the list.
-            let recency: Date
+            /// The last time any book here gained anything, which is what orders the list.
+            let updated: Date
         }
 
         /// What the list is showing. The service's shelves say nothing dependable about where a reader
@@ -100,19 +100,19 @@ extension LibraryScreen {
                     id: "series:\(title)",
                     series: title,
                     works: works.sorted(by: Self.withinSeries),
-                    recency: works.map(Self.recency).max() ?? .distantPast
+                    updated: works.map(Self.updated).max() ?? .distantPast
                 )
             }
             let alone = visible.filter { $0.series == nil }.map { work in
-                Group(id: "work:\(work.id)", series: nil, works: [ work ], recency: Self.recency(work))
+                Group(id: "work:\(work.id)", series: nil, works: [ work ], updated: Self.updated(work))
             }
 
-            return (grouped + alone).sorted(by: Self.byRecency)
+            return (grouped + alone).sorted(by: Self.byUpdate)
         }
 
-        private static func recency(_ work: WorkSummary) -> Date {
-            max(work.lastReadTime ?? .distantPast, work.lastUpdateTime ?? .distantPast)
-        }
+        /// When the service last changed the book. Reading it is not a change to it, so the list holds
+        /// still while the reader reads rather than shuffling under them.
+        private static func updated(_ work: WorkSummary) -> Date { work.lastUpdateTime ?? .distantPast }
 
         /// Latest book in the series first, which is the one with a chapter still arriving. Titles
         /// compare numerically, so a series the service gives no order for still lands newest first.
@@ -126,11 +126,13 @@ extension LibraryScreen {
             return left.title.localizedStandardCompare(right.title) == .orderedDescending
         }
 
-        private static func byRecency(_ left: Group, _ right: Group) -> Bool {
+        /// Newest first, and books the service gives no date for keep a fixed order of their own rather
+        /// than whatever the grouping happened to produce.
+        private static func byUpdate(_ left: Group, _ right: Group) -> Bool {
             guard
-                left.recency == right.recency
+                left.updated == right.updated
             else {
-                return left.recency > right.recency
+                return left.updated > right.updated
             }
 
             return left.id.localizedStandardCompare(right.id) == .orderedAscending
