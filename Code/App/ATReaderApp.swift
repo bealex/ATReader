@@ -7,6 +7,9 @@ import SwiftUI
 
 @main
 struct ATReaderApp: App {
+    @UIApplicationDelegateAdaptor(AppDelegate.self)
+    private var appDelegate
+
     @State
     private var session = SessionStore()
 

@@ -237,6 +237,10 @@
         }
       }
     },
+    "Avenir Next": {
+      "extractionState": "manual",
+      "shouldTranslate": false
+    },
     "Back": {
       "extractionState": "manual",
       "localizations": {
@@ -248,6 +252,21 @@
         }
       }
     },
+    "Baskerville": {
+      "extractionState": "manual",
+      "shouldTranslate": false
+    },
+    "Black": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Чёрный"
+          }
+        }
+      }
+    },
     "Blurb": {
       "extractionState": "manual",
       "localizations": {
@@ -255,6 +274,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Аннотация"
+          }
+        }
+      }
+    },
+    "Bold": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Жирный"
           }
         }
       }
@@ -718,6 +748,10 @@
         }
       }
     },
+    "Hoefler Text": {
+      "extractionState": "manual",
+      "shouldTranslate": false
+    },
     "In your library": {
       "extractionState": "manual",
       "localizations": {
@@ -736,6 +770,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "По ширине"
+          }
+        }
+      }
+    },
+    "Keeps the page upright when the device is turned": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Держит страницу вертикально при повороте устройства"
           }
         }
       }
@@ -1133,6 +1178,17 @@
         }
       }
     },
+    "Portrait only": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Только вертикально"
+          }
+        }
+      }
+    },
     "Previous page": {
       "extractionState": "manual",
       "localizations": {
@@ -1346,9 +1402,24 @@
       "extractionState": "manual",
       "shouldTranslate": false
     },
+    "STIX Two Text": {
+      "extractionState": "manual",
+      "shouldTranslate": false
+    },
     "San Francisco": {
       "extractionState": "manual",
       "shouldTranslate": false
+    },
+    "Screen": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Экран"
+          }
+        }
+      }
     },
     "Search": {
       "extractionState": "manual",

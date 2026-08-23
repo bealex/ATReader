@@ -67,6 +67,10 @@ final class ReaderSettings {
         case georgia
         case palatino
         case charter
+        case stix
+        case baskerville
+        case hoefler
+        case avenir
 
         var id: String { rawValue }
 
@@ -78,6 +82,10 @@ final class ReaderSettings {
                 case .georgia: String(localized: "Georgia")
                 case .palatino: String(localized: "Palatino")
                 case .charter: String(localized: "Charter")
+                case .stix: String(localized: "STIX Two Text")
+                case .baskerville: String(localized: "Baskerville")
+                case .hoefler: String(localized: "Hoefler Text")
+                case .avenir: String(localized: "Avenir Next")
             }
         }
 
@@ -88,6 +96,10 @@ final class ReaderSettings {
                 case .georgia: "Georgia"
                 case .palatino: "Palatino"
                 case .charter: "Charter"
+                case .stix: "STIX Two Text"
+                case .baskerville: "Baskerville"
+                case .hoefler: "Hoefler Text"
+                case .avenir: "Avenir Next"
             }
         }
 
@@ -98,6 +110,37 @@ final class ReaderSettings {
                 default: .default
             }
         }
+
+        /// The weights this face actually ships, in order.
+        ///
+        /// A face silently gives another cut for a weight it hasn't got: New York has no light, and the
+        /// book families carry only a roman and a bold, so asking either of them for medium or semibold
+        /// lands on the same bold. Offering a choice that does nothing, or two that do the same thing,
+        /// is worse than offering fewer.
+        var weights: [Weight] {
+            var seen = Set([ resolvedName(.regular) ])
+
+            return Weight.allCases.filter { weight in
+                weight == .regular || seen.insert(resolvedName(weight.uiWeight)).inserted
+            }
+        }
+
+        /// What the face calls the cut a weight lands on, so a family doesn't label its own black
+        /// "Medium". Hoefler Text has a regular and a black and nothing between; Baskerville's heavier
+        /// cut is a semibold; the book families jump straight to bold.
+        func title(for weight: Weight) -> String {
+            let name = resolvedName(weight.uiWeight)
+
+            if name.contains("Black") || name.contains("Heavy") { return String(localized: "Black") }
+            if name.contains("SemiBold") || name.contains("DemiBold") { return String(localized: "Semibold") }
+            if name.contains("Bold") { return String(localized: "Bold") }
+            if name.contains("Medium") { return String(localized: "Medium") }
+            if name.contains("Light") || name.contains("Thin") { return String(localized: "Light") }
+
+            return weight.title
+        }
+
+        private func resolvedName(_ weight: UIFont.Weight) -> String { font(size: 16, weight: weight).fontName }
 
         /// Falls back to the system face when a family is missing, rather than dropping to Helvetica.
         ///
@@ -196,7 +239,11 @@ final class ReaderSettings {
     }
 
     var face: Face {
-        didSet { UserDefaults.standard.set(face.rawValue, forKey: Keys.face) }
+        didSet {
+            UserDefaults.standard.set(face.rawValue, forKey: Keys.face)
+            // A face that hasn't got the weight in hand would silently draw another one.
+            if !face.weights.contains(weight) { weight = .regular }
+        }
     }
 
     var weight: Weight {
@@ -218,6 +265,14 @@ final class ReaderSettings {
         didSet { UserDefaults.standard.set(theme.rawValue, forKey: Keys.theme) }
     }
 
+    /// Holds the page upright however the device is held, which is what reading lying down asks for.
+    var isPortraitOnly: Bool {
+        didSet {
+            UserDefaults.standard.set(isPortraitOnly, forKey: Keys.portraitOnly)
+            OrientationLock.apply(portraitOnly: isPortraitOnly)
+        }
+    }
+
     init() {
         let defaults = UserDefaults.standard
         let storedSize = defaults.double(forKey: Keys.fontSize)
@@ -236,6 +291,8 @@ final class ReaderSettings {
         englishAlignment =
             defaults.string(forKey: Keys.englishAlignment).flatMap(Alignment.init(rawValue:)) ?? .leading
         theme = defaults.string(forKey: Keys.theme).flatMap(Theme.init(rawValue:)) ?? .system
+        isPortraitOnly = defaults.bool(forKey: Keys.portraitOnly)
+        OrientationLock.seed(portraitOnly: isPortraitOnly)
     }
 
     /// Everything the layout engine needs; changing any of it invalidates pagination.
@@ -265,5 +322,6 @@ final class ReaderSettings {
         static let russianAlignment = "reader.alignment.ru"
         static let englishAlignment = "reader.alignment.en"
         static let theme = "reader.theme"
+        static let portraitOnly = "reader.portraitOnly"
     }
 }

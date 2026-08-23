@@ -278,8 +278,8 @@ enum ReaderScreen {
                         .accessibilityLabel("Typeface")
 
                         Picker("Weight", selection: $settings.weight) {
-                            ForEach(ReaderSettings.Weight.allCases) { weight in
-                                Text(weight.title)
+                            ForEach(settings.face.weights) { weight in
+                                Text(settings.face.title(for: weight))
                                     .font(Font(settings.face.font(size: 17, weight: weight.uiWeight)))
                                     .tag(weight)
                             }
@@ -333,6 +333,12 @@ enum ReaderScreen {
                     Section("Alignment") {
                         alignmentPicker("Russian", selection: $settings.russianAlignment, key: "ru")
                         alignmentPicker("English", selection: $settings.englishAlignment, key: "en")
+                    }
+
+                    Section("Screen") {
+                        Toggle("Portrait only", isOn: $settings.isPortraitOnly)
+                            .accessibilityIdentifier("reader.portraitOnly")
+                            .accessibilityHint("Keeps the page upright when the device is turned")
                     }
 
                     Section("Page") {
