@@ -35,8 +35,12 @@ struct WorkBadge: View {
 }
 
 /// The pills a book carries. Which of them a screen shows differs, so each is asked for by name.
+///
+/// How far the reader has got is not among them: the ring on the cover says that already, and saying it
+/// twice on one row reads as two different facts.
 struct WorkBadges: View {
     let work: WorkSummary
+    /// Whether the reader's own standing in the book counts, which decides between Finished and Ongoing.
     var showsProgress = false
     var showsUpdated = false
     /// Overrides what the row itself can work out, for a screen that knows better. The book page can
@@ -53,10 +57,6 @@ struct WorkBadges: View {
 
             if let likes = WorkFormatting.likes(work.likeCount) {
                 WorkBadge(title: likes, systemImage: "heart.fill", tint: .pink)
-            }
-
-            if showsProgress, !work.isReadToTheEnd, let percent = WorkFormatting.progress(work.readingProgress) {
-                WorkBadge(title: String(localized: "\(percent) read"), systemImage: "book.fill", tint: .accentColor)
             }
 
             if showsUpdated, let updated = WorkFormatting.updated(work.lastUpdateTime) {
