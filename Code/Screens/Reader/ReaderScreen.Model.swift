@@ -84,6 +84,13 @@ extension ReaderScreen {
         @ObservationIgnored
         private var prefetch: Task<Void, Never>?
 
+        /// Where every chapter of this book begins, for the style and page size now in force.
+        @ObservationIgnored
+        private var pagination: BookPagination?
+
+        @ObservationIgnored
+        private var paginating: Task<Void, Never>?
+
         @ObservationIgnored
         private var sessionId: String?
 
@@ -157,10 +164,13 @@ extension ReaderScreen {
         private var runsOnFromPrevious: Bool { (layout?.startOffset ?? 0) > 0 }
 
         /// True when the chapter after this one begins on this chapter's last page.
+        ///
+        /// Read from the book's own measurements rather than from the neighbour's layout, so it is
+        /// already known before that neighbour has been laid out.
         private var nextRunsOn: Bool {
             guard let next = nextChapter else { return false }
 
-            return (layouts[next.id]?.startOffset ?? 0) > 0
+            return pagination?.runsOn(next.id) ?? false
         }
 
         /// What sits at `index`, which runs from `-1` to ``pageCount`` so a turn can show the page in the
@@ -270,6 +280,9 @@ extension ReaderScreen {
             layouts.removeAll()
             prefetch?.cancel()
             prefetch = nil
+            pagination = nil
+            paginating?.cancel()
+            paginating = nil
         }
 
         // MARK: - Opening the book
@@ -391,6 +404,8 @@ extension ReaderScreen {
         }
 
         private func load(chapterId: Int, anchor: PageAnchor) async {
+            await measureBook()
+
             guard
                 let content = await content(for: chapterId)
             else {
@@ -406,7 +421,7 @@ extension ReaderScreen {
                 chapterId: chapterId,
                 content: content,
                 context: context,
-                startOffset: 0,
+                startOffset: pagination?.startOffset(of: chapterId) ?? 0,
                 reportsProgress: true
             )
             paginationProgress = nil
@@ -414,6 +429,40 @@ extension ReaderScreen {
             guard let built else { return }
 
             install(built, anchor: anchor)
+        }
+
+        /// Measures the whole book, once for each style and page size.
+        ///
+        /// Every chapter's place comes from this one pass, so a chapter opened from the contents sits
+        /// exactly where it will sit when the reader later reads into it from the chapter before.
+        /// Working each chapter out as it was reached was what moved the text under the reader.
+        private func measureBook() async {
+            if let running = paginating { return await running.value }
+
+            guard pagination == nil, let context, !readableChapters.isEmpty else { return }
+
+            let chapters = readableChapters
+            let task = Task { [weak self] in
+                guard let self else { return }
+
+                let built = await BookPagination.make(
+                    chapters: chapters,
+                    context: context,
+                    content: { [weak self] in await self?.storedContent(for: $0) },
+                    onProgress: { [weak self] value in self?.paginationProgress = value }
+                )
+
+                self.paginationProgress = nil
+
+                // The style may have moved on while the book was being measured.
+                guard context == self.context else { return }
+
+                self.pagination = built
+            }
+
+            paginating = task
+            await task.value
+            paginating = nil
         }
 
         private func install(_ built: ChapterLayout, anchor: PageAnchor) {
@@ -448,35 +497,26 @@ extension ReaderScreen {
         /// after it starts there rather than on a page of its own, which means each layout depends on
         /// the one before it.
         private func prefetchNeighbours() {
-            guard let index = currentIndex, let current = layout else { return }
+            guard let index = currentIndex else { return }
 
             trimCaches(around: index)
             prefetch?.cancel()
             prefetch = Task { [weak self] in
-                await self?.prepareAhead(from: index, after: current)
+                await self?.prepareAhead(from: index)
                 await self?.prepareBehind(from: index)
             }
         }
 
-        private func prepareAhead(from index: Int, after current: ChapterLayout) async {
+        /// Lays out the neighbours where the book pass said they go, so nothing is measured twice and
+        /// nothing shifts once it has been drawn.
+        private func prepareAhead(from index: Int) async {
             let chapters = readableChapters
-            var previous = current
 
             for position in (index + 1) ..< min(index + 3, chapters.count) {
-                let id = chapters[position].id
-                let offset = startOffset(after: previous)
-
-                // A chapter opened from the contents was laid out on a page of its own. Reading into it
-                // from the chapter before, it belongs on that chapter's last page instead.
-                if let existing = layouts[id], existing.startOffset == offset {
-                    previous = existing
-                    continue
-                }
-
                 guard !Task.isCancelled else { return }
-                guard let built = await prepare(chapterId: id, startOffset: offset) else { return }
+                guard layouts[chapters[position].id] == nil else { continue }
 
-                previous = built
+                _ = await prepare(chapterId: chapters[position].id)
             }
         }
 
@@ -487,40 +527,24 @@ extension ReaderScreen {
 
             guard layouts[id] == nil, !Task.isCancelled else { return }
 
-            _ = await prepare(chapterId: id, startOffset: 0)
+            _ = await prepare(chapterId: id)
         }
 
         @discardableResult
-        private func prepare(chapterId: Int, startOffset: CGFloat) async -> ChapterLayout? {
+        private func prepare(chapterId: Int) async -> ChapterLayout? {
             guard let context, let content = await content(for: chapterId) else { return nil }
             guard
                 let built = await makeLayout(
                     chapterId: chapterId,
                     content: content,
                     context: context,
-                    startOffset: startOffset,
+                    startOffset: pagination?.startOffset(of: chapterId) ?? 0,
                     reportsProgress: false
                 )
             else { return nil }
 
             layouts[chapterId] = built
             return built
-        }
-
-        /// Where a chapter starts on the page the one before it ended on, and how far down.
-        ///
-        /// A chapter only runs on when what is left of the page holds a decent piece of it; a heading
-        /// with two lines under it belongs on the next page instead.
-        private func startOffset(after previous: ChapterLayout) -> CGFloat {
-            guard let context, previous.pageCount > 1 else { return 0 }
-
-            let chapterGap = context.style.fontSize * 2.5
-            let lineHeight = context.style.fontSize + context.style.lineSpacing
-            let free = previous.tailFreeSpace - chapterGap
-
-            guard free >= max(lineHeight * 6, context.textSize.height * 0.25) else { return 0 }
-
-            return context.textSize.height - previous.tailFreeSpace + chapterGap
         }
 
         /// Keeps the laid-out chapters to the ones around the reader; a book has too many to hold them all.
@@ -555,6 +579,18 @@ extension ReaderScreen {
             guard context == self.context else { return nil }
 
             return built
+        }
+
+        /// Text for the measuring pass: whatever is already here, parsed but not kept.
+        ///
+        /// It walks every chapter, so it neither asks the service for one nor holds on to what it
+        /// parses: the cache is for the handful of chapters around the reader.
+        private func storedContent(for chapterId: Int) async -> ChapterContent? {
+            if let cached = parsed[chapterId] { return cached }
+
+            guard let stored = await store.body(workId: workId, chapterId: chapterId) else { return nil }
+
+            return await ChapterContent.prepare(html: stored.html)
         }
 
         /// The chapter's text: prepared already, else stored on the device, else from the service.

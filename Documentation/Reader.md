@@ -78,6 +78,14 @@ when the chapter's own title already carries one: "Chapter 4" over "Chapter 4. T
 bug. The first chapter of a book is preceded by a title page carrying the cover, title, author and
 series.
 
+Most chapters also arrive with their number and title as the opening paragraphs of the body, which put
+the same words on the page twice, once in the heading's face and once in the body's. Those paragraphs
+are dropped. They are read together rather than one at a time, since a title the contents give as one
+line usually reaches the body as two, and each is given up only while everything read so far is still
+the opening of the heading, so a chapter whose text merely starts on the same word keeps it. The
+comparison is made on letters and digits alone, because by then the text carries the soft hyphens and
+word joiners the typesetter put in.
+
 ## Cutting the column into pages
 
 `ChapterLayout` sets the chapter as a single column, in slices with a yield between them so a long
@@ -113,10 +121,23 @@ piece of it: six lines and a quarter of the page, after the air between them. Ot
 page of its own.
 
 `ChapterLayout` takes a `startOffset` for that and makes its first page shorter by exactly that much,
-and the reader draws such a page from two pieces, one per chapter. Layouts are therefore prepared in
-order forwards, since each one depends on where the one before it ended. A chapter opened from the
-contents starts a page of its own, and is laid out again if the reader later reads into it from the
-chapter before.
+and the reader draws such a page from two pieces, one per chapter.
+
+That offset is what makes a chapter's page breaks depend on the chapter before it, whose breaks depend
+on the one before that. Measuring a chapter on its own therefore answers differently from measuring it
+after reading into it, and the text used to move under the reader when the two disagreed: a chapter
+opened from the contents took a page of its own and then jumped up the page as soon as the reader
+turned back into the chapter before it.
+
+So `BookPagination` measures the book in one pass, in order from its first chapter, and keeps only
+where each chapter starts and how far it runs. Every layout afterwards takes its offset from that pass,
+so a chapter sits in the same place however the reader reaches it. The pass throws each layout away as
+it goes, so a book of any length costs one chapter's memory at a time, and it runs again whenever the
+style or the page size changes, which is what those measurements depend on.
+
+It measures only text the device already holds. Fetching a whole book to find out where its pages fall
+would turn opening one chapter into a download of all of them, so a chapter that isn't here yet ends
+the run-on and the chapter after it starts a page of its own.
 
 Because a page can show a chapter that hasn't arrived yet, the model's layout cache is observed, not
 ignored: a neighbour landing has to redraw the page already on screen.

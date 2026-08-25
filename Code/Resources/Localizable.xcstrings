@@ -1509,24 +1509,24 @@
         }
       }
     },
-    "Setting this chapter": {
+    "Setting the pages": {
       "extractionState": "manual",
       "localizations": {
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Вёрстка главы"
+            "value": "Вёрстка страниц"
           }
         }
       }
     },
-    "Setting this chapter…": {
+    "Setting the pages…": {
       "extractionState": "manual",
       "localizations": {
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Верстаем главу…"
+            "value": "Верстаем страницы…"
           }
         }
       }

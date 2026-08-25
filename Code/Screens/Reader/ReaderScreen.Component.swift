@@ -95,11 +95,11 @@ enum ReaderScreen {
             pageArea($model)
                 .overlay {
                     if let progress = model.paginationProgress {
-                        ProgressView(value: progress) { Text("Setting this chapter…") }
+                        ProgressView(value: progress) { Text("Setting the pages…") }
                             .progressViewStyle(.linear)
                             .padding(.horizontal, 44)
                             .accessibilityIdentifier("reader.pagination")
-                            .accessibilityLabel("Setting this chapter")
+                            .accessibilityLabel("Setting the pages")
                     } else if model.isLoading && model.layout == nil {
                         LoadingOverlay(
                             title: "Loading chapter…",

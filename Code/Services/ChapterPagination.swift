@@ -39,6 +39,9 @@ struct ChapterHeading: Equatable, Sendable {
 
     var isEmpty: Bool { number == nil && (title?.isEmpty ?? true) }
 
+    /// The heading as one line of plain words, which is what the body is compared against.
+    var spokenText: String { [ number, title ].compactMap { $0 }.joined(separator: " ") }
+
     /// Numbers a chapter unless its title already does — "Chapter 4" above "Chapter 4. The Road" reads
     /// like a bug rather than a heading.
     static func make(position: Int, title: String?) -> ChapterHeading {
@@ -90,6 +93,7 @@ enum ChapterPagination {
 
         append(heading, to: result, style: style)
         let headingLength = result.length
+        let paragraphs = withoutRepeatedHeading(paragraphs, heading: heading)
 
         for (index, paragraph) in paragraphs.enumerated() {
             let isCentered = paragraph.isCentered
@@ -124,6 +128,64 @@ enum ChapterPagination {
         }
 
         return TypesetText(attributed: result, headingLength: headingLength)
+    }
+
+    /// How many opening paragraphs may be given up to a heading the body repeats.
+    private static let repeatedHeadingLimit = 3
+
+    /// Drops the chapter's own restatement of its heading.
+    ///
+    /// A chapter usually arrives with its number and title as the first paragraphs of the body, and the
+    /// reader sets a heading of its own above that, so both are on the page. The body's version is the
+    /// one to lose: it is the same words in the body's own face.
+    ///
+    /// The paragraphs are taken together rather than one at a time, since a heading the contents give as
+    /// one line often reaches the body as two. Each is dropped only while everything read so far is
+    /// still the opening of the heading, so a body that merely starts on the same word keeps it.
+    private static func withoutRepeatedHeading(
+        _ paragraphs: [ChapterHTML.Paragraph],
+        heading: ChapterHeading
+    ) -> [ChapterHTML.Paragraph] {
+        let wanted = plainWords(heading.spokenText)
+
+        guard !wanted.isEmpty else { return paragraphs }
+
+        var matched = ""
+        var dropped = 0
+
+        for paragraph in paragraphs.prefix(repeatedHeadingLimit) {
+            let words = plainWords(paragraph.text)
+
+            guard !words.isEmpty else { break }
+
+            let candidate = matched.isEmpty ? words : matched + " " + words
+
+            guard wanted.hasPrefix(candidate) else { break }
+
+            matched = candidate
+            dropped += 1
+
+            if matched == wanted { break }
+        }
+
+        return Array(paragraphs.dropFirst(dropped))
+    }
+
+    /// The words of a line, with everything that isn't one thrown away: case, punctuation, and the
+    /// joiners and soft hyphens the typesetter puts in to control where a line may break.
+    private static func plainWords(_ text: String) -> String {
+        var letters: [Character] = []
+
+        for scalar in text.lowercased().unicodeScalars {
+            // Soft hyphens and word joiners are dropped rather than spaced over: they sit inside words,
+            // so spacing them would split one word into two and no heading would ever match.
+            guard scalar.properties.generalCategory != .format else { continue }
+
+            letters.append(CharacterSet.alphanumerics.contains(scalar) ? Character(scalar) : " ")
+        }
+
+        let words: [Substring] = String(letters).split(separator: " ")
+        return words.map(String.init).joined(separator: " ")
     }
 
     /// Hyphenation needs to know the language. Without it, justified Russian stretches the space between
