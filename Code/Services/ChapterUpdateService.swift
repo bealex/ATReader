@@ -42,7 +42,20 @@ struct ChapterUpdateService: Sendable {
         let works = library.worksInLibrary.map(WorkSummary.init)
 
         await store.replaceLibrary(with: works)
+        return await sweep(works: works, chapterBudget: chapterBudget)
+    }
 
+    /// The same walk over a library the caller has already fetched and stored, so a screen that has just
+    /// reloaded its list does not ask for it twice.
+    ///
+    /// `isComplete` says `works` is the whole library rather than the few books a caller singled out,
+    /// which is what ``UpdateBadge/lastCheckedAt`` dates.
+    @discardableResult
+    func sweep(
+        works: [WorkSummary],
+        chapterBudget: Int = ChapterUpdateService.foregroundChapterBudget,
+        isComplete: Bool = true
+    ) async -> Result {
         // Started, and with something still to come: a book nobody has opened has no chapters to
         // miss, and one written and read to its end has none left.
         let reading = works.filter { $0.hasStartedReading && !$0.isFinishedReading }
@@ -71,7 +84,7 @@ struct ChapterUpdateService: Sendable {
         }
 
         let result = Result(newChaptersByWork: counts, titlesByWork: titles)
-        await UpdateBadge.record(result)
+        await UpdateBadge.record(result, isComplete: isComplete)
         return result
     }
 
@@ -114,9 +127,14 @@ enum UpdateBadge {
 
     static func newChapters(for workId: Int) -> Int { newChaptersByWork[workId] ?? 0 }
 
-    static func record(_ result: ChapterUpdateService.Result) async {
+    /// Only a sweep of the whole library dates ``lastCheckedAt``: a pass over the handful of books a
+    /// screen singled out says nothing about the rest.
+    static func record(_ result: ChapterUpdateService.Result, isComplete: Bool = true) async {
         let merged = newChaptersByWork.merging(result.newChaptersByWork, uniquingKeysWith: +)
         write(merged)
+
+        if isComplete { UserDefaults.standard.set(Date.now, forKey: checkedKey) }
+
         await applyBadge()
     }
 
@@ -139,7 +157,6 @@ enum UpdateBadge {
             uniquingKeysWith: { first, _ in first }
         )
         UserDefaults.standard.set(raw, forKey: countsKey)
-        UserDefaults.standard.set(Date.now, forKey: checkedKey)
     }
 
     private static func applyBadge() async {

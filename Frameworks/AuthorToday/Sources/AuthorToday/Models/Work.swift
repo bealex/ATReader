@@ -68,10 +68,6 @@ public struct WorkMetaInfo: Codable, Sendable, Identifiable, Hashable {
 
     /// The author's own progress: a finished work is complete, an ongoing one is still being written.
     public var isOngoing: Bool { isFinished != true }
-
-    public func hash(into hasher: inout Hasher) { hasher.combine(id) }
-
-    public static func == (lhs: Self, rhs: Self) -> Bool { lhs.id == rhs.id }
 }
 
 /// `/v1/work/{id}/details` — a work plus the blurb, tags and series listing.

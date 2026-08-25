@@ -11,4 +11,4 @@ constraint discovered, a measurement taken, an approach that failed and why. Ski
 
 | Month | Entries |
 | --- | --- |
-| [2026-08](2026-08) | [09](2026-08/2026-08-09.md) the first build, [21](2026-08/2026-08-21.md) sessions, offline, and the reader rebuilt around typography |
+| [2026-08](2026-08) | [09](2026-08/2026-08-09.md) the first build, [21](2026-08/2026-08-21.md) sessions, offline, and the reader rebuilt around typography, [22](2026-08/2026-08-22.md) how a book presents itself, [23](2026-08/2026-08-23.md) spacing, weight, and a green page, [24](2026-08/2026-08-24.md) rows that would not redraw |

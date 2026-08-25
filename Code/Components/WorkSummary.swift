@@ -8,6 +8,10 @@ import Foundation
 
 /// One shape for the three sources of book rows — the library, the catalogue and a work's own details —
 /// so a single row view serves every list.
+///
+/// Equality is every field, not the id. SwiftUI decides whether to redraw a row by comparing the values
+/// its view holds, so a book that compares equal to its own newer self leaves the old ring, badges and
+/// dates on screen for as long as the row lives.
 struct WorkSummary: Codable, Identifiable, Hashable, Sendable {
     let id: Int
     let title: String
@@ -64,10 +68,6 @@ struct WorkSummary: Codable, Identifiable, Hashable, Sendable {
     /// by subscribing rather than by buying, so neither earns a price marker: telling a reader to buy
     /// what they already own is worse than saying nothing.
     var needsBuying: Bool { status == .sales && isPurchased == false }
-
-    func hash(into hasher: inout Hasher) { hasher.combine(id) }
-
-    static func == (lhs: Self, rhs: Self) -> Bool { lhs.id == rhs.id }
 }
 
 extension WorkSummary {

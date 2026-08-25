@@ -106,6 +106,31 @@ actor LocalStore {
         statement.execute()
     }
 
+    /// Works a book's overall progress out again from where the reader stopped and how long its
+    /// chapters are.
+    ///
+    /// A stored fraction goes stale the moment the author publishes, because all of yesterday's book is
+    /// less than all of today's. The position is a character offset in a named chapter, which stays
+    /// true, so the fraction is derived from it again every time the contents change.
+    private func recomputeProgress(workId: Int) {
+        guard let position = position(workId: workId) else { return }
+
+        let readable = chapters(workId: workId).filter(\.isReadable)
+        let total = readable.reduce(0) { $0 + ($1.textLength ?? 0) }
+
+        // A chapter of unknown length cannot be weighed, and guessing at it would drag a book that was
+        // marked read back off the Finished shelf. Leave the stored figure alone instead.
+        guard
+            total > 0,
+            let index = readable.firstIndex(where: { $0.id == position.chapterId }),
+            let length = readable[index].textLength
+        else { return }
+
+        let before = readable.prefix(index).reduce(0) { $0 + ($1.textLength ?? 0) }
+        let read = before + min(position.characterOffset, length)
+        store(progress: Double(read) / Double(total), workId: workId)
+    }
+
     func store(work: WorkSummary, tags: [String]? = nil) {
         store(works: [ work ])
 
@@ -124,7 +149,7 @@ actor LocalStore {
                 title = excluded.title,
                 author = excluded.author,
                 library_state = excluded.library_state,
-                last_read_time = excluded.last_read_time,
+                last_read_time = COALESCE(excluded.last_read_time, work.last_read_time),
                 reading_progress = MAX(COALESCE(work.reading_progress, 0), COALESCE(excluded.reading_progress, 0)),
                 updated_at = excluded.updated_at,
                 payload = excluded.payload
@@ -199,6 +224,8 @@ actor LocalStore {
                 statement.execute()
             }
         }
+
+        recomputeProgress(workId: workId)
     }
 
     /// The chapters the service now lists that this device has never seen.
@@ -314,6 +341,7 @@ actor LocalStore {
         statement.bind(3, position.characterOffset)
         statement.bind(4, position.updatedAt.timeIntervalSince1970)
         statement.execute()
+        recomputeProgress(workId: position.workId)
     }
 
     // MARK: - Housekeeping

@@ -89,6 +89,10 @@ licensing rather than secrecy. An unconfigured build must keep working for every
 
 ## Things that will bite you
 
+- **A model a view holds compares every field.** SwiftUI decides whether to redraw a row by comparing
+  the values its view stores, so an id-only `==` on `WorkSummary` or `WorkMetaInfo` tells it a book is
+  unchanged when its progress, badges and dates have all moved, and the row keeps yesterday's copy for
+  as long as it lives.
 - **The service's JSON is loosely typed.** `twoFactorType` is the string `"Email"` when a challenge is
   pending and the *number* `0` when it isn't. Enums that mirror service values conform to
   `DefaultingDecodable` so unknown members fall back instead of throwing. When you add a model, assume

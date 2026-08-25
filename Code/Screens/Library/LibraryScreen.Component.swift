@@ -35,6 +35,13 @@ enum LibraryScreen {
             .task {
                 await model?.loadIfNeeded()
             }
+            .onChange(of: path) { _, current in
+                // Reading fills the rings, and only the store knows it. Coming back off a book redraws
+                // the list from there rather than leaving yesterday's covers up.
+                guard current.isEmpty else { return }
+
+                Task { await model?.refreshFromStore() }
+            }
         }
 
         @ViewBuilder
@@ -54,7 +61,6 @@ enum LibraryScreen {
                             if let series = group.series { seriesHeader(series) }
                         }
                     }
-                    .id(model.newChapterRevision)
                 }
             }
             .listStyle(.plain)

@@ -164,8 +164,14 @@ in; where the device has no contents for that book yet, the position lands at th
 
 Reading progress is otherwise the device's own. The service accepts what it is sent and stores nothing, so its
 figure only moves when the reader reads somewhere else; `LocalStore` keeps a column beside each book
-that the reader writes as it goes, that "mark as read" fills, and that a refresh from the service can
-raise but never lower.
+that the reader writes as it goes and that "mark as read" fills.
+
+That column is worked out again rather than remembered. A fraction goes stale the moment the author
+publishes, because all of yesterday's book is less than all of today's, and a book left at 100% would
+sit on the Finished shelf with a chapter in it nobody has read. The position doesn't go stale: it names a chapter
+and an offset into it. So `LocalStore` works the fraction out again from the position and the chapter
+lengths whenever either is written, which is what puts a book back on the Reading shelf the moment it
+grows.
 
 `LocalStore` is an actor over one SQLite file in Application Support, excluded from backup because
 everything in it is re-fetchable. It holds the books and their shelves, tables of contents, chapter
@@ -176,9 +182,12 @@ nothing (see [API.md](API.md)), so the character offset the store keeps is the o
 survives a relaunch.
 
 Every screen is store-first and service-authoritative: it paints what the device has, then replaces it
-when the network answers. A loading overlay covers the screen only while there is nothing on it, since
-the stored copy is the whole point of keeping one. A failure while stored content is on screen sets an offline flag rather than
-raising an error, because a readable book beats a message about refreshing it.
+when the network answers. What the network answers is written to the store and read back from it, and a
+screen assigns a field only where the stored value differs, so a refresh behind a page someone is
+already reading moves the parts that moved and nothing else. A loading overlay covers the screen only
+while there is nothing on it, since the stored copy is the whole point of keeping one. A failure while
+stored content is on screen sets an offline flag rather than raising an error, because a readable book
+beats a message about refreshing it.
 
 `ChapterUpdateService` is the sweep. It walks the library, stores every book and its contents, counts
 the chapters the device has never seen, downloads their bodies and then spends what's left of its
@@ -191,10 +200,18 @@ Two things drive it:
 
 - `BackgroundRefresh` registers a daily `BGAppRefresh` task via SwiftUI's `.backgroundTask`, and
   re-submits the next request on every run so the chain continues.
-- The library screen runs the same sweep in the foreground when a day has passed.
+- The library screen sweeps behind every load and every pull-to-refresh, and once a day sweeps the
+  whole shelf.
 
 The foreground path isn't a nicety. iOS doesn't promise background windows, and on the simulator
 `BGTaskScheduler.submit` never fires, so without it the badge could go stale indefinitely.
+
+Reloading the shelf cannot answer "is there anything new to read?", because the shelf carries no
+chapters. What it does carry is each book's update time, and a book whose time has moved is the only
+one worth asking for a table of contents, which keeps the sweep behind a refresh to a request or two
+and leaves the list responsive while it runs. The daily pass walks every book and spends the download
+budget; only that pass dates `lastCheckedAt`, and clearing a book's count when the reader opens it
+doesn't, or reading daily would push the next full pass a day out every time.
 
 `UpdateBadge` keeps per-book counts in user defaults, which the UI reads synchronously while drawing,
 and sets the app icon badge through `UNUserNotificationCenter`. Opening a book clears its share.

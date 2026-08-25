@@ -32,8 +32,9 @@ enum WorkScreen {
             }
             .task {
                 await model?.loadIfNeeded()
-                // Reading moves the position, so coming back from the reader picks the new one up.
-                await model?.refreshPosition()
+                // Reading moves the position and the ring with it, so coming back from the reader
+                // redraws from the store.
+                await model?.refreshFromStore()
             }
             .overlay {
                 if let model, model.isLoading, model.summary == nil {
@@ -54,7 +55,7 @@ enum WorkScreen {
                     actions(model, summary: summary)
                 }
 
-                if let annotation = model.details?.annotation, !annotation.isEmpty {
+                if let annotation = model.summary?.annotation, !annotation.isEmpty {
                     section("Blurb") {
                         ExpandableText(ChapterHTML.paragraphs(from: annotation).map(\.text).joined(separator: "\n\n"))
                             .font(.callout)

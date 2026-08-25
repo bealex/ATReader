@@ -145,7 +145,11 @@ extension LibraryScreen {
             return works.count(where: filter.includes)
         }
 
-        func newChapters(for workId: Int) -> Int { UpdateBadge.newChapters(for: workId) }
+        /// Mirrored out of user defaults, which nothing observes, so the badges redraw when a sweep
+        /// finds something.
+        private(set) var newChaptersByWork: [Int: Int] = UpdateBadge.newChaptersByWork
+
+        func newChapters(for workId: Int) -> Int { newChaptersByWork[workId] ?? 0 }
 
         func dismissError() { errorMessage = nil }
 
@@ -155,7 +159,19 @@ extension LibraryScreen {
             await showStoredLibrary()
             await reload()
             await adoptServerPositions()
-            await sweepForNewChaptersIfDue()
+        }
+
+        /// Redraws the list from the store, without asking the service anything.
+        ///
+        /// Reading fills the rings, and the service knows nothing about it: the position and the
+        /// progress it implies live here alone. Coming back from a book has to read them again.
+        func refreshFromStore() async {
+            let stored = await store.works()
+
+            guard !stored.isEmpty else { return }
+
+            apply(entries: stored)
+            newChaptersByWork = UpdateBadge.newChaptersByWork
         }
 
         /// Adopts the positions the service holds where they are newer than this device's own.
@@ -205,20 +221,52 @@ extension LibraryScreen {
             apply(entries: stored)
         }
 
-        /// The daily check also runs in the foreground, so the badge is current even when the system
-        /// never granted a background window.
-        private func sweepForNewChaptersIfDue() async {
+        /// Looks for chapters published since the device last looked.
+        ///
+        /// The shelf carries no chapters, so reloading it cannot answer "is there anything new to
+        /// read?" on its own. What it does carry is each book's update time, and a book whose time has
+        /// moved is the only one worth asking for a table of contents. Once a day everything is walked
+        /// instead, which is also what fills the offline cache.
+        private func findNewChapters(since previous: [WorkSummary], in entries: [WorkSummary]) async {
             let lastChecked = UpdateBadge.lastCheckedAt
-            let isDue = lastChecked.map { Date.now.timeIntervalSince($0) > BackgroundRefresh.interval }
+            let isDue = lastChecked.map { Date.now.timeIntervalSince($0) > BackgroundRefresh.interval } ?? true
+            let books = isDue ? entries : Self.changed(from: previous, to: entries)
 
-            guard isDue != false else { return }
+            guard !books.isEmpty else { return }
 
-            _ = try? await ChapterUpdateService(client: session.client).check()
-            newChapterRevision += 1
+            _ = await ChapterUpdateService(client: session.client).sweep(
+                works: books,
+                // A partial pass is for the badge alone; downloading bodies is the daily pass's job.
+                chapterBudget: isDue ? ChapterUpdateService.foregroundChapterBudget : 0,
+                isComplete: isDue
+            )
+            newChaptersByWork = UpdateBadge.newChaptersByWork
+            // Storing a table of contents re-derives that book's progress, so the rings are read back.
+            await refreshFromStore()
         }
 
-        /// Bumped after a sweep so the list redraws with the fresh per-book counts.
-        private(set) var newChapterRevision = 0
+        /// The books the service has touched since this device last saw them, plus the ones it has
+        /// never seen.
+        private static func changed(from previous: [WorkSummary], to entries: [WorkSummary]) -> [WorkSummary] {
+            let before = Dictionary(previous.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+
+            return entries.filter { before[$0.id]?.lastUpdateTime != $0.lastUpdateTime }
+        }
+
+        /// One sweep at a time; a second pull while one is walking would only ask the same questions.
+        @ObservationIgnored
+        private var sweepTask: Task<Void, Never>?
+
+        /// The walk runs behind the list rather than under the refresh spinner: it is one request per
+        /// changed book, and the shelf is already on screen.
+        private func startSweep(since previous: [WorkSummary], in entries: [WorkSummary]) {
+            guard sweepTask == nil else { return }
+
+            sweepTask = Task { [weak self] in
+                await self?.findNewChapters(since: previous, in: entries)
+                self?.sweepTask = nil
+            }
+        }
 
         func reload() async {
             guard !isLoading else { return }
@@ -229,6 +277,7 @@ extension LibraryScreen {
             defer { isLoading = false }
 
             do {
+                let previous = works
                 let library = try await session.client.fullUserLibrary()
                 let entries = library.worksInLibrary.map(WorkSummary.init)
                 await store.replaceLibrary(with: entries)
@@ -238,6 +287,7 @@ extension LibraryScreen {
                 apply(entries: merged.isEmpty ? entries : merged)
                 isOffline = false
                 hasLoaded = true
+                startSweep(since: previous, in: entries)
             } catch let error as AuthorTodayError where error.requiresReauthentication {
                 errorMessage = error.localizedDescription
             } catch {
@@ -320,6 +370,8 @@ extension LibraryScreen {
         }
 
         private func apply(entries: [WorkSummary]) {
+            guard works != entries else { return }
+
             works = entries
             Task { await CoverCache.shared.prefetch(entries.compactMap(\.coverURL)) }
         }
