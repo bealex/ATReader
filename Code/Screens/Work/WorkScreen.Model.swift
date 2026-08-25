@@ -72,7 +72,7 @@ extension WorkScreen {
                 let chapter = chapters.first(where: { $0.id == position.chapterId }),
                 let length = chapter.textLength,
                 length > 0
-            else { return details?.lastChapterProgress }
+            else { return details?.lastChapterFraction }
 
             return min(1, max(0, Double(position.characterOffset) / Double(length)))
         }

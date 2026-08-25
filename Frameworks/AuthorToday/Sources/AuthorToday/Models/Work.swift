@@ -54,15 +54,18 @@ public struct WorkMetaInfo: Codable, Sendable, Identifiable, Hashable {
 
     /// How much of the published text the reader has already gone through, `0…1`.
     ///
-    /// The service reports the position as a character offset; when it is missing but a chapter position
-    /// exists, fall back to that so a freshly opened book still shows movement.
+    /// Only the character offset answers this. ``lastChapterProgress`` measures one chapter rather than
+    /// the book, so it cannot stand in: a reader through chapter three of fifty would read as a reader
+    /// through the book. A caller that wants a figure anyway derives it from a stored reading position
+    /// and the chapter lengths, which is a question the service cannot answer.
     public var readingProgress: Double? {
-        if let textLengthLastRead, let textLength, textLength > 0 {
-            return min(1, max(0, Double(textLengthLastRead) / Double(textLength)))
-        }
+        guard let textLengthLastRead, let textLength, textLength > 0 else { return nil }
 
-        return lastChapterProgress.map { min(1, max(0, $0)) }
+        return min(1, max(0, Double(textLengthLastRead) / Double(textLength)))
     }
+
+    /// How far into its current chapter the reader is, `0…1`.
+    public var lastChapterFraction: Double? { Progress.fraction(lastChapterProgress) }
 
     public var hasStartedReading: Bool { lastChapterId != nil || (textLengthLastRead ?? 0) > 0 }
 
@@ -109,13 +112,28 @@ public struct WorkDetails: Decodable, Sendable, Identifiable {
         return names.isEmpty ? String(localized: "Unknown author", bundle: .module) : names.joined(separator: ", ")
     }
 
+    /// How much of the published text the reader has already gone through, `0…1`. See
+    /// ``WorkMetaInfo/readingProgress`` for why a chapter position cannot stand in for a missing offset.
     public var readingProgress: Double? {
-        if let textLengthLastRead, let textLength, textLength > 0 {
-            return min(1, max(0, Double(textLengthLastRead) / Double(textLength)))
-        }
+        guard let textLengthLastRead, let textLength, textLength > 0 else { return nil }
 
-        return lastChapterProgress.map { min(1, max(0, $0)) }
+        return min(1, max(0, Double(textLengthLastRead) / Double(textLength)))
     }
+
+    /// How far into its current chapter the reader is, `0…1`.
+    public var lastChapterFraction: Double? { Progress.fraction(lastChapterProgress) }
+}
+
+/// The service speaks progress as a percentage. Every reading of one goes through here, so the unit is
+/// converted in one place rather than at each call site. See `Documentation/API.md`.
+enum Progress {
+    static func fraction(_ percentage: Double?) -> Double? {
+        guard let percentage else { return nil }
+
+        return min(1, max(0, percentage / 100))
+    }
+
+    static func percentage(_ fraction: Double) -> Double { min(100, max(0, fraction * 100)) }
 }
 
 /// One entry of a work's table of contents.

@@ -28,7 +28,8 @@ extension AuthorTodayClient {
 
     /// Pushes the reading position back to the service so other devices pick it up.
     ///
-    /// Both progress values are fractions in `0…1`.
+    /// Both progress values are fractions in `0…1`. The service speaks percentages, so they are
+    /// converted on the way out; see `Documentation/API.md`.
     public func updateProgress(
         workId: Int,
         chapterId: Int,
@@ -49,8 +50,8 @@ extension AuthorTodayClient {
         let body = try Self.makeBody(Request(
             workId: workId,
             chapterId: chapterId,
-            workProgress: min(100, max(0, workProgress)),
-            chapterProgress: min(100, max(0, chapterProgress)),
+            workProgress: Progress.percentage(workProgress),
+            chapterProgress: Progress.percentage(chapterProgress),
             sessionId: sessionId
         ))
         try await sendUnparsed(Endpoint(method: .post, path: "/v1/reader/update-progress", body: body))

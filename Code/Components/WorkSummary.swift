@@ -68,6 +68,39 @@ struct WorkSummary: Codable, Identifiable, Hashable, Sendable {
     /// by subscribing rather than by buying, so neither earns a price marker: telling a reader to buy
     /// what they already own is worse than saying nothing.
     var needsBuying: Bool { status == .sales && isPurchased == false }
+
+    /// Fills whatever this copy doesn't know from an older one.
+    ///
+    /// The shelf and a book's own details each carry what the other leaves out: the library has no
+    /// blurb, and the details have no series order or last-read time. Whichever arrives second would
+    /// otherwise erase what the first brought, which is what emptied every blurb on each launch.
+    ///
+    /// ``readingProgress`` is deliberately taken as it comes, absence included. `LocalStore` keeps the
+    /// figure this device derived in a column of its own and that is the one that counts; carrying a
+    /// stale one forward here would put it beyond reach of ever being corrected.
+    func merged(over previous: Self) -> Self {
+        Self(
+            id: id,
+            title: title,
+            authorLine: authorLine,
+            coverURL: coverURL ?? previous.coverURL,
+            annotation: annotation ?? previous.annotation,
+            seriesTitle: seriesTitle ?? previous.seriesTitle,
+            seriesOrder: seriesOrder ?? previous.seriesOrder,
+            textLength: textLength ?? previous.textLength,
+            likeCount: likeCount ?? previous.likeCount,
+            isFinished: isFinished ?? previous.isFinished,
+            status: status ?? previous.status,
+            isPurchased: isPurchased ?? previous.isPurchased,
+            adultOnly: adultOnly ?? previous.adultOnly,
+            lastUpdateTime: lastUpdateTime ?? previous.lastUpdateTime,
+            readingProgress: readingProgress,
+            hasStartedReading: hasStartedReading || previous.hasStartedReading,
+            lastReadTime: lastReadTime ?? previous.lastReadTime,
+            lastChapterId: lastChapterId ?? previous.lastChapterId,
+            libraryState: libraryState ?? previous.libraryState
+        )
+    }
 }
 
 extension WorkSummary {

@@ -121,8 +121,13 @@ Each entry is a `WorkMetaInfo`: identity, cover, author, series, counts, and the
 via `inLibraryState` (`None`/`Reading`/`Saved`/`Finished`/`Disliked`), `lastChapterId`,
 `lastChapterProgress`, `textLengthLastRead` and `lastReadTime`.
 
-Reading progress is best derived from `textLengthLastRead / textLength`, a character offset, falling
-back to `lastChapterProgress` when the offset is missing.
+Reading progress through the book comes from `textLengthLastRead / textLength`, a character offset, and
+from nothing else. `lastChapterProgress` measures the current chapter rather than the book, so it
+cannot stand in when the offset is missing: a reader through chapter three of fifty would read as a
+reader through the book. Where the offset is absent the client derives the figure from the reading
+position it keeps and the chapter lengths, which is a question the service is not being asked.
+
+Both are percentages, on the `0…100` scale the rest of this document records.
 
 The endpoint pages and gives no total page count, so a client that wants the whole library asks until a
 page comes back short; `fullUserLibrary` does that, bounded so a bad answer can't loop forever.

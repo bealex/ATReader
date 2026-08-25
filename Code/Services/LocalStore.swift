@@ -89,13 +89,13 @@ actor LocalStore {
         return StoredWork(summary: summary, tags: decode([ String ].self, statement.string(1)) ?? [])
     }
 
-    /// How far this device knows the reader has got, which is further than the service knows: the
-    /// service stores nothing it is sent, so its own figure only moves when the reader reads elsewhere.
-    private func progress(_ stored: Double?, or reported: Double?) -> Double? {
-        guard let stored, stored > 0 else { return reported }
-
-        return max(stored, reported ?? 0)
-    }
+    /// How far this device knows the reader has got.
+    ///
+    /// Its own figure wins outright wherever it has one. The service stores nothing it is sent, so what
+    /// it reports is only ever what the reader did somewhere else, and that reaches this device as a
+    /// position instead, which the column is derived from. Taking the larger of the two was what let one
+    /// bad reading pin a book at 100% for good.
+    private func progress(_ stored: Double?, or reported: Double?) -> Double? { stored ?? reported }
 
     /// Records where this device believes the reader has got to in a book, `0…1`.
     func store(progress: Double, workId: Int) {
@@ -150,27 +150,44 @@ actor LocalStore {
                 author = excluded.author,
                 library_state = excluded.library_state,
                 last_read_time = COALESCE(excluded.last_read_time, work.last_read_time),
-                reading_progress = MAX(COALESCE(work.reading_progress, 0), COALESCE(excluded.reading_progress, 0)),
+                reading_progress = COALESCE(work.reading_progress, excluded.reading_progress),
                 updated_at = excluded.updated_at,
                 payload = excluded.payload
             """
 
         transaction {
-            guard let statement = Statement(open(), query) else { return }
+            guard
+                let statement = Statement(open(), query),
+                let lookup = Statement(open(), "SELECT payload FROM work WHERE id = ?")
+            else { return }
 
             for work in works {
+                // Merged rather than replaced: the shelf and a book's own details each leave out what
+                // the other carries, and the payload is one column holding both.
+                let merged = storedWork(work.id, using: lookup).map(work.merged) ?? work
+
                 statement.reset()
-                statement.bind(1, work.id)
-                statement.bind(2, work.title)
-                statement.bind(3, work.authorLine)
-                statement.bind(4, work.libraryState.flatMap { $0 == LibraryState.none ? nil : $0.rawValue })
-                statement.bind(5, work.lastReadTime?.timeIntervalSince1970)
-                statement.bind(6, work.readingProgress)
+                statement.bind(1, merged.id)
+                statement.bind(2, merged.title)
+                statement.bind(3, merged.authorLine)
+                statement.bind(4, merged.libraryState.flatMap { $0 == LibraryState.none ? nil : $0.rawValue })
+                statement.bind(5, merged.lastReadTime?.timeIntervalSince1970)
+                statement.bind(6, merged.readingProgress)
                 statement.bind(7, Date.now.timeIntervalSince1970)
-                statement.bind(8, encode(work))
+                statement.bind(8, encode(merged))
                 statement.execute()
             }
         }
+    }
+
+    /// The book as the payload column already has it, read through a statement the caller reuses.
+    private func storedWork(_ id: Int, using statement: Statement) -> WorkSummary? {
+        statement.reset()
+        statement.bind(1, id)
+
+        guard statement.step() else { return nil }
+
+        return decode(WorkSummary.self, statement.string(0))
     }
 
     /// Replaces the shelves wholesale, so a book removed on another device stops showing up here.
@@ -384,6 +401,13 @@ actor LocalStore {
     }
 
     private func migrate() {
+        createWorkTable()
+        createChapterTables()
+        createPositionTable()
+        repairProgress()
+    }
+
+    private func createWorkTable() {
         execute(
             """
             CREATE TABLE IF NOT EXISTS work (
@@ -399,6 +423,9 @@ actor LocalStore {
             )
             """
         )
+    }
+
+    private func createChapterTables() {
         execute(
             """
             CREATE TABLE IF NOT EXISTS chapter (
@@ -424,6 +451,9 @@ actor LocalStore {
             """
         )
         execute("CREATE INDEX IF NOT EXISTS body_by_work ON chapter_body (work_id)")
+    }
+
+    private func createPositionTable() {
         execute(
             """
             CREATE TABLE IF NOT EXISTS reading_position (
@@ -434,6 +464,38 @@ actor LocalStore {
             )
             """
         )
+    }
+
+    /// Rebuilds every stored progress figure once, on databases written before the column meant what it
+    /// means now.
+    ///
+    /// The column used to hold whatever the service last reported, raised but never lowered. The service
+    /// reports progress through the current chapter when it has no character offset to give, on a
+    /// `0…100` scale that was read as `0…1`, so a reader a little way into any chapter was recorded as
+    /// having finished the book and could never be recorded as anything else. Nothing that came from
+    /// there is worth keeping. What the reader actually did survives in `reading_position`, which the
+    /// column is derived from anyway, so it is thrown away and worked out again.
+    private func repairProgress() {
+        guard userVersion() < 1 else { return }
+
+        execute("UPDATE work SET reading_progress = NULL")
+
+        if let statement = Statement(open(), "SELECT work_id FROM reading_position") {
+            var ids: [Int] = []
+
+            while statement.step() { ids.append(statement.integer(0)) }
+
+            for id in ids { recomputeProgress(workId: id) }
+        }
+
+        execute("PRAGMA user_version = 1")
+    }
+
+    private func userVersion() -> Int {
+        guard let statement = Statement(open(), "PRAGMA user_version") else { return 0 }
+        guard statement.step() else { return 0 }
+
+        return statement.integer(0)
     }
 
     private func transaction(_ body: () -> Void) {
