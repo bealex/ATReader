@@ -92,24 +92,37 @@ word joiners the typesetter put in.
 chapter never blocks a page turn, and then cuts that column into pages line by line.
 
 Cutting by hand rather than letting TextKit flow the text through page-sized containers is what makes
-the rules possible. A break moves back up to four lines to avoid any of these:
+the rules possible. None of these is allowed at a break:
 
 - a hyphen at the foot of a page,
 - an orphan: a paragraph's first line alone at the bottom,
 - a widow: a paragraph's last line alone at the top of the next page,
 - a heading with fewer than two lines of its chapter under it.
 
-Four lines left on the page outranks all of them. Two lines of pull-back turned out not to be enough:
-a run of hyphenated lines defeats it, and the leaks only closed at four.
+The breaks are chosen for the chapter at once rather than a page at a time. Filling each page in turn
+and handing whatever a rule rejects to the next one meant that wherever a rule bit, that one page paid
+all of it: a page four lines short between two full ones. So every run of breaks is costed instead, a
+page's shortfall counted in lines and squared, and the cheapest run wins. Squaring is what shares the
+loss out, since one line missing from each of four pages costs a quarter of what four missing from one
+does.
 
-A chapter whose last page would carry a line or two is fed from the page before it.
+Rules aren't traded against depth. Breaking one costs so much more than any unevenness that they still
+decide where a page may break, and evenness only chooses among the breaks they allow. Grading them, so
+that a hyphen at a page foot could be bought to even a page out, was tried and dropped: over eight
+chapters it bought about half a line of evenness for four hyphens in 173 pages.
 
-What the rules leave behind is spread between the lines of the page instead of collecting at its foot.
-Each page gets its own leading, up to 3pt of air per gap, and a gap may be squeezed by 0.75pt to pull
-one more line on. A page left half empty is the end of a chapter, and keeps its ragged bottom.
+A chapter's last page is costed too, so the page before it gives up lines rather than let a chapter end
+on a line or two of its own.
 
-Measured over four chapters of a novel, with instrumentation since removed: no hyphens at a page foot,
-no widows, one orphan in 87 pages, and pages steady at a median of 15 lines.
+What the rules still leave behind is spread between the lines of the page instead of collecting at its
+foot. Every page but a chapter's last comes down to the same depth: each gets its own leading, up to
+3pt of air per gap, and a gap may be squeezed by 0.75pt to pull one more line on. A page that ends a
+chapter keeps its ragged bottom, since it stops where the chapter stops.
+
+Measured over eight generated chapters at a measure of 15.4 lines: 150 of 166 pages carry 14 or 15
+lines, 14 carry 13 and two carry 12. The 15-line pages are full, and 3pt of air per gap closes the
+14-line ones to within 3pt of full. What the leading can't close is the 13- and 12-line pages, which
+are as short as the rules force them to be; raising the 3pt cap is the lever if they ever matter.
 
 What it still doesn't do: nothing caps consecutive hyphenated lines, and a paragraph's last line may
 be one short word. Both need control over line breaking rather than page breaking.
