@@ -239,6 +239,12 @@ passes underneath, and a shadow below it so a bar the colour of the page still h
 `readerBarAppearance` sets both on the enclosing `UINavigationController`: `toolbarBackground` takes a
 colour but has no way to ask for a shadow.
 
+It holds the window's light or dark as well, for as long as the reader is on screen.
+`preferredColorScheme` did that before, and SwiftUI applies it by overriding the window rather than the
+view: leaving the reader reverted SwiftUI's own side of it and left the window's, so the library came
+back light underneath a navigation bar and a search field that were still dark. The override has one
+owner now, taken when the bar is taken and given back when it is.
+
 Showing it moves no text: the page ignores the safe area and takes its size from the window, so
 nothing pagination depends on changes when a bar appears.
 

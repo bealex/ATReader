@@ -58,11 +58,14 @@ enum ReaderScreen {
             .toolbar(isChromeHidden ? .hidden : .visible, for: .navigationBar)
             // The page's colour behind the bar, with a shadow to part it from the page: the running
             // head passes under it, and glass would show that through.
-            .readerBarAppearance(background: settings.theme.background, isVisible: !isChromeHidden)
+            .readerBarAppearance(
+                background: settings.theme.background,
+                colorScheme: settings.theme.colorScheme,
+                isVisible: !isChromeHidden
+            )
             .toolbar { controls }
             .backSwipeDisabled()
             .statusBarHidden(isChromeHidden)
-            .preferredColorScheme(settings.theme.colorScheme)
             .sheet(isPresented: $isShowingSettings) { SettingsSheet() }
             .sheet(isPresented: $isShowingContents) {
                 if let model {
