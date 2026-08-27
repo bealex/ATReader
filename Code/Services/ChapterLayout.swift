@@ -64,6 +64,40 @@ final class ChapterLayout {
         static let brokenRule: Double = 1000
         /// What each line a chapter's last page falls short of a decent ending costs.
         static let thinLastPage: Double = 40
+        /// How far TextKit opens a space before it starts taking the rest from between the letters.
+        /// Measured across gap counts and measures: it stops at a shade over three times the width the
+        /// font gives a space, every time.
+        static let textKitSpaceLimit: CGFloat = 3.1
+        /// How far a space may be opened here. Twice what TextKit allows itself, so a line reaches for
+        /// the gaps between the words long before it reaches for the gaps inside them.
+        static let spaceLimit: CGFloat = 6.2
+        /// How far back from a break to look for a better one, in characters.
+        static let breakSearch = 28
+        /// The least a line must keep when a break is moved back off it.
+        static let shortestLineTail = 12
+        /// What moving a break has to save before it is worth making, so the setting holds still where
+        /// the gain would not be seen.
+        static let movedBreakGain: Double = 0.35
+        /// How many lines before a crowded one may be set again with it.
+        static let rebreakWindow = 4
+        /// The most break points weighed in one paragraph, so a long one cannot run away with the work.
+        static let mostBreakCandidates = 400
+        /// Paragraphs longer than this are left as TextKit set them; setting one again costs more than
+        /// the crowded line in it is worth.
+        static let longestRebreak = 24
+        /// What leaving a tied short word at a line's end costs, so it happens only where it earns its
+        /// place against the gap it closes.
+        static let brokenTie: Double = 6
+        /// How far a space may be narrowed to draw one more word onto a line, against its own width.
+        ///
+        /// Without this there is nothing to choose. Every line can only be set looser than the font
+        /// sets it, so filling each one as full as it will go — which is what TextKit already does — is
+        /// the cheapest arrangement there is, and no rearranging can beat it. Room to set a line tight
+        /// is what lets a word be drawn up from the line below to close a gap.
+        static let spaceSqueeze: CGFloat = 0.3
+        /// What narrowing a space costs against opening one by as much, since words run together worse
+        /// than they drift apart.
+        static let squeezePenalty: Double = 3
     }
 
     /// Text longer than this is worth telling the reader about while it is being laid out.
@@ -145,7 +179,20 @@ final class ChapterLayout {
         )
         let layout = ChapterLayout(chapterId: chapterId, text: text, context: context, startOffset: startOffset)
         await layout.build(onProgress: onProgress)
-        return layout
+
+        // A second pass, and only where the first found a line held open by a short word tied to the
+        // next one. It costs another laying-out of the chapter, which is why it is asked for rather
+        // than run every time. See `freedText`.
+        guard let freed = layout.freedText() else { return layout }
+
+        let relaxed = ChapterLayout(
+            chapterId: chapterId,
+            text: ChapterPagination.TypesetText(attributed: freed, headingLength: text.headingLength),
+            context: context,
+            startOffset: startOffset
+        )
+        await relaxed.build(onProgress: nil)
+        return relaxed
     }
 
     /// True when laying this chapter out takes long enough that the reader should be told.
@@ -156,6 +203,8 @@ final class ChapterLayout {
 
         await layoutColumn(onProgress: isLong ? onProgress : nil)
         collectLines()
+        rebreakCrowdedLines()
+        loosenCrowdedLines()
         composePages()
         pageRanges = pages.map { page in
             let first = lines[page.lines.lowerBound].characters
@@ -230,6 +279,623 @@ final class ChapterLayout {
         guard let before, let after else { return false }
 
         return letters.contains(before) && letters.contains(after)
+    }
+
+    // MARK: - Lines TextKit would pull apart
+
+    /// A line justified here rather than by TextKit: its own text, and where each run of it sits.
+    ///
+    /// The storage is held and not just the layout manager. A text storage owns the managers that read
+    /// it, never the other way about, so a manager whose storage has gone leaves the line blank.
+    private struct LoosenedLine {
+        let storage: NSTextStorage
+        let manager: NSLayoutManager
+        /// One run of glyphs per word, and how far right of its natural place it is drawn.
+        let runs: [(glyphs: NSRange, offset: CGFloat)]
+    }
+
+    /// One line laid out on its own, the way the font sets it.
+    private struct NaturalPiece {
+        let storage: NSTextStorage
+        let manager: NSLayoutManager
+        let container: NSTextContainer
+        let width: CGFloat
+    }
+
+    private var loosenedLines: [Int: LoosenedLine] = [:]
+
+    /// Justifies the lines whose words TextKit would otherwise have pulled apart.
+    ///
+    /// Justification opens the spaces first and falls back on the gaps between letters once the spaces
+    /// are as wide as it will make them. Measured across gap counts and measures, that ceiling is a
+    /// shade over three times the width the font gives a space, and a line asking for more than that
+    /// gets its letters set as much as 20% further apart, which reads as words coming to pieces.
+    ///
+    /// Nothing moves that ceiling: hyphenation, kerning, tracking and ligatures were all measured and
+    /// justify identically. So a line that reaches it is set out again here, with the slack going into
+    /// the spaces alone until they are twice as wide as TextKit would have allowed. Past that the words
+    /// would be too far apart to read as a line, and TextKit's own setting is left to stand.
+    private func loosenCrowdedLines() {
+        let spaceWidth = " ".size(withAttributes: [ .font: context.style.font ]).width
+        let measure = context.textSize.width
+
+        guard spaceWidth > 0 else { return }
+
+        for index in lines.indices {
+            // A line whose break was moved is already drawn here, holding its new text.
+            guard loosenedLines[index] == nil else { continue }
+            // The last line of a paragraph is never justified, so it is already as wide as it wants.
+            guard !lines[index].endsParagraph, isJustified(lines[index]) else { continue }
+
+            // A line opening on the dash of speech is set here however TextKit left it. The gap after
+            // the dash has to be the one the font gives on every such line, and TextKit opens it along
+            // with the others whenever it justifies.
+            if !opensOnDash(lines[index]) {
+                // Reading one space off the justified line says whether TextKit ran out of room in them.
+                guard
+                    let stretched = firstSpaceWidth(lines[index]),
+                    stretched >= spaceWidth * Rules.textKitSpaceLimit
+                else { continue }
+            }
+
+            loosenedLines[index] = loosened(
+                range: lines[index].characters,
+                startsParagraph: lines[index].startsParagraph,
+                measure: measure,
+                widestGap: spaceWidth * (Rules.spaceLimit - 1)
+            )
+        }
+    }
+
+    /// A line drawn here rather than by TextKit: set as the font sets it, then its words pushed apart
+    /// evenly until it fills its measure, so the slack never reaches inside a word.
+    private func loosened(
+        range: NSRange,
+        startsParagraph: Bool,
+        measure: CGFloat,
+        widestGap: CGFloat?
+    ) -> LoosenedLine? {
+        guard let natural = naturalPiece(for: range, startsParagraph: startsParagraph) else { return nil }
+        // A piece is one line and is laid out in a container that holds one, so anything that did not
+        // fit was never laid out and must not be drawn as though it had been.
+        guard
+            natural.manager.glyphRange(for: natural.container).length == natural.manager.numberOfGlyphs
+        else { return nil }
+
+        let words = wordRuns(in: natural.storage)
+
+        // The dash that opens a line of speech stands at the left edge of the column as much as the
+        // margin does. Opening the gap after it moves the first letter and bends that edge down the
+        // page, so the gap keeps the width the font gives it and the rest of the line takes the slack.
+        let held = opensOnDash(natural.storage, first: words.first) ? 1 : 0
+        let stretchable = words.count - 1 - held
+
+        // Nothing left on the line to open.
+        guard stretchable > 0 else { return unfilled(natural) }
+
+        let perGap = (measure - natural.width) / CGFloat(stretchable)
+        let spaceWidth = " ".size(withAttributes: [ .font: context.style.font ]).width
+
+        // Negative where the line was set tight to draw a word up from the one below it.
+        guard perGap > -spaceWidth * Rules.spaceSqueeze else { return nil }
+
+        // Past this the words would be too far apart to read as one line, so the line is left short.
+        // Giving it back to TextKit is the worse answer: having opened the spaces as far as it will,
+        // TextKit fills the line from between the letters instead.
+        if let widestGap, perGap > widestGap { return unfilled(natural) }
+
+        let runs = words.enumerated().map { position, characters in
+            (
+                glyphs: natural.manager.glyphRange(forCharacterRange: characters, actualCharacterRange: nil),
+                offset: perGap * CGFloat(max(0, position - held))
+            )
+        }
+
+        return LoosenedLine(storage: natural.storage, manager: natural.manager, runs: runs)
+    }
+
+    // MARK: - Paragraphs set again to make room
+
+    /// Sets the last few lines of a paragraph again where the one at the end of them came out crowded.
+    ///
+    /// TextKit breaks one line at a time and takes all it can each time, so wherever a long word will
+    /// not fit, the line before it is left holding too little and has to stand wide open. The text it
+    /// wants is above it, in lines that were each filled without regard for what came after.
+    ///
+    /// So the run of lines ending at the crowded one is set again as a whole. Every arrangement of their
+    /// breaks is costed — how far each line has to open its spaces, squared, so one line opened wide
+    /// counts for more than several opened a little — and the cheapest is kept. The number of lines
+    /// never changes, only where they break, so nothing below moves and the pages stay as composed.
+    ///
+    /// The window is bounded, so a long paragraph costs no more to set again than a short one.
+    private func rebreakCrowdedLines() {
+        let spaceWidth = " ".size(withAttributes: [ .font: context.style.font ]).width
+        let measure = context.textSize.width
+
+        guard spaceWidth > 0, lines.count > 1 else { return }
+
+        var index = 0
+
+        while index < lines.count {
+            guard
+                isCrowded(index, spaceWidth: spaceWidth)
+            else {
+                index += 1
+                continue
+            }
+
+            let paragraph = paragraph(containing: index)
+
+            if paragraph.count > 1, paragraph.count <= Rules.longestRebreak,
+                    rebreak(paragraph, measure: measure, spaceWidth: spaceWidth) {
+                index = paragraph.upperBound
+            } else {
+                index = max(index + 1, paragraph.upperBound)
+            }
+        }
+    }
+
+    /// True where TextKit has opened this line's spaces as far as it will and is taking the rest from
+    /// between the letters, or where the line has no space on it to open at all.
+    private func isCrowded(_ index: Int, spaceWidth: CGFloat) -> Bool {
+        guard !lines[index].endsParagraph, isJustified(lines[index]) else { return false }
+        guard let opened = firstSpaceWidth(lines[index]) else { return true }
+
+        return opened >= spaceWidth * Rules.textKitSpaceLimit
+    }
+
+    /// The whole paragraph a line belongs to.
+    ///
+    /// The run has to reach the paragraph's end, not stop at the crowded line. Fixing both ends of a run
+    /// and its number of lines leaves the arrangement TextKit already found as the only one that fits:
+    /// it fills every line to the brim, so shortening any of them pushes a later one past the measure.
+    /// A paragraph's last line is ragged and takes whatever is left, and that slack is the room every
+    /// other line in it needs to move.
+    private func paragraph(containing index: Int) -> Range<Int> {
+        var first = index
+
+        while first > 0, !lines[first - 1].endsParagraph { first -= 1 }
+
+        var last = index
+
+        while last + 1 < lines.count, !lines[last].endsParagraph { last += 1 }
+
+        return first ..< (last + 1)
+    }
+
+    /// Everything the costing of one paragraph's breaks needs.
+    private struct Setting {
+        let start: Int
+        let indent: CGFloat
+        let measure: CGFloat
+        let spaceWidth: CGFloat
+        let hyphen: CGFloat
+        let offsets: [CGFloat]
+    }
+
+    /// Costs every way of breaking a run of lines and keeps the cheapest. Reports whether it changed.
+    private func rebreak(_ window: Range<Int>, measure: CGFloat, spaceWidth: CGFloat) -> Bool {
+        let first = lines[window.lowerBound]
+        let last = lines[window.upperBound - 1]
+        let start = first.characters.location
+        let ending = last.characters.location + last.characters.length
+
+        guard
+            let offsets = offsets(from: start, to: ending, width: measure * CGFloat(window.count + 1))
+        else { return false }
+
+        let setting = Setting(
+            start: start,
+            indent: first.startsParagraph ? headIndent(at: start) : 0,
+            measure: measure,
+            spaceWidth: spaceWidth,
+            hyphen: "-".size(withAttributes: [ .font: context.style.font ]).width,
+            offsets: offsets
+        )
+        let breaks = breakCandidates(from: start, to: ending)
+
+        guard !breaks.isEmpty else { return false }
+
+        var stops = [ start ]
+        stops.append(contentsOf: breaks.map(\.position))
+        stops.append(ending)
+
+        var current: Double = 0
+
+        for line in window {
+            let range = lines[line].characters
+            current += cost(
+                setting,
+                from: range.location,
+                until: range.location + range.length,
+                isFirst: line == window.lowerBound,
+                isLast: line == window.upperBound - 1
+            )
+        }
+
+        guard
+            let cheapest = cheapestBreaks(
+                stops: stops,
+                ties: breaks.map(\.tied),
+                wanted: window.count,
+                setting: setting
+            ),
+            cheapest.total + Rules.movedBreakGain < current
+        else { return false }
+
+        return adopt(cheapest.stops, for: window, measure: measure)
+    }
+
+    /// What one line costs: how far its spaces have to open to fill the measure, or close to hold one
+    /// more word, squared either way so a single line set badly counts for more than several set a
+    /// little off.
+    private func cost(_ setting: Setting, from: Int, until: Int, isFirst: Bool, isLast: Bool) -> Double {
+        let measured = measured(from: from, until: until, setting: setting)
+        let available = setting.measure - (isFirst ? setting.indent : 0)
+        let slack = available - measured.width
+
+        // Set tight, to draw one more word up. Only so far, and dearer than the same drift apart.
+        if slack < 0 {
+            let squeeze = -slack / CGFloat(max(1, measured.gaps))
+
+            guard measured.gaps > 0, squeeze <= setting.spaceWidth * Rules.spaceSqueeze else { return .infinity }
+
+            let ratio = Double(squeeze / setting.spaceWidth)
+            return ratio * ratio * Rules.squeezePenalty
+        }
+
+        // A paragraph's last line stops where the paragraph stops and is never justified, so whatever
+        // is left over on it costs nothing. That is the slack the rest of them share.
+        guard !isLast, slack > 0 else { return 0 }
+        // Nothing to open but the gaps inside the words, which is the worst a line can read.
+        guard measured.gaps > 0 else { return Double(slack / setting.spaceWidth) * 20 }
+
+        let growth = Double(slack / CGFloat(measured.gaps) / setting.spaceWidth)
+        return growth * growth
+    }
+
+    /// The cheapest run of breaks that covers the text in exactly `wanted` lines.
+    private func cheapestBreaks(
+        stops: [Int],
+        ties: [Bool],
+        wanted: Int,
+        setting: Setting
+    ) -> (stops: [Int], total: Double)? {
+        var best = [[Double]](repeating: [Double](repeating: .infinity, count: stops.count), count: wanted + 1)
+        var came = [[Int]](repeating: [Int](repeating: 0, count: stops.count), count: wanted + 1)
+        best[0][0] = 0
+
+        for used in 1 ... wanted {
+            for stop in 1 ..< stops.count {
+                // A tie broken here leaves a short word at a line's end, which is worth something.
+                let tied = stop <= ties.count && ties[stop - 1] && stop < stops.count - 1
+                let tiePenalty = tied ? Rules.brokenTie : 0
+
+                for previous in stride(from: stop - 1, through: 0, by: -1) {
+                    // Reaching further back only makes the line longer, so once it will not fit at
+                    // all, nothing before it will either.
+                    let reach =
+                        setting.offsets[stops[stop] - setting.start]
+                        - setting.offsets[stops[previous] - setting.start]
+
+                    if reach > setting.measure + setting.spaceWidth * 2 { break }
+
+                    guard best[used - 1][previous] < .infinity else { continue }
+
+                    let line = cost(
+                        setting,
+                        from: stops[previous],
+                        until: stops[stop],
+                        isFirst: previous == 0,
+                        isLast: used == wanted
+                    )
+
+                    guard line < .infinity else { continue }
+
+                    let total = best[used - 1][previous] + line + tiePenalty
+
+                    if total < best[used][stop] {
+                        best[used][stop] = total
+                        came[used][stop] = previous
+                    }
+                }
+            }
+        }
+
+        let total = best[wanted][stops.count - 1]
+
+        guard total < .infinity else { return nil }
+
+        var chosen: [Int] = []
+        var stop = stops.count - 1
+
+        for used in stride(from: wanted, through: 1, by: -1) {
+            chosen.append(stops[stop])
+            stop = came[used][stop]
+        }
+
+        chosen.append(setting.start)
+        chosen.reverse()
+        return (chosen, total)
+    }
+
+    /// Puts a chosen run of breaks in place, and draws every line it touches.
+    ///
+    /// All of them or none: one line redrawn beside one left as TextKit set it would show the words that
+    /// moved twice over, or lose them.
+    private func adopt(_ stops: [Int], for window: Range<Int>, measure: CGFloat) -> Bool {
+        guard stops.count == window.count + 1 else { return false }
+
+        var drawn: [LoosenedLine] = []
+
+        for step in 0 ..< window.count {
+            let range = NSRange(location: stops[step], length: stops[step + 1] - stops[step])
+            let opensParagraph = step == 0 && lines[window.lowerBound].startsParagraph
+            // The paragraph's last line stops where the paragraph stops: it keeps its ragged edge and
+            // is drawn as the font sets it.
+            let line =
+                step == window.count - 1
+                ? natural(range: range, startsParagraph: opensParagraph)
+                : loosened(range: range, startsParagraph: opensParagraph, measure: measure, widestGap: nil)
+
+            guard let line else { return false }
+
+            drawn.append(line)
+        }
+
+        for step in 0 ..< window.count {
+            let index = window.lowerBound + step
+            lines[index].characters = NSRange(location: stops[step], length: stops[step + 1] - stops[step])
+            lines[index].endsWithHyphen = endsOnSoftHyphen(lines[index])
+            loosenedLines[index] = drawn[step]
+        }
+
+        return true
+    }
+
+    /// A line drawn as the font sets it, with nothing added to fill the measure.
+    private func natural(range: NSRange, startsParagraph: Bool) -> LoosenedLine? {
+        guard let piece = naturalPiece(for: range, startsParagraph: startsParagraph) else { return nil }
+        guard piece.manager.glyphRange(for: piece.container).length == piece.manager.numberOfGlyphs else { return nil }
+
+        return unfilled(piece)
+    }
+
+    /// The piece as it stands, drawn in one run, so a line that cannot be filled is left short rather
+    /// than handed back to TextKit to fill from between the letters.
+    private func unfilled(_ piece: NaturalPiece) -> LoosenedLine {
+        LoosenedLine(
+            storage: piece.storage,
+            manager: piece.manager,
+            runs: [ (glyphs: NSRange(location: 0, length: piece.manager.numberOfGlyphs), offset: 0) ]
+        )
+    }
+
+    /// Every place a line may break within a stretch of text, and whether a tie is holding it shut.
+    private func breakCandidates(from start: Int, to ending: Int) -> [(position: Int, tied: Bool)] {
+        let string = storage.string as NSString
+        var result: [(position: Int, tied: Bool)] = []
+        var index = start + 1
+
+        while index < ending, result.count < Rules.mostBreakCandidates {
+            let before = string.character(at: index - 1)
+
+            if before == 0x20 {
+                let tied = index < string.length && string.character(at: index) == Self.wordJoiner
+                result.append((index, tied))
+            } else if before == Self.softHyphen {
+                result.append((index, false))
+            }
+
+            index += 1
+        }
+
+        return result
+    }
+
+    /// How wide a piece of the measured line is, and how many spaces it has to open.
+    private func measured(from: Int, until: Int, setting: Setting) -> (width: CGFloat, gaps: Int) {
+        let string = storage.string as NSString
+        var last = until
+
+        // The space or newline a line breaks at is carried by it but never drawn.
+        while last > from, Self.isBlank(string.character(at: last - 1)) { last -= 1 }
+
+        var width = setting.offsets[last - setting.start] - setting.offsets[from - setting.start]
+
+        // A line breaking inside a word is drawn with the hyphen the soft one stands for.
+        if last > from, string.character(at: last - 1) == Self.softHyphen { width += setting.hyphen }
+
+        var gaps = 0
+
+        for index in from ..< last where string.character(at: index) == 0x20 { gaps += 1 }
+
+        return (width, gaps)
+    }
+
+    /// Where every character of a stretch of text sits when it is set as one unbroken line, so the width
+    /// of any piece of it is a subtraction rather than another laying-out.
+    private func offsets(from start: Int, to ending: Int, width: CGFloat) -> [CGFloat]? {
+        guard start >= 0, ending > start, ending <= storage.length else { return nil }
+
+        let piece = NSMutableAttributedString(
+            attributedString: storage.attributedSubstring(from: NSRange(location: start, length: ending - start))
+        )
+
+        piece.enumerateAttribute(.paragraphStyle, in: NSRange(location: 0, length: piece.length)) { value, range, _ in
+            guard let style = (value as? NSParagraphStyle)?.mutableCopy() as? NSMutableParagraphStyle else { return }
+
+            style.alignment = .natural
+            style.firstLineHeadIndent = 0
+            style.headIndent = 0
+            piece.addAttribute(.paragraphStyle, value: style, range: range)
+        }
+
+        let pieceStorage = NSTextStorage(attributedString: piece)
+        let pieceManager = NSLayoutManager()
+        let pieceContainer = NSTextContainer(size: CGSize(width: width, height: .greatestFiniteMagnitude))
+        pieceContainer.lineFragmentPadding = 0
+        pieceContainer.maximumNumberOfLines = 1
+        pieceManager.usesFontLeading = true
+        pieceStorage.addLayoutManager(pieceManager)
+        pieceManager.addTextContainer(pieceContainer)
+        pieceManager.ensureLayout(for: pieceContainer)
+
+        guard pieceManager.numberOfGlyphs > 0 else { return nil }
+        // Every glyph has to have been laid out. One that was not has no position, and a width taken
+        // from it would be nonsense that the costing would then trust.
+        guard pieceManager.glyphRange(for: pieceContainer).length == pieceManager.numberOfGlyphs else { return nil }
+
+        var result = [CGFloat](repeating: 0, count: piece.length + 1)
+
+        for offset in 0 ..< piece.length {
+            result[offset] = pieceManager.location(forGlyphAt: pieceManager.glyphIndexForCharacter(at: offset)).x
+        }
+
+        result[piece.length] = pieceManager.usedRect(for: pieceContainer).maxX
+        return result
+    }
+
+    private func headIndent(at position: Int) -> CGFloat {
+        let style = storage.attribute(.paragraphStyle, at: position, effectiveRange: nil)
+        return (style as? NSParagraphStyle)?.firstLineHeadIndent ?? 0
+    }
+
+    /// True where the line opens a paragraph of speech: a dash, and then a space.
+    private func opensOnDash(_ line: Line) -> Bool {
+        guard line.startsParagraph else { return false }
+
+        let string = storage.string as NSString
+        let start = line.characters.location
+
+        guard start + 1 < string.length, Self.isDash(string.character(at: start)) else { return false }
+
+        return string.character(at: start + 1) == 0x20
+    }
+
+    /// True where the piece's first word is the dash that marks speech.
+    private func opensOnDash(_ pieceStorage: NSTextStorage, first word: NSRange?) -> Bool {
+        guard let word, word.length > 0, word.length <= 2 else { return false }
+
+        let string = pieceStorage.string as NSString
+
+        for index in word.location ..< (word.location + word.length)
+        where !Self.isDash(string.character(at: index)) {
+            return false
+        }
+
+        return true
+    }
+
+    private static func isDash(_ character: unichar) -> Bool {
+        character == 0x2014 || character == 0x2013 || character == 0x2015 || character == 0x002D
+    }
+
+    private func isJustified(_ line: Line) -> Bool {
+        let style = storage.attribute(.paragraphStyle, at: line.characters.location, effectiveRange: nil)
+        return (style as? NSParagraphStyle)?.alignment == .justified
+    }
+
+    /// True where the line breaks a word, so TextKit is drawing a hyphen at the end of it.
+    private func endsOnSoftHyphen(_ line: Line) -> Bool {
+        let string = storage.string as NSString
+        var index = min(string.length, line.characters.location + line.characters.length) - 1
+
+        while index > line.characters.location, Self.isBlank(string.character(at: index)) {
+            index -= 1
+        }
+
+        return index >= 0 && index < string.length && string.character(at: index) == Self.softHyphen
+    }
+
+    private static func isBlank(_ character: unichar) -> Bool { character == 0x20 || character == 0x0A }
+
+    /// How wide the first space on the line came out once TextKit had justified it.
+    private func firstSpaceWidth(_ line: Line) -> CGFloat? {
+        let string = storage.string as NSString
+        let ending = min(string.length, line.characters.location + line.characters.length)
+
+        for character in line.characters.location ..< ending where string.character(at: character) == 0x20 {
+            let glyph = manager.glyphIndexForCharacter(at: character)
+
+            guard glyph + 1 < manager.numberOfGlyphs else { return nil }
+
+            return manager.location(forGlyphAt: glyph + 1).x - manager.location(forGlyphAt: glyph).x
+        }
+
+        return nil
+    }
+
+    /// The runs of text between the spaces: the words the slack is shared out between.
+    private func wordRuns(in pieceStorage: NSTextStorage) -> [NSRange] {
+        let string = pieceStorage.string as NSString
+        var result: [NSRange] = []
+        var start = 0
+
+        for index in 0 ..< string.length where string.character(at: index) == 0x20 {
+            result.append(NSRange(location: start, length: index - start))
+            start = index + 1
+        }
+
+        result.append(NSRange(location: start, length: string.length - start))
+        return result.filter { $0.length > 0 }
+    }
+
+    /// The line set on its own, the way the font sets it, with the layout kept so it can be drawn.
+    private func naturalLine(at index: Int) -> NaturalPiece? {
+        naturalPiece(for: lines[index].characters, startsParagraph: lines[index].startsParagraph)
+    }
+
+    private func naturalPiece(for range: NSRange, startsParagraph: Bool) -> NaturalPiece? {
+        guard range.length > 0, range.location >= 0, range.location + range.length <= storage.length else { return nil }
+
+        let piece = NSMutableAttributedString(attributedString: storage.attributedSubstring(from: range))
+
+        // A line carries the space or newline it broke at; neither is part of what is drawn.
+        while piece.length > 0, let last = piece.string.unicodeScalars.last, last == " " || last == "\n" {
+            piece.deleteCharacters(in: NSRange(location: piece.length - 1, length: 1))
+        }
+
+        guard piece.length > 0 else { return nil }
+
+        // A soft hyphen is invisible except where a line breaks on it, and a line set on its own breaks
+        // nowhere. Putting in the hyphen TextKit would have drawn keeps both its look and its width.
+        if piece.string.unicodeScalars.last == Unicode.Scalar(Self.softHyphen) {
+            piece.replaceCharacters(in: NSRange(location: piece.length - 1, length: 1), with: "-")
+        }
+
+        piece.enumerateAttribute(.paragraphStyle, in: NSRange(location: 0, length: piece.length)) { value, range, _ in
+            guard let style = (value as? NSParagraphStyle)?.mutableCopy() as? NSMutableParagraphStyle else { return }
+
+            style.alignment = .natural
+            // The indent belongs to a paragraph's first line, and this piece is only sometimes that.
+            if !startsParagraph { style.firstLineHeadIndent = 0 }
+
+            piece.addAttribute(.paragraphStyle, value: style, range: range)
+        }
+
+        let pieceStorage = NSTextStorage(attributedString: piece)
+        let pieceManager = NSLayoutManager()
+        let pieceContainer = NSTextContainer(size: CGSize(
+            width: max(1, context.textSize.width),
+            height: .greatestFiniteMagnitude
+        ))
+        pieceContainer.lineFragmentPadding = 0
+        pieceContainer.maximumNumberOfLines = 1
+        pieceManager.usesFontLeading = true
+        pieceStorage.addLayoutManager(pieceManager)
+        pieceManager.addTextContainer(pieceContainer)
+        pieceManager.ensureLayout(for: pieceContainer)
+
+        return NaturalPiece(
+            storage: pieceStorage,
+            manager: pieceManager,
+            container: pieceContainer,
+            // The right edge, not the width: a paragraph's first line is indented, and the indent
+            // sits in the used rect's origin rather than its width. Measuring the width alone left
+            // that line believing it had a whole indent more room, and it overran the margin by it.
+            width: pieceManager.usedRect(for: pieceContainer).maxX
+        )
     }
 
     // MARK: - Cutting the column into pages
@@ -449,6 +1115,80 @@ final class ChapterLayout {
     }
 
     private static let softHyphen = unichar(0x00AD)
+    /// Ties a short word to the one after it, so no line may end on it.
+    private static let wordJoiner = unichar(0x2060)
+    /// The same width as the joiner — none — but a break is allowed here.
+    private static let zeroWidthSpace = unichar(0x200B)
+    /// The longest word worth leaving at the end of a line to close a gap. Russian ties one- and
+    /// two-letter prepositions to what follows them, and those are the ones this frees.
+    private static let longestFreedWord = 2
+
+    /// The chapter's text again, with the ties freed on the short words that were holding a line open.
+    ///
+    /// A one- or two-letter preposition is tied to the word after it so that no line ends on it, and
+    /// that tie is a word joiner sitting just after the space. Where the pair would only travel together
+    /// by leaving the line before it stretched wide open, the gap reads worse than the broken rule
+    /// would, so the tie is given up and the little word stays where it was.
+    ///
+    /// Only where the line after it carries on the paragraph. Pulling a word back onto a full line at
+    /// the expense of a last line that is already short trades one thin line for another.
+    ///
+    /// The joiner is swapped rather than removed. Both are one character, so every reading position in
+    /// the chapter still counts to the same place; deleting it would shift them all.
+    func freedText() -> NSAttributedString? {
+        let string = storage.string as NSString
+        let spaceWidth = " ".size(withAttributes: [ .font: context.style.font ]).width
+
+        guard spaceWidth > 0, lines.count > 1 else { return nil }
+
+        var joiners: [Int] = []
+
+        for index in 0 ..< (lines.count - 1) {
+            let line = lines[index]
+
+            // A line that ends its paragraph was never justified in the first place.
+            guard !line.endsParagraph, !lines[index + 1].endsParagraph, isJustified(line) else { continue }
+
+            // Opened as far as TextKit will open a space, so the rest is coming out of the letters —
+            // or there is no space on the line to open at all.
+            let opened = firstSpaceWidth(line)
+
+            guard opened == nil || opened! >= spaceWidth * Rules.textKitSpaceLimit else { continue }
+
+            let following = lines[index + 1].characters.location
+
+            guard let found = joiner(afterShortWordAt: following, in: string) else { continue }
+
+            joiners.append(found)
+        }
+
+        guard !joiners.isEmpty else { return nil }
+
+        let freed = NSMutableAttributedString(attributedString: storage)
+        let replacement = String(UnicodeScalar(Self.zeroWidthSpace) ?? " ")
+
+        for joiner in joiners {
+            freed.replaceCharacters(in: NSRange(location: joiner, length: 1), with: replacement)
+        }
+
+        return freed
+    }
+
+    /// Where the tie is that holds a short word at `start` to the word after it.
+    private func joiner(afterShortWordAt start: Int, in string: NSString) -> Int? {
+        var index = start
+
+        while index < string.length, string.character(at: index) != 0x20 {
+            index += 1
+        }
+
+        let length = index - start
+
+        guard length >= 1, length <= Self.longestFreedWord else { return nil }
+        guard index + 1 < string.length, string.character(at: index + 1) == Self.wordJoiner else { return nil }
+
+        return index + 1
+    }
 
     /// Draws a page, line by line, so the page's own leading can be applied as it goes.
     func draw(page index: Int) {
@@ -458,8 +1198,24 @@ final class ChapterLayout {
         var cursor = context.textRect.minY + (index == 0 ? startOffset : 0)
 
         for line in page.lines {
-            let origin = CGPoint(x: context.textRect.minX, y: cursor - lines[line].columnTop)
-            manager.drawGlyphs(forGlyphRange: lines[line].glyphs, at: origin)
+            // A line justified here is drawn a word at a time, each shifted right of where the font
+            // would have put it, so the slack sits between the words and never inside them. Anything
+            // that leaves that layout empty falls back to TextKit's: a line whose words are a little
+            // far apart is a blemish, a line that isn't drawn is text the reader loses.
+            let loosened = loosenedLines[line]
+
+            if let loosened, loosened.manager.numberOfGlyphs > 0 {
+                for word in loosened.runs {
+                    loosened.manager.drawGlyphs(
+                        forGlyphRange: word.glyphs,
+                        at: CGPoint(x: context.textRect.minX + word.offset, y: cursor)
+                    )
+                }
+            } else {
+                let origin = CGPoint(x: context.textRect.minX, y: cursor - lines[line].columnTop)
+                manager.drawGlyphs(forGlyphRange: lines[line].glyphs, at: origin)
+            }
+
             cursor += lines[line].height + page.leading
         }
     }

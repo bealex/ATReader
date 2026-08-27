@@ -60,7 +60,7 @@ enum Typography {
         guard left.count + right.count < 24, !left.isEmpty, !right.isEmpty else { return false }
 
         // A dash may not open a line; it stays with the words before it. A dash opening a paragraph is
-        // dialogue and never reaches here, since nothing precedes it.
+        // dialogue, and the layout holds the gap after it rather than the text.
         if dashes.contains(right) { return true }
 
         // Nor may a line end on a lone piece of punctuation.

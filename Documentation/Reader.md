@@ -34,7 +34,9 @@ forbid some of those breaks, though not the same ones:
 - English is easier on short words but keeps an abbreviation with the name that follows it.
 - Both keep a number with its unit, and an initial with its surname.
 
-A no-break space says so before the text is laid out.
+An ordinary space followed by a word joiner says so before the text is laid out: one elastic space
+that no line may break at. A plain no-break space would be simpler, but it's rigid, and a justified
+line pushes the slack it can't take into the gaps between letters.
 
 `ChapterPagination` then sets the chapter as one `NSAttributedString` from a `ChapterTextStyle`: face,
 size, line spacing, letter spacing, justification, colour. Margins are deliberately not part of that
@@ -85,6 +87,27 @@ line usually reaches the body as two, and each is given up only while everything
 the opening of the heading, so a chapter whose text merely starts on the same word keeps it. The
 comparison is made on letters and digits alone, because by then the text carries the soft hyphens and
 word joiners the typesetter put in.
+
+### Filling a justified line
+
+TextKit opens a line's spaces to about 3.1 times the width the font gives one, then takes whatever is
+still missing from between the letters. Nothing moves that ceiling: hyphenation, kerning, tracking and
+ligatures each justify identically. Past it the words visibly come apart.
+
+So `ChapterLayout` sets those lines itself. It lays the line out again on its own, the way the font
+sets it, then draws each word shifted right of where it landed, so all the slack sits between words
+and none of it inside them. Spaces open to twice what TextKit allows itself before the words read as
+too far apart to be one line.
+
+Two rules shape the result:
+
+- **The dash opening a paragraph of speech keeps the gap the font gives it.** That dash stands at the
+  column's left edge as much as the margin does, and stretching the gap after it lands the first letter
+  somewhere different in every paragraph, bending the edge down the page. The rest of the line takes
+  the slack. Every line opening on a dash is set here, however TextKit left it. Otherwise the gap is
+  the font's on the lines TextKit could fill and stretched on the rest.
+- **A line that still can't be filled is left short.** A line standing under its measure reads; words
+  pulled to pieces don't.
 
 ## Cutting the column into pages
 
