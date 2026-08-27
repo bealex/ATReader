@@ -86,6 +86,7 @@ enum WorkScreen {
         private func heading(_ model: Model, work: WorkSummary) -> some View {
             HStack(alignment: .top, spacing: 16) {
                 CoverImage(url: work.coverURL, width: 116, progress: work.readingProgress)
+                    .overlay(alignment: .topTrailing) { libraryMark(model) }
 
                 VStack(alignment: .leading, spacing: 6) {
                     Text(work.title)
@@ -105,8 +106,24 @@ enum WorkScreen {
                     statistics(work, costsMoney: model.isLockedByPrice)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
+                .accessibilityElement(children: .combine)
             }
-            .accessibilityElement(children: .combine)
+        }
+
+        private func libraryMark(_ model: Model) -> some View {
+            Button {
+                Task { await model.setInLibrary(!model.isInLibrary) }
+            } label: {
+                LibraryMark(inLibrary: model.isInLibrary)
+                    .padding(4)
+            }
+            .buttonStyle(.plain)
+            .disabled(model.isUpdatingLibrary)
+            .accessibilityIdentifier("work.library")
+            .accessibilityLabel(model.isInLibrary ? "In your library" : "Add to library")
+            .accessibilityHint(
+                model.isInLibrary ? "Removes the book from your library" : "Adds the book to your library"
+            )
         }
 
         private func statistics(_ work: WorkSummary, costsMoney: Bool) -> some View {
@@ -116,47 +133,23 @@ enum WorkScreen {
 
         @ViewBuilder
         private func actions(_ model: Model, summary: WorkSummary) -> some View {
-            VStack(spacing: 10) {
-                if let chapterId = model.resumeChapterId {
-                    NavigationLink(
-                        value: AppRoute.reader(.init(workId: model.workId, title: summary.title, chapterId: chapterId))
-                    ) {
-                        Label(summary.hasStartedReading ? "Continue reading" : "Read", systemImage: "book.fill")
-                            .frame(maxWidth: .infinity, minHeight: 30)
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.large)
-                    .accessibilityIdentifier("work.read")
-                    .accessibilityHint("Opens the reader")
-                } else if !model.isLoading {
-                    Text("No chapters available to read.")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+            if let chapterId = model.resumeChapterId {
+                NavigationLink(
+                    value: AppRoute.reader(.init(workId: model.workId, title: summary.title, chapterId: chapterId))
+                ) {
+                    Label(summary.hasStartedReading ? "Continue reading" : "Read", systemImage: "book.fill")
+                        .frame(maxWidth: .infinity, minHeight: 30)
                 }
-
-                libraryButton(model)
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
+                .accessibilityIdentifier("work.read")
+                .accessibilityHint("Opens the reader")
+            } else if !model.isLoading {
+                Text("No chapters available to read.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
             }
-        }
-
-        private func libraryButton(_ model: Model) -> some View {
-            Button {
-                Task { await model.setInLibrary(!model.isInLibrary) }
-            } label: {
-                Label(
-                    model.isInLibrary ? "In your library" : "Add to library",
-                    systemImage: model.isInLibrary ? "checkmark" : "plus"
-                )
-                .font(.subheadline)
-                .frame(maxWidth: .infinity, minHeight: 28)
-            }
-            .buttonStyle(.bordered)
-            .tint(model.isInLibrary ? .accentColor : .secondary)
-            .disabled(model.isUpdatingLibrary)
-            .accessibilityIdentifier("work.library")
-            .accessibilityHint(
-                model.isInLibrary ? "Removes the book from your library" : "Adds the book to your library"
-            )
         }
 
         private func tagCloud(_ tags: [String]) -> some View {

@@ -116,3 +116,22 @@ struct ReadingProgressRing: View {
         }
     }
 }
+
+/// Whether a book sits in the reader's library, as a badge on its cover. Sized to match
+/// ``ReadingProgressRing`` so the two sit as a pair on the same cover.
+struct LibraryMark: View {
+    let inLibrary: Bool
+
+    var body: some View {
+        ZStack {
+            Circle()
+                .fill(.thinMaterial)
+
+            Image(systemName: inLibrary ? "book.fill" : "book")
+                .font(.system(size: 14))
+                .foregroundStyle(inLibrary ? Color.accentColor : Color.secondary)
+        }
+        .frame(width: ReadingProgressRing.size, height: ReadingProgressRing.size)
+        .accessibilityHidden(true)
+    }
+}
