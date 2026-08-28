@@ -38,6 +38,30 @@ An ordinary space followed by a word joiner says so before the text is laid out:
 that no line may break at. A plain no-break space would be simpler, but it's rigid, and a justified
 line pushes the slack it can't take into the gaps between letters.
 
+### Which dash is which
+
+Files write dashes with whatever key was to hand, and one publisher's habit runs through every book it
+sets. Both sample FB2 files carried no em dash at all: every dash between words and every dash opening
+a line of speech was a spaced en dash, roughly 3,000 of them per book.
+
+The traditions differ, so the rule is settled per language:
+
+- **Russian** puts тире (—) between words and at the head of a line of speech, and a hyphen only inside
+  a word. A spaced en dash or a spaced hyphen is the wrong mark outright.
+- **English** keeps the spaced en dash as a convention of its own, so that one is left alone. Only a
+  spaced hyphen is promoted to it.
+- **Both** set a range between figures with an en dash.
+
+A dash inside a word is never touched. Russian is full of them, and a book of `кто-то` rewritten with
+тире would be unreadable.
+
+Every replacement is one character for one, because a reading position is an offset into this text and
+a substitution that changed its length would move the reader's place in every book already on the
+device. That rules out folding `--` into an em dash, which is the one common repair this doesn't make.
+
+Putting the dashes right comes before binding, since binding reads them, and so does the layout when it
+decides which lines open on the dash of speech.
+
 `ChapterPagination` then sets the chapter as one `NSAttributedString` from a `ChapterTextStyle`: face,
 size, line spacing, letter spacing, justification, colour. Margins are deliberately not part of that
 style, because they shrink the frame rather than the text. The language the parser detected rides along

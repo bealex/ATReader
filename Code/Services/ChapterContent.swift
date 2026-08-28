@@ -29,7 +29,12 @@ struct ChapterContent: Codable, Sendable {
             let bound = paragraphs.map { paragraph in
                 ChapterHTML.Paragraph(
                     id: paragraph.id,
-                    text: Typography.bound(paragraph.text, language: language),
+                    // The dashes are put right first: binding reads them, and so does the layout when
+                    // it decides which lines open on the dash of speech.
+                    text: Typography.bound(
+                        Typography.dashes(paragraph.text, language: language),
+                        language: language
+                    ),
                     isCentered: paragraph.isCentered
                 )
             }

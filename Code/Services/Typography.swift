@@ -94,6 +94,77 @@ enum Typography {
 }
 
 extension Typography {
+    /// Puts the right dash in, given the language the text is written in.
+    ///
+    /// Files write dashes with whatever key was to hand, and one publisher's habit runs through every
+    /// book it sets. Russian puts тире between words and at the head of a line of speech, and a hyphen
+    /// only inside a word, so a spaced en dash or a spaced hyphen is the wrong mark outright. English
+    /// keeps the spaced en dash as a convention of its own and is left alone there, but wants an en
+    /// dash between figures where a hyphen is usually typed.
+    ///
+    /// Every replacement is one character for one. A reading position is an offset into this text, so a
+    /// substitution that changed its length would move the reader's place in every book on the device.
+    /// That rules out folding `--` into an em dash, which is the one common repair this doesn't make.
+    static func dashes(_ text: String, language: String?) -> String {
+        guard text.contains(where: isDashLike) else { return text }
+
+        let russian = isRussian(language)
+        let characters = Array(text)
+        var result = ""
+        result.reserveCapacity(characters.count)
+
+        for (index, character) in characters.enumerated() {
+            guard
+                isDashLike(character)
+            else {
+                result.append(character)
+                continue
+            }
+
+            result.append(
+                dash(
+                    character,
+                    before: index > 0 ? characters[index - 1] : nil,
+                    after: index + 1 < characters.count ? characters[index + 1] : nil,
+                    russian: russian
+                )
+            )
+        }
+
+        return result
+    }
+
+    private static func isDashLike(_ character: Character) -> Bool {
+        character == "-" || character == "–" || character == "—" || character == "―"
+    }
+
+    /// The mark this dash should be, from what stands either side of it.
+    ///
+    /// A dash inside a word is a hyphen doing its job and is never touched: Russian is full of them,
+    /// and a book of `кто-то` rewritten with тире would be unreadable.
+    private static func dash(
+        _ character: Character,
+        before: Character?,
+        after: Character?,
+        russian: Bool
+    ) -> Character {
+        if before?.isLetter == true, after?.isLetter == true { return character }
+
+        // A range between figures, which both traditions set with an en dash.
+        if before?.isNumber == true, after?.isNumber == true { return "–" }
+
+        // The dash opening a line of speech, at the head of a paragraph or of a line inside one.
+        if before == nil || before == "\n" {
+            return russian && after?.isWhitespace == true ? "—" : character
+        }
+
+        guard before?.isWhitespace == true, after?.isWhitespace == true else { return character }
+
+        // Russian has one spaced dash and this is it. English keeps the spaced en dash it means, and
+        // only a spaced hyphen is promoted to one.
+        return russian ? "—" : (character == "-" ? "–" : character)
+    }
+
     /// Marks every place the language's own dictionary allows a word to break.
     ///
     /// TextKit looks for its own break points and settles for far fewer than the dictionary offers, so a
