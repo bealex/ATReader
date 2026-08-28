@@ -330,7 +330,13 @@ final class ChapterLayout {
             // A line opening on the dash of speech is set here however TextKit left it. The gap after
             // the dash has to be the one the font gives on every such line, and TextKit opens it along
             // with the others whenever it justifies.
-            if !opensOnDash(lines[index]) {
+            let hang = hang(lines[index].characters)
+
+            // A line opening on the dash of speech is set here however TextKit left it. The gap after
+            // the dash has to be the one the font gives on every such line, and TextKit opens it along
+            // with the others whenever it justifies. So is a line with something to hang, since only a
+            // line set here can put a character outside the measure.
+            if hang == 0, !opensOnDash(lines[index]) {
                 // Reading one space off the justified line says whether TextKit ran out of room in them.
                 guard
                     let stretched = firstSpaceWidth(lines[index]),
@@ -342,6 +348,7 @@ final class ChapterLayout {
                 range: lines[index].characters,
                 startsParagraph: lines[index].startsParagraph,
                 measure: measure,
+                hang: hang,
                 widestGap: spaceWidth * (Rules.spaceLimit - 1)
             )
         }
@@ -353,6 +360,7 @@ final class ChapterLayout {
         range: NSRange,
         startsParagraph: Bool,
         measure: CGFloat,
+        hang: CGFloat,
         widestGap: CGFloat?
     ) -> LoosenedLine? {
         guard let natural = naturalPiece(for: range, startsParagraph: startsParagraph) else { return nil }
@@ -373,7 +381,10 @@ final class ChapterLayout {
         // Nothing left on the line to open.
         guard stretchable > 0 else { return unfilled(natural) }
 
-        let perGap = (measure - natural.width) / CGFloat(stretchable)
+        // The measure the words are set to, opened by however far the line's last character hangs
+        // outside it. The words carry that extra between them, so the character ends up past the
+        // margin and the letters before it stop where the eye expects the edge to be.
+        let perGap = (measure + hang - natural.width) / CGFloat(stretchable)
         let spaceWidth = " ".size(withAttributes: [ .font: context.style.font ]).width
 
         // Negative where the line was set tight to draw a word up from the one below it.
@@ -636,7 +647,13 @@ final class ChapterLayout {
             let line =
                 step == window.count - 1
                 ? natural(range: range, startsParagraph: opensParagraph)
-                : loosened(range: range, startsParagraph: opensParagraph, measure: measure, widestGap: nil)
+                : loosened(
+                    range: range,
+                    startsParagraph: opensParagraph,
+                    measure: measure,
+                    hang: hang(range),
+                    widestGap: nil
+                )
 
             guard let line else { return false }
 
@@ -795,6 +812,53 @@ final class ChapterLayout {
         let style = storage.attribute(.paragraphStyle, at: line.characters.location, effectiveRange: nil)
         return (style as? NSParagraphStyle)?.alignment == .justified
     }
+
+    /// How far the last character of a line is set outside the measure.
+    ///
+    /// A justified column is a straight edge of letters, and a line ending in a hyphen or a comma stops
+    /// short of it: those marks are mostly the white space around them, so the eye reads the edge as
+    /// notched wherever one lands. Setting the mark outside the measure puts the letters back on the
+    /// line the rest of the column keeps.
+    ///
+    /// A fraction rather than the whole character, which is what a straight edge actually wants: hang a
+    /// comma entirely and the column bulges where the commas are.
+    private func hang(_ range: NSRange) -> CGFloat {
+        guard let character = hangingCharacter(in: range), let fraction = Self.hangs[character] else { return 0 }
+
+        return String(character).size(withAttributes: [ .font: context.style.font ]).width * fraction
+    }
+
+    /// The character a line ends on, less the space or newline it broke at.
+    ///
+    /// A line broken inside a word ends on a soft hyphen, which is invisible and has no width; the
+    /// hyphen TextKit draws in its place is what hangs, so that is what is measured.
+    private func hangingCharacter(in range: NSRange) -> Character? {
+        let string = storage.string as NSString
+        var index = min(string.length, range.location + range.length) - 1
+
+        while index > range.location, Self.isBlank(string.character(at: index)) { index -= 1 }
+
+        guard index >= range.location, index < string.length else { return nil }
+
+        let character = string.character(at: index)
+
+        guard character != Self.softHyphen else { return "-" }
+        guard let scalar = Unicode.Scalar(character) else { return nil }
+
+        return Character(scalar)
+    }
+
+    /// How much of a character may sit outside the measure, against its own width.
+    ///
+    /// A hyphen is a bar through the middle of a wide blank, so most of it hangs. A full stop and a
+    /// comma sit low and small and hang nearly as far. A question mark is tall and dark enough to read
+    /// as part of the edge, so it barely moves.
+    private static let hangs: [Character: CGFloat] = [
+        "-": 0.6, "\u{2010}": 0.6, "–": 0.45, "—": 0.3,
+        ".": 0.55, ",": 0.55, "…": 0.3, ":": 0.35, ";": 0.4,
+        "!": 0.25, "?": 0.2,
+        "»": 0.3, "”": 0.35, "’": 0.45, "\"": 0.35, "'": 0.45, ")": 0.15, "]": 0.15,
+    ]
 
     /// True where the line breaks a word, so TextKit is drawing a hyphen at the end of it.
     private func endsOnSoftHyphen(_ line: Line) -> Bool {

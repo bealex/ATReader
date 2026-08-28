@@ -108,6 +108,17 @@ Two rules shape the result:
   the font's on the lines TextKit could fill and stretched on the rest.
 - **A line that still can't be filled is left short.** A line standing under its measure reads; words
   pulled to pieces don't.
+- **A line ending in a hyphen or a comma sets that mark outside the measure.** Those marks are mostly
+  the white space around them, so an edge that lines them up with the letters reads as notched wherever
+  one falls. Hanging a fraction of the mark past the margin puts the letters back on the line the rest
+  of the column keeps. A fraction, not the whole character: hang a comma entirely and the edge bulges
+  where the commas are.
+
+Hanging is why a line ending in punctuation is set here at all. Only a line the app sets itself can put
+a character outside the measure, so those lines join the crowded ones and the speech lines on this
+path, whatever TextKit made of them. A line ending in a letter needs no hang and keeps TextKit's
+setting. TextKit draws the hyphen a line breaks on rather than storing it, so the measurement takes
+that hyphen's width. The soft hyphen standing in the text has none.
 
 ## Cutting the column into pages
 
