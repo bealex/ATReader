@@ -19,6 +19,10 @@ import UIKit
 ///
 /// So the book is measured in one pass, in order from its first chapter, and every chapter keeps the
 /// place that pass gave it however the reader arrives at it.
+///
+/// The pass is kept. Each measurement is filed under the chain hash, which says the book is the same
+/// book up to that chapter, and a fingerprint of the setting it was made at. A book reopened unchanged
+/// reads its measurements back instead of laying every chapter out again.
 @MainActor
 final class BookPagination {
     /// Where one chapter sits: how much of its first page the chapter before it already used, and how
@@ -33,10 +37,18 @@ final class BookPagination {
 
     let context: ChapterLayout.Context
 
+    private let workId: Int
+    private let store: LocalStore
+    /// The setting these measurements were made at, and the only one they are good for.
+    private let style: String
+
     private var placements: [Int: Placement] = [:]
 
-    private init(context: ChapterLayout.Context) {
+    private init(workId: Int, context: ChapterLayout.Context, store: LocalStore) {
+        self.workId = workId
         self.context = context
+        self.store = store
+        self.style = context.fingerprint
     }
 
     /// Measures every chapter in order.
@@ -52,17 +64,24 @@ final class BookPagination {
         store: LocalStore = .shared,
         onProgress: (@MainActor (Double) -> Void)? = nil
     ) async -> BookPagination {
-        let pagination = BookPagination(context: context)
+        let pagination = BookPagination(workId: workId, context: context, store: store)
 
         guard context.isUsable, !chapters.isEmpty else { return pagination }
 
-        let style = context.fingerprint
+        await pagination.measure(chapters: chapters, content: content, onProgress: onProgress)
+        return pagination
+    }
+
+    private func measure(
+        chapters: [ChapterInfo],
+        content: ContentProvider,
+        onProgress: (@MainActor (Double) -> Void)?
+    ) async {
         var startOffset: CGFloat = 0
-        /// This chapter's text folded into every chapter before it, which is exactly what its place in
-        /// the book depends on.
+        // This chapter's text folded into every chapter before it, which is what its place depends on.
         var chain = ""
-        /// False once a chapter turns up that can't be hashed. Nothing after it can be keyed either,
-        /// since the chain no longer stands for everything that came first.
+        // False once a chapter turns up that can't be hashed. Nothing after it can be keyed either,
+        // since the chain no longer stands for everything that came first.
         var chained = true
 
         for (index, chapter) in chapters.enumerated() {
@@ -73,23 +92,11 @@ final class BookPagination {
             // A chapter's hash is one small read and its prepared text is a large one, so the
             // measurement is looked for first. A book reopened unchanged never loads its own text.
             let hash = await store.contentHash(workId: workId, chapterId: chapter.id)
-
             let known = chained ? hash.map { Self.folded(chain, $0) } : nil
 
-            if
-                let known,
-                let cached = await store.placement(
-                    workId: workId,
-                    chapterId: chapter.id,
-                    chain: known,
-                    style: style
-                )
-            {
+            if let known, let cached = await stored(chapter.id, chain: known) {
                 chain = known
-                pagination.placements[chapter.id] = Placement(
-                    startOffset: cached.startOffset,
-                    pageCount: cached.pageCount
-                )
+                placements[chapter.id] = Placement(startOffset: cached.startOffset, pageCount: cached.pageCount)
                 startOffset = cached.nextOffset
                 continue
             }
@@ -97,59 +104,78 @@ final class BookPagination {
             guard
                 let text = await content(chapter.id)
             else {
-                pagination.placements[chapter.id] = Placement(startOffset: startOffset, pageCount: 0)
+                placements[chapter.id] = Placement(startOffset: startOffset, pageCount: 0)
                 startOffset = 0
                 chained = false
                 continue
             }
 
-            // Preparing a chapter is what writes its hash, so a book measured for the first time only
-            // has one to fold in once its text has been through the typesetter.
-            let settled: String?
-
-            if let hash {
-                settled = hash
-            } else {
-                settled = await store.contentHash(workId: workId, chapterId: chapter.id)
-            }
-
-            if chained, let settled {
-                chain = Self.folded(chain, settled)
-            } else {
-                // Nothing after an unhashable chapter can be keyed either: the chain no longer stands
-                // for everything that came before it.
-                chained = false
-            }
-
-            let key = chained ? chain : nil
-
-            // The layout itself is thrown away: all this pass keeps is where the chapter starts and how
-            // far it runs, so a book of any length costs one chapter's memory at a time.
-            let layout = await ChapterLayout.make(
-                chapterId: chapter.id,
-                content: text,
-                heading: ChapterHeading.make(position: index + 1, title: chapter.title),
-                context: context,
-                startOffset: startOffset
+            chained = await fold(&chain, chapterId: chapter.id, known: hash, chained: chained)
+            startOffset = await layOut(
+                chapter,
+                position: index + 1,
+                text: text,
+                from: startOffset,
+                key: chained ? chain : nil
             )
-            let next = Self.startOffset(after: layout, context: context)
+        }
+    }
 
-            pagination.placements[chapter.id] = Placement(startOffset: startOffset, pageCount: layout.pageCount)
+    /// Folds a chapter into the chain once its text has been through the typesetter, which is what
+    /// writes the hash a book being measured for the first time doesn't have yet.
+    private func fold(_ chain: inout String, chapterId: Int, known: String?, chained: Bool) async -> Bool {
+        let settled: String?
 
-            if let key {
-                await store.store(
-                    placement: .init(startOffset: startOffset, pageCount: layout.pageCount, nextOffset: next),
-                    workId: workId,
-                    chapterId: chapter.id,
-                    chain: key,
-                    style: style
-                )
-            }
-
-            startOffset = next
+        if let known {
+            settled = known
+        } else {
+            settled = await store.contentHash(workId: workId, chapterId: chapterId)
         }
 
-        return pagination
+        guard chained, let settled else { return false }
+
+        chain = Self.folded(chain, settled)
+        return true
+    }
+
+    private func stored(_ chapterId: Int, chain: String) async -> LocalStore.StoredPlacement? {
+        await store.placement(workId: workId, chapterId: chapterId, chain: chain, style: style)
+    }
+
+    /// Lays one chapter out to find how far it runs, files the answer where a later run will find it,
+    /// and reports where the chapter after it begins.
+    ///
+    /// The layout itself is thrown away: all this pass keeps is where the chapter starts and how far it
+    /// runs, so a book of any length costs one chapter's memory at a time.
+    private func layOut(
+        _ chapter: ChapterInfo,
+        position: Int,
+        text: ChapterContent,
+        from startOffset: CGFloat,
+        key: String?
+    ) async -> CGFloat {
+        let layout = await ChapterLayout.make(
+            chapterId: chapter.id,
+            content: text,
+            heading: ChapterHeading.make(position: position, title: chapter.title),
+            context: context,
+            startOffset: startOffset
+        )
+        let next = Self.startOffset(after: layout, context: context)
+
+        placements[chapter.id] = Placement(startOffset: startOffset, pageCount: layout.pageCount)
+
+        if let key {
+            await store.store(
+                placement: .init(startOffset: startOffset, pageCount: layout.pageCount, nextOffset: next),
+                workId: workId,
+                chapterId: chapter.id,
+                chain: key,
+                style: style
+            )
+        }
+
+        return next
     }
 
     /// One chapter's text folded into everything before it.
