@@ -98,11 +98,7 @@ enum ReaderScreen {
             pageArea($model)
                 .overlay {
                     if let progress = model.paginationProgress {
-                        ProgressView(value: progress) { Text("Setting the pages…") }
-                            .progressViewStyle(.linear)
-                            .padding(.horizontal, 44)
-                            .accessibilityIdentifier("reader.pagination")
-                            .accessibilityLabel("Setting the pages")
+                        paginationCard(progress)
                     } else if model.isLoading && model.layout == nil {
                         LoadingOverlay(
                             title: "Loading chapter…",
@@ -113,6 +109,41 @@ enum ReaderScreen {
                         ContentUnavailableView("Couldn’t open", systemImage: "book.closed", description: Text(message))
                     }
                 }
+        }
+
+        /// What the reader sees while the book is being measured.
+        ///
+        /// On a card, because the first page it covers is the title page and a bar drawn straight onto
+        /// the cover is unreadable. The page's own colours rather than a material, which would follow
+        /// the system's light or dark instead of the theme the reader chose.
+        private func paginationCard(_ progress: Double) -> some View {
+            VStack(spacing: 12) {
+                Text("Setting the pages…")
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(settings.theme.foreground)
+
+                ProgressView(value: progress)
+                    .progressViewStyle(.linear)
+                    .tint(settings.theme.foreground)
+
+                Text(progress.formatted(.percent.precision(.fractionLength(0))))
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(settings.theme.foreground.opacity(0.55))
+            }
+            .padding(.horizontal, 28)
+            .padding(.vertical, 22)
+            .frame(maxWidth: 280)
+            .background(settings.theme.background, in: .rect(cornerRadius: 18))
+            // A card the same colour as the page needs an edge, the same way the bar above it does.
+            .overlay {
+                RoundedRectangle(cornerRadius: 18)
+                    .strokeBorder(settings.theme.foreground.opacity(0.15), lineWidth: 0.5)
+            }
+            .shadow(color: .black.opacity(0.3), radius: 16, y: 6)
+            .accessibilityElement(children: .ignore)
+            .accessibilityIdentifier("reader.pagination")
+            .accessibilityLabel("Setting the pages")
+            .accessibilityValue(progress.formatted(.percent.precision(.fractionLength(0))))
         }
 
         @ViewBuilder
