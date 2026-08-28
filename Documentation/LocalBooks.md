@@ -114,4 +114,16 @@ The chapter's hash is read before its text, because the hash is one small row an
 a large one. A book reopened unchanged never loads its own text at all: it reads a measurement per
 chapter and lays out only the chapter on screen.
 
+### Rules count as input
+
+What is stored is the output of the rules on the source, so both are in the key. `Typography.version`
+rides in the content hash and `ChapterLayout.rulesVersion` in the style fingerprint, and each is bumped
+by hand whenever a rule changes what comes out.
+
+Without them the cache is a trap rather than a saving. Correcting the dashes changed the prepared text
+without touching a byte of any chapter's source, so every book already on the device would have gone on
+showing the marks and the line breaks an older typesetter chose, with nothing in the source to say it
+was stale. Bumping a version makes every book prepare and measure itself once more, and be quick again
+after that.
+
 Clearing downloads leaves local books alone. The service can send its text again and a file can't.

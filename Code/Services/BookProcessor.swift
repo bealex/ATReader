@@ -147,7 +147,14 @@ actor BookProcessor {
         Self.logger.info("prepared \(done) chapters of work \(workId)")
     }
 
+    /// A chapter's source, hashed together with the rules that will be applied to it.
+    ///
+    /// Both go in because what is stored is the output of one on the other. Hashing the source alone
+    /// left a book that had already been prepared holding text an older typesetter made, with nothing
+    /// in the source to say it was stale.
     private static func hash(_ text: String) -> String {
-        SHA256.hash(data: Data(text.utf8)).map { String(format: "%02x", $0) }.joined()
+        SHA256.hash(data: Data("\(Typography.version)\u{1}\(text)".utf8))
+            .map { String(format: "%02x", $0) }
+            .joined()
     }
 }

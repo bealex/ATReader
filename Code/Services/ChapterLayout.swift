@@ -53,6 +53,7 @@ final class ChapterLayout {
         /// would throw the whole book away every time the reader crossed into the dark.
         var fingerprint: String {
             [
+                ChapterLayout.rulesVersion,
                 style.face.rawValue,
                 style.weight.rawValue,
                 "\(style.fontSize)", "\(style.lineSpacing)", "\(style.letterSpacing)",
@@ -65,6 +66,13 @@ final class ChapterLayout {
 
     /// What a compositor would not allow: line counts, the points a line gap may give or take, and what
     /// breaking a rule costs against letting a page come out the wrong depth.
+    /// Bumped whenever a rule below changes where a line breaks or how far one is opened.
+    ///
+    /// Measurements are kept against the setting they were made at, and the setting alone says nothing
+    /// about the rules that read it. Without this, changing how far a mark hangs would leave every book
+    /// on the device showing the breaks an older layout chose.
+    nonisolated static let rulesVersion = "2"
+
     enum Rules {
         /// Lines that have to follow a heading rather than leaving it stranded at the foot of a page.
         static let linesAfterHeading = 2
