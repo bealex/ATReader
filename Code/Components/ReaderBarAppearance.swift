@@ -14,6 +14,10 @@ extension View {
     /// same colour as the page has no edge without one. `isVisible` is what re-applies the appearance,
     /// since SwiftUI configures the bar itself each time it comes back.
     ///
+    /// The system flipping between light and dark re-applies it too, and has to be watched for rather
+    /// than waited on: on the theme that follows the system, neither the page's colour nor the reader's
+    /// settings change value when it flips, so nothing here would otherwise re-run.
+    ///
     /// The light or dark belongs here rather than in `preferredColorScheme` because that modifier is
     /// applied by overriding the window, and leaving the reader reverts SwiftUI's own side of it without
     /// clearing the window's. The list underneath came back light while the bar and its search field
@@ -66,26 +70,56 @@ private struct ReaderBarAppearance: UIViewControllerRepresentable {
         private var style: UIUserInterfaceStyle = .unspecified
         private var saved: Saved?
 
+        /// True between appearing and disappearing.
+        ///
+        /// SwiftUI goes on updating a representable through a dismissal, so an update can land after the
+        /// bar and the window have been given back. Taking them again then leaves the window pinned to
+        /// the reader's light or dark with nothing on its way to clear it, and a pinned window never
+        /// changes traits, so every bar in the app stops following the system.
+        private var isOnScreen = false
+
         /// Held from the moment the bar is taken over, because a controller on its way out of the stack
         /// has already lost sight of its navigation controller and would restore nothing.
         private weak var takenBar: UINavigationBar?
         private weak var takenWindow: UIWindow?
 
+        override func viewDidLoad() {
+            super.viewDidLoad()
+
+            // The page's colour is the system's own on the theme that follows it, and neither it nor
+            // the reader's settings change value when the system flips. So nothing upstream re-runs,
+            // and the bar would keep the colour it was built with until something else disturbed it.
+            registerForTraitChanges([ UITraitUserInterfaceStyle.self ]) { (controller: Controller, _) in
+                guard controller.isOnScreen else { return }
+
+                controller.apply(background: controller.background, style: controller.style)
+            }
+        }
+
         override func viewDidAppear(_ animated: Bool) {
             super.viewDidAppear(animated)
+            isOnScreen = true
             apply(background: background, style: style)
         }
 
         override func viewWillDisappear(_ animated: Bool) {
             super.viewWillDisappear(animated)
+            isOnScreen = false
             restore()
+        }
+
+        /// The window again on the way out, in case an update landed while the dismissal was running.
+        override func viewDidDisappear(_ animated: Bool) {
+            super.viewDidDisappear(animated)
+            isOnScreen = false
+            releaseWindow()
         }
 
         func apply(background: UIColor?, style: UIUserInterfaceStyle) {
             self.background = background
             self.style = style
 
-            if let window = view.window {
+            if isOnScreen, let window = view.window {
                 takenWindow = window
                 window.overrideUserInterfaceStyle = style
             }
@@ -121,8 +155,7 @@ private struct ReaderBarAppearance: UIViewControllerRepresentable {
         /// Every other screen expects the bar the navigation stack gave it, and the window's own light
         /// or dark back.
         private func restore() {
-            takenWindow?.overrideUserInterfaceStyle = .unspecified
-            takenWindow = nil
+            releaseWindow()
 
             guard let navigationBar = takenBar ?? navigationController?.navigationBar, let saved else { return }
 
@@ -135,6 +168,11 @@ private struct ReaderBarAppearance: UIViewControllerRepresentable {
             // rather than as it stood the first time the reader opened.
             self.saved = nil
             takenBar = nil
+        }
+
+        private func releaseWindow() {
+            takenWindow?.overrideUserInterfaceStyle = .unspecified
+            takenWindow = nil
         }
     }
 }
