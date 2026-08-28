@@ -14,6 +14,8 @@ struct CoverImage: View {
     var width: CGFloat = 72
     /// How far into the book the reader is, drawn as a ring on the cover itself.
     var progress: Double?
+    /// True where the book came from a file rather than the service, which the cover says quietly.
+    var isLocal = false
 
     @State
     private var image: UIImage?
@@ -48,6 +50,12 @@ struct CoverImage: View {
                     .padding(4)
             }
         }
+        .overlay(alignment: .topLeading) {
+            if isLocal {
+                FileMark()
+                    .padding(4)
+            }
+        }
         .accessibilityHidden(true)
         .task(id: url) {
             guard let url else { return image = nil }
@@ -67,6 +75,27 @@ struct CoverImage: View {
                 .font(.system(size: width * 0.3))
                 .foregroundStyle(.tertiary)
         }
+    }
+}
+
+/// A book that came from a file rather than from the service.
+///
+/// Smaller than ``ReadingProgressRing`` and set in the opposite corner, because where a book came from
+/// is a footnote beside how far through it the reader is.
+struct FileMark: View {
+    private static let size: CGFloat = 19
+
+    var body: some View {
+        ZStack {
+            Circle()
+                .fill(.thinMaterial)
+
+            Image(systemName: "doc.text.fill")
+                .font(.system(size: 9))
+                .foregroundStyle(.secondary)
+        }
+        .frame(width: Self.size, height: Self.size)
+        .accessibilityHidden(true)
     }
 }
 

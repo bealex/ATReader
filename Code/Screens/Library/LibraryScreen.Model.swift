@@ -67,7 +67,7 @@ extension LibraryScreen {
         private(set) var isOffline = false
 
         /// True while a picked file is being read into the library.
-        private(set) var isImporting = false
+        var isImporting: Bool { BookInbox.shared.isImporting }
 
         /// How far each book still being prepared has got, so the shelf can say so.
         private(set) var processing: [Int: BookProcessor.Progress] = [:]
@@ -166,25 +166,20 @@ extension LibraryScreen {
         /// The book is on the shelf and readable the moment its text is stored. Putting it through the
         /// typesetter happens behind that, so a long book doesn't hold the picker open.
         func importBook(from url: URL) async {
-            isImporting = true
-            errorMessage = nil
-
-            defer { isImporting = false }
-
-            do {
-                let work = try await BookImport.import(from: url)
-                await refreshFromStore()
-                await prepare(workId: work.id)
-            } catch {
-                errorMessage = error.localizedDescription
+            guard
+                let work = await BookInbox.shared.accept(url)
+            else {
+                errorMessage = BookInbox.shared.errorMessage
+                return
             }
+
+            await adoptImported(workId: work.id)
         }
 
-        /// Puts a book through the typesetter behind the shelf, reporting how far it has got.
-        private func prepare(workId: Int) async {
-            let chapters = await store.chapters(workId: workId)
-
-            await BookProcessor.shared.start(workId: workId, chapters: chapters)
+        /// Draws a newly arrived book on the shelf and follows it while it is prepared. Also the way a
+        /// book opened from another app reaches the list.
+        func adoptImported(workId: Int) async {
+            await refreshFromStore()
             watch(workId: workId)
         }
 

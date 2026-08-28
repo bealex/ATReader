@@ -16,6 +16,9 @@ struct ATReaderApp: App {
     @State
     private var settings = ReaderSettings()
 
+    @State
+    private var inbox = BookInbox.shared
+
     @Environment(\.scenePhase)
     private var scenePhase
 
@@ -24,6 +27,12 @@ struct ATReaderApp: App {
             RootScreen.Component()
                 .environment(session)
                 .environment(settings)
+                .environment(inbox)
+                // A book handed over by another app. The library screen may not exist yet, so the
+                // reading-in happens away from it and the shelf picks the book up afterwards.
+                .onOpenURL { url in
+                    Task { await inbox.accept(url) }
+                }
         }
         .backgroundTask(.appRefresh(BackgroundRefresh.taskIdentifier)) {
             await BackgroundRefresh.runSweep(session: session)

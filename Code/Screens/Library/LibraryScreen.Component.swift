@@ -12,6 +12,9 @@ enum LibraryScreen {
         @Environment(SessionStore.self)
         private var session
 
+        @Environment(BookInbox.self)
+        private var inbox
+
         @State
         private var model: Model?
 
@@ -39,6 +42,10 @@ enum LibraryScreen {
             }
             .task {
                 await model?.loadIfNeeded()
+            }
+            .onChange(of: inbox.importedAt) { _, _ in
+                // A book handed over by another app lands in the store rather than in this screen.
+                Task { await model?.refreshFromStore() }
             }
             .onChange(of: path) { _, current in
                 // Reading fills the rings, and only the store knows it. Coming back off a book redraws

@@ -93,6 +93,26 @@ targets:
         ITSAppUsesNonExemptEncryption: false
         UIBackgroundModes:
           - fetch
+        # FB2 has no system type, so the app declares the one it reads. Imported rather than exported:
+        # the format is somebody else's, and this app only claims to open it.
+        UTImportedTypeDeclarations:
+          - UTTypeIdentifier: org.fictionbook.fb2
+            UTTypeDescription: FictionBook 2
+            UTTypeConformsTo:
+              - public.xml
+            UTTypeTagSpecification:
+              public.filename-extension: [ fb2 ]
+              public.mime-type: [ application/x-fictionbook+xml, application/fb2 ]
+        CFBundleDocumentTypes:
+          - CFBundleTypeName: FictionBook 2
+            CFBundleTypeRole: Viewer
+            # Default rather than Owner: the declaration above imports somebody else's format.
+            LSHandlerRank: Default
+            LSItemContentTypes:
+              - org.fictionbook.fb2
+        # The book's text is copied into the store on the way in, so opening the file where it sits is
+        # enough and nothing needs to be duplicated into the app's own container first.
+        LSSupportsOpeningDocumentsInPlace: true
         BGTaskSchedulerPermittedIdentifiers:
           - com.lonelybytes.atreader.refresh
 

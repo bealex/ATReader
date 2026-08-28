@@ -91,7 +91,7 @@ enum WorkScreen {
 
         private func heading(_ model: Model, work: WorkSummary) -> some View {
             HStack(alignment: .top, spacing: 16) {
-                CoverImage(url: work.coverURL, width: 116, progress: work.readingProgress)
+                CoverImage(url: work.coverURL, width: 116, progress: work.readingProgress, isLocal: model.isLocal)
                     .overlay(alignment: .topTrailing) {
                         // A book from a file is on no service shelf, so it carries no shelf mark.
                         if !model.isLocal { libraryMark(model) }

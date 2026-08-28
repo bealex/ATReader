@@ -42,6 +42,21 @@ show.
 A run of `<empty-line/>` collapses to one centred row of stars, which is how the service's own chapters
 mark a scene break.
 
+## Getting a file in
+
+Two ways, one path. The plus button on the shelf opens the picker; a file opened from another app
+arrives through `onOpenURL`. Both go through `BookInbox`, because a file can be handed over while the
+library screen doesn't exist yet, so the reading-in can't live there.
+
+The app declares FB2 in `UTImportedTypeDeclarations` rather than exporting it, since the format is
+somebody else's and this app only claims to read it. That's also why it takes `Default` handler rank
+instead of `Owner`. `LSSupportsOpeningDocumentsInPlace` is on: the text is copied into the store on the
+way past, so nothing needs duplicating into the app's container first.
+
+A book that came from a file says so on its cover, with a small mark in the corner opposite the reading
+ring. It's smaller than the ring on purpose: a book's provenance matters less than how far through it
+the reader is.
+
 ## Numbering
 
 The service numbers works from one upwards. Local books count down from below zero, so the two can

@@ -17,7 +17,12 @@ struct WorkRow: View {
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
-            CoverImage(url: work.coverURL, width: 64, progress: showsProgress ? work.readingProgress : nil)
+            CoverImage(
+                url: work.coverURL,
+                width: 64,
+                progress: showsProgress ? work.readingProgress : nil,
+                isLocal: LocalBooks.isLocal(work.id)
+            )
                 .overlay(alignment: .topTrailing) {
                     if newChapters > 0 {
                         Text(newChapters, format: .number)
