@@ -85,13 +85,14 @@ actor LocalStore {
 
         if let shelf { statement.bind(1, shelf.rawValue) }
 
+        let custom = customSeries()
         var result: [WorkSummary] = []
 
         while statement.step() {
             guard var summary = decode(WorkSummary.self, statement.string(0)) else { continue }
 
             summary.readingProgress = progress(statement.number(1), or: summary.readingProgress)
-            result.append(summary)
+            result.append(filed(summary, by: custom))
         }
 
         return result
@@ -107,7 +108,23 @@ actor LocalStore {
         guard statement.step(), var summary = decode(WorkSummary.self, statement.string(0)) else { return nil }
 
         summary.readingProgress = progress(statement.number(2), or: summary.readingProgress)
-        return StoredWork(summary: summary, tags: decode([ String ].self, statement.string(1)) ?? [])
+        return StoredWork(
+            summary: filed(summary, by: customSeries()),
+            tags: decode([ String ].self, statement.string(1)) ?? []
+        )
+    }
+
+    /// The book under the series the reader filed it in, where they filed it in one.
+    ///
+    /// Applied on the way out rather than written into the book, because the service replaces the whole
+    /// payload every time it answers and would carry the reader's grouping away with it.
+    private func filed(_ summary: WorkSummary, by custom: [Int: CustomSeries]) -> WorkSummary {
+        guard let own = custom[summary.id] else { return summary }
+
+        var result = summary
+        result.seriesTitle = own.series
+        result.seriesOrder = own.order
+        return result
     }
 
     /// How far this device knows the reader has got.
@@ -224,6 +241,61 @@ actor LocalStore {
                 AND id NOT IN (SELECT work_id FROM local_book)
             """
         )
+    }
+
+    // MARK: - Series the reader made
+
+    /// A book's place in a series the reader put together.
+    struct CustomSeries: Sendable, Equatable {
+        let series: String
+        let order: Int
+    }
+
+    /// Every book the reader has filed by hand.
+    ///
+    /// Kept apart from the book itself because the payload is replaced wholesale every time the service
+    /// answers, and a grouping written into it would last until the next refresh.
+    func customSeries() -> [Int: CustomSeries] {
+        guard
+            let statement = Statement(open(), "SELECT work_id, series, sort_order FROM book_series")
+        else { return [:] }
+
+        var result: [Int: CustomSeries] = [:]
+
+        while statement.step() {
+            guard let series = statement.string(1) else { continue }
+
+            result[statement.integer(0)] = CustomSeries(series: series, order: statement.integer(2))
+        }
+
+        return result
+    }
+
+    /// Files a run of books as one series, in the order given.
+    func store(series: String, workIds: [Int]) {
+        let query = """
+            INSERT INTO book_series (work_id, series, sort_order) VALUES (?, ?, ?)
+            ON CONFLICT(work_id) DO UPDATE SET series = excluded.series, sort_order = excluded.sort_order
+            """
+
+        transaction {
+            guard let statement = Statement(open(), query) else { return }
+
+            for (index, workId) in workIds.enumerated() {
+                statement.reset()
+                statement.bind(1, workId)
+                statement.bind(2, series)
+                statement.bind(3, index)
+                statement.execute()
+            }
+        }
+    }
+
+    /// Gives books back to whatever series the service or the file says they belong to.
+    func removeFromCustomSeries(workIds: [Int]) {
+        let ids = workIds.map(String.init).joined(separator: ",")
+
+        execute("DELETE FROM book_series WHERE work_id IN (\(ids.isEmpty ? "0" : ids))")
     }
 
     // MARK: - Books this device owns
@@ -650,10 +722,23 @@ actor LocalStore {
         createWorkTable()
         createChapterTables()
         createPositionTable()
+        createSeriesTable()
         createLocalBookTable()
         createContentTable()
         createPlacementTable()
         repairProgress()
+    }
+
+    private func createSeriesTable() {
+        execute(
+            """
+            CREATE TABLE IF NOT EXISTS book_series (
+                work_id INTEGER PRIMARY KEY,
+                series TEXT NOT NULL,
+                sort_order INTEGER NOT NULL
+            )
+            """
+        )
     }
 
     private func createLocalBookTable() {

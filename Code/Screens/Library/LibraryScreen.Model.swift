@@ -17,6 +17,8 @@ extension LibraryScreen {
             let works: [WorkSummary]
             /// The last time any book here gained anything, which is what orders the list.
             let updated: Date
+            /// True where the reader put this series together themselves.
+            var isCustom = false
         }
 
         /// What the list is showing. The service's shelves say nothing dependable about where a reader
@@ -57,6 +59,19 @@ extension LibraryScreen {
 
         var filter: Filter = .reading
         var searchText = ""
+
+        /// True while the shelf is picking books out rather than opening them.
+        var isSelecting = false {
+            didSet {
+                if !isSelecting { selection = [] }
+            }
+        }
+
+        var selection: Set<Int> = []
+
+        /// The names of the series the reader put together, which are kept in the order they chose
+        /// rather than newest first.
+        private(set) var madeSeries: Set<String> = []
 
         private(set) var works: [WorkSummary] = []
         private(set) var isLoading = false
@@ -102,11 +117,16 @@ extension LibraryScreen {
             let series = Dictionary(grouping: visible.filter { $0.series != nil }) { $0.series ?? "" }
 
             let grouped = series.map { title, works in
-                Group(
+                // A series the reader assembled keeps the order they put it in; one the service named
+                // leads with its newest book, which is the one still gaining chapters.
+                let made = madeSeries.contains(title)
+
+                return Group(
                     id: "series:\(title)",
                     series: title,
-                    works: works.sorted(by: Self.withinSeries),
-                    updated: works.map(Self.updated).max() ?? .distantPast
+                    works: works.sorted(by: made ? Self.byChosenOrder : Self.withinSeries),
+                    updated: works.map(Self.updated).max() ?? .distantPast,
+                    isCustom: made
                 )
             }
             let alone = visible.filter { $0.series == nil }.map { work in
@@ -130,6 +150,11 @@ extension LibraryScreen {
             }
 
             return left.title.localizedStandardCompare(right.title) == .orderedDescending
+        }
+
+        /// The order the reader put the series in, first book first.
+        private static func byChosenOrder(_ left: WorkSummary, _ right: WorkSummary) -> Bool {
+            (left.seriesOrder ?? 0) < (right.seriesOrder ?? 0)
         }
 
         /// Newest first, and books the service gives no date for keep a fixed order of their own rather
@@ -158,6 +183,65 @@ extension LibraryScreen {
         func newChapters(for workId: Int) -> Int { newChaptersByWork[workId] ?? 0 }
 
         func dismissError() { errorMessage = nil }
+
+        // MARK: - Series the reader puts together
+
+        /// Files the books picked out as one series, in the order they were listed.
+        ///
+        /// A series already selected brings its books with it, so combining two series and a loose book
+        /// gives one series of everything rather than a series holding a series.
+        func combineSelection(named series: String) async {
+            let name = series.trimmingCharacters(in: .whitespacesAndNewlines)
+
+            guard !name.isEmpty, selection.count > 1 else { return }
+
+            await store.store(series: name, workIds: ordered(selection))
+            isSelecting = false
+            await reloadSeries()
+        }
+
+        /// The picked books in the order the shelf is showing them, so combining keeps what the reader
+        /// can see rather than the order a set happens to iterate in.
+        private func ordered(_ ids: Set<Int>) -> [Int] {
+            groups.flatMap(\.works).map(\.id).filter(ids.contains)
+        }
+
+        func reorder(series: String, workIds: [Int]) async {
+            await store.store(series: series, workIds: workIds)
+            await reloadSeries()
+        }
+
+        /// Gives a series back to whatever the service and the files say, and takes the name off it.
+        func ungroup(series: String) async {
+            let ids = works.filter { $0.series == series }.map(\.id)
+
+            await store.removeFromCustomSeries(workIds: ids)
+            await reloadSeries()
+        }
+
+        private func reloadSeries() async {
+            madeSeries = Set(await store.customSeries().values.map(\.series))
+            await refreshFromStore()
+        }
+
+        func toggle(_ work: WorkSummary) {
+            if selection.contains(work.id) {
+                selection.remove(work.id)
+            } else {
+                selection.insert(work.id)
+            }
+        }
+
+        /// Picking a series picks every book in it, since a series is what the shelf shows as one thing.
+        func toggle(group: Group) {
+            let ids = Set(group.works.map(\.id))
+
+            if ids.isSubset(of: selection) {
+                selection.subtract(ids)
+            } else {
+                selection.formUnion(ids)
+            }
+        }
 
         // MARK: - Books from files
 
@@ -214,6 +298,7 @@ extension LibraryScreen {
         func loadIfNeeded() async {
             guard !hasLoaded else { return }
 
+            madeSeries = Set(await store.customSeries().values.map(\.series))
             await showStoredLibrary()
             await reload()
             await adoptServerPositions()

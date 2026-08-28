@@ -24,6 +24,15 @@ enum LibraryScreen {
         @State
         private var isPickingFile = false
 
+        @State
+        private var isNamingSeries = false
+
+        @State
+        private var seriesName = ""
+
+        @State
+        private var reordering: Model.Group?
+
         var body: some View {
             NavigationStack(path: $path) {
                 Group {
@@ -60,27 +69,11 @@ enum LibraryScreen {
         private func content(_ model: Model) -> some View {
             @Bindable var model = model
 
-            ScrollView {
-                LazyVStack(alignment: .leading, spacing: 14) {
-                    heading(model)
-                    search(model)
-
-                    if model.groups.isEmpty {
-                        empty(model)
-                    } else {
-                        ForEach(model.groups) { group in
-                            if group.series != nil {
-                                seriesCard(model, group: group)
-                            } else if let work = group.works.first {
-                                card { bookRow(model, work: work) }
-                            }
-                        }
-                    }
-                }
-                .padding(.horizontal, 16)
-                .padding(.bottom, 24)
-            }
+            ScrollView { shelf(model) }
             .background(Color(.systemGroupedBackground))
+            .safeAreaInset(edge: .bottom) {
+                if model.isSelecting { selectionBar(model) }
+            }
             .accessibilityIdentifier("library.list")
             .refreshable { await model.reload() }
             .fileImporter(
@@ -105,6 +98,35 @@ enum LibraryScreen {
                 actions: { Button("OK", role: .cancel, action: {}) },
                 message: { Text(model.errorMessage ?? "") }
             )
+            .modifier(
+                SeriesEditing(
+                    model: model,
+                    reordering: $reordering,
+                    isNaming: $isNamingSeries,
+                    name: $seriesName
+                )
+            )
+        }
+
+        private func shelf(_ model: Model) -> some View {
+            LazyVStack(alignment: .leading, spacing: 14) {
+                heading(model)
+                search(model)
+
+                if model.groups.isEmpty {
+                    empty(model)
+                } else {
+                    ForEach(model.groups) { group in
+                        if group.series != nil {
+                            seriesCard(model, group: group)
+                        } else if let work = group.works.first {
+                            card { bookRow(model, work: work) }
+                        }
+                    }
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.bottom, 24)
         }
 
         /// FB2 has no type of its own on the system, so it is named by its extension. XML is offered
@@ -128,11 +150,55 @@ enum LibraryScreen {
 
                 Spacer()
 
+                selectButton(model)
                 addButton(model)
                 filterMenu(model)
             }
             .padding(.top, 8)
             .accessibilityElement(children: .contain)
+        }
+
+        private func selectButton(_ model: Model) -> some View {
+            Button {
+                model.isSelecting.toggle()
+            } label: {
+                Image(systemName: model.isSelecting ? "xmark" : "checklist")
+                    .font(.title3)
+                    .frame(width: 34, height: 34)
+            }
+            .accessibilityIdentifier("library.select")
+            .accessibilityLabel(model.isSelecting ? "Stop picking books" : "Pick books out")
+            .accessibilityHint("Combines the books you pick into one series")
+        }
+
+        /// What the shelf offers while books are being picked out.
+        private func selectionBar(_ model: Model) -> some View {
+            HStack {
+                Text("\(model.selection.count) selected")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+
+                Spacer()
+
+                Button("Combine into a series") {
+                    seriesName = Self.suggestedName(model)
+                    isNamingSeries = true
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(model.selection.count < 2)
+                .accessibilityIdentifier("library.combine")
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+            .background(.bar)
+        }
+
+        /// A series already among the picked books names the new one, since combining usually means
+        /// adding a book to a series that already exists.
+        private static func suggestedName(_ model: Model) -> String {
+            model.groups
+                .first { $0.series != nil && $0.works.contains { model.selection.contains($0.id) } }?
+                .series ?? ""
         }
 
         private func addButton(_ model: Model) -> some View {
@@ -212,7 +278,7 @@ enum LibraryScreen {
         private func seriesCard(_ model: Model, group: Model.Group) -> some View {
             card {
                 VStack(alignment: .leading, spacing: 0) {
-                    seriesHeader(group)
+                    seriesHeader(model, group: group)
 
                     ForEach(Array(group.works.enumerated()), id: \.element.id) { index, work in
                         if index > 0 {
@@ -225,8 +291,12 @@ enum LibraryScreen {
             }
         }
 
-        private func seriesHeader(_ group: Model.Group) -> some View {
+        private func seriesHeader(_ model: Model, group: Model.Group) -> some View {
             HStack(spacing: 8) {
+                if model.isSelecting {
+                    tick(Set(group.works.map(\.id)).isSubset(of: model.selection))
+                }
+
                 Image(systemName: "books.vertical.fill")
                     .font(.caption)
                     .foregroundStyle(.tint)
@@ -245,8 +315,32 @@ enum LibraryScreen {
             .padding(.horizontal, 12)
             .padding(.top, 12)
             .padding(.bottom, 8)
+            .contentShape(.rect)
+            .onTapGesture {
+                guard model.isSelecting else { return }
+
+                model.toggle(group: group)
+            }
+            .contextMenu {
+                if group.isCustom { seriesActions(model, group: group) }
+            }
             .accessibilityElement(children: .combine)
             .accessibilityAddTraits(.isHeader)
+        }
+
+        @ViewBuilder
+        private func seriesActions(_ model: Model, group: Model.Group) -> some View {
+            Button {
+                reordering = group
+            } label: {
+                Label("Reorder books", systemImage: "arrow.up.arrow.down")
+            }
+
+            Button(role: .destructive) {
+                Task { await model.ungroup(series: group.series ?? "") }
+            } label: {
+                Label("Break up this series", systemImage: "rectangle.split.3x1")
+            }
         }
 
         private func card(@ViewBuilder _ content: () -> some View) -> some View {
@@ -258,13 +352,21 @@ enum LibraryScreen {
         /// A button rather than a `NavigationLink`: a link is what draws the disclosure chevron.
         private func bookRow(_ model: Model, work: WorkSummary) -> some View {
             Button {
-                path.append(.work(id: work.id, title: work.title))
+                if model.isSelecting {
+                    model.toggle(work)
+                } else {
+                    path.append(.work(id: work.id, title: work.title))
+                }
             } label: {
-                VStack(alignment: .leading, spacing: 6) {
-                    WorkRow(work: work, showsSeries: false, newChapters: model.newChapters(for: work.id))
+                HStack(spacing: 10) {
+                    if model.isSelecting { tick(model.selection.contains(work.id)) }
 
-                    if let progress = model.processing[work.id] {
-                        preparing(progress)
+                    VStack(alignment: .leading, spacing: 6) {
+                        WorkRow(work: work, showsSeries: false, newChapters: model.newChapters(for: work.id))
+
+                        if let progress = model.processing[work.id] {
+                            preparing(progress)
+                        }
                     }
                 }
                 .padding(12)
@@ -273,6 +375,13 @@ enum LibraryScreen {
             .buttonStyle(.plain)
             .accessibilityAddTraits(.isButton)
             .contextMenu { bookActions(model, work: work) }
+        }
+
+        private func tick(_ isOn: Bool) -> some View {
+            Image(systemName: isOn ? "checkmark.circle.fill" : "circle")
+                .font(.title3)
+                .foregroundStyle(isOn ? AnyShapeStyle(.tint) : AnyShapeStyle(.tertiary))
+                .accessibilityHidden(true)
         }
 
         /// A book being put through the typesetter says so. It is readable while this runs.
@@ -316,6 +425,81 @@ enum LibraryScreen {
                 .padding(.top, 40)
             }
         }
+    }
+}
+
+/// Naming a new series and reordering an existing one, kept off the shelf's own body.
+private struct SeriesEditing: ViewModifier {
+    let model: LibraryScreen.Model
+
+    @Binding var reordering: LibraryScreen.Model.Group?
+    @Binding var isNaming: Bool
+    @Binding var name: String
+
+    func body(content: Content) -> some View {
+        content
+            .sheet(item: $reordering) { group in
+                SeriesOrder(group: group) { ids in
+                    Task { await model.reorder(series: group.series ?? "", workIds: ids) }
+                }
+            }
+            .alert("Name this series", isPresented: $isNaming) {
+                TextField("Series name", text: $name)
+                Button("Combine") {
+                    Task { await model.combineSelection(named: name) }
+                }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("The books you picked are shown together under this name.")
+            }
+    }
+}
+
+/// The books of one series, dragged into the order they should be read in.
+///
+/// The order is only written when the reader is done, so a drag that turns out wrong costs nothing.
+struct SeriesOrder: View {
+    let group: LibraryScreen.Model.Group
+    let onSave: ([Int]) -> Void
+
+    @Environment(\.dismiss)
+    private var dismiss
+
+    @State
+    private var works: [WorkSummary] = []
+
+    var body: some View {
+        NavigationStack {
+            List {
+                ForEach(works) { work in
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(work.title)
+
+                        Text(work.authorLine)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    .accessibilityElement(children: .combine)
+                }
+                .onMove { picked, destination in works.move(fromOffsets: picked, toOffset: destination) }
+            }
+            .environment(\.editMode, .constant(.active))
+            .navigationTitle(group.series ?? "")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") {
+                        onSave(works.map(\.id))
+                        dismiss()
+                    }
+                    .accessibilityIdentifier("series.done")
+                }
+            }
+        }
+        .onAppear { works = group.works }
     }
 }
 

@@ -137,6 +137,17 @@
         }
       }
     },
+    "%lld selected": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Выбрано: %lld"
+          }
+        }
+      }
+    },
     "@%@": {
       "extractionState": "manual",
       "shouldTranslate": false
@@ -333,6 +344,17 @@
         }
       }
     },
+    "Break up this series": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Разделить серию"
+          }
+        }
+      }
+    },
     "Building the chart…": {
       "extractionState": "manual",
       "localizations": {
@@ -432,6 +454,39 @@
           "stringUnit": {
             "state": "translated",
             "value": "Закрыть"
+          }
+        }
+      }
+    },
+    "Combine": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Объединить"
+          }
+        }
+      }
+    },
+    "Combine into a series": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Объединить в серию"
+          }
+        }
+      }
+    },
+    "Combines the books you pick into one series": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Объединяет выбранные книги в одну серию"
           }
         }
       }
@@ -1082,6 +1137,17 @@
         }
       }
     },
+    "Name this series": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Название серии"
+          }
+        }
+      }
+    },
     "New York": {
       "extractionState": "manual",
       "shouldTranslate": false
@@ -1262,6 +1328,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Пароль"
+          }
+        }
+      }
+    },
+    "Pick books out": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Выбрать книги"
           }
         }
       }
@@ -1486,6 +1563,17 @@
         }
       }
     },
+    "Reorder books": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Изменить порядок"
+          }
+        }
+      }
+    },
     "Restoring your session": {
       "extractionState": "manual",
       "localizations": {
@@ -1615,6 +1703,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Сепия"
+          }
+        }
+      }
+    },
+    "Series name": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Название серии"
           }
         }
       }
@@ -1839,6 +1938,17 @@
         }
       }
     },
+    "Stop picking books": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Закончить выбор"
+          }
+        }
+      }
+    },
     "Submits your sign-in details": {
       "extractionState": "manual",
       "localizations": {
@@ -1912,6 +2022,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Это не подходящий файл FB2: %@"
+          }
+        }
+      }
+    },
+    "The books you picked are shown together under this name.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Выбранные книги будут показаны вместе под этим названием."
           }
         }
       }

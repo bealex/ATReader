@@ -18,8 +18,10 @@ struct WorkSummary: Codable, Identifiable, Hashable, Sendable {
     let authorLine: String
     let coverURL: URL?
     let annotation: String?
-    let seriesTitle: String?
-    let seriesOrder: Int?
+    /// The series the book is filed under. The service's own, unless the reader has put the book in a
+    /// series of their making, which outlives every refresh because it is kept in a table of its own.
+    var seriesTitle: String?
+    var seriesOrder: Int?
 
     let textLength: Int?
     let likeCount: Int?
