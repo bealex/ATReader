@@ -23,18 +23,18 @@ struct WorkRow: View {
                 progress: showsProgress ? work.readingProgress : nil,
                 isLocal: LocalBooks.isLocal(work.id)
             )
-                .overlay(alignment: .topTrailing) {
-                    if newChapters > 0 {
-                        Text(newChapters, format: .number)
-                            .font(.caption2.bold())
-                            .foregroundStyle(.white)
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 2)
-                            .background(Color.red, in: .capsule)
-                            .offset(x: 6, y: -6)
-                            .accessibilityHidden(true)
-                    }
+            .overlay(alignment: .topTrailing) {
+                if newChapters > 0 {
+                    Text(newChapters, format: .number)
+                        .font(.caption2.bold())
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(Color.red, in: .capsule)
+                        .offset(x: 6, y: -6)
+                        .accessibilityHidden(true)
                 }
+            }
 
             VStack(alignment: .leading, spacing: 4) {
                 Text(work.title)
