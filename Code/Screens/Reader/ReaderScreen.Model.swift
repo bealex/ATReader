@@ -94,6 +94,14 @@ extension ReaderScreen {
         @ObservationIgnored
         private var paginating: Task<Void, Never>?
 
+        /// The pass measuring the rest of the book behind the reader.
+        @ObservationIgnored
+        private var backgroundMeasuring: Task<Void, Never>?
+
+        /// Nothing heavy runs before this moment. Pushed forward by every page turn.
+        @ObservationIgnored
+        private var quietUntil: Date = .distantPast
+
         @ObservationIgnored
         private var sessionId: String?
 
@@ -288,6 +296,8 @@ extension ReaderScreen {
             pagination = nil
             paginating?.cancel()
             paginating = nil
+            backgroundMeasuring?.cancel()
+            backgroundMeasuring = nil
         }
 
         // MARK: - Opening the book
@@ -417,7 +427,7 @@ extension ReaderScreen {
         }
 
         private func load(chapterId: Int, anchor: PageAnchor) async {
-            await measureBook()
+            await measureBook(through: chapterId)
 
             guard
                 let content = await content(for: chapterId)
@@ -442,42 +452,91 @@ extension ReaderScreen {
             guard let built else { return }
 
             install(built, anchor: anchor)
+            measureTheRest()
         }
 
-        /// Measures the whole book, once for each style and page size.
+        /// Measures as much of the book as it takes to put the reader on a page, and no more.
         ///
-        /// Every chapter's place comes from this one pass, so a chapter opened from the contents sits
-        /// exactly where it will sit when the reader later reads into it from the chapter before.
+        /// Every chapter's place comes from one pass in order, so a chapter opened from the contents
+        /// sits exactly where it will sit when the reader later reads into it from the chapter before.
         /// Working each chapter out as it was reached was what moved the text under the reader.
-        private func measureBook() async {
-            if let running = paginating { return await running.value }
+        ///
+        /// A chapter's place depends on every chapter before it and on none of the ones after, so the
+        /// run ending at the one being opened is enough to start reading. The chapter after it is
+        /// measured too, since whether it begins on this chapter's last page has to be settled before
+        /// the reader can turn onto that page.
+        private func measureBook(through chapterId: Int) async {
+            guard let context, !readableChapters.isEmpty else { return }
 
-            guard pagination == nil, let context, !readableChapters.isEmpty else { return }
+            if pagination == nil { pagination = BookPagination.make(workId: workId, context: context) }
 
             let chapters = readableChapters
-            let task = Task { [weak self] in
-                guard let self else { return }
+            let index = chapters.firstIndex { $0.id == chapterId } ?? 0
+            let needed = min(index + 2, chapters.count)
 
-                let built = await BookPagination.make(
-                    workId: self.workId,
+            guard let pagination, pagination.measured < needed else { return }
+
+            if let running = paginating { return await running.value }
+
+            let task = Task { [weak self] in
+                await pagination.measure(
                     chapters: chapters,
-                    context: context,
+                    through: needed,
                     content: { [weak self] in await self?.storedContent(for: $0) },
                     onProgress: { [weak self] value in self?.paginationProgress = value }
                 )
-
-                self.paginationProgress = nil
-
-                // The style may have moved on while the book was being measured.
-                guard context == self.context else { return }
-
-                self.pagination = built
+                self?.paginationProgress = nil
             }
 
             paginating = task
             await task.value
             paginating = nil
         }
+
+        /// Measures what is left of the book behind the reader, who is already reading it.
+        ///
+        /// One chapter at a time at utility priority, and never while a page is turning. Laying a
+        /// chapter out runs on the main actor, so a chapter measured mid-turn takes its frames from the
+        /// animation, and the turn is the one thing in the reader that has to stay smooth.
+        private func measureTheRest() {
+            guard
+                backgroundMeasuring == nil,
+                let pagination,
+                let context,
+                !pagination.hasMeasuredEverything(of: readableChapters)
+            else { return }
+
+            let chapters = readableChapters
+
+            backgroundMeasuring = Task(priority: .utility) { [weak self] in
+                while !pagination.hasMeasuredEverything(of: chapters) {
+                    guard !Task.isCancelled, let self, context == self.context else { break }
+
+                    await self.waitOutTheTurn()
+                    await pagination.measure(
+                        chapters: chapters,
+                        through: pagination.measured + 1,
+                        content: { [weak self] in await self?.storedContent(for: $0) }
+                    )
+                }
+
+                self?.backgroundMeasuring = nil
+            }
+        }
+
+        /// Stands the background pass off while a page is turning, and for a moment afterwards so a
+        /// reader turning steadily is never measured against.
+        private func waitOutTheTurn() async {
+            while Date.now < quietUntil {
+                try? await Task.sleep(for: .milliseconds(100))
+            }
+        }
+
+        /// Called as a turn begins. Nothing heavy runs until the animation has had the main actor to
+        /// itself and the reader has had a moment to start another turn.
+        func noteTurn() { quietUntil = .now.addingTimeInterval(Self.quietAfterTurn) }
+
+        private static let quietAfterTurn: TimeInterval = 0.6
 
         private func install(_ built: ChapterLayout, anchor: PageAnchor) {
             layouts[built.chapterId] = built

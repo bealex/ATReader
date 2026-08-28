@@ -114,6 +114,17 @@ The chapter's hash is read before its text, because the hash is one small row an
 a large one. A book reopened unchanged never loads its own text at all: it reads a measurement per
 chapter and lays out only the chapter on screen.
 
+Measuring starts when a book is opened and gets no further than it must. A chapter's place depends on
+every chapter before it and on none of the ones after, so the run ending at the chapter being opened is
+enough to put the reader on a page. The chapter after that one is measured too, since whether it begins
+on this chapter's last page has to be settled before the reader can turn onto that page. Opening at the
+first chapter therefore measures two, whatever the length of the book.
+
+The rest follows behind the reader, a chapter at a time at utility priority, and never while a page is
+turning. Laying a chapter out runs on the main actor, so a chapter measured mid-turn would take its
+frames from the animation. Every turn pushes the background pass off for a moment, which also keeps it
+off a reader turning steadily rather than letting it in between two quick turns.
+
 ### Rules count as input
 
 What is stored is the output of the rules on the source, so both are in the key. `Typography.version`

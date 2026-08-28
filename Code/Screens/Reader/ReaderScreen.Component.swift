@@ -158,7 +158,10 @@ enum ReaderScreen {
                 onPastEnd: value.goToNextChapter,
                 onPastStart: value.goToPreviousChapter,
                 onMiddleTap: toggleChrome,
-                onTurnStarted: hideChrome,
+                onTurnStarted: {
+                    hideChrome()
+                    value.noteTurn()
+                },
                 page: { index in pageContent(value, at: index) }
             )
             .accessibilityIdentifier("reader.page")

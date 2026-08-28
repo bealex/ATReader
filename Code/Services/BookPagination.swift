@@ -44,6 +44,18 @@ final class BookPagination {
 
     private var placements: [Int: Placement] = [:]
 
+    /// How many chapters from the front have been measured. The pass can stop anywhere and carry on
+    /// from here, which is what lets a book be opened before all of it has been measured.
+    private(set) var measured = 0
+
+    /// Where the next chapter starts, carried between runs.
+    private var startOffset: CGFloat = 0
+    /// The last chapter's text folded into every chapter before it, which is what its place depends on.
+    private var chain = ""
+    /// False once a chapter turns up that can't be hashed. Nothing after it can be keyed either, since
+    /// the chain no longer stands for everything that came first.
+    private var chained = true
+
     private init(workId: Int, context: ChapterLayout.Context, store: LocalStore) {
         self.workId = workId
         self.context = context
@@ -51,43 +63,43 @@ final class BookPagination {
         self.style = context.fingerprint
     }
 
-    /// Measures every chapter in order.
+    /// A book with nothing measured yet.
+    static func make(workId: Int, context: ChapterLayout.Context, store: LocalStore = .shared) -> BookPagination {
+        BookPagination(workId: workId, context: context, store: store)
+    }
+
+    /// True once every chapter has a place.
+    func hasMeasuredEverything(of chapters: [ChapterInfo]) -> Bool { measured >= chapters.count }
+
+    /// Measures chapters in order until `count` of them are done, carrying on from wherever the last
+    /// run stopped.
     ///
     /// Only text the device already holds is measured. Fetching a whole book to find out where its pages
     /// fall would turn opening one chapter into a download of all of them, so a chapter that isn't here
     /// yet ends the run-on instead and the chapter after it starts a page of its own.
-    static func make(
-        workId: Int,
+    ///
+    /// A chapter's place depends on every chapter before it and on none of the ones after, so a prefix
+    /// is enough to put the reader on a page and the rest can follow behind them.
+    func measure(
         chapters: [ChapterInfo],
-        context: ChapterLayout.Context,
+        through count: Int,
         content: ContentProvider,
-        store: LocalStore = .shared,
         onProgress: (@MainActor (Double) -> Void)? = nil
-    ) async -> BookPagination {
-        let pagination = BookPagination(workId: workId, context: context, store: store)
-
-        guard context.isUsable, !chapters.isEmpty else { return pagination }
-
-        await pagination.measure(chapters: chapters, content: content, onProgress: onProgress)
-        return pagination
-    }
-
-    private func measure(
-        chapters: [ChapterInfo],
-        content: ContentProvider,
-        onProgress: (@MainActor (Double) -> Void)?
     ) async {
-        var startOffset: CGFloat = 0
-        // This chapter's text folded into every chapter before it, which is what its place depends on.
-        var chain = ""
-        // False once a chapter turns up that can't be hashed. Nothing after it can be keyed either,
-        // since the chain no longer stands for everything that came first.
-        var chained = true
+        guard context.isUsable else { return }
 
-        for (index, chapter) in chapters.enumerated() {
-            guard !Task.isCancelled else { break }
+        let target = min(count, chapters.count)
 
-            defer { onProgress?(Double(index + 1) / Double(chapters.count)) }
+        while measured < target {
+            let index = measured
+            let chapter = chapters[index]
+
+            guard !Task.isCancelled else { return }
+
+            defer {
+                measured = index + 1
+                onProgress?(Double(index + 1) / Double(target))
+            }
 
             // A chapter's hash is one small read and its prepared text is a large one, so the
             // measurement is looked for first. A book reopened unchanged never loads its own text.
@@ -110,7 +122,7 @@ final class BookPagination {
                 continue
             }
 
-            chained = await fold(&chain, chapterId: chapter.id, known: hash, chained: chained)
+            chained = await fold(chapterId: chapter.id, known: hash, chained: chained)
             startOffset = await layOut(
                 chapter,
                 position: index + 1,
@@ -123,7 +135,7 @@ final class BookPagination {
 
     /// Folds a chapter into the chain once its text has been through the typesetter, which is what
     /// writes the hash a book being measured for the first time doesn't have yet.
-    private func fold(_ chain: inout String, chapterId: Int, known: String?, chained: Bool) async -> Bool {
+    private func fold(chapterId: Int, known: String?, chained: Bool) async -> Bool {
         let settled: String?
 
         if let known {
