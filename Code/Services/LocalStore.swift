@@ -255,6 +255,22 @@ actor LocalStore {
         return LocalBooks.sequence(workId: Int(lowest)) + 1
     }
 
+    /// Drops every chapter of a book that isn't in the list, text and prepared text with it.
+    ///
+    /// A corrected file can be shorter than the one it replaces. Storing its chapters only writes the
+    /// ones it has, so without this the chapters it dropped would stay in the contents for good.
+    func removeChapters(workId: Int, keeping ids: [Int]) {
+        let kept = ids.map(String.init).joined(separator: ",")
+        let list = kept.isEmpty ? "0" : kept
+
+        transaction {
+            for table in [ "chapter_body", "chapter_content", "chapter" ] {
+                let column = table == "chapter" ? "id" : "chapter_id"
+                execute("DELETE FROM \(table) WHERE work_id = \(workId) AND \(column) NOT IN (\(list))")
+            }
+        }
+    }
+
     func isLocalBook(id: Int) -> Bool {
         guard let statement = Statement(open(), "SELECT 1 FROM local_book WHERE work_id = ?") else { return false }
 

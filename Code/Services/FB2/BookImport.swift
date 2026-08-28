@@ -35,8 +35,13 @@ enum BookImport {
         let cover = write(cover: book.cover, workId: workId)
         let summary = summary(book, workId: workId, coverURL: cover, existing: await store.work(id: workId)?.summary)
 
+        let contents = chapters(book, workId: workId)
+
         await store.store(work: summary, tags: [])
-        await store.store(chapters: chapters(book, workId: workId), workId: workId)
+        await store.store(chapters: contents, workId: workId)
+        // A corrected file can be shorter than the one it replaces, and the chapters it dropped would
+        // otherwise stay in the contents.
+        await store.removeChapters(workId: workId, keeping: contents.map(\.id))
 
         for (index, section) in book.sections.enumerated() {
             await store.store(
