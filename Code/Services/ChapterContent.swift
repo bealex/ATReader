@@ -31,10 +31,7 @@ struct ChapterContent: Codable, Sendable {
                     id: paragraph.id,
                     // The dashes are put right first: binding reads them, and so does the layout when
                     // it decides which lines open on the dash of speech.
-                    text: Typography.bound(
-                        Typography.dashes(paragraph.text, language: language),
-                        language: language
-                    ),
+                    text: Typography.bound(Typography.dashes(paragraph.text, language: language), language: language),
                     isCentered: paragraph.isCentered
                 )
             }

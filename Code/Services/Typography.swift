@@ -121,14 +121,12 @@ extension Typography {
                 continue
             }
 
-            result.append(
-                dash(
-                    character,
-                    before: index > 0 ? characters[index - 1] : nil,
-                    after: index + 1 < characters.count ? characters[index + 1] : nil,
-                    russian: russian
-                )
-            )
+            result.append(dash(
+                character,
+                before: index > 0 ? characters[index - 1] : nil,
+                after: index + 1 < characters.count ? characters[index + 1] : nil,
+                russian: russian
+            ))
         }
 
         return result
