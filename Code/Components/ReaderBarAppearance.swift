@@ -128,11 +128,7 @@ private struct ReaderBarAppearance: UIViewControllerRepresentable {
             // On screen, for the bar as much as for the window. An update landing during a pop would
             // otherwise take the bar back after it had been given up, with nothing left on the way out
             // to return it, and the screen underneath kept the reader's colour.
-            guard
-                isOnScreen,
-                let background,
-                let navigationBar = navigationController?.navigationBar
-            else { return }
+            guard isOnScreen, let background, let navigationBar = navigationController?.navigationBar else { return }
 
             takenBar = navigationBar
 
