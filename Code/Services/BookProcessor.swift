@@ -118,11 +118,7 @@ actor BookProcessor {
 
             let contentHash = Self.hash(body.html)
             let chainHash = Self.hash(chain + contentHash)
-            let cached = await store.preparedChapter(
-                workId: workId,
-                chapterId: chapter.id,
-                contentHash: contentHash
-            )
+            let cached = await store.preparedChapter(workId: workId, chapterId: chapter.id, contentHash: contentHash)
 
             chain = chainHash
 

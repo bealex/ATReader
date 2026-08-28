@@ -207,7 +207,8 @@ enum FB2Parser {
         }
 
         private func endAuthor() {
-            let name = [ "first-name", "middle-name", "last-name" ]
+            let name =
+                [ "first-name", "middle-name", "last-name" ]
                 .compactMap { authorParts[$0]?.nilWhenEmpty }
                 .joined(separator: " ")
                 .nilWhenEmpty ?? authorParts["nickname"]?.nilWhenEmpty
@@ -281,7 +282,6 @@ enum FB2Parser {
         /// title set as several paragraphs keeps the rest of itself.
         private func addTitleLine() {
             guard !open.isEmpty, let line = text.trimmed.nilWhenEmpty else { return }
-
             guard
                 open[open.count - 1].title == nil
             else {

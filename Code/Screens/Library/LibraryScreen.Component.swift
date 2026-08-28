@@ -290,10 +290,7 @@ enum LibraryScreen {
             Button(role: .destructive) {
                 Task { await model.remove(work) }
             } label: {
-                Label(
-                    model.isLocal(work) ? "Delete this book" : "Remove from library",
-                    systemImage: "trash"
-                )
+                Label(model.isLocal(work) ? "Delete this book" : "Remove from library", systemImage: "trash")
             }
         }
 
