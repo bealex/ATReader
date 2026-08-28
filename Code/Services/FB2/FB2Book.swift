@@ -35,10 +35,14 @@ struct FB2Book: Sendable {
 
     /// What this book is filed under, so a corrected file replaces the book it corrects.
     ///
-    /// The file's own identifier where it has one, and the title and author where it doesn't. Hashing
-    /// the bytes instead would file every corrected copy as a new book.
+    /// The file's own identifier and the book's name, rather than either alone. Hashing the bytes would
+    /// file every corrected copy as a new book, and the identifier by itself trusts a field that some
+    /// files get wrong: filing two different books as one loses the text of the first, where filing one
+    /// book twice leaves a duplicate the reader can see and delete.
     var fingerprint: String {
-        identifier.map { "fb2:id:\($0)" } ?? "fb2:name:\(title)|\(authors.joined(separator: ","))"
+        let name = "\(title)|\(authors.joined(separator: ","))"
+
+        return identifier.map { "fb2:id:\($0)|\(name)" } ?? "fb2:name:\(name)"
     }
 
     var authorLine: String {

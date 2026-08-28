@@ -44,6 +44,9 @@ enum FB2Parser {
         private var region: Region = .none
         /// Element names from the document root down, which is how a rule asks where it is.
         private var path: [String] = []
+        /// The element the one being closed sits inside. Several elements share a name at different
+        /// depths, and taking the wrong one silently files two books as one.
+        private var parent: String? { path.count >= 2 ? path[path.count - 2] : nil }
         private var text = ""
 
         private var bookTitle: String?
@@ -162,7 +165,10 @@ enum FB2Parser {
 
             switch region {
                 case .titleInfo: endTitleInfoElement(element)
-                case .documentInfo where element == "id": documentId = text.trimmed.nilWhenEmpty
+                // The document's own id, not the one inside `<publisher>`. Those files carry both, and
+                // the publisher's is the same in every book it ever published.
+                case .documentInfo where element == "id" && parent == "document-info":
+                    documentId = text.trimmed.nilWhenEmpty
                 case .body: endBodyElement(element)
                 default: break
             }
@@ -192,7 +198,8 @@ enum FB2Parser {
                 case "p" where path.contains("annotation"):
                     if let line = text.trimmed.nilWhenEmpty { annotation.append(line) }
                 case "first-name", "middle-name", "last-name", "nickname":
-                    authorParts[element] = text.trimmed
+                    // A translator carries the same name elements as an author, one level along.
+                    if parent == "author" { authorParts[element] = text.trimmed }
                 default: break
             }
         }
