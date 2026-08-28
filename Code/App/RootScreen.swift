@@ -76,7 +76,9 @@ enum RootScreen {
                 Tab("Library", systemImage: "books.vertical.fill") {
                     LibraryScreen.Component()
                 }
-                Tab("Search", systemImage: "magnifyingglass") {
+                // The search role is what puts search on the tab bar itself rather than in a bar above
+                // each screen, which is why the library no longer carries one.
+                Tab("Search", systemImage: "magnifyingglass", role: .search) {
                     SearchScreen.Component()
                 }
                 Tab("Top", systemImage: "chart.bar.fill") {
