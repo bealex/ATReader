@@ -459,6 +459,7 @@ extension ReaderScreen {
                 guard let self else { return }
 
                 let built = await BookPagination.make(
+                    workId: self.workId,
                     chapters: chapters,
                     context: context,
                     content: { [weak self] in await self?.storedContent(for: $0) },

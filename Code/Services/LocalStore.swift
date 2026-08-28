@@ -28,6 +28,15 @@ actor LocalStore {
         let tags: [String]
     }
 
+    /// Where one chapter sat when the book was last measured at a given setting.
+    struct StoredPlacement: Sendable {
+        let startOffset: Double
+        let pageCount: Int
+        /// Where the chapter after this one begins, so a run of cached chapters can carry on without
+        /// laying any of them out.
+        let nextOffset: Double
+    }
+
     /// A chapter's text after the typesetter has been through it, and the hashes that say whether it
     /// is still the text the reader was given.
     struct PreparedChapter: Sendable {
@@ -264,7 +273,7 @@ actor LocalStore {
         let list = kept.isEmpty ? "0" : kept
 
         transaction {
-            for table in [ "chapter_body", "chapter_content", "chapter" ] {
+            for table in [ "chapter_body", "chapter_content", "chapter_placement", "chapter" ] {
                 let column = table == "chapter" ? "id" : "chapter_id"
                 execute("DELETE FROM \(table) WHERE work_id = \(workId) AND \(column) NOT IN (\(list))")
             }
@@ -284,7 +293,7 @@ actor LocalStore {
     /// putting it back doesn't cost a fresh download.
     func removeBook(id: Int) {
         transaction {
-            for table in [ "chapter_body", "chapter_content", "chapter", "reading_position" ] {
+            for table in [ "chapter_body", "chapter_content", "chapter_placement", "chapter", "reading_position" ] {
                 if let statement = Statement(open(), "DELETE FROM \(table) WHERE work_id = ?") {
                     statement.bind(1, id)
                     statement.execute()
@@ -455,22 +464,73 @@ actor LocalStore {
         return PreparedChapter(chapterId: chapterId, contentHash: stored, chainHash: chain, content: content)
     }
 
-    /// Every chain hash this book has stored, so a run can find the first chapter that has moved.
-    func chainHashes(workId: Int) -> [Int: String] {
-        let query = "SELECT chapter_id, chain_hash FROM chapter_content WHERE work_id = ?"
+    /// One chapter's own text hash, which is what a measuring run folds into its chain.
+    func contentHash(workId: Int, chapterId: Int) -> String? {
+        let query = "SELECT content_hash FROM chapter_content WHERE chapter_id = ? AND work_id = ?"
 
-        guard let statement = Statement(open(), query) else { return [:] }
+        guard let statement = Statement(open(), query) else { return nil }
 
-        statement.bind(1, workId)
-        var result: [Int: String] = [:]
+        statement.bind(1, chapterId)
+        statement.bind(2, workId)
 
-        while statement.step() {
-            guard let chain = statement.string(1) else { continue }
+        guard statement.step() else { return nil }
 
-            result[statement.integer(0)] = chain
-        }
+        return statement.string(0)
+    }
 
-        return result
+    // MARK: - Chapters already measured
+
+    /// Where a chapter sat last time the book was measured, if the book and the setting are both still
+    /// the ones it was measured against.
+    func placement(workId: Int, chapterId: Int, chain: String, style: String) -> StoredPlacement? {
+        let query = """
+            SELECT start_offset, page_count, next_offset FROM chapter_placement
+            WHERE chapter_id = ? AND work_id = ? AND chain_hash = ? AND style_hash = ?
+            """
+
+        guard let statement = Statement(open(), query) else { return nil }
+
+        statement.bind(1, chapterId)
+        statement.bind(2, workId)
+        statement.bind(3, chain)
+        statement.bind(4, style)
+
+        guard statement.step(), let start = statement.number(0), let next = statement.number(2) else { return nil }
+
+        return StoredPlacement(startOffset: start, pageCount: statement.integer(1), nextOffset: next)
+    }
+
+    func store(
+        placement: StoredPlacement,
+        workId: Int,
+        chapterId: Int,
+        chain: String,
+        style: String
+    ) {
+        let query = """
+            INSERT INTO chapter_placement
+                (chapter_id, style_hash, work_id, chain_hash, start_offset, page_count, next_offset, stored_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(chapter_id, style_hash) DO UPDATE SET
+                work_id = excluded.work_id,
+                chain_hash = excluded.chain_hash,
+                start_offset = excluded.start_offset,
+                page_count = excluded.page_count,
+                next_offset = excluded.next_offset,
+                stored_at = excluded.stored_at
+            """
+
+        guard let statement = Statement(open(), query) else { return }
+
+        statement.bind(1, chapterId)
+        statement.bind(2, style)
+        statement.bind(3, workId)
+        statement.bind(4, chain)
+        statement.bind(5, placement.startOffset)
+        statement.bind(6, placement.pageCount)
+        statement.bind(7, placement.nextOffset)
+        statement.bind(8, Date.now.timeIntervalSince1970)
+        statement.execute()
     }
 
     func store(prepared: PreparedChapter, workId: Int) {
@@ -494,16 +554,6 @@ actor LocalStore {
         statement.bind(5, encode(prepared.content))
         statement.bind(6, Date.now.timeIntervalSince1970)
         statement.execute()
-    }
-
-    /// How many of a book's chapters are ready to read without being prepared again.
-    func preparedCount(workId: Int) -> Int {
-        guard
-            let statement = Statement(open(), "SELECT COUNT(*) FROM chapter_content WHERE work_id = ?")
-        else { return 0 }
-        guard statement.step() else { return 0 }
-
-        return statement.integer(0)
     }
 
     // MARK: - Reading positions
@@ -555,6 +605,8 @@ actor LocalStore {
     func clearDownloads() {
         execute("DELETE FROM chapter_body WHERE work_id NOT IN (SELECT work_id FROM local_book)")
         execute("DELETE FROM chapter_content WHERE work_id NOT IN (SELECT work_id FROM local_book)")
+        // Measurements are worked out again from text the device still has, so they always go.
+        execute("DELETE FROM chapter_placement")
         execute("VACUUM")
     }
 
@@ -600,6 +652,7 @@ actor LocalStore {
         createPositionTable()
         createLocalBookTable()
         createContentTable()
+        createPlacementTable()
         repairProgress()
     }
 
@@ -613,6 +666,25 @@ actor LocalStore {
             )
             """
         )
+    }
+
+    private func createPlacementTable() {
+        execute(
+            """
+            CREATE TABLE IF NOT EXISTS chapter_placement (
+                chapter_id INTEGER NOT NULL,
+                style_hash TEXT NOT NULL,
+                work_id INTEGER NOT NULL,
+                chain_hash TEXT NOT NULL,
+                start_offset REAL NOT NULL,
+                page_count INTEGER NOT NULL,
+                next_offset REAL NOT NULL,
+                stored_at REAL NOT NULL,
+                PRIMARY KEY (chapter_id, style_hash)
+            )
+            """
+        )
+        execute("CREATE INDEX IF NOT EXISTS placement_by_work ON chapter_placement (work_id)")
     }
 
     private func createContentTable() {

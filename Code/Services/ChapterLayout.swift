@@ -44,6 +44,23 @@ final class ChapterLayout {
         var textSize: CGSize { textRect.size }
 
         var isUsable: Bool { textRect.width > 1 && textRect.height > 1 }
+
+        /// Everything about the setting that moves where a line breaks, as one string.
+        ///
+        /// Measurements a book has already been through are kept against this, so a book reopened at
+        /// the same settings costs a read rather than laying every chapter out again. The text colour
+        /// is deliberately absent: it changes nothing about where anything sits, and including it
+        /// would throw the whole book away every time the reader crossed into the dark.
+        var fingerprint: String {
+            [
+                style.face.rawValue,
+                style.weight.rawValue,
+                "\(style.fontSize)", "\(style.lineSpacing)", "\(style.letterSpacing)",
+                "\(style.justifiesRussian)", "\(style.justifiesEnglish)",
+                "\(margins)", "\(pageSize.width)x\(pageSize.height)",
+                "\(safeArea.top),\(safeArea.leading),\(safeArea.bottom),\(safeArea.trailing)",
+            ].joined(separator: "|")
+        }
     }
 
     /// What a compositor would not allow: line counts, the points a line gap may give or take, and what

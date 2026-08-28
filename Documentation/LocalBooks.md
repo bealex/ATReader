@@ -98,4 +98,20 @@ The walk runs at utility priority and yields between chapters, so a book being p
 a page turn. A book opens on its first chapter as soon as that one chapter is ready; the shelf shows a
 bar under the book while the rest arrives, and it stays readable throughout.
 
+### Measurements
+
+Preparing the text is the cheaper half. The other half is `BookPagination`, which lays out every
+chapter in order to find where each one starts and how many pages it runs to, and that runs whenever a
+book is opened: the pagination lives on the reader's model, which goes when the screen does.
+
+So a measurement is kept too, against two keys. The chain hash says the book is the same book up to
+this chapter, which is what a chapter's start position depends on. A style fingerprint says the setting
+is the same setting: face, weight, size, line and letter spacing, justification, margins, page size and
+safe area. The text colour is deliberately absent, so crossing into the dark doesn't throw the book's
+measurements away.
+
+The chapter's hash is read before its text, because the hash is one small row and the prepared text is
+a large one. A book reopened unchanged never loads its own text at all: it reads a measurement per
+chapter and lays out only the chapter on screen.
+
 Clearing downloads leaves local books alone. The service can send its text again and a file can't.
