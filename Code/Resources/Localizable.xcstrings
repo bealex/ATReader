@@ -1574,6 +1574,17 @@
         }
       }
     },
+    "Reorders the books in this series, or breaks it up": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Меняет порядок книг в серии или разделяет её"
+          }
+        }
+      }
+    },
     "Restoring your session": {
       "extractionState": "manual",
       "localizations": {
@@ -1703,6 +1714,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Сепия"
+          }
+        }
+      }
+    },
+    "Series actions": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Действия с серией"
           }
         }
       }

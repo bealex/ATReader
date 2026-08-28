@@ -306,6 +306,10 @@ enum LibraryScreen {
                 Text("\(group.works.count)")
                     .font(.caption.monospacedDigit())
                     .foregroundStyle(.secondary)
+
+                // A button rather than a long press alone: a series has to say that its order is the
+                // reader's to set, and a context menu says nothing until it is found.
+                if !model.isSelecting { seriesMenu(model, group: group) }
             }
             .padding(.horizontal, 12)
             .padding(.top, 12)
@@ -316,25 +320,42 @@ enum LibraryScreen {
 
                 model.toggle(group: group)
             }
-            .contextMenu {
-                if group.isCustom { seriesActions(model, group: group) }
+            .contextMenu { seriesActions(model, group: group) }
+            .accessibilityElement(children: .contain)
+        }
+
+        private func seriesMenu(_ model: Model, group: Model.Group) -> some View {
+            Menu {
+                seriesActions(model, group: group)
+            } label: {
+                Image(systemName: "ellipsis.circle")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .frame(width: 30, height: 30)
+                    .contentShape(.rect)
             }
-            .accessibilityElement(children: .combine)
-            .accessibilityAddTraits(.isHeader)
+            .accessibilityIdentifier("series.menu")
+            .accessibilityLabel("Series actions")
+            .accessibilityHint("Reorders the books in this series, or breaks it up")
         }
 
         @ViewBuilder
         private func seriesActions(_ model: Model, group: Model.Group) -> some View {
+            // Offered for every series, not only the ones the reader put together. Ordering a series
+            // the service named makes it theirs, which is the answer they wanted anyway.
             Button {
                 reordering = group
             } label: {
                 Label("Reorder books", systemImage: "arrow.up.arrow.down")
             }
 
-            Button(role: .destructive) {
-                Task { await model.ungroup(series: group.series ?? "") }
-            } label: {
-                Label("Break up this series", systemImage: "rectangle.split.3x1")
+            // Only a series the reader made can be broken up; the service's own has nothing to undo.
+            if group.isCustom {
+                Button(role: .destructive) {
+                    Task { await model.ungroup(series: group.series ?? "") }
+                } label: {
+                    Label("Break up this series", systemImage: "rectangle.split.3x1")
+                }
             }
         }
 
