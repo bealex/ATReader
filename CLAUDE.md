@@ -108,6 +108,10 @@ licensing rather than secrecy. An unconfigured build must keep working for every
 - **Reading position never syncs to the service.** `/v1/reader/update-progress` returns 200 and stores
   nothing; see the note in `Documentation/API.md`. The position a device shows comes from `LocalStore`,
   which is the only place it survives. Don't "fix" the call.
+- **A book from a file is numbered below zero.** The service counts works up from one, so imported
+  books count down from minus one and take their chapter ids from a block beneath their own. Ask
+  `LocalBooks.isLocal` before calling the service about a book: its text is on the device and nowhere
+  else, and there's nothing on the other end to answer.
 - **`LocalStore` is one SQLite file and the app's first source for everything.** Books, contents,
   chapter bodies and reading positions live there, and screens draw from it before the service answers.
   A change that only writes to the service leaves the app wrong offline.

@@ -88,12 +88,19 @@ or to all of them, with the count beside each counted through the same rule. The
 service keeps is left doing the one job it does honestly: whether a book is in the library at all. The
 book page adds or removes it, a long press in the list removes it, and nothing else writes it.
 
-Books in a series stand together under its name, latest book first; a book in no series stands on its
-own. A series can carry more than one author, so the author belongs to the row rather than the heading.
-The newest book comes first, by the service's own update time. Reading a book is not a change to it,
-so the list holds still while the reader reads instead of rearranging under them, and books the service
-dates identically keep a fixed order rather than whatever the grouping happened to produce. Rows are buttons rather than
-`NavigationLink`s, which is the only way a `List` row goes without a disclosure chevron.
+The shelf carries no navigation bar. It has room to name itself, and search belongs to the tab bar,
+where the search tab takes the search role. The library keeps a field of its own, because filtering it
+by title isn't the same question as searching the catalogue.
+
+Books in a series stand together in one card, latest book first, so a set reads as a set; a book in no
+series is a card of its own. A series can carry more than one author, so the author belongs to the row
+rather than the card's heading. The newest book comes first, by the service's own update time. Reading
+a book is not a change to it, so the list holds still while the reader reads instead of rearranging
+under them, and books the service dates identically keep a fixed order rather than whatever the
+grouping happened to produce. Rows are buttons rather than `NavigationLink`s, which is the only way a
+row goes without a disclosure chevron.
+
+The plus button reads an FB2 file into the library. See [LocalBooks.md](LocalBooks.md).
 
 How far the reader has got is a ring on the cover, always 30pt across whatever the cover's size, with
 a tick in place of the figure once the book has been read to its end.
@@ -175,7 +182,10 @@ grows.
 
 `LocalStore` is an actor over one SQLite file in Application Support, excluded from backup because
 everything in it is re-fetchable. It holds the books and their shelves, tables of contents, chapter
-bodies and the reading position.
+bodies, chapter text the typesetter has already been through, and the reading position.
+
+One thing in it isn't: a book imported from a file is here and nowhere else. See
+[LocalBooks.md](LocalBooks.md).
 
 Reading positions live here and nowhere else. The service accepts `reader/update-progress` and stores
 nothing (see [API.md](API.md)), so the character offset the store keeps is the only position that

@@ -9,6 +9,7 @@ because it was worked out rather than looked up.
 | [ChapterEncryption.md](ChapterEncryption.md) | Chapter text stops decrypting, or you need to know why decrypted chapters can't be shared between accounts. |
 | [Architecture.md](Architecture.md) | Adding a screen or a service, or wondering where something belongs. |
 | [Reader.md](Reader.md) | Anything about layout, pagination, typography or the page turn. |
+| [LocalBooks.md](LocalBooks.md) | Importing FB2 files, how a local book is numbered, or the cache of already-typeset chapters. |
 | [Testing.md](Testing.md) | Running or writing tests, or a UI test skips when it shouldn't. |
 | [History/](History) | You want the reasoning behind the decisions above, including the dead ends. One file per day. |
 
