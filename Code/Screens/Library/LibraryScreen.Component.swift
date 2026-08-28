@@ -70,42 +70,37 @@ enum LibraryScreen {
             @Bindable var model = model
 
             ScrollView { shelf(model) }
-            .background(Color(.systemGroupedBackground))
-            .safeAreaInset(edge: .bottom) {
-                if model.isSelecting { selectionBar(model) }
-            }
-            .accessibilityIdentifier("library.list")
-            .refreshable { await model.reload() }
-            .fileImporter(
-                isPresented: $isPickingFile,
-                allowedContentTypes: Self.bookTypes,
-                allowsMultipleSelection: true
-            ) { result in
-                guard case let .success(urls) = result else { return }
+                .background(Color(.systemGroupedBackground))
+                .safeAreaInset(edge: .bottom) {
+                    if model.isSelecting { selectionBar(model) }
+                }
+                .accessibilityIdentifier("library.list")
+                .refreshable { await model.reload() }
+                .fileImporter(
+                    isPresented: $isPickingFile,
+                    allowedContentTypes: Self.bookTypes,
+                    allowsMultipleSelection: true
+                ) { result in
+                    guard case let .success(urls) = result else { return }
 
-                Task {
-                    for url in urls { await model.importBook(from: url) }
+                    Task {
+                        for url in urls { await model.importBook(from: url) }
+                    }
                 }
-            }
-            .overlay {
-                if model.isLoading && model.works.isEmpty {
-                    LoadingOverlay(title: "Loading your library…", label: "Loading your library")
+                .overlay {
+                    if model.isLoading && model.works.isEmpty {
+                        LoadingOverlay(title: "Loading your library…", label: "Loading your library")
+                    }
                 }
-            }
-            .alert(
-                "Error",
-                isPresented: .init(get: { model.errorMessage != nil }, set: { _ in model.dismissError() }),
-                actions: { Button("OK", role: .cancel, action: {}) },
-                message: { Text(model.errorMessage ?? "") }
-            )
-            .modifier(
-                SeriesEditing(
-                    model: model,
-                    reordering: $reordering,
-                    isNaming: $isNamingSeries,
-                    name: $seriesName
+                .alert(
+                    "Error",
+                    isPresented: .init(get: { model.errorMessage != nil }, set: { _ in model.dismissError() }),
+                    actions: { Button("OK", role: .cancel, action: {}) },
+                    message: { Text(model.errorMessage ?? "") }
                 )
-            )
+                .modifier(
+                    SeriesEditing(model: model, reordering: $reordering, isNaming: $isNamingSeries, name: $seriesName)
+                )
         }
 
         private func shelf(_ model: Model) -> some View {
@@ -432,9 +427,12 @@ enum LibraryScreen {
 private struct SeriesEditing: ViewModifier {
     let model: LibraryScreen.Model
 
-    @Binding var reordering: LibraryScreen.Model.Group?
-    @Binding var isNaming: Bool
-    @Binding var name: String
+    @Binding
+    var reordering: LibraryScreen.Model.Group?
+    @Binding
+    var isNaming: Bool
+    @Binding
+    var name: String
 
     func body(content: Content) -> some View {
         content
