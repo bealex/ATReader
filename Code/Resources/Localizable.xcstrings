@@ -149,6 +149,17 @@
       "extractionState": "manual",
       "shouldTranslate": false
     },
+    "Add a book from a file": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Добавить книгу из файла"
+          }
+        }
+      }
+    },
     "Add books to your library on author.today and they will show up here.": {
       "extractionState": "manual",
       "localizations": {
@@ -156,6 +167,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Добавьте книги в библиотеку на author.today — они появятся здесь."
+          }
+        }
+      }
+    },
+    "Add books to your library on author.today, or bring an FB2 file in with the plus button.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Добавьте книги в библиотеку на author.today или откройте файл FB2 кнопкой «плюс»."
           }
         }
       }
@@ -392,6 +414,17 @@
         }
       }
     },
+    "Clear the search": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Очистить поиск"
+          }
+        }
+      }
+    },
     "Close": {
       "extractionState": "manual",
       "localizations": {
@@ -531,6 +564,39 @@
           "stringUnit": {
             "state": "translated",
             "value": "Не удалось обновить библиотеку."
+          }
+        }
+      }
+    },
+    "Delete": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Удалить"
+          }
+        }
+      }
+    },
+    "Delete this book": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Удалить книгу"
+          }
+        }
+      }
+    },
+    "Delete this book?": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Удалить книгу?"
           }
         }
       }
@@ -763,6 +829,17 @@
         }
       }
     },
+    "Its text is on this device only. You would need the file again to read it.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Её текст есть только на этом устройстве. Чтобы прочитать книгу снова, понадобится файл."
+          }
+        }
+      }
+    },
     "Justified": {
       "extractionState": "manual",
       "localizations": {
@@ -770,6 +847,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "По ширине"
+          }
+        }
+      }
+    },
+    "Keep": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Оставить"
           }
         }
       }
@@ -1189,6 +1277,28 @@
         }
       }
     },
+    "Preparing %lld of %lld chapters…": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Готовится: %1$lld из %2$lld глав…"
+          }
+        }
+      }
+    },
+    "Preparing this book, %lld of %lld chapters done": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Книга готовится, обработано %1$lld из %2$lld глав"
+          }
+        }
+      }
+    },
     "Previous page": {
       "extractionState": "manual",
       "localizations": {
@@ -1299,6 +1409,17 @@
         }
       }
     },
+    "Reads an FB2 file into your library": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Читает файл FB2 в вашу библиотеку"
+          }
+        }
+      }
+    },
     "Regular": {
       "extractionState": "manual",
       "localizations": {
@@ -1328,6 +1449,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Удаляет главы, сохранённые для чтения офлайн"
+          }
+        }
+      }
+    },
+    "Removes the book and its text from this device": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Удаляет книгу и её текст с этого устройства"
           }
         }
       }
@@ -1428,6 +1560,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Поиск"
+          }
+        }
+      }
+    },
+    "Search your library": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Поиск по библиотеке"
           }
         }
       }
@@ -1729,6 +1872,50 @@
         }
       }
     },
+    "That FB2 file has no text in it.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "В этом файле FB2 нет текста."
+          }
+        }
+      }
+    },
+    "That file couldn’t be read.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Не удалось прочитать файл."
+          }
+        }
+      }
+    },
+    "That file isn’t valid FB2.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Это не подходящий файл FB2."
+          }
+        }
+      }
+    },
+    "That file isn’t valid FB2: %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Это не подходящий файл FB2: %@"
+          }
+        }
+      }
+    },
     "This book has no chapters you can read yet.": {
       "extractionState": "manual",
       "localizations": {
@@ -1791,6 +1978,28 @@
           "stringUnit": {
             "state": "translated",
             "value": "Шрифт"
+          }
+        }
+      }
+    },
+    "Unknown author": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Автор неизвестен"
+          }
+        }
+      }
+    },
+    "Untitled": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Без названия"
           }
         }
       }

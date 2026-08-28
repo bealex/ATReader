@@ -70,6 +70,9 @@ extension ReaderScreen {
         private let store: LocalStore
 
         @ObservationIgnored
+        private let processor: BookProcessor
+
+        @ObservationIgnored
         private var context: ChapterLayout.Context?
 
         /// Chapters laid out for the current context: the one on screen and the ones either side of it.
@@ -114,13 +117,15 @@ extension ReaderScreen {
             workTitle: String,
             initialChapterId: Int?,
             session: SessionStore,
-            store: LocalStore = .shared
+            store: LocalStore = .shared,
+            processor: BookProcessor = .shared
         ) {
             self.workId = workId
             self.workTitle = workTitle
             self.requestedChapterId = initialChapterId
             self.session = session
             self.store = store
+            self.processor = processor
         }
 
         // MARK: - Where the reader is
@@ -308,6 +313,9 @@ extension ReaderScreen {
 
             isLoading = layout == nil && errorMessage == nil
             await refreshBook()
+
+            // The rest of the book is prepared behind the reader, who is already on its first page.
+            await processor.start(workId: workId, chapters: chapters)
         }
 
         /// Picks the chapter to open: the one asked for, else the one the reader stopped in, else the first.
@@ -335,7 +343,12 @@ extension ReaderScreen {
             Task { await startSession(chapterId: target) }
         }
 
+        /// True for a book that came from a file. Nothing about it is the service's to answer.
+        private var isLocal: Bool { LocalBooks.isLocal(workId) }
+
         private func refreshContents() async {
+            guard !isLocal else { return }
+
             do {
                 let fetched = try await session.client.workContents(id: workId)
                 await store.store(chapters: fetched, workId: workId)
@@ -353,7 +366,7 @@ extension ReaderScreen {
 
         /// The book itself, for the title page. Cached first, so it is there before the service answers.
         private func refreshBook() async {
-            guard book == nil else { return }
+            guard !isLocal, book == nil else { return }
             guard let details = try? await session.client.workDetails(id: workId) else { return }
 
             let summary = WorkSummary(details)
@@ -363,7 +376,7 @@ extension ReaderScreen {
 
         /// Asks the service where this reader stopped and keeps the session id for progress reports.
         private func startSession(chapterId: Int) async {
-            guard session.isSignedIn else { return }
+            guard !isLocal, session.isSignedIn else { return }
             guard
                 let stats = try? await session.client.startReading(workId: workId, chapterId: chapterId)
             else {
@@ -588,25 +601,25 @@ extension ReaderScreen {
         private func storedContent(for chapterId: Int) async -> ChapterContent? {
             if let cached = parsed[chapterId] { return cached }
 
-            guard let stored = await store.body(workId: workId, chapterId: chapterId) else { return nil }
-
-            return await ChapterContent.prepare(html: stored.html)
+            return await processor.content(workId: workId, chapterId: chapterId)
         }
 
         /// The chapter's text: prepared already, else stored on the device, else from the service.
         private func content(for chapterId: Int) async -> ChapterContent? {
             if let cached = parsed[chapterId] { return cached }
 
-            if let stored = await store.body(workId: workId, chapterId: chapterId) {
-                let prepared = await ChapterContent.prepare(html: stored.html)
+            if let prepared = await processor.content(workId: workId, chapterId: chapterId) {
                 parsed[chapterId] = prepared
                 return prepared
             }
 
+            // A book from a file carries all its text already; there is nowhere else to look.
+            guard !isLocal else { return nil }
+
             do {
                 let chapter = try await session.client.chapterText(workId: workId, chapterId: chapterId)
                 await store.store(body: chapter, workId: workId)
-                let prepared = await ChapterContent.prepare(html: chapter.html)
+                let prepared = await processor.content(workId: workId, chapterId: chapterId)
                 parsed[chapterId] = prepared
                 isOffline = false
                 return prepared
@@ -670,7 +683,7 @@ extension ReaderScreen {
 
         /// Syncs the position upstream in coarse steps rather than on every page.
         private func reportProgress(force: Bool = false) {
-            guard pageCount > 0, session.isSignedIn, let chapterId = currentChapterId else { return }
+            guard pageCount > 0, !isLocal, session.isSignedIn, let chapterId = currentChapterId else { return }
 
             let chapterProgress = Double(currentPage + 1) / Double(pageCount)
 

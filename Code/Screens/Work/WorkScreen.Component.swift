@@ -14,6 +14,12 @@ enum WorkScreen {
         @Environment(SessionStore.self)
         private var session
 
+        @Environment(\.dismiss)
+        private var dismiss
+
+        @State
+        private var isConfirmingDelete = false
+
         @State
         private var model: Model?
 
@@ -86,7 +92,10 @@ enum WorkScreen {
         private func heading(_ model: Model, work: WorkSummary) -> some View {
             HStack(alignment: .top, spacing: 16) {
                 CoverImage(url: work.coverURL, width: 116, progress: work.readingProgress)
-                    .overlay(alignment: .topTrailing) { libraryMark(model) }
+                    .overlay(alignment: .topTrailing) {
+                        // A book from a file is on no service shelf, so it carries no shelf mark.
+                        if !model.isLocal { libraryMark(model) }
+                    }
 
                 VStack(alignment: .leading, spacing: 6) {
                     Text(work.title)
@@ -149,6 +158,39 @@ enum WorkScreen {
                     .font(.footnote)
                     .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, alignment: .leading)
+            }
+
+            if model.isLocal { deleteButton(model) }
+        }
+
+        /// An imported book's text is on this device and nowhere else, so taking it off is a deletion
+        /// rather than clearing a shelf, and it asks first.
+        private func deleteButton(_ model: Model) -> some View {
+            Button(role: .destructive) {
+                isConfirmingDelete = true
+            } label: {
+                Label("Delete this book", systemImage: "trash")
+                    .font(.subheadline)
+                    .frame(maxWidth: .infinity, minHeight: 28)
+            }
+            .buttonStyle(.bordered)
+            .padding(.top, 10)
+            .accessibilityIdentifier("work.delete")
+            .accessibilityHint("Removes the book and its text from this device")
+            .confirmationDialog(
+                "Delete this book?",
+                isPresented: $isConfirmingDelete,
+                titleVisibility: .visible
+            ) {
+                Button("Delete", role: .destructive) {
+                    Task {
+                        await model.deleteLocalBook()
+                        dismiss()
+                    }
+                }
+                Button("Keep", role: .cancel) {}
+            } message: {
+                Text("Its text is on this device only. You would need the file again to read it.")
             }
         }
 

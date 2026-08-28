@@ -11,7 +11,7 @@ import Foundation
 /// so a targeted pass beats pulling in a full HTML stack, and it keeps the work off the main actor.
 public enum ChapterHTML {
     /// One laid-out block of a chapter.
-    public struct Paragraph: Sendable, Identifiable, Hashable {
+    public struct Paragraph: Codable, Sendable, Identifiable, Hashable {
         public let id: Int
         public let text: String
         /// Author-centred lines (scene breaks, epigraphs) carry a `text-align: center` style.

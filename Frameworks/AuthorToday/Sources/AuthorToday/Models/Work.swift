@@ -148,6 +148,28 @@ public struct ChapterInfo: Codable, Sendable, Identifiable, Hashable {
     public let textLength: Int?
     public let isAvailable: Bool?
 
+    public init(
+        id: Int,
+        workId: Int?,
+        title: String?,
+        isDraft: Bool? = nil,
+        sortOrder: Int?,
+        publishTime: Date? = nil,
+        lastModificationTime: Date? = nil,
+        textLength: Int?,
+        isAvailable: Bool? = nil
+    ) {
+        self.id = id
+        self.workId = workId
+        self.title = title
+        self.isDraft = isDraft
+        self.sortOrder = sortOrder
+        self.publishTime = publishTime
+        self.lastModificationTime = lastModificationTime
+        self.textLength = textLength
+        self.isAvailable = isAvailable
+    }
+
     /// Draft chapters are visible in the contents but carry no readable body.
     public var isReadable: Bool { isAvailable != false && isDraft != true }
 

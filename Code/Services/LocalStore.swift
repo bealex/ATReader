@@ -28,6 +28,18 @@ actor LocalStore {
         let tags: [String]
     }
 
+    /// A chapter's text after the typesetter has been through it, and the hashes that say whether it
+    /// is still the text the reader was given.
+    struct PreparedChapter: Sendable {
+        let chapterId: Int
+        /// The chapter's own source text, hashed.
+        let contentHash: String
+        /// This chapter's hash folded into every chapter before it. Equal chains mean equal books up
+        /// to this point, which is what makes a re-run pick up where the last one stopped.
+        let chainHash: String
+        let content: ChapterContent
+    }
+
     static let shared = LocalStore()
 
     private static let logger = Logger(subsystem: "com.lonelybytes.atreader", category: "store")
@@ -195,7 +207,83 @@ actor LocalStore {
         store(works: works)
 
         let ids = works.map { String($0.id) }.joined(separator: ",")
-        execute("DELETE FROM work WHERE library_state IS NOT NULL AND id NOT IN (\(ids.isEmpty ? "0" : ids))")
+        // Books imported from a file are on no shelf the service knows, so they sit outside this.
+        execute(
+            """
+            DELETE FROM work WHERE library_state IS NOT NULL
+                AND id NOT IN (\(ids.isEmpty ? "0" : ids))
+                AND id NOT IN (SELECT work_id FROM local_book)
+            """
+        )
+    }
+
+    // MARK: - Books this device owns
+
+    /// The id a book imported from a file goes under, allocated once per file and kept.
+    ///
+    /// Service works count up from one, so local books count down from minus one and the two can never
+    /// meet. A chapter takes an id from a block of its own beneath the book's, which is what keeps the
+    /// chapter table's primary key unique across a library holding both kinds.
+    func localBookId(fingerprint: String) -> Int {
+        if let statement = Statement(open(), "SELECT work_id FROM local_book WHERE fingerprint = ?") {
+            statement.bind(1, fingerprint)
+
+            if statement.step() { return statement.integer(0) }
+        }
+
+        let next = nextLocalSequence()
+
+        guard
+            let insert = Statement(
+                open(),
+                "INSERT INTO local_book (work_id, fingerprint, imported_at) VALUES (?, ?, ?)"
+            )
+        else { return LocalBooks.workId(sequence: next) }
+
+        let workId = LocalBooks.workId(sequence: next)
+        insert.bind(1, workId)
+        insert.bind(2, fingerprint)
+        insert.bind(3, Date.now.timeIntervalSince1970)
+        insert.execute()
+        return workId
+    }
+
+    private func nextLocalSequence() -> Int {
+        guard let statement = Statement(open(), "SELECT MIN(work_id) FROM local_book") else { return 1 }
+        guard statement.step(), let lowest = statement.number(0) else { return 1 }
+
+        return LocalBooks.sequence(workId: Int(lowest)) + 1
+    }
+
+    func isLocalBook(id: Int) -> Bool {
+        guard let statement = Statement(open(), "SELECT 1 FROM local_book WHERE work_id = ?") else { return false }
+
+        statement.bind(1, id)
+        return statement.step()
+    }
+
+    /// Takes a book off the device outright: its row, its contents, its text and where the reader was.
+    ///
+    /// Only a local book is ever removed this way. A service book taken off a shelf keeps its rows, so
+    /// putting it back doesn't cost a fresh download.
+    func removeBook(id: Int) {
+        transaction {
+            for table in [ "chapter_body", "chapter_content", "chapter", "reading_position" ] {
+                if let statement = Statement(open(), "DELETE FROM \(table) WHERE work_id = ?") {
+                    statement.bind(1, id)
+                    statement.execute()
+                }
+            }
+
+            for table in [ "work", "local_book" ] {
+                let column = table == "work" ? "id" : "work_id"
+
+                if let statement = Statement(open(), "DELETE FROM \(table) WHERE \(column) = ?") {
+                    statement.bind(1, id)
+                    statement.execute()
+                }
+            }
+        }
     }
 
     // MARK: - Chapters
@@ -322,6 +410,86 @@ actor LocalStore {
         statement.execute()
     }
 
+    // MARK: - Chapter text the typesetter has already been through
+
+    /// The prepared text for one chapter, where what is stored was made from the text now on the device.
+    ///
+    /// The caller passes the hash it expects. A chapter whose source has changed since it was prepared
+    /// answers `nil` rather than yesterday's paragraphs, which is what makes a re-imported book pick up
+    /// its new chapters without being told which ones they are.
+    func preparedChapter(workId: Int, chapterId: Int, contentHash: String) -> PreparedChapter? {
+        let query = """
+            SELECT content_hash, chain_hash, content FROM chapter_content
+            WHERE chapter_id = ? AND work_id = ? AND content_hash = ?
+            """
+
+        guard let statement = Statement(open(), query) else { return nil }
+
+        statement.bind(1, chapterId)
+        statement.bind(2, workId)
+        statement.bind(3, contentHash)
+
+        guard
+            statement.step(),
+            let stored = statement.string(0),
+            let chain = statement.string(1),
+            let content = decode(ChapterContent.self, statement.string(2))
+        else { return nil }
+
+        return PreparedChapter(chapterId: chapterId, contentHash: stored, chainHash: chain, content: content)
+    }
+
+    /// Every chain hash this book has stored, so a run can find the first chapter that has moved.
+    func chainHashes(workId: Int) -> [Int: String] {
+        let query = "SELECT chapter_id, chain_hash FROM chapter_content WHERE work_id = ?"
+
+        guard let statement = Statement(open(), query) else { return [:] }
+
+        statement.bind(1, workId)
+        var result: [Int: String] = [:]
+
+        while statement.step() {
+            guard let chain = statement.string(1) else { continue }
+
+            result[statement.integer(0)] = chain
+        }
+
+        return result
+    }
+
+    func store(prepared: PreparedChapter, workId: Int) {
+        let query = """
+            INSERT INTO chapter_content (chapter_id, work_id, content_hash, chain_hash, content, stored_at)
+            VALUES (?, ?, ?, ?, ?, ?)
+            ON CONFLICT(chapter_id) DO UPDATE SET
+                work_id = excluded.work_id,
+                content_hash = excluded.content_hash,
+                chain_hash = excluded.chain_hash,
+                content = excluded.content,
+                stored_at = excluded.stored_at
+            """
+
+        guard let statement = Statement(open(), query) else { return }
+
+        statement.bind(1, prepared.chapterId)
+        statement.bind(2, workId)
+        statement.bind(3, prepared.contentHash)
+        statement.bind(4, prepared.chainHash)
+        statement.bind(5, encode(prepared.content))
+        statement.bind(6, Date.now.timeIntervalSince1970)
+        statement.execute()
+    }
+
+    /// How many of a book's chapters are ready to read without being prepared again.
+    func preparedCount(workId: Int) -> Int {
+        guard
+            let statement = Statement(open(), "SELECT COUNT(*) FROM chapter_content WHERE work_id = ?")
+        else { return 0 }
+        guard statement.step() else { return 0 }
+
+        return statement.integer(0)
+    }
+
     // MARK: - Reading positions
 
     func position(workId: Int) -> ReadingPosition? {
@@ -365,13 +533,23 @@ actor LocalStore {
 
     /// Chapter bodies only. Book lists, contents and reading positions stay, since they cost almost
     /// nothing and are what makes the app usable offline.
+    ///
+    /// A book imported from a file is left alone. The service can send its text again and this cannot:
+    /// the copy here is the only one, and clearing it would throw the book away.
     func clearDownloads() {
-        execute("DELETE FROM chapter_body")
+        execute("DELETE FROM chapter_body WHERE work_id NOT IN (SELECT work_id FROM local_book)")
+        execute("DELETE FROM chapter_content WHERE work_id NOT IN (SELECT work_id FROM local_book)")
         execute("VACUUM")
     }
 
     func downloadSize() -> Int64 {
-        guard let statement = Statement(open(), "SELECT SUM(LENGTH(html)) FROM chapter_body") else { return 0 }
+        let query = """
+            SELECT
+                (SELECT COALESCE(SUM(LENGTH(html)), 0) FROM chapter_body)
+                + (SELECT COALESCE(SUM(LENGTH(content)), 0) FROM chapter_content)
+            """
+
+        guard let statement = Statement(open(), query) else { return 0 }
         guard statement.step() else { return 0 }
 
         return Int64(statement.integer(0))
@@ -404,7 +582,37 @@ actor LocalStore {
         createWorkTable()
         createChapterTables()
         createPositionTable()
+        createLocalBookTable()
+        createContentTable()
         repairProgress()
+    }
+
+    private func createLocalBookTable() {
+        execute(
+            """
+            CREATE TABLE IF NOT EXISTS local_book (
+                work_id INTEGER PRIMARY KEY,
+                fingerprint TEXT NOT NULL UNIQUE,
+                imported_at REAL NOT NULL
+            )
+            """
+        )
+    }
+
+    private func createContentTable() {
+        execute(
+            """
+            CREATE TABLE IF NOT EXISTS chapter_content (
+                chapter_id INTEGER PRIMARY KEY,
+                work_id INTEGER NOT NULL,
+                content_hash TEXT NOT NULL,
+                chain_hash TEXT NOT NULL,
+                content TEXT NOT NULL,
+                stored_at REAL NOT NULL
+            )
+            """
+        )
+        execute("CREATE INDEX IF NOT EXISTS content_by_work ON chapter_content (work_id)")
     }
 
     private func createWorkTable() {

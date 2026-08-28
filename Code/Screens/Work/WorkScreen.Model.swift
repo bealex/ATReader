@@ -129,8 +129,13 @@ extension WorkScreen {
             isInLibrary = (stored.summary.libraryState ?? .none) != .none
         }
 
+        /// True for a book that came from a file. The service has nothing to say about one.
+        var isLocal: Bool { LocalBooks.isLocal(workId) }
+
         /// Asks the service for the book again, behind whatever the store already put on screen.
         func reload() async {
+            guard !isLocal else { return }
+
             isLoading = true
             errorMessage = nil
 
@@ -161,7 +166,7 @@ extension WorkScreen {
         /// Puts the book in the reader's library, or takes it out. A book goes in as one being read;
         /// where it stands after that is worked out from what has been written and what has been read.
         func setInLibrary(_ inLibrary: Bool) async {
-            guard session.isSignedIn, !isUpdatingLibrary else { return }
+            guard !isLocal, session.isSignedIn, !isUpdatingLibrary else { return }
 
             let previous = isInLibrary
 
@@ -179,6 +184,15 @@ extension WorkScreen {
             }
 
             isUpdatingLibrary = false
+        }
+
+        /// Takes an imported book off the device. There is no copy anywhere else, so this is the one
+        /// place a book is really deleted rather than taken off a shelf.
+        func deleteLocalBook() async {
+            guard isLocal else { return }
+
+            await BookProcessor.shared.stop(workId: workId)
+            await BookImport.remove(workId: workId)
         }
     }
 }

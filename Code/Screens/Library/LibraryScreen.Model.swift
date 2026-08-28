@@ -66,6 +66,12 @@ extension LibraryScreen {
         /// True while the list is the stored one and the service could not be reached.
         private(set) var isOffline = false
 
+        /// True while a picked file is being read into the library.
+        private(set) var isImporting = false
+
+        /// How far each book still being prepared has got, so the shelf can say so.
+        private(set) var processing: [Int: BookProcessor.Progress] = [:]
+
         @ObservationIgnored
         private let session: SessionStore
 
@@ -152,6 +158,63 @@ extension LibraryScreen {
         func newChapters(for workId: Int) -> Int { newChaptersByWork[workId] ?? 0 }
 
         func dismissError() { errorMessage = nil }
+
+        // MARK: - Books from files
+
+        /// Reads a picked file into the library and starts preparing it.
+        ///
+        /// The book is on the shelf and readable the moment its text is stored. Putting it through the
+        /// typesetter happens behind that, so a long book doesn't hold the picker open.
+        func importBook(from url: URL) async {
+            isImporting = true
+            errorMessage = nil
+
+            defer { isImporting = false }
+
+            do {
+                let work = try await BookImport.import(from: url)
+                await refreshFromStore()
+                await prepare(workId: work.id)
+            } catch {
+                errorMessage = error.localizedDescription
+            }
+        }
+
+        /// Puts a book through the typesetter behind the shelf, reporting how far it has got.
+        private func prepare(workId: Int) async {
+            let chapters = await store.chapters(workId: workId)
+
+            await BookProcessor.shared.start(workId: workId, chapters: chapters)
+            watch(workId: workId)
+        }
+
+        /// Follows one book's preparation until it finishes, so the shelf can show a bar against it.
+        private func watch(workId: Int) {
+            Task { [weak self] in
+                while !Task.isCancelled {
+                    guard let progress = await BookProcessor.shared.progress(of: workId) else { return }
+
+                    self?.processing[workId] = progress.isComplete ? nil : progress
+
+                    if progress.isComplete { return }
+
+                    try? await Task.sleep(for: .milliseconds(400))
+                }
+            }
+        }
+
+        /// Takes an imported book off the device outright. Its text is here and nowhere else.
+        func deleteLocalBook(_ work: WorkSummary) async {
+            guard LocalBooks.isLocal(work.id) else { return }
+
+            works.removeAll { $0.id == work.id }
+            processing[work.id] = nil
+            await BookProcessor.shared.stop(workId: work.id)
+            await BookImport.remove(workId: work.id)
+        }
+
+        /// True for a book that came from a file rather than the service.
+        func isLocal(_ work: WorkSummary) -> Bool { LocalBooks.isLocal(work.id) }
 
         func loadIfNeeded() async {
             guard !hasLoaded else { return }
@@ -310,7 +373,9 @@ extension LibraryScreen {
 
             // The service keeps no progress, but it does keep a shelf, and Finished is its way of
             // saying the reader is done with a book.
-            try? await session.client.updateLibraryState(workIds: [ work.id ], state: .finished)
+            if !isLocal(work) {
+                try? await session.client.updateLibraryState(workIds: [ work.id ], state: .finished)
+            }
 
             if let index = works.firstIndex(where: { $0.id == work.id }) {
                 works[index].libraryState = .finished
@@ -319,6 +384,8 @@ extension LibraryScreen {
 
             guard let last = await contents(of: work.id).last(where: \.isReadable) else { return }
 
+            let isLocalBook = isLocal(work)
+
             await store.store(position: .init(
                 workId: work.id,
                 chapterId: last.id,
@@ -326,6 +393,8 @@ extension LibraryScreen {
                 characterOffset: last.textLength ?? .max,
                 updatedAt: .now
             ))
+            guard !isLocalBook else { return }
+
             // The service stores no progress it is sent, so this is a courtesy rather than the record.
             try? await session.client.updateProgress(
                 workId: work.id,
@@ -340,7 +409,7 @@ extension LibraryScreen {
         private func contents(of workId: Int) async -> [ChapterInfo] {
             let stored = await store.chapters(workId: workId)
 
-            guard stored.isEmpty else { return stored }
+            guard stored.isEmpty, !LocalBooks.isLocal(workId) else { return stored }
             guard let fetched = try? await session.client.workContents(id: workId) else { return [] }
 
             await store.store(chapters: fetched, workId: workId)
@@ -350,6 +419,7 @@ extension LibraryScreen {
         /// Takes a book out of the reader's library. Removing it is the one thing left that the
         /// service's library state is good for.
         func remove(_ work: WorkSummary) async {
+            guard !isLocal(work) else { return await deleteLocalBook(work) }
             guard session.isSignedIn else { return }
 
             works.removeAll { $0.id == work.id }

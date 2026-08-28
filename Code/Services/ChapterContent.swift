@@ -8,7 +8,7 @@ import Foundation
 import NaturalLanguage
 
 /// A chapter's text, parsed and ready to lay out.
-struct ChapterContent: Sendable {
+struct ChapterContent: Codable, Sendable {
     var paragraphs: [ChapterHTML.Paragraph]
     /// The same paragraphs with every break point the language's dictionary allows already marked.
     /// Justified setting uses these; working them out costs about as much as laying the chapter out,
