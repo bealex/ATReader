@@ -108,11 +108,12 @@ private struct ReaderBarAppearance: UIViewControllerRepresentable {
             restore()
         }
 
-        /// The window again on the way out, in case an update landed while the dismissal was running.
+        /// Given up again on the way out, in case an update landed while the dismissal was running.
+        /// Restoring twice costs nothing: the second run has nothing left to put back.
         override func viewDidDisappear(_ animated: Bool) {
             super.viewDidDisappear(animated)
             isOnScreen = false
-            releaseWindow()
+            restore()
         }
 
         func apply(background: UIColor?, style: UIUserInterfaceStyle) {
@@ -124,7 +125,14 @@ private struct ReaderBarAppearance: UIViewControllerRepresentable {
                 window.overrideUserInterfaceStyle = style
             }
 
-            guard let background, let navigationBar = navigationController?.navigationBar else { return }
+            // On screen, for the bar as much as for the window. An update landing during a pop would
+            // otherwise take the bar back after it had been given up, with nothing left on the way out
+            // to return it, and the screen underneath kept the reader's colour.
+            guard
+                isOnScreen,
+                let background,
+                let navigationBar = navigationController?.navigationBar
+            else { return }
 
             takenBar = navigationBar
 
