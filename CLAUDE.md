@@ -17,6 +17,24 @@ nothing service-specific belongs in `Code/`, and nothing SwiftUI belongs in the 
   `Local.xcconfig`, never in `project.yml`; Debug carries the development profile and Release
   deliberately carries none. See the README's Signing section.
 
+## Building, running and testing
+
+`Scripts/app.sh` is the only way to build, install or test this project. Never call `xcodebuild`,
+`swift test`, `simctl` or `devicectl` directly.
+
+- `Scripts/app.sh build` compiles. Add `-d` for hardware and `--release` for the Release configuration;
+  both default to a simulator in Debug.
+- `Scripts/app.sh deploy` builds, installs and launches on a simulator or a device.
+- `Scripts/app.sh test` runs the package unit tests and the app UI tests. `--unit` and `--ui` pick one.
+- `Scripts/app.sh clean` removes `build/`.
+
+Every run prints one line per phase and a final `RESULT` line, and writes the full log under
+`$TMPDIR/atreader-logs`. When the summary isn't enough, read that log instead of reaching for the
+underlying tool.
+
+The script refuses to choose between several connected devices, so pass `--device-id` when more than one
+is plugged in. Release carries no provisioning profile, so it builds but can't install on hardware.
+
 ## Style
 
 Follow `~/Programming/_Scripts/Instructions/CLAUDE.CodeStyle.md` and `CLAUDE.SwiftUIStyle.md`. The parts
