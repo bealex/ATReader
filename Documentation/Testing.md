@@ -5,18 +5,14 @@ service.
 
 ```sh
 # package unit tests: offline, deterministic, ~1s
-cd Frameworks/AuthorToday && swift test
+Scripts/app.sh test --unit
 
 # UI tests: these hit the live service
-xcodegen generate
-xcodebuild -project ATReader.xcodeproj -scheme ATReader \
-  -destination 'platform=iOS Simulator,name=iPhone 17 Pro,OS=27.0' \
-  -derivedDataPath .build/dd build-for-testing
+Scripts/app.sh test --only ATReaderUITests/CatalogUITests
 
-xcodebuild -project ATReader.xcodeproj -scheme ATReader \
-  -destination 'platform=iOS Simulator,name=iPhone 17 Pro,OS=27.0' \
-  -derivedDataPath .build/dd \
-  -only-testing:ATReaderUITests/CatalogUITests test-without-building
+# build the tests once, then run them again and again against that build
+Scripts/app.sh test --only ATReaderUITests/CatalogUITests --build-only
+Scripts/app.sh test --only ATReaderUITests/CatalogUITests --no-build
 ```
 
 ## Configuration
@@ -57,7 +53,7 @@ rest to the test process; without it the variables never arrive and the suites s
 TEST_RUNNER_AT_TEST_TOKEN="…" \
 TEST_RUNNER_AT_TEST_LOGIN="…" \
 TEST_RUNNER_AT_TEST_PASSWORD="…" \
-xcodebuild … test-without-building
+Scripts/app.sh test --only ATReaderUITests/LibraryUITests --no-build
 ```
 
 `AT_TEST_CODE` completes a two-factor challenge, but codes are single-use, short-lived and invalidated

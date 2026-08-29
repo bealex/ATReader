@@ -20,12 +20,18 @@ nothing service-specific belongs in `Code/`, and nothing SwiftUI belongs in the 
 ## Building, running and testing
 
 `Scripts/app.sh` is the only way to build, install or test this project. Never call `xcodebuild`,
-`swift test`, `simctl` or `devicectl` directly.
+`swift test`, `simctl` or `devicectl` to do any of those. Driving a simulator that's already
+running is separate: `simctl io … screenshot` is still how you watch a gesture mid-flight.
+
+It regenerates the Xcode project when `project.yml` is newer, so a build needs no `xcodegen` step of
+its own.
 
 - `Scripts/app.sh build` compiles. Add `-d` for hardware and `--release` for the Release configuration;
   both default to a simulator in Debug.
 - `Scripts/app.sh deploy` builds, installs and launches on a simulator or a device.
-- `Scripts/app.sh test` runs the package unit tests and the app UI tests. `--unit` and `--ui` pick one.
+- `Scripts/app.sh test` runs the package unit tests and the app UI tests. `--unit` and `--ui` pick one,
+  `--only SPEC` runs a single target or suite, and `--build-only` with `--no-build` splits building the
+  tests from running them.
 - `Scripts/app.sh clean` removes `build/`.
 
 Every run prints one line per phase and a final `RESULT` line, and writes the full log under

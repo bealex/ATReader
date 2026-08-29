@@ -9,13 +9,18 @@
 # Usage:
 #   Scripts/app.sh build  [target] [config] [selector]
 #   Scripts/app.sh deploy [target] [config] [selector]
-#   Scripts/app.sh test   [--unit | --ui] [config] [selector]
+#   Scripts/app.sh test   [--unit | --ui] [config] [selector] [test options]
 #   Scripts/app.sh clean
 #
 # Target:    -s, --simulator (default)      -d, --device
 # Config:    --debug (default)              --release
 # Selector:  --sim NAME, --sim-id UDID, --device-id UDID
 # Also:      -v, --verbose (stream the log too), -h, --help
+#
+# Test options, all of which are xcodebuild's and so imply the app UI tests:
+#   --only SPEC     Run one target, suite or case, as ATReaderUITests/CatalogUITests. Repeatable.
+#   --build-only    Build the tests without running them.
+#   --no-build      Run tests already built by --build-only, reusing that build.
 #
 # Release carries no provisioning profile on purpose, so `deploy --device --release` builds but cannot
 # install. Use Debug for anything that has to run on hardware.
@@ -37,6 +42,8 @@ SIM_NAME="iPhone 17"
 SIM_ID=""
 DEVICE_ID=""
 TESTS="all"
+TEST_ACTION="test"
+ONLY=()
 VERBOSE=0
 
 usage() {
@@ -74,6 +81,13 @@ while [ $# -gt 0 ]; do
     --release) CONFIG="Release" ;;
     --unit) TESTS="unit" ;;
     --ui) TESTS="ui" ;;
+    --build-only) TEST_ACTION="build-for-testing" ;;
+    --no-build) TEST_ACTION="test-without-building" ;;
+    --only)
+      shift
+      [ $# -gt 0 ] || die "--only needs a target, suite or case"
+      ONLY+=("-only-testing:$1")
+      ;;
     --sim)
       shift
       [ $# -gt 0 ] || die "--sim needs a simulator name"
@@ -100,6 +114,12 @@ while [ $# -gt 0 ]; do
 done
 
 [ -n "$COMMAND" ] || die "no command given (try --help)"
+
+if [ "$TEST_ACTION" != test ] || [ ${#ONLY[@]} -gt 0 ]; then
+  [ "$COMMAND" = test ] || die "--only, --build-only and --no-build belong to the test command"
+  [ "$TESTS" = unit ] && die "--only, --build-only and --no-build do not apply to the package tests"
+  TESTS="ui"
+fi
 
 LOG_DIR="${TMPDIR:-/tmp}"
 LOG_DIR="${LOG_DIR%/}/atreader-logs"
@@ -201,6 +221,19 @@ resolve_device() {
   return 0
 }
 
+# project.yml is the source of truth and ATReader.xcodeproj is its output, so a spec newer than the
+# project means the project is stale.
+ensure_project() {
+  if [ -d "$PROJECT" ] && [ "$REPO/project.yml" -ot "$PROJECT" ]; then
+    return 0
+  fi
+  if ! command -v xcodegen >/dev/null 2>&1; then
+    printf '%s❌ xcodegen is not installed; brew install xcodegen%s\n' "$RED" "$RST" >&2
+    return 1
+  fi
+  run_phase "generate · xcodegen" xcodegen generate --spec "$REPO/project.yml" --project "$REPO"
+}
+
 app_path() {
   local sdk="iphonesimulator"
   [ "$TARGET" = device ] && sdk="iphoneos"
@@ -211,12 +244,15 @@ xcode_build() {
   local dest="$1"
   local label="$2"
   local action="$3"
+  shift 3
   run_phase "$label" \
     xcodebuild -project "$PROJECT" -scheme "$SCHEME" -configuration "$CONFIG" \
-    -destination "$dest" -derivedDataPath "$DD" "$action"
+    -destination "$dest" -derivedDataPath "$DD" "$action" "$@"
 }
 
 cmd_build() {
+  ensure_project || return 1
+
   local dest
   if [ "$TARGET" = device ]; then
     dest="generic/platform=iOS"
@@ -271,7 +307,7 @@ test_totals() {
   local swift_testing
   local xctest
   swift_testing="$(grep -aoE "Test run with .*" "$LOG" | awk '!seen[$0]++' | tail -2)"
-  xctest="$(grep -aoE "Executed [0-9]+ test[^,]*, with [0-9]+ failure[^)]*\)" "$LOG" | awk '!seen[$0]++' | tail -2)"
+  xctest="$(grep -aoE "Executed [0-9]+ tests?, with [^)]*\)" "$LOG" | tail -1)"
 
   # XCTest reports a run of zero whenever the target is swift-testing only; that is noise beside the real count.
   if [ -n "$swift_testing" ]; then
@@ -290,8 +326,11 @@ cmd_test() {
     run_phase "test · package unit" swift test --package-path "$PACKAGE" || rc=1
   fi
   if [ "$TESTS" != unit ]; then
+    ensure_project || return 1
     resolve_simulator || return 1
-    xcode_build "id=$SIM_ID" "test · app UI · $CONFIG" test || rc=1
+    local label="test · app UI · $CONFIG"
+    [ "$TEST_ACTION" = test ] || label="$label · $TEST_ACTION"
+    xcode_build "id=$SIM_ID" "$label" "$TEST_ACTION" ${ONLY[@]+"${ONLY[@]}"} || rc=1
   fi
   test_totals
   return "$rc"
@@ -313,7 +352,7 @@ STATUS="ok"
 [ "$RC" -eq 0 ] || STATUS="failed"
 
 FIELDS="status=$STATUS command=$COMMAND"
-[ "$COMMAND" = test ] && FIELDS="$FIELDS tests=$TESTS"
+[ "$COMMAND" = test ] && FIELDS="$FIELDS tests=$TESTS action=$TEST_ACTION"
 [ "$COMMAND" = clean ] || FIELDS="$FIELDS config=$CONFIG"
 # A unit-only run never picks a destination, so naming one would claim more than the run did.
 if [ "$COMMAND" = build ] || [ "$COMMAND" = deploy ] || { [ "$COMMAND" = test ] && [ "$TESTS" != unit ]; }; then

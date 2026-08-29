@@ -70,19 +70,19 @@ xcodegen generate
 
 ## Building and testing
 
-```sh
-xcodegen generate
-xcodebuild -project ATReader.xcodeproj -scheme ATReader \
-  -destination 'platform=iOS Simulator,name=iPhone 17 Pro,OS=27.0' build
+`Scripts/app.sh` covers all of it and regenerates the project when `project.yml` is newer, so none of
+these need an `xcodegen` step first. `Scripts/app.sh --help` lists the rest.
 
-# package unit tests
-cd Frameworks/AuthorToday && swift test
+```sh
+Scripts/app.sh build                # simulator, Debug
+Scripts/app.sh deploy --device      # build, install and launch on a connected device
+Scripts/app.sh test --unit          # package unit tests
 
 # UI tests (the catalogue suite runs against the live service with a guest token)
-xcodebuild -project ATReader.xcodeproj -scheme ATReader \
-  -destination 'platform=iOS Simulator,name=iPhone 17 Pro,OS=27.0' \
-  -only-testing:ATReaderUITests/CatalogUITests test
+Scripts/app.sh test --only ATReaderUITests/CatalogUITests
 ```
+
+Every run prints a line per phase and keeps the full log under `$TMPDIR/atreader-logs`.
 
 The signed-in suites read credentials from the environment so none are committed:
 `AT_TEST_LOGIN`, `AT_TEST_PASSWORD`, `AT_TEST_CODE` (two-factor), `AT_TEST_TOKEN`.
