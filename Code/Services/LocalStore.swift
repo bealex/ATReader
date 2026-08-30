@@ -72,6 +72,34 @@ actor LocalStore {
 
     // MARK: - Books
 
+    /// How many library books the app is still following: still being written, or finished within
+    /// `days`, and not yet read to the end.
+    ///
+    /// A book that was already complete when it reached the library never counts, however recently its
+    /// author stopped, because the badge is for writing this device actually watched happen. Books
+    /// imported from a file are numbered below zero and have no author still at work, so they are out
+    /// too, as are catalogue books the reader only looked at, which have no shelf.
+    func followedBookCount(finishedWithin days: Int = 14) -> Int {
+        let cutoff = Date.now.addingTimeInterval(-Double(days) * 24 * 60 * 60).timeIntervalSince1970
+        let query = """
+            SELECT COUNT(*) FROM work
+            WHERE library_state IS NOT NULL
+              AND id > 0
+              AND finished_when_added = 0
+              AND (is_finished = 0 OR (finished_at IS NOT NULL AND finished_at >= ?))
+              AND COALESCE(reading_progress, 0) < ?
+            """
+
+        guard let statement = Statement(open(), query) else { return 0 }
+
+        statement.bind(1, cutoff)
+        statement.bind(2, WorkSummary.readThreshold)
+
+        guard statement.step() else { return 0 }
+
+        return statement.integer(0)
+    }
+
     func works(in shelf: LibraryState? = nil) -> [WorkSummary] {
         let query =
             shelf == nil
@@ -181,8 +209,11 @@ actor LocalStore {
 
     func store(works: [WorkSummary]) {
         let query = """
-            INSERT INTO work (id, title, author, library_state, last_read_time, reading_progress, updated_at, payload)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO work (
+                id, title, author, library_state, last_read_time, reading_progress, updated_at, payload,
+                is_finished, finished_when_added, finished_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(id) DO UPDATE SET
                 title = excluded.title,
                 author = excluded.author,
@@ -190,7 +221,15 @@ actor LocalStore {
                 last_read_time = COALESCE(excluded.last_read_time, work.last_read_time),
                 reading_progress = COALESCE(work.reading_progress, excluded.reading_progress),
                 updated_at = excluded.updated_at,
-                payload = excluded.payload
+                payload = excluded.payload,
+                is_finished = excluded.is_finished,
+                -- finished_when_added is left alone: it records the state the book arrived in.
+                -- The stamp is the first completion this device saw, and is dropped if the author
+                -- reopens the book so a later completion dates itself again.
+                finished_at = CASE
+                    WHEN excluded.is_finished = 0 THEN NULL
+                    ELSE COALESCE(work.finished_at, excluded.finished_at)
+                END
             """
 
         transaction {
@@ -213,6 +252,9 @@ actor LocalStore {
                 statement.bind(6, merged.readingProgress)
                 statement.bind(7, Date.now.timeIntervalSince1970)
                 statement.bind(8, encode(merged))
+                statement.bind(9, merged.isComplete ? 1 : 0)
+                statement.bind(10, merged.isComplete ? 1 : 0)
+                statement.bind(11, merged.isComplete ? Date.now.timeIntervalSince1970 : nil)
                 statement.execute()
             }
         }
@@ -726,7 +768,51 @@ actor LocalStore {
         createLocalBookTable()
         createContentTable()
         createPlacementTable()
+        addCompletionColumns()
         repairProgress()
+    }
+
+    /// Adds the columns that date a book's writing, for a store made before they existed.
+    ///
+    /// A book already complete when this runs finished before the app ever watched it, which is the
+    /// same thing as having been added complete, so it is marked that way and never counts.
+    private func addCompletionColumns() {
+        let existing = workColumns()
+
+        guard !existing.contains("finished_when_added") else { return }
+
+        execute("ALTER TABLE work ADD COLUMN is_finished INTEGER NOT NULL DEFAULT 0")
+        execute("ALTER TABLE work ADD COLUMN finished_when_added INTEGER NOT NULL DEFAULT 0")
+        execute("ALTER TABLE work ADD COLUMN finished_at REAL")
+
+        guard let statement = Statement(open(), "SELECT id, payload FROM work") else { return }
+
+        var complete: [Int] = []
+
+        while statement.step() {
+            guard let work = decode(WorkSummary.self, statement.string(1)), work.isComplete else { continue }
+
+            complete.append(statement.integer(0))
+        }
+
+        guard !complete.isEmpty else { return }
+
+        let ids = complete.map(String.init).joined(separator: ",")
+        execute("UPDATE work SET is_finished = 1, finished_when_added = 1 WHERE id IN (\(ids))")
+    }
+
+    private func workColumns() -> Set<String> {
+        guard let statement = Statement(open(), "PRAGMA table_info(work)") else { return [] }
+
+        var names: Set<String> = []
+
+        while statement.step() {
+            guard let name = statement.string(1) else { continue }
+
+            names.insert(name)
+        }
+
+        return names
     }
 
     private func createSeriesTable() {
@@ -800,7 +886,10 @@ actor LocalStore {
                 reading_progress REAL,
                 updated_at REAL NOT NULL,
                 tags TEXT,
-                payload TEXT NOT NULL
+                payload TEXT NOT NULL,
+                is_finished INTEGER NOT NULL DEFAULT 0,
+                finished_when_added INTEGER NOT NULL DEFAULT 0,
+                finished_at REAL
             )
             """
         )

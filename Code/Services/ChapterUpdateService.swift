@@ -106,6 +106,9 @@ struct ChapterUpdateService: Sendable {
 
 /// The app-icon badge and the per-book counts the library screen shows.
 ///
+/// The two count different things. The per-book counts are new chapters, which is what the library
+/// marks a book with; the badge is how many books are still worth following.
+///
 /// Kept in user defaults rather than the cache so the UI can read it synchronously while drawing.
 enum UpdateBadge {
     private static let countsKey = "updates.newChaptersByWork"
@@ -118,8 +121,6 @@ enum UpdateBadge {
             uniquingKeysWith: { first, _ in first }
         )
     }
-
-    static var total: Int { newChaptersByWork.values.reduce(0, +) }
 
     static var lastCheckedAt: Date? {
         UserDefaults.standard.object(forKey: checkedKey) as? Date
@@ -159,8 +160,15 @@ enum UpdateBadge {
         UserDefaults.standard.set(raw, forKey: countsKey)
     }
 
+    /// Recomputes the badge after something changed it without a sweep, such as the reader finishing
+    /// a book or the library reloading.
+    static func refresh() async { await applyBadge() }
+
+    /// The badge counts books rather than chapters: the ones whose author is still writing, plus the
+    /// ones that finished recently, minus whatever the reader has already read to the end.
     private static func applyBadge() async {
-        try? await UNUserNotificationCenter.current().setBadgeCount(total)
+        let count = await LocalStore.shared.followedBookCount()
+        try? await UNUserNotificationCenter.current().setBadgeCount(count)
     }
 
     /// The badge needs the notification permission even though the app posts no alerts.

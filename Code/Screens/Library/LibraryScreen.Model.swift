@@ -315,6 +315,8 @@ extension LibraryScreen {
 
             apply(entries: stored)
             newChaptersByWork = UpdateBadge.newChaptersByWork
+            // Reading a book to its end drops it from the badge, and nothing else would notice.
+            await UpdateBadge.refresh()
         }
 
         /// Adopts the positions the service holds where they are newer than this device's own.
