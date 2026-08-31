@@ -56,10 +56,6 @@ enum ReaderScreen {
                 }
             }
             .background(settings.theme.background.ignoresSafeArea())
-            // The push rounds the incoming page's corners to a radius of its own, which does not quite
-            // meet the screen's. Black underneath means the sliver that shows through the difference
-            // reads as the bezel rather than as the screen behind.
-            .background(Color.black.ignoresSafeArea())
             .navigationTitle(model?.chapterTitle ?? title)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar(.hidden, for: .tabBar)

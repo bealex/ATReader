@@ -83,6 +83,13 @@ private struct ReaderBarAppearance: UIViewControllerRepresentable {
         private weak var takenBar: UINavigationBar?
         private weak var takenWindow: UIWindow?
 
+        /// The stack's own view and the window, which show at the corners where the page's rounding
+        /// and the screen's disagree, and what they were painted before the reader took them.
+        private weak var takenContainer: UIView?
+        private var savedContainerColour: UIColor?
+        private var savedWindowColour: UIColor?
+        private var hasTakenBackdrop = false
+
         override func viewDidLoad() {
             super.viewDidLoad()
 
@@ -125,6 +132,22 @@ private struct ReaderBarAppearance: UIViewControllerRepresentable {
                 window.overrideUserInterfaceStyle = style
             }
 
+            // A page drawn to the screen's edge is rounded by the stack to a radius of its own, which
+            // does not quite meet the screen's, and the view behind shows through the difference. A
+            // background inside the page cannot reach it, being clipped to the same shape, so the
+            // colour goes on what is behind instead.
+            if isOnScreen, let background, let container = navigationController?.view {
+                if !hasTakenBackdrop {
+                    savedContainerColour = container.backgroundColor
+                    savedWindowColour = view.window?.backgroundColor
+                    hasTakenBackdrop = true
+                }
+
+                takenContainer = container
+                container.backgroundColor = background
+                view.window?.backgroundColor = background
+            }
+
             // On screen, for the bar as much as for the window. An update landing during a pop would
             // otherwise take the bar back after it had been given up, with nothing left on the way out
             // to return it, and the screen underneath kept the reader's colour.
@@ -159,6 +182,8 @@ private struct ReaderBarAppearance: UIViewControllerRepresentable {
         /// Every other screen expects the bar the navigation stack gave it, and the window's own light
         /// or dark back.
         private func restore() {
+            // Before the window is let go, while it is still there to be painted back.
+            releaseBackdrop()
             releaseWindow()
 
             guard let navigationBar = takenBar ?? navigationController?.navigationBar, let saved else { return }
@@ -172,6 +197,16 @@ private struct ReaderBarAppearance: UIViewControllerRepresentable {
             // rather than as it stood the first time the reader opened.
             self.saved = nil
             takenBar = nil
+        }
+
+        /// The stack's view and the window, put back the colour the rest of the app left them.
+        private func releaseBackdrop() {
+            guard hasTakenBackdrop else { return }
+
+            (takenContainer ?? navigationController?.view)?.backgroundColor = savedContainerColour
+            takenWindow?.backgroundColor = savedWindowColour
+            takenContainer = nil
+            hasTakenBackdrop = false
         }
 
         private func releaseWindow() {
