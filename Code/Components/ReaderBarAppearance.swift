@@ -182,18 +182,13 @@ private struct ReaderBarAppearance: UIViewControllerRepresentable {
             navigationBar.scrollEdgeAppearance = appearance
             navigationBar.compactAppearance = appearance
 
-            // A dark page takes a light shadow. Black under a bar the colour of a black page is
-            // invisible, and the bar then has no edge at all.
-            var brightness: CGFloat = 0
-            var opacity: CGFloat = 0
-            background.resolvedColor(with: traitCollection).getWhite(&brightness, alpha: &opacity)
-            let isDarkPage = brightness < 0.5
-
+            // Black on every theme, and deeper than a shadow over a light page would need, so a page
+            // that is nearly black still shows an edge under the bar.
             navigationBar.layer.masksToBounds = false
-            navigationBar.layer.shadowColor = (isDarkPage ? UIColor.white : UIColor.black).cgColor
-            navigationBar.layer.shadowOpacity = isDarkPage ? 0.3 : 0.18
+            navigationBar.layer.shadowColor = UIColor.black.cgColor
+            navigationBar.layer.shadowOpacity = 0.45
             navigationBar.layer.shadowRadius = 6
-            navigationBar.layer.shadowOffset = CGSize(width: 0, height: 2)
+            navigationBar.layer.shadowOffset = CGSize(width: 0, height: 3)
         }
 
         /// Every other screen expects the bar the navigation stack gave it, and the window's own light
