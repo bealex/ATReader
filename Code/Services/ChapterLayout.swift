@@ -29,7 +29,8 @@ final class ChapterLayout {
         var safeArea: EdgeInsets
 
         /// The band kept at the top and bottom of every page for the book title and the page number.
-        /// Twice the type size the running head is drawn at, which is what keeps the text clear of it.
+        /// Wider than the head needs, so the type size can be tuned without measuring every book on the
+        /// device again: it feeds `textRect`, and moving it moves where every page breaks.
         static let runningHeadHeight: CGFloat = 44
 
         /// Where the body text is laid out and drawn, in the page's own coordinates.

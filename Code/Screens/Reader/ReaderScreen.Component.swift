@@ -45,7 +45,7 @@ enum ReaderScreen {
         /// The type size of the running head, which ``ChapterLayout/Context/runningHeadHeight`` keeps
         /// the body text clear of.
         @ScaledMetric(relativeTo: .caption2)
-        private var runningHeadSize: CGFloat = 22
+        private var runningHeadSize: CGFloat = 18.7
 
         var body: some View {
             Group {
