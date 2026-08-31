@@ -28,17 +28,18 @@ final class ChapterLayout {
         var pageSize: CGSize
         var safeArea: EdgeInsets
 
-        /// The band kept at the top and bottom of every page for the book title and the page number.
-        /// Wider than the head needs, so the type size can be tuned without measuring every book on the
-        /// device again: it feeds `textRect`, and moving it moves where every page breaks.
-        static let runningHeadHeight: CGFloat = 44
+        /// The band kept at the top and bottom of every page for the book title and the page number,
+        /// which is as deep as the head drawn in it and no deeper.
+        static let runningHeadHeight: CGFloat = 26
 
         /// Where the body text is laid out and drawn, in the page's own coordinates.
         var textRect: CGRect {
             CGRect(origin: .zero, size: pageSize).inset(by: UIEdgeInsets(
-                top: safeArea.top + margins + Self.runningHeadHeight,
+                // Half the margin above and below: the running head's own band already parts the text
+                // from the edge, where the sides have nothing but the margin to do it.
+                top: safeArea.top + margins / 2 + Self.runningHeadHeight,
                 left: safeArea.leading + margins,
-                bottom: safeArea.bottom + margins + Self.runningHeadHeight,
+                bottom: safeArea.bottom + margins / 2 + Self.runningHeadHeight,
                 right: safeArea.trailing + margins
             ))
         }
@@ -73,7 +74,7 @@ final class ChapterLayout {
     /// Measurements are kept against the setting they were made at, and the setting alone says nothing
     /// about the rules that read it. Without this, changing how far a mark hangs would leave every book
     /// on the device showing the breaks an older layout chose.
-    nonisolated static let rulesVersion = "3"
+    nonisolated static let rulesVersion = "4"
 
     enum Rules {
         /// Lines that have to follow a heading rather than leaving it stranded at the foot of a page.

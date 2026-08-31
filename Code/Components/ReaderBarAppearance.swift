@@ -86,6 +86,8 @@ private struct ReaderBarAppearance: UIViewControllerRepresentable {
         /// The stack's own view and the window, which show at the corners where the page's rounding
         /// and the screen's disagree, and what they were painted before the reader took them.
         private weak var takenContainer: UIView?
+        private weak var takenPage: UIView?
+        private var savedPageColour: UIColor?
         private var savedContainerColour: UIColor?
         private var savedWindowColour: UIColor?
         private var hasTakenBackdrop = false
@@ -137,13 +139,21 @@ private struct ReaderBarAppearance: UIViewControllerRepresentable {
             // background inside the page cannot reach it, being clipped to the same shape, so the
             // colour goes on what is behind instead.
             if isOnScreen, let background, let container = navigationController?.view {
+                let page = navigationController?.topViewController?.view
+
                 if !hasTakenBackdrop {
+                    savedPageColour = page?.backgroundColor
                     savedContainerColour = container.backgroundColor
                     savedWindowColour = view.window?.backgroundColor
                     hasTakenBackdrop = true
                 }
 
+                // The page's own hosting view is the one that shows at the corners: it clips, and it
+                // sits in front of the stack's view and the window, which are painted here only so
+                // nothing white is left anywhere beneath it.
+                takenPage = page
                 takenContainer = container
+                page?.backgroundColor = background
                 container.backgroundColor = background
                 view.window?.backgroundColor = background
             }
@@ -172,10 +182,17 @@ private struct ReaderBarAppearance: UIViewControllerRepresentable {
             navigationBar.scrollEdgeAppearance = appearance
             navigationBar.compactAppearance = appearance
 
+            // A dark page takes a light shadow. Black under a bar the colour of a black page is
+            // invisible, and the bar then has no edge at all.
+            var brightness: CGFloat = 0
+            var opacity: CGFloat = 0
+            background.resolvedColor(with: traitCollection).getWhite(&brightness, alpha: &opacity)
+            let isDarkPage = brightness < 0.5
+
             navigationBar.layer.masksToBounds = false
-            navigationBar.layer.shadowColor = UIColor.black.cgColor
-            navigationBar.layer.shadowOpacity = 0.18
-            navigationBar.layer.shadowRadius = 5
+            navigationBar.layer.shadowColor = (isDarkPage ? UIColor.white : UIColor.black).cgColor
+            navigationBar.layer.shadowOpacity = isDarkPage ? 0.3 : 0.18
+            navigationBar.layer.shadowRadius = 6
             navigationBar.layer.shadowOffset = CGSize(width: 0, height: 2)
         }
 
@@ -203,8 +220,10 @@ private struct ReaderBarAppearance: UIViewControllerRepresentable {
         private func releaseBackdrop() {
             guard hasTakenBackdrop else { return }
 
+            (takenPage ?? navigationController?.topViewController?.view)?.backgroundColor = savedPageColour
             (takenContainer ?? navigationController?.view)?.backgroundColor = savedContainerColour
             takenWindow?.backgroundColor = savedWindowColour
+            takenPage = nil
             takenContainer = nil
             hasTakenBackdrop = false
         }
