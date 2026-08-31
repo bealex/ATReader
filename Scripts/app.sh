@@ -223,8 +223,20 @@ resolve_device() {
 
 # project.yml is the source of truth and ATReader.xcodeproj is its output, so a spec newer than the
 # project means the project is stale.
+#
+# So does a file having been added or removed: the spec globs Code/ and Tests/, and the glob is expanded
+# when the project is generated, so a new test sits outside the project and silently never runs. A
+# directory's own timestamp moves when an entry is added or removed and not when one is merely edited,
+# which is the difference this looks for. Editing a file must not regenerate: that rewrites the project
+# and costs a full rebuild.
 ensure_project() {
-  if [ -d "$PROJECT" ] && [ "$REPO/project.yml" -ot "$PROJECT" ]; then
+  local changed=""
+
+  if [ -d "$PROJECT" ]; then
+    changed="$(find "$REPO/Code" "$REPO/Tests" -type d -newer "$PROJECT" -print -quit 2>/dev/null)"
+  fi
+
+  if [ -d "$PROJECT" ] && [ -z "$changed" ] && [ "$REPO/project.yml" -ot "$PROJECT" ]; then
     return 0
   fi
   if ! command -v xcodegen >/dev/null 2>&1; then
