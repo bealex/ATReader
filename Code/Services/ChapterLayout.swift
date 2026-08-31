@@ -29,7 +29,8 @@ final class ChapterLayout {
         var safeArea: EdgeInsets
 
         /// The band kept at the top and bottom of every page for the book title and the page number.
-        static let runningHeadHeight: CGFloat = 22
+        /// Twice the type size the running head is drawn at, which is what keeps the text clear of it.
+        static let runningHeadHeight: CGFloat = 44
 
         /// Where the body text is laid out and drawn, in the page's own coordinates.
         var textRect: CGRect {
@@ -71,7 +72,7 @@ final class ChapterLayout {
     /// Measurements are kept against the setting they were made at, and the setting alone says nothing
     /// about the rules that read it. Without this, changing how far a mark hangs would leave every book
     /// on the device showing the breaks an older layout chose.
-    nonisolated static let rulesVersion = "2"
+    nonisolated static let rulesVersion = "3"
 
     enum Rules {
         /// Lines that have to follow a heading rather than leaving it stranded at the foot of a page.

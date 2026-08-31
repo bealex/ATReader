@@ -42,6 +42,11 @@ enum ReaderScreen {
         @State
         private var isChromeHidden = true
 
+        /// The type size of the running head, which ``ChapterLayout/Context/runningHeadHeight`` keeps
+        /// the body text clear of.
+        @ScaledMetric(relativeTo: .caption2)
+        private var runningHeadSize: CGFloat = 22
+
         var body: some View {
             Group {
                 if let model {
@@ -51,6 +56,10 @@ enum ReaderScreen {
                 }
             }
             .background(settings.theme.background.ignoresSafeArea())
+            // The push rounds the incoming page's corners to a radius of its own, which does not quite
+            // meet the screen's. Black underneath means the sliver that shows through the difference
+            // reads as the bezel rather than as the screen behind.
+            .background(Color.black.ignoresSafeArea())
             .navigationTitle(model?.chapterTitle ?? title)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar(.hidden, for: .tabBar)
@@ -213,7 +222,7 @@ enum ReaderScreen {
         private func runningHead(_ text: String?, edge: VerticalEdge, isCaption: Bool = false) -> some View {
             if let text, !text.isEmpty {
                 Text(text)
-                    .font(.caption2)
+                    .font(.system(size: runningHeadSize))
                     .lineLimit(1)
                     .foregroundStyle(settings.theme.foreground.opacity(0.4))
                     .padding(.horizontal, settings.margins)
