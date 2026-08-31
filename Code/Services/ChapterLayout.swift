@@ -1154,6 +1154,34 @@ final class ChapterLayout {
 
     // MARK: - What the reader asks for
 
+    /// One line as the column set it.
+    ///
+    /// A justified line that does not end its paragraph is meant to reach the measure exactly, so this
+    /// is what a test reads to say whether it did.
+    struct TypesetLine {
+        var text: String
+        var width: CGFloat
+        var startsParagraph: Bool
+        var endsParagraph: Bool
+        var isJustified: Bool
+        var isHeading: Bool
+    }
+
+    /// Every line of the chapter, in the order it was set.
+    var typesetLines: [TypesetLine] {
+        lines.map { line in
+            let used = manager.lineFragmentUsedRect(forGlyphAt: line.glyphs.location, effectiveRange: nil)
+            return TypesetLine(
+                text: (storage.string as NSString).substring(with: line.characters),
+                width: used.width,
+                startsParagraph: line.startsParagraph,
+                endsParagraph: line.endsParagraph,
+                isJustified: isJustified(line),
+                isHeading: line.isHeading
+            )
+        }
+    }
+
     var pageCount: Int { pages.count }
 
     var isEmpty: Bool { pages.isEmpty }

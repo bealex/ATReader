@@ -139,11 +139,13 @@ struct ChapterHTMLTests {
     }
 
     @Test
-    func turnsLineBreaksIntoNewlines() {
+    func joinsTheTextEitherSideOfALineBreak() {
         let paragraphs = ChapterHTML.paragraphs(from: "<p>Kilo<br>Lima</p>")
 
+        // A newline here would end the paragraph for the typesetter, stranding a short line in the
+        // middle of a justified column.
         #expect(paragraphs.count == 1)
-        #expect(paragraphs[0].text == "Kilo\nLima")
+        #expect(paragraphs[0].text == "Kilo Lima")
     }
 
     @Test

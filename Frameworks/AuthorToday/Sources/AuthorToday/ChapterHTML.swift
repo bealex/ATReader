@@ -81,9 +81,14 @@ public enum ChapterHTML {
     private static func plainText(from fragment: String) -> String {
         var text = fragment
 
+        // A space, not a newline. A newline ends the paragraph as far as the typesetter is concerned,
+        // which left the line before it unjustified in the middle of a justified column and the text
+        // after it without its indent. Authors use the tag mid-sentence, where no break was meant.
         for lineBreak in [ "<br>", "<br/>", "<br />" ] {
-            text = text.replacingOccurrences(of: lineBreak, with: "\n", options: .caseInsensitive)
+            text = text.replacingOccurrences(of: lineBreak, with: " ", options: .caseInsensitive)
         }
+
+        text = text.replacingOccurrences(of: "[ \t]{2,}", with: " ", options: .regularExpression)
 
         text = text.replacingOccurrences(of: "<[^>]+>", with: "", options: .regularExpression)
         text = decodeEntities(in: text)

@@ -116,6 +116,21 @@ targets:
         BGTaskSchedulerPermittedIdentifiers:
           - com.lonelybytes.atreader.refresh
 
+  ATReaderTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: Tests/ATReaderTests
+    dependencies:
+      - target: ATReader
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.lonelybytes.atreader.tests
+        SWIFT_VERSION: "6.0"
+        CODE_SIGN_STYLE: Manual
+        CODE_SIGN_IDENTITY: "-"
+        GENERATE_INFOPLIST_FILE: "YES"
+
   ATReaderUITests:
     type: bundle.ui-testing
     platform: iOS
@@ -137,10 +152,12 @@ schemes:
     build:
       targets:
         ATReader: all
+        ATReaderTests: [ test ]
         ATReaderUITests: [ test ]
     run:
       config: Debug
     test:
       config: Debug
       targets:
+        - ATReaderTests
         - ATReaderUITests
