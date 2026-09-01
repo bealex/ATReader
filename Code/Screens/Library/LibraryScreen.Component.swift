@@ -18,8 +18,8 @@ enum LibraryScreen {
         @State
         private var model: Model?
 
-        @State
-        private var path: [AppRoute] = []
+        @Environment(Navigator.self)
+        private var navigator
 
         @State
         private var isPickingFile = false
@@ -34,18 +34,15 @@ enum LibraryScreen {
         private var reordering: Model.Group?
 
         var body: some View {
-            NavigationStack(path: $path) {
-                Group {
-                    if let model {
-                        content(model)
-                    } else {
-                        Color.clear
-                    }
+            Group {
+                if let model {
+                    content(model)
+                } else {
+                    Color.clear
                 }
-                // The shelf carries its own heading, so the bar above it would only repeat the word.
-                .toolbar(.hidden, for: .navigationBar)
-                .navigationDestination(for: AppRoute.self) { AppRouteDestination(route: $0) }
             }
+            // The shelf carries its own heading, so the bar above it would only repeat the word.
+            .toolbar(.hidden, for: .navigationBar)
             .onAppear {
                 if model == nil { model = Model(session: session) }
             }
@@ -56,7 +53,7 @@ enum LibraryScreen {
                 // A book handed over by another app lands in the store rather than in this screen.
                 Task { await model?.refreshFromStore() }
             }
-            .onChange(of: path) { _, current in
+            .onChange(of: navigator.path) { _, current in
                 // Reading fills the rings, and only the store knows it. Coming back off a book redraws
                 // the list from there rather than leaving yesterday's covers up.
                 guard current.isEmpty else { return }
@@ -371,7 +368,7 @@ enum LibraryScreen {
                 if model.isSelecting {
                     model.toggle(work)
                 } else {
-                    path.append(.work(id: work.id, title: work.title))
+                    navigator.path.append(.work(id: work.id, title: work.title))
                 }
             } label: {
                 HStack(spacing: 10) {
@@ -527,11 +524,17 @@ struct AppRouteDestination: View {
     let route: AppRoute
 
     var body: some View {
-        switch route {
-            case let .work(id, title):
-                WorkScreen.Component(workId: id, title: title)
-            case let .reader(reader):
-                ReaderScreen.Component(workId: reader.workId, title: reader.title, initialChapterId: reader.chapterId)
+        Group {
+            switch route {
+                case let .work(id, title):
+                    WorkScreen.Component(workId: id, title: title)
+                case let .reader(reader):
+                    ReaderScreen.Component(
+                        workId: reader.workId,
+                        title: reader.title,
+                        initialChapterId: reader.chapterId
+                    )
+            }
         }
     }
 }

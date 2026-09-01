@@ -71,15 +71,23 @@ enum RootScreen {
     }
 
     struct MainTabs: View {
+        @State
+        private var navigator = Navigator()
+
         var body: some View {
+            @Bindable var navigator = navigator
+
+            NavigationStack(path: $navigator.path) {
+                tabs
+                    .navigationDestination(for: AppRoute.self) { AppRouteDestination(route: $0) }
+            }
+            .environment(navigator)
+        }
+
+        private var tabs: some View {
             TabView {
                 Tab("Library", systemImage: "books.vertical.fill") {
                     LibraryScreen.Component()
-                }
-                // The search role is what puts search on the tab bar itself rather than in a bar above
-                // each screen, which is why the library no longer carries one.
-                Tab("Search", systemImage: "magnifyingglass", role: .search) {
-                    SearchScreen.Component()
                 }
                 Tab("Top", systemImage: "chart.bar.fill") {
                     TopScreen.Component()

@@ -32,7 +32,6 @@ enum WorkScreen {
             .background(Color(.systemGroupedBackground))
             .navigationTitle(title)
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar(.hidden, for: .tabBar)
             .onAppear {
                 if model == nil { model = Model(workId: workId, session: session) }
             }
