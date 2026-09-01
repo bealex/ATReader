@@ -14,18 +14,21 @@ enum TopScreen {
         @State
         private var model: Model?
 
-        @Environment(Navigator.self)
-        private var navigator
+        @State
+        private var path: [AppRoute] = []
 
         var body: some View {
-            Group {
-                if let model {
-                    content(model)
-                } else {
-                    Color.clear
+            NavigationStack(path: $path) {
+                Group {
+                    if let model {
+                        content(model)
+                    } else {
+                        Color.clear
+                    }
                 }
+                .navigationTitle("Top books")
+                .navigationDestination(for: AppRoute.self) { AppRouteDestination(route: $0) }
             }
-            .navigationTitle("Top books")
             .onAppear {
                 if model == nil { model = Model(session: session) }
             }
@@ -44,7 +47,7 @@ enum TopScreen {
 
                 ForEach(Array(model.feed.works.enumerated()), id: \.element.id) { position, work in
                     Button {
-                        navigator.path.append(.work(id: work.id, title: work.title))
+                        path.append(.work(id: work.id, title: work.title))
                     } label: {
                         RankedRow(rank: position + 1, work: work)
                             .contentShape(.rect)

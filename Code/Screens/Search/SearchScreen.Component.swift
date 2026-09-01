@@ -32,8 +32,8 @@ enum SearchScreen {
         @State
         private var feed: CatalogFeed?
 
-        @Environment(Navigator.self)
-        private var navigator
+        @State
+        private var path: [AppRoute] = []
 
         @State
         private var searchText = ""
@@ -45,14 +45,17 @@ enum SearchScreen {
         private var sorting: CatalogSorting = .popular
 
         var body: some View {
-            Group {
-                if let feed {
-                    content(feed)
-                } else {
-                    Color.clear
+            NavigationStack(path: $path) {
+                Group {
+                    if let feed {
+                        content(feed)
+                    } else {
+                        Color.clear
+                    }
                 }
+                .navigationTitle("Search")
+                .navigationDestination(for: AppRoute.self) { AppRouteDestination(route: $0) }
             }
-            .navigationTitle("Search")
             .onAppear {
                 if feed == nil { feed = CatalogFeed(client: session.client) }
             }
@@ -67,7 +70,7 @@ enum SearchScreen {
 
                 ForEach(visibleWorks(feed)) { work in
                     Button {
-                        navigator.path.append(.work(id: work.id, title: work.title))
+                        path.append(.work(id: work.id, title: work.title))
                     } label: {
                         WorkRow(work: work, showsProgress: false)
                             .contentShape(.rect)

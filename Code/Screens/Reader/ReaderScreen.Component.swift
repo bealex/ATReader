@@ -58,6 +58,7 @@ enum ReaderScreen {
             .background(settings.theme.background.ignoresSafeArea())
             .navigationTitle(model?.chapterTitle ?? title)
             .navigationBarTitleDisplayMode(.inline)
+            .toolbar(.hidden, for: .tabBar)
             // The system's own bar, so its buttons sit and size themselves the way they do elsewhere.
             .toolbar(isChromeHidden ? .hidden : .visible, for: .navigationBar)
             // The page's colour behind the bar, with a shadow to part it from the page: the running

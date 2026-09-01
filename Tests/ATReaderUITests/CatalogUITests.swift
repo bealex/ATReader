@@ -31,10 +31,7 @@ final class CatalogUITests: XCTestCase {
         app.launch()
     }
 
-    func testSearchFindsBooksByText() throws {
-        // The search tab is off the tab bar for now; the screen itself is still here.
-        throw XCTSkip("search is not on the tab bar")
-
+    func testSearchFindsBooksByText() {
         app.tabBars.buttons["Search"].tap()
 
         let field = app.searchFields.firstMatch
@@ -51,10 +48,7 @@ final class CatalogUITests: XCTestCase {
         XCTAssertGreaterThan(app.collectionViews.cells.count, 0, "expected at least one search result")
     }
 
-    func testSearchByAuthorScopeNarrowsResults() throws {
-        // The search tab is off the tab bar for now; the screen itself is still here.
-        throw XCTSkip("search is not on the tab bar")
-
+    func testSearchByAuthorScopeNarrowsResults() {
         app.tabBars.buttons["Search"].tap()
 
         let field = app.searchFields.firstMatch
