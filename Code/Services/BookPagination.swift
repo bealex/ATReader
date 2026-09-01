@@ -32,6 +32,10 @@ final class BookPagination {
         var pageCount: Int
     }
 
+    /// How much of a chapter has to reach the page it shares for it to run on at all. A heading with
+    /// one or two lines under it reads as a title stranded at the foot of the page.
+    static let runOnLineMinimum = 3
+
     /// A chapter's parsed text, or `nil` where the device doesn't have it.
     typealias ContentProvider = @MainActor (Int) async -> ChapterContent?
 
@@ -166,20 +170,38 @@ final class BookPagination {
         from startOffset: CGFloat,
         key: String?
     ) async -> CGFloat {
-        let layout = await ChapterLayout.make(
+        let heading = ChapterHeading.make(position: position, title: chapter.title)
+        var offset = startOffset
+        var layout = await ChapterLayout.make(
             chapterId: chapter.id,
             content: text,
-            heading: ChapterHeading.make(position: position, title: chapter.title),
+            heading: heading,
             context: context,
-            startOffset: startOffset
+            startOffset: offset
         )
+
+        // The free space was measured before the heading was set into it, and a heading stands far
+        // taller than the lines that measured it. So the answer is read back from the page instead: a
+        // chapter that could not bring a few lines of itself onto the page it shares leaves its title
+        // stranded at the foot, and takes a page of its own instead.
+        if offset > 0, layout.bodyLineCount(onPage: 0) < Self.runOnLineMinimum {
+            offset = 0
+            layout = await ChapterLayout.make(
+                chapterId: chapter.id,
+                content: text,
+                heading: heading,
+                context: context,
+                startOffset: 0
+            )
+        }
+
         let next = Self.startOffset(after: layout, context: context)
 
-        placements[chapter.id] = Placement(startOffset: startOffset, pageCount: layout.pageCount)
+        placements[chapter.id] = Placement(startOffset: offset, pageCount: layout.pageCount)
 
         if let key {
             await store.store(
-                placement: .init(startOffset: startOffset, pageCount: layout.pageCount, nextOffset: next),
+                placement: .init(startOffset: offset, pageCount: layout.pageCount, nextOffset: next),
                 workId: workId,
                 chapterId: chapter.id,
                 chain: key,

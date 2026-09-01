@@ -74,7 +74,7 @@ final class ChapterLayout {
     /// Measurements are kept against the setting they were made at, and the setting alone says nothing
     /// about the rules that read it. Without this, changing how far a mark hangs would leave every book
     /// on the device showing the breaks an older layout chose.
-    nonisolated static let rulesVersion = "4"
+    nonisolated static let rulesVersion = "5"
 
     enum Rules {
         /// Lines that have to follow a heading rather than leaving it stranded at the foot of a page.
@@ -1180,6 +1180,16 @@ final class ChapterLayout {
                 isHeading: line.isHeading
             )
         }
+    }
+
+    /// How many lines of the chapter's own text, its heading aside, fall on a page.
+    ///
+    /// What decides whether a chapter may share the page the one before it ended on: the free space
+    /// says nothing on its own, because a heading is far taller than the lines it is measured in.
+    func bodyLineCount(onPage index: Int) -> Int {
+        guard pages.indices.contains(index) else { return 0 }
+
+        return lines[pages[index].lines].filter { !$0.isHeading }.count
     }
 
     var pageCount: Int { pages.count }
