@@ -15,15 +15,16 @@
 # Target:    -s, --simulator (default)      -d, --device
 # Config:    --debug (default)              --release
 # Selector:  --sim NAME, --sim-id UDID, --device-id UDID
-# Also:      -v, --verbose (stream the log too), -h, --help
+# Also:      -O, --optimized (compile Debug with the optimiser on, which is how an optimised build gets
+#            onto a device), -v, --verbose (stream the log too), -h, --help
 #
 # Test options, all of which are xcodebuild's and so imply the app UI tests:
 #   --only SPEC     Run one target, suite or case, as ATReaderUITests/CatalogUITests. Repeatable.
 #   --build-only    Build the tests without running them.
 #   --no-build      Run tests already built by --build-only, reusing that build.
 #
-# Release carries no provisioning profile on purpose, so `deploy --device --release` builds but cannot
-# install. Use Debug for anything that has to run on hardware.
+# Release carries no provisioning profile in the spec, on purpose, so it builds for a device but cannot
+# install there. Use `--optimized` for a build that runs at speed on hardware.
 #
 # Copyright © 2026 Alexander Babaev. MIT licence — see LICENSE.
 set -uo pipefail
@@ -43,6 +44,10 @@ SIM_ID=""
 DEVICE_ID=""
 TESTS="all"
 TEST_ACTION="test"
+# Optimisation asked for on top of the configuration, which is how an optimised build reaches a device:
+# Release is unsigned in the spec by design, and its signing cannot be supplied on the command line
+# because xcodebuild would hand it to the package target as well, which rejects a profile outright.
+SIGNING=()
 ONLY=()
 VERBOSE=0
 
@@ -102,6 +107,13 @@ while [ $# -gt 0 ]; do
       shift
       [ $# -gt 0 ] || die "--device-id needs a UDID"
       DEVICE_ID="$1"
+      ;;
+    -O | --optimized)
+      SIGNING=(
+        "SWIFT_OPTIMIZATION_LEVEL=-O"
+        "SWIFT_COMPILATION_MODE=wholemodule"
+        "GCC_OPTIMIZATION_LEVEL=s"
+      )
       ;;
     -v | --verbose) VERBOSE=1 ;;
     -h | --help)
@@ -273,7 +285,8 @@ cmd_build() {
     resolve_simulator || return 1
     dest="id=$SIM_ID"
   fi
-  xcode_build "$dest" "build · $CONFIG · $TARGET" build
+
+  xcode_build "$dest" "build · $CONFIG · $TARGET" build ${SIGNING[@]+"${SIGNING[@]}"}
 }
 
 # simctl's bootstatus boots the device when it is off and returns at once when it is already up.
