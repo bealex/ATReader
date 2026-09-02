@@ -1173,19 +1173,27 @@ final class ChapterLayout {
         var isHeading: Bool
     }
 
+    /// The lines that fall on one page, in the order they were set.
+    func typesetLines(onPage index: Int) -> [TypesetLine] {
+        guard pages.indices.contains(index) else { return [] }
+
+        return lines[pages[index].lines].map(described)
+    }
+
     /// Every line of the chapter, in the order it was set.
-    var typesetLines: [TypesetLine] {
-        lines.map { line in
-            let used = manager.lineFragmentUsedRect(forGlyphAt: line.glyphs.location, effectiveRange: nil)
-            return TypesetLine(
-                text: (storage.string as NSString).substring(with: line.characters),
-                width: used.width,
-                startsParagraph: line.startsParagraph,
-                endsParagraph: line.endsParagraph,
-                isJustified: isJustified(line),
-                isHeading: line.isHeading
-            )
-        }
+    var typesetLines: [TypesetLine] { lines.map(described) }
+
+    private func described(_ line: Line) -> TypesetLine {
+        let used = manager.lineFragmentUsedRect(forGlyphAt: line.glyphs.location, effectiveRange: nil)
+
+        return TypesetLine(
+            text: (storage.string as NSString).substring(with: line.characters),
+            width: used.width,
+            startsParagraph: line.startsParagraph,
+            endsParagraph: line.endsParagraph,
+            isJustified: isJustified(line),
+            isHeading: line.isHeading
+        )
     }
 
     /// How many lines of the chapter's own text, its heading aside, fall on a page.

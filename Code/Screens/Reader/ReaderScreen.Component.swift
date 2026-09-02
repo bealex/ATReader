@@ -317,13 +317,36 @@ enum ReaderScreen {
                     try? await Task.sleep(for: .milliseconds(400))
 
                     guard
-                        let url = try? DebugReport.make(pageText: model.pageText, settings: settingsReport)
+                        let url = try? DebugReport.make(
+                            pageText: model.pageText,
+                            settings: settingsReport,
+                            lines: linesReport(model)
+                        )
                     else {
                         return
                     }
 
                     report = SharedFile(url: url)
                 }
+            }
+
+            /// Each line as it was set, against the measure it was set to.
+            private func linesReport(_ model: Model) -> String {
+                let measure = layoutContext.textSize.width
+                let indent = layoutContext.style.font.pointSize
+
+                return model.pageLines.enumerated()
+                    .map { index, line in
+                        let held = measure - (line.startsParagraph ? indent : 0)
+                        let gap = held - line.width
+                        let flags =
+                            "starts=\(line.startsParagraph) ends=\(line.endsParagraph) "
+                            + "just=\(line.isJustified) head=\(line.isHeading)"
+                        let text = line.text.trimmingCharacters(in: .whitespacesAndNewlines)
+
+                        return "\(index)\tw=\(Int(line.width))\tgap=\(Int(gap))\t\(flags)\t\(text)"
+                    }
+                    .joined(separator: "\n")
             }
 
             private var settingsReport: String {

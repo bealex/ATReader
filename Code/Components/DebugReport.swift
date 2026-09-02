@@ -9,9 +9,9 @@ import UniformTypeIdentifiers
 
 /// The page as it stands: its text, the setting it was laid out at, and a picture of it, in one zip.
 enum DebugReport {
-    /// Writes the three files into a folder and returns it zipped, ready to be shared.
+    /// Writes the files into a folder and returns it zipped, ready to be shared.
     @MainActor
-    static func make(pageText: String, settings: String) throws -> URL {
+    static func make(pageText: String, settings: String, lines: String) throws -> URL {
         let stamp = Self.stamp.string(from: .now)
         let folder = FileManager.default.temporaryDirectory.appendingPathComponent("reader-\(stamp)")
 
@@ -19,6 +19,7 @@ enum DebugReport {
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         try pageText.write(to: folder.appendingPathComponent("page.txt"), atomically: true, encoding: .utf8)
         try settings.write(to: folder.appendingPathComponent("settings.txt"), atomically: true, encoding: .utf8)
+        try lines.write(to: folder.appendingPathComponent("lines.txt"), atomically: true, encoding: .utf8)
 
         if let image = screenshot(), let png = image.pngData() {
             try png.write(to: folder.appendingPathComponent("screen.png"))

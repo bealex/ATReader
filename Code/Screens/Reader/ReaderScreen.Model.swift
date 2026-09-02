@@ -193,6 +193,14 @@ extension ReaderScreen {
             currentChapterId.flatMap { parsed[$0]?.language }
         }
 
+        /// Every line on the page as it was set, for a debug report.
+        var pageLines: [ChapterLayout.TypesetLine] {
+            switch page(at: currentPage) {
+                case let .text(pieces): pieces.flatMap { $0.layout.typesetLines(onPage: $0.page) }
+                default: []
+            }
+        }
+
         /// The text the page is showing, for a debug report.
         var pageText: String {
             switch page(at: currentPage) {
