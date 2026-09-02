@@ -51,6 +51,21 @@ struct RunOnTests {
         )
     }
 
+    /// A part title is a chapter of a heading and nothing else. It used to hold a page to itself and
+    /// send the chapter after it to the next one, leaving most of a page empty.
+    @Test
+    func aChapterOfOnlyAHeadingLetsTheNextFollowIt() async {
+        let layout = await ChapterLayout.make(
+            chapterId: 1,
+            content: await ChapterContent.prepare(html: ""),
+            heading: ChapterHeading.make(position: 2, title: "Часть вторая"),
+            context: Self.context
+        )
+
+        #expect(layout.pageCount == 1)
+        #expect(BookPagination.startOffset(after: layout, context: Self.context) > 0, "the page after it is wasted")
+    }
+
     /// Given real room, a chapter is allowed to share the page.
     @Test
     func aDeepGapLetsTheChapterRunOn() async {

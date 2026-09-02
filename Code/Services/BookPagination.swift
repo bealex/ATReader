@@ -229,9 +229,7 @@ final class BookPagination {
     ///
     /// A chapter only runs on when what is left of the page holds a decent piece of it; a heading with
     /// two lines under it belongs on the next page instead.
-    private static func startOffset(after previous: ChapterLayout, context: ChapterLayout.Context) -> CGFloat {
-        guard previous.pageCount > 1 else { return 0 }
-
+    static func startOffset(after previous: ChapterLayout, context: ChapterLayout.Context) -> CGFloat {
         let chapterGap = context.style.fontSize * 2.5
         let lineHeight = context.style.fontSize + context.style.lineSpacing
         let free = previous.tailFreeSpace - chapterGap
