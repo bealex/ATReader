@@ -139,6 +139,21 @@ struct ChapterHTMLTests {
     }
 
     @Test
+    func collapsesTheSourcesOwnNewlines() {
+        let paragraphs = ChapterHTML.paragraphs(from: "<p>Kilo\n  Lima\tMike</p>")
+
+        #expect(paragraphs.count == 1)
+        #expect(paragraphs[0].text == "Kilo Lima Mike")
+    }
+
+    @Test
+    func keepsANonBreakingSpace() {
+        let paragraphs = ChapterHTML.paragraphs(from: "<p>Kilo&nbsp;Lima</p>")
+
+        #expect(paragraphs[0].text == "Kilo\u{00A0}Lima")
+    }
+
+    @Test
     func joinsTheTextEitherSideOfALineBreak() {
         let paragraphs = ChapterHTML.paragraphs(from: "<p>Kilo<br>Lima</p>")
 

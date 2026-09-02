@@ -32,6 +32,16 @@ struct JustificationTests {
         #expect(Self.paragraphEndings(in: layout) == 1, "the break split the paragraph in two")
     }
 
+    /// The source's own newlines are white space to HTML, and used to split the paragraph the same way
+    /// a break tag did.
+    @Test
+    func aNewlineInTheSourceDoesNotSplitAParagraph() async {
+        let layout = await layout(html: "<p>\(Self.words(40))\n   \(Self.words(40))</p>")
+
+        #expect(Self.paragraphEndings(in: layout) == 1, "a source newline split the paragraph")
+        #expect(Self.shortLines(in: layout).isEmpty)
+    }
+
     @Test
     func aParagraphWithoutBreaksEndsOnce() async {
         let layout = await layout(html: "<p>\(Self.words(80))</p>")
