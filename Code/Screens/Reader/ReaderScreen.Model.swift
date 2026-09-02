@@ -188,6 +188,20 @@ extension ReaderScreen {
 
         /// What sits at `index`, which runs from `-1` to ``pageCount`` so a turn can show the page in the
         /// neighbouring chapter it is about to land on.
+        /// The language the chapter on screen was read as, which is what settles its alignment.
+        var chapterLanguage: String? {
+            currentChapterId.flatMap { parsed[$0]?.language }
+        }
+
+        /// The text the page is showing, for a debug report.
+        var pageText: String {
+            switch page(at: currentPage) {
+                case .title: workTitle
+                case let .text(pieces): pieces.map { $0.layout.pageText($0.page) }.joined(separator: "\n")
+                case .blank: ""
+            }
+        }
+
         func page(at index: Int) -> Page {
             if index < 0 { return pageBefore() }
 

@@ -30,6 +30,11 @@ enum ReaderScreen {
         @State
         private var isShowingContents = false
 
+        #if DEBUG
+            @State
+            private var report: SharedFile?
+        #endif
+
         @State
         private var pageSize: CGSize = .zero
 
@@ -72,6 +77,9 @@ enum ReaderScreen {
             .backSwipeDisabled()
             .statusBarHidden(isChromeHidden)
             .sheet(isPresented: $isShowingSettings) { SettingsSheet() }
+            #if DEBUG
+                .sheet(item: $report) { ShareSheet(url: $0.url) }
+            #endif
             .sheet(isPresented: $isShowingContents) {
                 if let model {
                     ContentsSheet(model: model, isPresented: $isShowingContents)
@@ -288,7 +296,65 @@ enum ReaderScreen {
                 Button("Appearance", systemImage: "textformat.size") { isShowingSettings = true }
                     .accessibilityHint("Font, margins and page settings")
             }
+
+            #if DEBUG
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Debug info", systemImage: "ladybug") { collectReport() }
+                        .accessibilityHint("Collects the page, its settings and a picture of it")
+                }
+            #endif
         }
+
+        #if DEBUG
+            /// The page, what it was set with and a picture of it, zipped and offered to share.
+            private func collectReport() {
+                guard let model else { return }
+
+                // The bar would otherwise stand in the picture, and the page is what is being asked about.
+                isChromeHidden = true
+
+                Task { @MainActor in
+                    try? await Task.sleep(for: .milliseconds(400))
+
+                    guard
+                        let url = try? DebugReport.make(pageText: model.pageText, settings: settingsReport)
+                    else {
+                        return
+                    }
+
+                    report = SharedFile(url: url)
+                }
+            }
+
+            private var settingsReport: String {
+                let style = settings.textStyle
+                let context = layoutContext
+                let language = model?.chapterLanguage
+
+                return """
+                    face: \(style.face.rawValue) \(style.weight.rawValue)
+                    fontSize: \(style.fontSize)
+                    lineSpacing: \(style.lineSpacing)
+                    letterSpacing: \(style.letterSpacing)
+                    margins: \(settings.margins)
+                    alignment.ru: \(settings.russianAlignment.rawValue)
+                    alignment.en: \(settings.englishAlignment.rawValue)
+                    theme: \(settings.theme.rawValue)
+                    language: \(language ?? "nil")
+                    justifies: \(style.justifies(language))
+                    pageSize: \(context.pageSize.width) x \(context.pageSize.height)
+                    safeArea: \(context.safeArea.top), \(context.safeArea.leading), \
+                    \(context.safeArea.bottom), \(context.safeArea.trailing)
+                    textSize: \(context.textSize.width) x \(context.textSize.height)
+                    runningHeadHeight: \(ChapterLayout.Context.runningHeadHeight)
+                    rulesVersion: \(ChapterLayout.rulesVersion)
+                    typographyVersion: \(Typography.version)
+                    fingerprint: \(context.fingerprint)
+                    chapter: \(model?.currentChapterId.map(String.init) ?? "nil")
+                    page: \((model?.currentPage ?? 0) + 1) of \(model?.pageCount ?? 0)
+                    """
+            }
+        #endif
     }
 
     /// Typeface, size, spacing, margins, alignment and page tint.
