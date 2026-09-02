@@ -16,9 +16,11 @@ import UIKit
 /// and no book's text belongs in this repository.
 @MainActor
 struct JustificationTests {
-    /// How near the measure a line that should fill it has to come, allowing for rounding and for a
-    /// mark hung outside the measure.
-    static let fills = 0.99
+    /// How near the measure a line that should fill it has to come.
+    ///
+    /// Justification fills to the advance width while this reads where the ink ends, and the two part
+    /// company by the right side bearing of whatever letter the line closes on.
+    static let fills = 0.96
 
     // MARK: - One paragraph stays one paragraph
 
@@ -61,18 +63,22 @@ struct JustificationTests {
 
     @Test
     func everyLineInsideAParagraphReachesTheMeasure() async {
-        let layout = await layout(html: "<p>\(Self.words(120))</p>")
+        let layout = await layout(html: "<p>\(Self.prose(1))</p>")
         let short = Self.shortLines(in: layout)
 
         #expect(layout.typesetLines.count > 6, "the paragraph has to run to several lines to say anything")
         #expect(short.isEmpty, "lines stopped short of the measure: \(short)")
     }
 
+    /// The edge holds across a run of paragraphs, but for the lines the column declines to open past
+    /// its gap ceiling. Those it leaves short rather than set the words that far apart.
     @Test
     func aRunOfParagraphsKeepsItsEdge() async {
-        let html = (1 ... 4).map { "<p>\(Self.words(30 + $0 * 9))</p>" }.joined()
+        let html = Self.prose(4).components(separatedBy: "\n").map { "<p>\($0)</p>" }.joined()
 
-        #expect(await Self.shortLines(in: layout(html: html)).isEmpty)
+        let short = await Self.shortLines(in: layout(html: html))
+
+        #expect(short.count <= 1, "more short lines than the gap ceiling accounts for: \(short)")
     }
 
     @Test
@@ -143,6 +149,27 @@ struct JustificationTests {
             heading: ChapterHeading.make(position: 1, title: nil),
             context: Self.testContext
         )
+    }
+
+    /// Russian prose written for these tests: real words, so the hyphenation dictionary has something
+    /// to offer and the short prepositions the binder ties are actually present.
+    static func prose(_ paragraphs: Int) -> String {
+        let sentences = [
+            "Дорога от деревни уходила в лес и терялась среди старых сосен у самой реки",
+            "Мальчик остановился на берегу и долго смотрел на воду, которая казалась почти черной",
+            "К вечеру поднялся ветер, и над полем потянулись низкие серые облака с дождем",
+            "Он вспомнил обещание вернуться домой до темноты и заторопился по узкой тропинке",
+            "В доме было тихо, только на кухне негромко переговаривались о завтрашней поездке",
+            "За окном начиналась гроза, и первые капли застучали по железному подоконнику",
+        ]
+
+        return (0 ..< paragraphs)
+            .map { index in
+                (0 ..< 4)
+                    .map { sentences[(index * 4 + $0) % sentences.count] }
+                    .joined(separator: ". ") + "."
+            }
+            .joined(separator: "\n")
     }
 
     /// Nonsense built from syllables, the same every run.

@@ -74,7 +74,7 @@ final class ChapterLayout {
     /// Measurements are kept against the setting they were made at, and the setting alone says nothing
     /// about the rules that read it. Without this, changing how far a mark hangs would leave every book
     /// on the device showing the breaks an older layout chose.
-    nonisolated static let rulesVersion = "6"
+    nonisolated static let rulesVersion = "7"
 
     enum Rules {
         /// Lines that have to follow a heading rather than leaving it stranded at the foot of a page.
@@ -1173,6 +1173,35 @@ final class ChapterLayout {
         var isHeading: Bool
     }
 
+    /// Where a line's ink ends, measured from the left edge of the text.
+    ///
+    /// Not the fragment's used rect: a line the column set itself is drawn run by run, and a line
+    /// TextKit justified has moved its glyphs since. Both are missed by asking the fragment.
+    private func drawnWidth(_ line: Line) -> CGFloat {
+        if let index = lines.firstIndex(where: { $0.characters == line.characters }),
+                let loosened = loosenedLines[index],
+                let last = loosened.runs.last,
+                let box = loosened.manager.textContainers.first {
+            return last.offset + loosened.manager.boundingRect(forGlyphRange: last.glyphs, in: box).maxX
+        }
+
+        let string = storage.string as NSString
+        var characters = line.characters
+
+        while characters.length > 0 {
+            let tail = string.substring(with: NSRange(location: NSMaxRange(characters) - 1, length: 1))
+
+            guard tail.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { break }
+
+            characters.length -= 1
+        }
+
+        guard characters.length > 0 else { return 0 }
+
+        let glyphs = manager.glyphRange(forCharacterRange: characters, actualCharacterRange: nil)
+        return manager.boundingRect(forGlyphRange: glyphs, in: container).maxX
+    }
+
     /// The lines that fall on one page, in the order they were set.
     func typesetLines(onPage index: Int) -> [TypesetLine] {
         guard pages.indices.contains(index) else { return [] }
@@ -1184,11 +1213,9 @@ final class ChapterLayout {
     var typesetLines: [TypesetLine] { lines.map(described) }
 
     private func described(_ line: Line) -> TypesetLine {
-        let used = manager.lineFragmentUsedRect(forGlyphAt: line.glyphs.location, effectiveRange: nil)
-
         return TypesetLine(
             text: (storage.string as NSString).substring(with: line.characters),
-            width: used.width,
+            width: drawnWidth(line),
             startsParagraph: line.startsParagraph,
             endsParagraph: line.endsParagraph,
             isJustified: isJustified(line),
@@ -1348,10 +1375,14 @@ final class ChapterLayout {
             guard !line.endsParagraph, !lines[index + 1].endsParagraph, isJustified(line) else { continue }
 
             // Opened as far as TextKit will open a space, so the rest is coming out of the letters —
-            // or there is no space on the line to open at all.
+            // or there is no space on the line to open at all. A line the column gave up on filling
+            // counts too: what holds it short is the tie below it, which is what this frees.
             let opened = firstSpaceWidth(line)
+            let shortfall = context.textSize.width - drawnWidth(line)
 
-            guard opened == nil || opened! >= spaceWidth * Rules.textKitSpaceLimit else { continue }
+            guard
+                shortfall > spaceWidth || opened == nil || opened! >= spaceWidth * Rules.textKitSpaceLimit
+            else { continue }
 
             let following = lines[index + 1].characters.location
 

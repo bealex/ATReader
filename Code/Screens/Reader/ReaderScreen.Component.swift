@@ -333,12 +333,10 @@ enum ReaderScreen {
             /// Each line as it was set, against the measure it was set to.
             private func linesReport(_ model: Model) -> String {
                 let measure = layoutContext.textSize.width
-                let indent = layoutContext.style.font.pointSize
 
                 return model.pageLines.enumerated()
                     .map { index, line in
-                        let held = measure - (line.startsParagraph ? indent : 0)
-                        let gap = held - line.width
+                        let gap = measure - line.width
                         let flags =
                             "starts=\(line.startsParagraph) ends=\(line.endsParagraph) "
                             + "just=\(line.isJustified) head=\(line.isHeading)"
