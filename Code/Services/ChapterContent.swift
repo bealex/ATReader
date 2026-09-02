@@ -51,8 +51,28 @@ struct ChapterContent: Codable, Sendable {
 
         guard !sample.isEmpty else { return nil }
 
+        // Cyrillic is read as Russian: the typography has rules for Russian and English and none for
+        // the recogniser's other Cyrillic answers, which it reaches for on a short or odd sample.
+        if isMostlyCyrillic(sample) { return "ru" }
+
         let recognizer = NLLanguageRecognizer()
         recognizer.processString(String(sample))
         return recognizer.dominantLanguage?.rawValue
+    }
+
+    /// True where the sample carries more Cyrillic letters than Latin ones.
+    static func isMostlyCyrillic(_ text: some StringProtocol) -> Bool {
+        var cyrillic = 0
+        var latin = 0
+
+        for scalar in text.unicodeScalars {
+            if (0x0400 ... 0x04FF).contains(scalar.value) {
+                cyrillic += 1
+            } else if scalar.isASCII, CharacterSet.letters.contains(scalar) {
+                latin += 1
+            }
+        }
+
+        return cyrillic > latin
     }
 }

@@ -42,6 +42,33 @@ struct AlignmentTests {
         )
     }
 
+    /// Cyrillic decides the language, so a chapter the recogniser reads as a neighbouring language
+    /// still gets the Russian rules.
+    @Test(arguments: [
+        "Глава первая",
+        "Часть III. Стажер",
+        "— Ты куда? — спросил он. — Домой.",
+        "Глава 12. 1957 год, посёлок Северный.",
+        "Виталий читал Sixty Days и думал о Луне.",
+    ])
+    func cyrillicIsReadAsRussian(text: String) async {
+        let language = await ChapterContent.prepare(html: "<p>\(text)</p>").language
+
+        #expect(Typography.isRussian(language), "\(text) came back as \(language ?? "nil")")
+    }
+
+    /// The rule must not drag English prose into the Russian settings.
+    @Test
+    func englishProseIsNotReadAsRussian() async {
+        let english = """
+            The house stood at the edge of the village, and the road ran straight into the woods. \
+            In the morning it was quiet there, and the wind moved the tops of the old pines.
+            """
+        let language = await ChapterContent.prepare(html: "<p>\(english)</p>").language
+
+        #expect(!Typography.isRussian(language), "English came back as \(language ?? "nil")")
+    }
+
     @Test
     func russianProseIsRecognisedAsRussian() async {
         let language = await content().language
