@@ -130,13 +130,21 @@ Two rules shape the result:
   somewhere different in every paragraph, bending the edge down the page. The rest of the line takes
   the slack. Every line opening on a dash is set here, however TextKit left it. Otherwise the gap is
   the font's on the lines TextKit could fill and stretched on the rest.
-- **A line that still can't be filled is left short.** A line standing under its measure reads; words
-  pulled to pieces don't.
+- **A line that still can't be filled frees the tie below it first.** The typesetter binds a short
+  preposition to the word after it so that no line ends on one, and that pair can be wider than what is
+  left. Freeing the tie lets the short word come up and the line fill. Where there's no tie to free the
+  line stays short: a line standing under its measure reads; words pulled to pieces don't.
 - **A line ending in a hyphen or a comma sets that mark outside the measure.** Those marks are mostly
   the white space around them, so an edge that lines them up with the letters reads as notched wherever
   one falls. Hanging a fraction of the mark past the margin puts the letters back on the line the rest
   of the column keeps. A fraction, not the whole character: hang a comma entirely and the edge bulges
   where the commas are.
+
+### A paragraph a fraction too wide
+
+A paragraph that misses fitting by a fraction of a line is set again with its letters closed up, by at
+most a fiftieth of the type size, rather than broken with a hyphen that leaves the tail of a word alone
+on the line after it. The opening line is indented, so what it holds is the measure less that indent.
 
 Hanging is why a line ending in punctuation is set here at all. Only a line the app sets itself can put
 a character outside the measure, so those lines join the crowded ones and the speech lines on this
@@ -188,8 +196,13 @@ be one short word. Both need control over line breaking rather than page breakin
 ## Chapters that run on
 
 A chapter starts on the page the one before it ended on when what is left of that page holds a decent
-piece of it: six lines and a quarter of the page, after the air between them. Otherwise it starts a
-page of its own.
+piece of it: six lines and a quarter of the page, after the air between them. That measurement counts lines, and
+a heading stands far taller than a line, so the page answers instead of the arithmetic: the chapter is laid out at that offset and asked
+how much of its own text landed. Fewer than three lines and it takes a page of its own, which is what
+keeps a title from standing alone at the foot of a page with its text overleaf.
+
+A chapter of a heading and nothing else, which is how a part title is filed, runs to a single page and
+lets the chapter after it follow on the same one.
 
 `ChapterLayout` takes a `startOffset` for that and makes its first page shorter by exactly that much,
 and the reader draws such a page from two pieces, one per chapter.
