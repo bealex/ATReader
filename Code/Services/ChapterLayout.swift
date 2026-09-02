@@ -74,7 +74,7 @@ final class ChapterLayout {
     /// Measurements are kept against the setting they were made at, and the setting alone says nothing
     /// about the rules that read it. Without this, changing how far a mark hangs would leave every book
     /// on the device showing the breaks an older layout chose.
-    nonisolated static let rulesVersion = "5"
+    nonisolated static let rulesVersion = "6"
 
     enum Rules {
         /// Lines that have to follow a heading rather than leaving it stranded at the foot of a page.
@@ -83,6 +83,9 @@ final class ChapterLayout {
         static let minimumLines = 4
         /// A chapter's last page reads as a mistake with fewer lines than this.
         static let shortLastPage = 3
+        /// How far the letters of a paragraph may close up to save a word from being broken, as a
+        /// share of the type size.
+        static let letterTightening: CGFloat = 0.02
         /// How far a line gap may be squeezed to pull one more line onto a page.
         static let tightening: CGFloat = 0.75
         /// How far a line gap may open to take up the slack a rule left behind.
@@ -205,22 +208,25 @@ final class ChapterLayout {
             language: content.language,
             style: context.style
         )
-        let layout = ChapterLayout(chapterId: chapterId, text: text, context: context, startOffset: startOffset)
+        var layout = ChapterLayout(chapterId: chapterId, text: text, context: context, startOffset: startOffset)
         await layout.build(onProgress: onProgress)
 
-        // A second pass, and only where the first found a line held open by a short word tied to the
-        // next one. It costs another laying-out of the chapter, which is why it is asked for rather
-        // than run every time. See `freedText`.
-        guard let freed = layout.freedText() else { return layout }
+        // Each further pass is asked for rather than run every time: it costs another laying-out of the
+        // chapter. See `freedText` and `tightenedText`.
+        for rewrite in [ { layout.freedText() }, { layout.tightenedText() } ] {
+            guard let rewritten = rewrite() else { continue }
 
-        let relaxed = ChapterLayout(
-            chapterId: chapterId,
-            text: ChapterPagination.TypesetText(attributed: freed, headingLength: text.headingLength),
-            context: context,
-            startOffset: startOffset
-        )
-        await relaxed.build(onProgress: nil)
-        return relaxed
+            let again = ChapterLayout(
+                chapterId: chapterId,
+                text: ChapterPagination.TypesetText(attributed: rewritten, headingLength: text.headingLength),
+                context: context,
+                startOffset: startOffset
+            )
+            await again.build(onProgress: nil)
+            layout = again
+        }
+
+        return layout
     }
 
     /// True when laying this chapter out takes long enough that the reader should be told.
@@ -1265,6 +1271,60 @@ final class ChapterLayout {
     ///
     /// The joiner is swapped rather than removed. Both are one character, so every reading position in
     /// the chapter still counts to the same place; deleting it would shift them all.
+    /// The chapter set again with a two-line paragraph closed up onto one line.
+    ///
+    /// A paragraph a fraction wider than the measure costs the eye more as a broken word and a stub
+    /// line than as letters standing a little closer.
+    func tightenedText() -> NSAttributedString? {
+        guard lines.count > 1 else { return nil }
+
+        let measure = context.textSize.width
+        let limit = context.style.fontSize * Rules.letterTightening
+        let string = storage.string as NSString
+        var closed: [(range: NSRange, kern: CGFloat)] = []
+
+        for (index, line) in lines.enumerated() {
+            guard !line.isHeading, line.startsParagraph else { continue }
+            guard index + 1 < lines.count, lines[index + 1].endsParagraph else { continue }
+
+            let range = NSRange(
+                location: line.characters.location,
+                length: NSMaxRange(lines[index + 1].characters) - line.characters.location
+            )
+
+            guard range.length > 1, NSMaxRange(range) <= string.length else { continue }
+
+            let text = string.substring(with: range)
+                .replacingOccurrences(of: "\u{00AD}", with: "")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+
+            guard text.count > 1 else { continue }
+
+            let width = (text as NSString).size(withAttributes: [
+                .font: context.style.font,
+                .kern: context.style.letterSpacing,
+            ]).width
+            // The opening line is indented, so it holds less than the measure.
+            let excess = width - (measure - headIndent(at: line.characters.location))
+
+            guard excess > 0 else { continue }
+
+            let perGap = excess / CGFloat(text.count - 1)
+
+            guard perGap <= limit else { continue }
+
+            closed.append((range, context.style.letterSpacing - perGap))
+        }
+
+        guard !closed.isEmpty else { return nil }
+
+        let result = NSMutableAttributedString(attributedString: storage)
+
+        for entry in closed { result.addAttribute(.kern, value: entry.kern, range: entry.range) }
+
+        return result
+    }
+
     func freedText() -> NSAttributedString? {
         let string = storage.string as NSString
         let spaceWidth = " ".size(withAttributes: [ .font: context.style.font ]).width
