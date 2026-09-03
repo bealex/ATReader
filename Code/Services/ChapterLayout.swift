@@ -440,7 +440,7 @@ final class ChapterLayout {
         // The measure the words are set to, opened by however far the line's last character hangs
         // outside it. The words carry that extra between them, so the character ends up past the
         // margin and the letters before it stop where the eye expects the edge to be.
-        let perGap = (measure + hang - natural.width) / CGFloat(stretchable)
+        var perGap = (measure + hang - natural.width) / CGFloat(stretchable)
         let spaceWidth = " ".size(withAttributes: [ .font: context.style.font ]).width
 
         // Negative where the line was set tight to draw a word up from the one below it.
@@ -454,9 +454,33 @@ final class ChapterLayout {
         // Past this the words would be too far apart to read as one line, so the line is left short.
         // Giving it back to TextKit is the worse answer: having opened the spaces as far as it will,
         // TextKit fills the line from between the letters instead.
+        // Gaps wider than this read as holes, so the gaps take what they may and the letters take the
+        // rest. Neither lever has to carry the line alone.
         if let widestGap, perGap > widestGap {
-            reason = String(format: "gaps of %.1fpt, wider than the %.1fpt allowed", perGap, widestGap)
-            return unfilled(natural)
+            let letters = CGFloat(max(1, natural.storage.length))
+            let leftover = (measure + hang - natural.width) - widestGap * CGFloat(stretchable)
+            let spread = leftover / letters
+
+            guard
+                spread <= Rules.letterExpansion
+            else {
+                reason = String(
+                    format: "gaps of %.1fpt over the %.1fpt allowed, and %.2fpt a letter over the %.1fpt",
+                    perGap,
+                    widestGap,
+                    spread,
+                    Rules.letterExpansion
+                )
+                return unfilled(natural)
+            }
+
+            natural.storage.addAttribute(
+                .kern,
+                value: context.style.letterSpacing + spread,
+                range: NSRange(location: 0, length: natural.storage.length)
+            )
+            natural.manager.ensureLayout(for: natural.container)
+            perGap = widestGap
         }
 
         let runs = words.enumerated().map { position, characters in
