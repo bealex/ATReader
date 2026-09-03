@@ -74,7 +74,7 @@ final class ChapterLayout {
     /// Measurements are kept against the setting they were made at, and the setting alone says nothing
     /// about the rules that read it. Without this, changing how far a mark hangs would leave every book
     /// on the device showing the breaks an older layout chose.
-    nonisolated static let rulesVersion = "7"
+    nonisolated static let rulesVersion = "8"
 
     enum Rules {
         /// Lines that have to follow a heading rather than leaving it stranded at the foot of a page.
@@ -86,6 +86,8 @@ final class ChapterLayout {
         /// How far the letters of a paragraph may close up to save a word from being broken, as a
         /// share of the type size.
         static let letterTightening: CGFloat = 0.02
+        /// How far apart, in points, the letters of a line may stand to fill it where nothing else will.
+        static let letterExpansion: CGFloat = 1
         /// How far a line gap may be squeezed to pull one more line onto a page.
         static let tightening: CGFloat = 0.75
         /// How far a line gap may open to take up the slack a rule left behind.
@@ -1356,6 +1358,10 @@ final class ChapterLayout {
         for (index, line) in lines.enumerated() {
             guard !line.isHeading, !line.endsParagraph, isJustified(line) else { continue }
             guard index + 1 < lines.count else { continue }
+            // A paragraph already being closed up onto one line has settled its own letters.
+            guard !closed.contains(where: { NSIntersectionRange($0.range, line.characters).length > 0 }) else {
+                continue
+            }
 
             let shortfall = measure - drawnWidth(line)
 
@@ -1375,16 +1381,23 @@ final class ChapterLayout {
             let owed = width + space - shortfall
             let span = line.characters.length + word.length
 
-            guard owed > 0, span > 1 else { continue }
+            if owed > 0, span > 1, owed / CGFloat(span) <= limit {
+                closed.append((
+                    NSRange(location: line.characters.location, length: NSMaxRange(word) - line.characters.location),
+                    context.style.letterSpacing - owed / CGFloat(span)
+                ))
+                continue
+            }
 
-            let perCharacter = owed / CGFloat(span)
+            // Nothing within reach to bring up, so the line takes the space between its own letters. A
+            // point spread down a line reads as colour; the same space in one gap reads as a hole. Set
+            // a shade under what is owed, so the line does not overrun and lose a word to the next.
+            let letters = CGFloat(max(1, line.characters.length))
+            let spread = shortfall * 0.95 / letters
 
-            guard perCharacter <= limit else { continue }
+            guard spread <= Rules.letterExpansion else { continue }
 
-            closed.append((
-                NSRange(location: line.characters.location, length: NSMaxRange(word) - line.characters.location),
-                context.style.letterSpacing - perCharacter
-            ))
+            closed.append((line.characters, context.style.letterSpacing + spread))
         }
 
         guard !closed.isEmpty else { return nil }
