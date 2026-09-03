@@ -1351,6 +1351,42 @@ final class ChapterLayout {
             closed.append((range, context.style.letterSpacing - perGap))
         }
 
+        // A line left short that needs only a little closing up to take the word below it. The gap the
+        // column would have opened instead is one it declines as too wide to read.
+        for (index, line) in lines.enumerated() {
+            guard !line.isHeading, !line.endsParagraph, isJustified(line) else { continue }
+            guard index + 1 < lines.count else { continue }
+
+            let shortfall = measure - drawnWidth(line)
+
+            guard shortfall > 0 else { continue }
+
+            let following = lines[index + 1]
+            let word = firstWord(at: following.characters.location, in: string)
+
+            guard word.length > 0 else { continue }
+
+            let text = string.substring(with: word)
+            let space = " ".size(withAttributes: [ .font: context.style.font ]).width
+            let width = (text as NSString).size(withAttributes: [
+                .font: context.style.font,
+                .kern: context.style.letterSpacing,
+            ]).width
+            let owed = width + space - shortfall
+            let span = line.characters.length + word.length
+
+            guard owed > 0, span > 1 else { continue }
+
+            let perCharacter = owed / CGFloat(span)
+
+            guard perCharacter <= limit else { continue }
+
+            closed.append((
+                NSRange(location: line.characters.location, length: NSMaxRange(word) - line.characters.location),
+                context.style.letterSpacing - perCharacter
+            ))
+        }
+
         guard !closed.isEmpty else { return nil }
 
         let result = NSMutableAttributedString(attributedString: storage)
@@ -1358,6 +1394,29 @@ final class ChapterLayout {
         for entry in closed { result.addAttribute(.kern, value: entry.kern, range: entry.range) }
 
         return result
+    }
+
+    /// What a line would have to take whole to gain anything: the word beginning the next line, and
+    /// whatever the binder tied to it.
+    private func firstWord(at start: Int, in string: NSString) -> NSRange {
+        var index = start
+
+        while index < string.length {
+            let character = string.character(at: index)
+
+            if character == 0x0A { break }
+
+            if character == 0x20 {
+                guard index + 1 < string.length, string.character(at: index + 1) == Self.wordJoiner else { break }
+
+                index += 2
+                continue
+            }
+
+            index += 1
+        }
+
+        return NSRange(location: start, length: index - start)
     }
 
     func freedText() -> NSAttributedString? {
