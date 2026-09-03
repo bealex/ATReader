@@ -1359,7 +1359,9 @@ final class ChapterLayout {
             guard !line.isHeading, !line.endsParagraph, isJustified(line) else { continue }
             guard index + 1 < lines.count else { continue }
             // A paragraph already being closed up onto one line has settled its own letters.
-            guard !closed.contains(where: { NSIntersectionRange($0.range, line.characters).length > 0 }) else {
+            guard
+                !closed.contains(where: { NSIntersectionRange($0.range, line.characters).length > 0 })
+            else {
                 continue
             }
 
