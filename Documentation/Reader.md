@@ -132,8 +132,18 @@ Two rules shape the result:
   the font's on the lines TextKit could fill and stretched on the rest.
 - **A line that still can't be filled frees the tie below it first.** The typesetter binds a short
   preposition to the word after it so that no line ends on one, and that pair can be wider than what is
-  left. Freeing the tie lets the short word come up and the line fill. Where there's no tie to free the
-  line stays short: a line standing under its measure reads; words pulled to pieces don't.
+  left. Freeing the tie lets the short word come up and the line fill.
+- **A line the gaps can't fill takes the rest from its letters.** The gaps open to their ceiling, and
+  what they can't reach is spread down the line, at most a point a letter. Where the two together still
+  fall short the line stands short: a line under its measure reads; words pulled to pieces don't.
+
+A line is set again where TextKit crowded it or where TextKit left it short. Crowding alone was the
+test once, and a short line strains at nothing, so the lines that most wanted setting again were the
+ones passed over.
+
+Whenever the column leaves a line short it records why, and the line carries that reason out with it.
+The debug report prints it and the tests ask for it. Read from outside, the decision can only be
+guessed at.
 - **A line ending in a hyphen or a comma sets that mark outside the measure.** Those marks are mostly
   the white space around them, so an edge that lines them up with the letters reads as notched wherever
   one falls. Hanging a fraction of the mark past the margin puts the letters back on the line the rest
