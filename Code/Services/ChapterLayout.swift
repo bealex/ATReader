@@ -74,7 +74,7 @@ final class ChapterLayout {
     /// Measurements are kept against the setting they were made at, and the setting alone says nothing
     /// about the rules that read it. Without this, changing how far a mark hangs would leave every book
     /// on the device showing the breaks an older layout chose.
-    nonisolated static let rulesVersion = "8"
+    nonisolated static let rulesVersion = "9"
 
     enum Rules {
         /// Lines that have to follow a heading rather than leaving it stranded at the foot of a page.
@@ -378,16 +378,12 @@ final class ChapterLayout {
             // line set here can put a character outside the measure.
             if hang == 0, !opensOnDash(lines[index]) {
                 // Reading one space off the justified line says whether TextKit ran out of room in them.
-                guard
-                    let stretched = firstSpaceWidth(lines[index]),
-                    stretched >= spaceWidth * Rules.textKitSpaceLimit
-                else {
-                    if measure - drawnWidth(lines[index]) > 1 {
-                        shortReasons[index] = "not crowded, so TextKit's own setting stands"
-                    }
+                // Crowding is not the only reason a line wants setting again: one TextKit left short
+                // is not straining at all, its spaces standing at the width the font gives them.
+                let crowded = (firstSpaceWidth(lines[index]) ?? 0) >= spaceWidth * Rules.textKitSpaceLimit
+                let short = measure - drawnWidth(lines[index]) > 1
 
-                    continue
-                }
+                guard crowded || short else { continue }
             }
 
             var reason: String?
