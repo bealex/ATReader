@@ -340,6 +340,10 @@ final class ChapterLayout {
 
     private var loosenedLines: [Int: LoosenedLine] = [:]
 
+    /// Why the column left a line short, for the line it left. Read by the debug report and the tests,
+    /// which otherwise have to guess at a decision only this file makes.
+    private(set) var shortReasons: [Int: String] = [:]
+
     /// Justifies the lines whose words TextKit would otherwise have pulled apart.
     ///
     /// Justification opens the spaces first and falls back on the gaps between letters once the spaces
@@ -377,16 +381,27 @@ final class ChapterLayout {
                 guard
                     let stretched = firstSpaceWidth(lines[index]),
                     stretched >= spaceWidth * Rules.textKitSpaceLimit
-                else { continue }
+                else {
+                    if measure - drawnWidth(lines[index]) > 1 {
+                        shortReasons[index] = "not crowded, so TextKit's own setting stands"
+                    }
+
+                    continue
+                }
             }
+
+            var reason: String?
 
             loosenedLines[index] = loosened(
                 range: lines[index].characters,
                 startsParagraph: lines[index].startsParagraph,
                 measure: measure,
                 hang: hang,
-                widestGap: spaceWidth * (Rules.spaceLimit - 1)
+                widestGap: spaceWidth * (Rules.spaceLimit - 1),
+                reason: &reason
             )
+
+            if let reason { shortReasons[index] = reason }
         }
     }
 
@@ -397,14 +412,18 @@ final class ChapterLayout {
         startsParagraph: Bool,
         measure: CGFloat,
         hang: CGFloat,
-        widestGap: CGFloat?
+        widestGap: CGFloat?,
+        reason: inout String?
     ) -> LoosenedLine? {
         guard let natural = naturalPiece(for: range, startsParagraph: startsParagraph) else { return nil }
         // A piece is one line and is laid out in a container that holds one, so anything that did not
         // fit was never laid out and must not be drawn as though it had been.
         guard
             natural.manager.glyphRange(for: natural.container).length == natural.manager.numberOfGlyphs
-        else { return nil }
+        else {
+            reason = "the line would not fit a container of its own"
+            return nil
+        }
 
         let words = wordRuns(in: natural.storage)
 
@@ -415,7 +434,12 @@ final class ChapterLayout {
         let stretchable = words.count - 1 - held
 
         // Nothing left on the line to open.
-        guard stretchable > 0 else { return unfilled(natural) }
+        guard
+            stretchable > 0
+        else {
+            reason = "nothing on the line to open"
+            return unfilled(natural)
+        }
 
         // The measure the words are set to, opened by however far the line's last character hangs
         // outside it. The words carry that extra between them, so the character ends up past the
@@ -424,12 +448,20 @@ final class ChapterLayout {
         let spaceWidth = " ".size(withAttributes: [ .font: context.style.font ]).width
 
         // Negative where the line was set tight to draw a word up from the one below it.
-        guard perGap > -spaceWidth * Rules.spaceSqueeze else { return nil }
+        guard
+            perGap > -spaceWidth * Rules.spaceSqueeze
+        else {
+            reason = "squeezing further than the letters allow"
+            return nil
+        }
 
         // Past this the words would be too far apart to read as one line, so the line is left short.
         // Giving it back to TextKit is the worse answer: having opened the spaces as far as it will,
         // TextKit fills the line from between the letters instead.
-        if let widestGap, perGap > widestGap { return unfilled(natural) }
+        if let widestGap, perGap > widestGap {
+            reason = String(format: "gaps of %.1fpt, wider than the %.1fpt allowed", perGap, widestGap)
+            return unfilled(natural)
+        }
 
         let runs = words.enumerated().map { position, characters in
             (
@@ -674,12 +706,14 @@ final class ChapterLayout {
         guard stops.count == window.count + 1 else { return false }
 
         var drawn: [LoosenedLine] = []
+        var reasons: [String?] = []
 
         for step in 0 ..< window.count {
             let range = NSRange(location: stops[step], length: stops[step + 1] - stops[step])
             let opensParagraph = step == 0 && lines[window.lowerBound].startsParagraph
             // The paragraph's last line stops where the paragraph stops: it keeps its ragged edge and
             // is drawn as the font sets it.
+            var why: String?
             let line =
                 step == window.count - 1
                 ? natural(range: range, startsParagraph: opensParagraph)
@@ -688,12 +722,14 @@ final class ChapterLayout {
                     startsParagraph: opensParagraph,
                     measure: measure,
                     hang: hang(range),
-                    widestGap: nil
+                    widestGap: nil,
+                    reason: &why
                 )
 
             guard let line else { return false }
 
             drawn.append(line)
+            reasons.append(why ?? (step == window.count - 1 ? nil : "set again where the break was moved"))
         }
 
         for step in 0 ..< window.count {
@@ -701,6 +737,7 @@ final class ChapterLayout {
             lines[index].characters = NSRange(location: stops[step], length: stops[step + 1] - stops[step])
             lines[index].endsWithHyphen = endsOnSoftHyphen(lines[index])
             loosenedLines[index] = drawn[step]
+            shortReasons[index] = measure - drawnWidth(lines[index]) > 1 ? reasons[step] : nil
         }
 
         return true
@@ -1169,6 +1206,8 @@ final class ChapterLayout {
     struct TypesetLine {
         var text: String
         var width: CGFloat
+        /// Why the column left this line short, where it did.
+        var shortReason: String?
         var startsParagraph: Bool
         var endsParagraph: Bool
         var isJustified: Bool
@@ -1208,16 +1247,17 @@ final class ChapterLayout {
     func typesetLines(onPage index: Int) -> [TypesetLine] {
         guard pages.indices.contains(index) else { return [] }
 
-        return lines[pages[index].lines].map(described)
+        return pages[index].lines.map { described(lines[$0], at: $0) }
     }
 
     /// Every line of the chapter, in the order it was set.
-    var typesetLines: [TypesetLine] { lines.map(described) }
+    var typesetLines: [TypesetLine] { lines.indices.map { described(lines[$0], at: $0) } }
 
-    private func described(_ line: Line) -> TypesetLine {
+    private func described(_ line: Line, at index: Int) -> TypesetLine {
         return TypesetLine(
             text: (storage.string as NSString).substring(with: line.characters),
             width: drawnWidth(line),
+            shortReason: shortReasons[index],
             startsParagraph: line.startsParagraph,
             endsParagraph: line.endsParagraph,
             isJustified: isJustified(line),

@@ -80,21 +80,19 @@ struct RenderingTests {
         #expect(endings == Self.corpus.count)
     }
 
-    /// Most of the column reaches its right edge.
+    /// A line that stops short of its measure says why.
     ///
-    /// A precise rule wants the column to say which lines it chose to leave short: whether a gap was
-    /// held by the dash of speech, whether a pair the binder tied counts as one word, what the hang
-    /// allowed. Rebuilding that reasoning here drifts from the column every time it changes, so this
-    /// holds the proportion instead and the exact rule waits on the column reporting its own decision.
+    /// The column is the only place that knows: a gap held by the dash of speech, a pair the binder
+    /// tied, a gap wider than it will open. Asked from outside, the answer has to be guessed at.
     @Test(arguments: renderingSettings)
-    func theEdgeHolds(setting: Setting) async {
+    func everyShortLineHasAReason(setting: Setting) async {
         let layout = await layout(setting)
         let measure = context(setting).textSize.width
-        let inside = layout.typesetLines.filter { $0.isJustified && !$0.isHeading && !$0.endsParagraph }
-        let short = inside.filter { $0.width < measure * 0.96 }
+        let unexplained = layout.typesetLines
+            .filter { $0.isJustified && !$0.isHeading && !$0.endsParagraph }
+            .filter { $0.width < measure * 0.96 && $0.shortReason == nil }
 
-        #expect(!inside.isEmpty)
-        #expect(short.count * 5 <= inside.count, "\(short.count) of \(inside.count) lines fell short")
+        #expect(unexplained.isEmpty, "\(unexplained.count) line(s) short with no reason given")
     }
 
     /// A page holds its lines: none is drawn twice, none is dropped between the pages.

@@ -342,7 +342,9 @@ enum ReaderScreen {
                             + "just=\(line.isJustified) head=\(line.isHeading)"
                         let text = line.text.trimmingCharacters(in: .whitespacesAndNewlines)
 
-                        return "\(index)\tw=\(Int(line.width))\tgap=\(Int(gap))\t\(flags)\t\(text)"
+                        let why = line.shortReason.map { "\t[\($0)]" } ?? ""
+
+                        return "\(index)\tw=\(Int(line.width))\tgap=\(Int(gap))\t\(flags)\(why)\t\(text)"
                     }
                     .joined(separator: "\n")
             }
