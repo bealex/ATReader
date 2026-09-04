@@ -340,6 +340,7 @@ enum ReaderScreen {
                 return model.pageLines.enumerated()
                     .map { index, line in
                         let gap = measure - line.width
+                        let gaps = String(format: "gaps=%d×%.2f", line.gaps, line.gapMultiple)
                         let flags =
                             "starts=\(line.startsParagraph) ends=\(line.endsParagraph) "
                             + "just=\(line.isJustified) head=\(line.isHeading)"
@@ -347,7 +348,7 @@ enum ReaderScreen {
 
                         let why = line.shortReason.map { "\t[\($0)]" } ?? ""
 
-                        return "\(index)\tw=\(Int(line.width))\tgap=\(Int(gap))\t\(flags)\(why)\t\(text)"
+                        return "\(index)\tw=\(Int(line.width))\tgap=\(Int(gap))\t\(gaps)\t\(flags)\(why)\t\(text)"
                     }
                     .joined(separator: "\n")
             }

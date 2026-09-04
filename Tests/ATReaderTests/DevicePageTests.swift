@@ -3,95 +3,64 @@
 //  Licensed under the MIT License. See LICENSE in the repository root.
 //
 
-import SwiftUI
 import Testing
 import UIKit
 
 @testable import ATReader
 
-/// A page taken off a device, at the settings it was read at.
+/// What must hold of a page a reader reported as badly set.
 ///
-/// The text is a book's and stays out of this repository. Name a file in `TEST_RUNNER_AT_TEST_PAGE`
-/// to run these, a debug report's `page.txt` being what they want; without it they pass having checked
-/// nothing but the measure. `xcodebuild` strips that prefix and hands the rest to the test process, so
-/// the plain name never arrives.
+/// Each is a `PageReport`: a debug report unzipped into `Fixtures/Reports`, checked at the settings it
+/// was read at. Every page reported from here on joins these, which is what keeps a defect from coming
+/// back the next time the breaker's numbers move.
 @MainActor
 struct DevicePageTests {
-    /// The reader's own settings, taken from a report's `settings.txt`.
-    static var context: ChapterLayout.Context {
-        var style = JustificationTests.testContext.style
-        style.face = .serif
-        style.weight = .regular
-        style.fontSize = 21
-        style.lineSpacing = 3
-        style.letterSpacing = -0.5
-        style.justifiesRussian = true
-        style.justifiesEnglish = false
-
-        return ChapterLayout.Context(
-            style: style,
-            margins: 37,
-            pageSize: CGSize(width: 440, height: 956),
-            safeArea: EdgeInsets(top: 62, leading: 0, bottom: 34, trailing: 0)
-        )
-    }
-
-    private func layout() async -> ChapterLayout? {
-        guard
-            let path = ProcessInfo.processInfo.environment["AT_TEST_PAGE"],
-            let source = try? String(contentsOfFile: path, encoding: .utf8)
-        else { return nil }
-
-        let html = source
-            .components(separatedBy: "\n")
-            .filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
-            .map { "<p>\($0)</p>" }
-            .joined()
-
-        return await ChapterLayout.make(
-            chapterId: 1,
-            content: await ChapterContent.prepare(html: html),
-            heading: ChapterHeading.make(position: 1, title: nil),
-            context: Self.context
-        )
-    }
-
-    /// The measure the reader had, which holds whether or not the page itself is to hand.
+    /// The settings the report recorded reproduce the measure the reader had.
     @Test
-    func theContextMatchesTheDevice() {
-        #expect(Int(Self.context.textSize.width) == 366)
-        #expect(Int(Self.context.textSize.height) == 771)
+    func everyReportReproducesItsMeasure() {
+        for report in PageReport.all {
+            let measured = report.context.textSize
+
+            #expect(
+                Int(measured.width) == Int(report.textSize.width)
+                    && Int(measured.height) == Int(report.textSize.height),
+                "\(report) laid out to \(measured) where the device had \(report.textSize)"
+            )
+        }
     }
 
     @Test
     func everyShortLineHasAReason() async {
-        guard let layout = await layout() else { return }
+        for report in PageReport.all {
+            let layout = await report.layout()
+            let measure = report.context.textSize.width
+            let unexplained = layout.typesetLines
+                .filter { $0.isJustified && !$0.isHeading && !$0.endsParagraph }
+                .filter { $0.width < measure * 0.96 && $0.shortReason == nil }
 
-        let measure = Self.context.textSize.width
-        let unexplained = layout.typesetLines
-            .filter { $0.isJustified && !$0.isHeading && !$0.endsParagraph }
-            .filter { $0.width < measure * 0.96 && $0.shortReason == nil }
-
-        #expect(unexplained.isEmpty, "\(unexplained.count) line(s) short with no reason given")
+            #expect(unexplained.isEmpty, "\(unexplained.count) line(s) short with no reason given in \(report)")
+        }
     }
 
     @Test
     func noLineOverrunsTheMeasure() async {
-        guard let layout = await layout() else { return }
+        for report in PageReport.all {
+            let layout = await report.layout()
+            let measure = report.context.textSize.width
+            let over = layout.typesetLines.filter { $0.width > measure + report.context.style.fontSize }
 
-        let measure = Self.context.textSize.width
-        let over = layout.typesetLines.filter { $0.width > measure + Self.context.style.fontSize }
-
-        #expect(over.isEmpty, "\(over.count) line(s) past the measure")
+            #expect(over.isEmpty, "\(over.count) line(s) past the measure in \(report)")
+        }
     }
 
     /// One paragraph in, one paragraph out, on a real page as much as a written one.
     @Test
     func everyParagraphEndsOnce() async {
-        guard let layout = await layout() else { return }
+        for report in PageReport.all {
+            let layout = await report.layout()
+            let endings = layout.typesetLines.filter { $0.endsParagraph && !$0.isHeading }.count
 
-        let endings = layout.typesetLines.filter { $0.endsParagraph && !$0.isHeading }.count
-
-        #expect(endings > 0)
+            #expect(endings > 0, "\(report) set no paragraph")
+        }
     }
 }

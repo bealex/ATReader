@@ -353,6 +353,8 @@ cmd_test() {
   if [ "$TESTS" != unit ]; then
     ensure_project || return 1
     resolve_simulator || return 1
+    # Pages reported as badly set. xcodebuild strips the prefix on the way to the test process.
+    export TEST_RUNNER_AT_REPORTS="$REPO/Fixtures/Reports"
     local label="test · app UI · $CONFIG"
     [ "$TEST_ACTION" = test ] || label="$label · $TEST_ACTION"
     xcode_build "id=$SIM_ID" "$label" "$TEST_ACTION" ${ONLY[@]+"${ONLY[@]}"} || rc=1

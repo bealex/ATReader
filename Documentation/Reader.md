@@ -133,8 +133,13 @@ what the gaps leave over.
 Past that point the gaps go on alone, out to six times a space, and the tracking stops. Letters set
 further apart than that stop reading as colour and start reading as a different face. The glyphs are
 the last lever and by far the smallest, because widening one changes its weight, which shows sooner
-than space does. A line that has to reach so far costs enough that the breaker will nearly always have
-found something better first: a word brought up from the line below, or a word broken.
+than space does.
+
+What a gap costs out there is counted in space widths, not as a share of the room it has left. The room
+runs a long way, so a share of it says nothing about how wide the gap looks: half a space past the
+comfortable point costs about what breaking a word costs, and a whole space past it costs more than
+breaking two. So the breaker goes looking for something better first, and a line only stands wide open
+where it has a single gap to fill itself from and nothing to rearrange.
 
 The levers run the other way too. A line may close its gaps by three tenths of a space and its letters
 by a fiftieth of the type size, which is what sets a paragraph a fraction too wide without breaking a

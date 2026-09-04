@@ -1,7 +1,7 @@
 # Testing
 
-Two layers: fast unit tests in the package, and UI tests that drive the real app against the real
-service.
+Three layers: fast unit tests in the package, tests over the app's own typesetting that need no
+service at all, and UI tests that drive the real app against the real service.
 
 ```sh
 # package unit tests: offline, deterministic, ~1s
@@ -29,6 +29,26 @@ the app report that it has no certificate.
 Every fixture is written by hand from generated nonsense. The decryption tests encrypt placeholder text
 through the real derivation and decrypt it back, which exercises the algorithm end to end without
 storing any service content. Keep it that way; see the "Never commit" section of `CLAUDE.md`.
+
+## Pages reported off a device
+
+The reader carries a debug button in debug builds that writes out the page it is on: its text, the
+settings it was set at, every line's geometry, and a picture of the window. Unzip a report whose page
+was badly set into `Fixtures/Reports/<name>/`, and `DevicePageTests`, `SpacingTests` and
+`PageRenderTests` check it from then on, at the settings it was read at. `Scripts/app.sh test` names
+that directory in `TEST_RUNNER_AT_REPORTS`.
+
+Book text is never committed, so the directory is ignored by git and a fresh checkout has none. The
+suites over it pass having read nothing.
+
+## Looking at the column
+
+    TEST_RUNNER_AT_RENDER_DIR=$PWD/build/renders/after Scripts/app.sh test --only ATReaderTests
+
+`PageRenderTests` draws a page per setting to PNG with a rule down each margin, which is what makes an
+uneven edge visible at a glance, and `SpacingTests` writes `spacing.txt` beside them: the loosest lines
+of every column it checked, worst first. Render before a change to `ColumnComposer.Rules` and after it,
+and the two directories say what moved.
 
 ## UI tests
 

@@ -50,21 +50,12 @@ struct PageRenderTests {
         await render(context: context, html: RenderingTests.html, name: "corpus", label: "dark", onDark: true)
     }
 
-    /// A page from a device, when one is named. The one setting that is not written for the tests.
+    /// Every page reported off a device, at the settings it was read at.
     @Test
-    func drawsTheDevicePage() async {
-        guard
-            let path = ProcessInfo.processInfo.environment["AT_TEST_PAGE"],
-            let source = try? String(contentsOfFile: path, encoding: .utf8)
-        else { return }
-
-        let html = source
-            .components(separatedBy: "\n")
-            .filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
-            .map { "<p>\($0)</p>" }
-            .joined()
-
-        await render(context: DevicePageTests.context, html: html, name: "device", label: "device")
+    func drawsTheReportedPages() async {
+        for report in PageReport.all {
+            await render(context: report.context, html: report.html, name: "device", label: report.name)
+        }
     }
 
     // MARK: - Drawing

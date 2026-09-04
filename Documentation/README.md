@@ -28,7 +28,8 @@ rather than added to. A day's findings go in `History/` so this stays short enou
 3. **Free-text search uses `q`, which is missing from the published spec.** With no `q`, the same
    endpoint is the charts API.
 4. **CoreText does not hyphenate, and breaks words without drawing a hyphen when asked to.** The
-   reader uses TextKit for that reason; see [Reader.md](Reader.md) before changing how text is drawn.
+   reader breaks its own lines for that reason; see [Reader.md](Reader.md) before changing how text is
+   drawn.
 
 ## House rules that outrank convenience
 

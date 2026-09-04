@@ -23,8 +23,6 @@ struct LineFill {
     var shortfall: CGFloat = 0
     /// How far the levers stand towards their comfortable ceilings, from nothing to all of it.
     var reach: CGFloat = 0
-    /// How far the gaps went on past that on their own, from nothing to as wide as they open.
-    var opened: CGFloat = 0
 
     /// What one line has to give: how many gaps and pairs of letters it can open, and against what.
     struct Room {
@@ -73,7 +71,6 @@ struct LineFill {
             let taken = min(wider, left)
 
             fill.perGap += taken / CGFloat(room.gaps)
-            fill.opened = wider > 0 ? taken / wider : 0
             left -= taken
         }
 
@@ -118,8 +115,9 @@ final class ColumnComposer {
         static let shortPenalty: Double = 12
         /// What a line that will not fit at all costs, per space width it overruns.
         static let overrunPenalty: Double = 400
-        /// What a line whose gaps had to go on alone costs, once they are as wide as they open.
-        static let openGapPenalty: Double = 3
+        /// What a line whose gaps had to go on alone costs, per space width each of them stands open
+        /// past the comfortable point. Dear enough that a second broken word is the cheaper answer.
+        static let openGapPenalty: Double = 6
         /// How uneven a ragged edge may be before it is worth breaking a line differently.
         static let raggedPenalty: Double = 4
         /// What breaking a word costs.
@@ -169,6 +167,10 @@ final class ColumnComposer {
         var imageSize: CGSize = .zero
         /// Why the column left the line short, where it did.
         var shortReason: String?
+        /// How far the line's gaps stand open, against the width the font gives a space.
+        var gapMultiple: CGFloat = 1
+        /// How many gaps the line had to open, which is all it could fill itself from.
+        var gaps: Int = 0
     }
 
     private let measure: CGFloat
@@ -476,12 +478,12 @@ final class ColumnComposer {
         }
 
         let reach = Double(piece.fill.reach)
-        let opened = Double(piece.fill.opened)
+        let openedBy = max(0, Double(piece.fill.perGap / space) - Rules.gapStretch)
         let short = Double(piece.fill.shortfall / space)
         let widened = Double((piece.fill.glyphScale - 1) / Rules.glyphStretch)
 
         return reach * reach
-            + Rules.openGapPenalty * opened * opened
+            + Rules.openGapPenalty * openedBy * openedBy
             + widened
             + Rules.shortPenalty * short * short
     }
@@ -540,7 +542,9 @@ final class ColumnComposer {
             origin: origin,
             width: width,
             drawn: drawn,
-            shortReason: piece.fills ? Self.reason(fill, piece: piece, ruler: ruler) : nil
+            shortReason: piece.fills ? Self.reason(fill, piece: piece, ruler: ruler) : nil,
+            gapMultiple: piece.gaps > 0 ? 1 + fill.perGap / max(1, ruler.spaceWidth) : 1,
+            gaps: piece.gaps
         )
     }
 

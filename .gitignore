@@ -28,3 +28,6 @@ Code/Generated/
 # Misc
 *.swp
 *~
+
+# Book text taken off a device. Never committed; see Fixtures/README.md.
+Fixtures/Reports/

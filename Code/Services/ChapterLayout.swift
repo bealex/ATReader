@@ -75,7 +75,7 @@ final class ChapterLayout {
     /// Measurements are kept against the setting they were made at, and the setting alone says nothing
     /// about the rules that read it. Without this, changing how far a mark hangs would leave every book
     /// on the device showing the breaks an older layout chose.
-    nonisolated static let rulesVersion = "11"
+    nonisolated static let rulesVersion = "12"
 
     enum Rules {
         /// Lines that have to follow a heading rather than leaving it stranded at the foot of a page.
@@ -382,6 +382,10 @@ final class ChapterLayout {
         var height: CGFloat
         /// Why the column left this line short, where it did.
         var shortReason: String?
+        /// How far the line's gaps stand open, against the width the font gives a space.
+        var gapMultiple: CGFloat
+        /// How many gaps the line had to open, which is all it could fill itself from.
+        var gaps: Int
         var startsParagraph: Bool
         var endsParagraph: Bool
         var isJustified: Bool
@@ -406,6 +410,8 @@ final class ChapterLayout {
             width: line.origin + line.width,
             height: line.height,
             shortReason: line.shortReason,
+            gapMultiple: line.gapMultiple,
+            gaps: line.gaps,
             startsParagraph: line.startsParagraph,
             endsParagraph: line.endsParagraph,
             isJustified: line.isJustified,
