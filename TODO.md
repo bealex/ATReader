@@ -47,6 +47,11 @@ What's still open, roughly in the order it would bite. Finished work isn't liste
       still be a single short word. Both need control over line breaking rather than page breaking.
 - [ ] **VoiceOver gets a whole page as one label.** `ChapterPageView` publishes the page text as a
       single accessibility element, so there's no paragraph navigation and no rotor support.
+- [ ] **Pictures from the service are dropped.** A chapter body's `<img>` is read as a block and then
+      goes nowhere, because only a file's own pictures are on the device. Fetching and caching a remote
+      one would need the layout to be redone when it lands.
+- [ ] **A book imported before its file was kept can't re-read itself.** The book screen's menu asks
+      for the file instead of re-reading one it holds, so those books need finding once by hand.
 - [ ] The running head is the book's title on every page. A chapter title on the verso, the way a
       printed book does it, would be more use.
 - [ ] Dynamic Type does nothing in the reader. That may be right, since it has its own size control,

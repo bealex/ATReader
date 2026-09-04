@@ -13,6 +13,21 @@ a chapter arrives in from the service, and `ChapterHTML`, `ChapterContent`, `Cha
 
 That's the whole integration. There's no second reader and no second content type.
 
+## Archives
+
+FB2 books are handed out zipped more often than not, so an archive is opened on the way in rather than
+the reader being asked to unpack one first. The bytes decide, not the name: these arrive called
+`.fb2.zip`, `.zip` and occasionally `.fb2` while being an archive all the same.
+
+The platform has no public API for reading a zip, so `ZipArchive` reads the little of the format a book
+needs. It walks the central directory rather than the local headers, because a zip written as a stream
+leaves the sizes zero in the local header and fills them in afterwards. Members are stored or deflated,
+and a zip member's deflate stream is exactly what `NSData.decompressed(using: .zlib)` reads.
+
+Zip64, encryption and multi-disk archives are refused rather than half-supported. The book taken out is
+the first `.fb2` member, or the largest file where none says so; directories and the second copy of
+every file that a Mac writes under `__MACOSX` are skipped.
+
 ## Parsing
 
 `XMLParser` rather than a document tree, because these files run to megabytes and everything wanted
@@ -22,8 +37,11 @@ Namespace processing is off, so element names arrive as written. That's what mak
 coverpage image readable as an attribute name.
 
 What's kept: the title, the authors, the annotation, the language tag that picks the hyphenation
-dictionary, the series and its number, and the cover. Chapter illustrations are dropped, because a
-text reader has nowhere to put them and a book's worth would sit in the database for good.
+dictionary, the series and its number, the cover, and every picture the text points at.
+
+A `<binary>` is decoded only where an `<image>` has already asked for it by name, which the file's own
+ordering makes possible: FB2 puts its binaries after its text. So a file full of pictures nobody
+references costs nothing to skip.
 
 ### Where a chapter starts
 
@@ -41,6 +59,34 @@ show.
 
 A run of `<empty-line/>` collapses to one centred row of stars, which is how the service's own chapters
 mark a scene break.
+
+### Where the pictures go
+
+A picture is written out as a file beside the book, one directory per book, and the `<img>` left in the
+chapter body names it. Bytes in the database would be read again on every re-pagination, and a chapter
+body is read often.
+
+That name carries the book as well as the picture, so a chapter body holds everything needed to find
+its own pictures and nothing has to be passed alongside it. Removing an imported book removes the
+directory; a corrected file clears it first, since the new file may have dropped pictures the old one
+had. See `Documentation/Reader.md` for what the reader then does with them.
+
+### The file is kept
+
+What a book holds is whatever the parser made of its file at the time, and a parser that has since
+learned something can only be applied to the file. So the book's own text is kept beside it, and the
+book screen's menu carries a **Re-import** that reads it again in place.
+
+It is kept compressed, which is worth about a third: the sample book is 7.1 MB of XML and base64 and
+2.4 MB of that goes. Not more, because the pictures inside it are already compressed and base64 is most
+of what is left. What is kept is the book rather than the archive it arrived in, so a second reading
+never has to unpack anything.
+
+Re-importing over a book rather than deleting it first is what keeps the reading position. Removing a
+book deletes its `reading_position` row along with everything else, where a file carrying the same book
+lands on the same row and leaves the position alone.
+
+A book imported before its file was kept has none, and its menu asks for the file instead.
 
 ## Getting a file in
 

@@ -84,9 +84,18 @@ dependable about where they have got to, so the app ignores them and works the s
 - everything else is being read.
 
 The list opens on the books that aren't finished, and the toolbar filter switches to the finished ones
-or to all of them, with the count beside each counted through the same rule. The library state the
-service keeps is left doing the one job it does honestly: whether a book is in the library at all. The
-book page adds or removes it, a long press in the list removes it, and nothing else writes it.
+or to all of them.
+
+The filter keeps or hides a whole card rather than picking through it. A series with anything left in
+it is still being read and arrives entire, the books already finished included: those are what the
+reader is reading through, and a series showing only its unread half would hide where they had got to.
+Only a series read to its last book counts as finished, so every card lands under exactly one of the
+two. The count beside a filter is books rather than rows, since a series kept for one unread book
+brings the rest of itself along, and what helps is how much is left to read.
+
+The library state the service keeps is left doing the one job it does honestly: whether a book is in the
+library at all. The book page adds or removes it, a long press in the list removes it, and nothing else
+writes it.
 
 The shelf carries no navigation bar. It has room to name itself, and search belongs to the tab bar,
 where the search tab takes the search role. The library keeps a field of its own, because filtering it
@@ -97,8 +106,19 @@ series is a card of its own. A series can carry more than one author, so the aut
 rather than the card's heading. The newest book comes first, by the service's own update time. Reading
 a book is not a change to it, so the list holds still while the reader reads instead of rearranging
 under them, and books the service dates identically keep a fixed order rather than whatever the
-grouping happened to produce. Rows are buttons rather than `NavigationLink`s, which is the only way a
-row goes without a disclosure chevron.
+grouping happened to produce.
+
+A row has two tap targets: the cover opens the book, and everything else opens its page. Gestures rather
+than a button and a link, because the cover sits inside the row's own target and the inner gesture is
+the one that wins; nested buttons leave which of the two answers a tap up to SwiftUI. A link would also
+draw a disclosure chevron, which is not wanted here. For VoiceOver the row stays one element carrying a
+`Read` action, which is how a secondary target is offered.
+
+Inside a series, a book the reader has finished with is one line: a tick and its title. A long series is
+read in order, so the books behind the reader only have to stay findable, and given a cover and three
+lines each they push the one being read off the screen. A book read to the end of what is written but
+still gaining chapters is not collapsed, nor is one carrying new chapters: the next chapter is what the
+reader is waiting for, and a collapsed row is the wrong place to be told it arrived.
 
 The plus button reads an FB2 file into the library. See [LocalBooks.md](LocalBooks.md).
 

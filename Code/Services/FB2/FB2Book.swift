@@ -28,6 +28,8 @@ struct FB2Book: Sendable {
     let seriesOrder: Int?
     /// The cover image as the file embeds it, already decoded from base64.
     let cover: Data?
+    /// Every picture the text points at, by the name its `<image>` gives it.
+    let images: [String: Data]
     let sections: [Section]
     /// The `document-info/id` the file carries, where it has one. Two files with the same identifier
     /// are two editions of one book.
@@ -54,6 +56,8 @@ enum FB2Error: LocalizedError {
     case unreadable
     case malformed(String?)
     case notABook
+    case emptyArchive
+    case protectedArchive
 
     var errorDescription: String? {
         switch self {
@@ -62,6 +66,8 @@ enum FB2Error: LocalizedError {
                 detail.map { String(localized: "That file isn’t valid FB2: \($0)") }
                     ?? String(localized: "That file isn’t valid FB2.")
             case .notABook: String(localized: "That FB2 file has no text in it.")
+            case .emptyArchive: String(localized: "That archive has no book in it.")
+            case .protectedArchive: String(localized: "That archive is password-protected.")
         }
     }
 }

@@ -55,6 +55,20 @@ extension LibraryScreen {
                     case .everything: true
                 }
             }
+
+            /// Whether a card belongs under this filter.
+            ///
+            /// A series is one thing on the shelf, so it is kept or hidden whole. One with anything
+            /// left in it is still being read, books already finished included: those are what the
+            /// reader is reading through, and a series that showed only its unread half would hide
+            /// where the reader had got to. Only a series read to its last book is finished.
+            func includes(_ works: [WorkSummary]) -> Bool {
+                switch self {
+                    case .reading: works.contains { !$0.isFinishedReading }
+                    case .finished: !works.isEmpty && works.allSatisfy(\.isFinishedReading)
+                    case .everything: true
+                }
+            }
         }
 
         var filter: Filter = .reading
@@ -98,25 +112,31 @@ extension LibraryScreen {
             self.store = store
         }
 
-        /// The rows after the filter and the local title/author search.
-        var visibleWorks: [WorkSummary] {
-            let result = works.filter(filter.includes)
+        /// Every book on screen, the ones a kept series carries along with it included.
+        var visibleWorks: [WorkSummary] { groups.flatMap(\.works) }
+
+        /// The books the local title and author search leaves, before the filter has had its say.
+        private var searchedWorks: [WorkSummary] {
             let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
 
-            guard !query.isEmpty else { return result }
+            guard !query.isEmpty else { return works }
 
-            return result.filter {
+            return works.filter {
                 $0.title.lowercased().contains(query) || $0.authorLine.lowercased().contains(query)
             }
         }
 
         /// Books in a series stand together under its name, latest first; a book in no series stands
         /// alone. Whatever was last read or last gained a chapter comes first.
+        /// The filter runs over whole cards rather than over books, so a series the reader is partway
+        /// through arrives entire, and the books behind them stay where they were.
         var groups: [Group] {
-            let visible = visibleWorks
-            let series = Dictionary(grouping: visible.filter { $0.series != nil }) { $0.series ?? "" }
+            let searched = searchedWorks
+            let series = Dictionary(grouping: searched.filter { $0.series != nil }) { $0.series ?? "" }
 
-            let grouped = series.map { title, works in
+            let grouped = series.compactMap { title, works -> Group? in
+                guard filter.includes(works) else { return nil }
+
                 // A series the reader assembled keeps the order they put it in; one the service named
                 // leads with its newest book, which is the one still gaining chapters.
                 let made = madeSeries.contains(title)
@@ -129,7 +149,7 @@ extension LibraryScreen {
                     isCustom: made
                 )
             }
-            let alone = visible.filter { $0.series == nil }.map { work in
+            let alone = searched.filter { $0.series == nil && filter.includes([ $0 ]) }.map { work in
                 Group(id: "work:\(work.id)", series: nil, works: [ work ], updated: Self.updated(work))
             }
 
@@ -169,7 +189,9 @@ extension LibraryScreen {
             return left.id.localizedStandardCompare(right.id) == .orderedAscending
         }
 
-        /// Counted the way the list counts, so the number beside a filter is the number of rows it opens.
+        /// Books this filter has something to say about, which is not the same as rows it opens: a
+        /// series kept for one unread book brings the rest of itself with it. The number that helps is
+        /// how much is left to read, not how much is on screen.
         func count(for filter: Filter) -> Int? {
             guard !works.isEmpty else { return nil }
 

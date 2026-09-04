@@ -110,6 +110,14 @@ targets:
             LSHandlerRank: Default
             LSItemContentTypes:
               - org.fictionbook.fb2
+          - CFBundleTypeName: Zipped FictionBook 2
+            CFBundleTypeRole: Viewer
+            # These are handed out as plain zips, which the system types as an archive and nothing more.
+            # Alternate rank, because claiming every zip on the device would be rude; the import reads
+            # the bytes and turns down an archive with no book in it.
+            LSHandlerRank: Alternate
+            LSItemContentTypes:
+              - public.zip-archive
         # The book's text is copied into the store on the way in, so opening the file where it sits is
         # enough and nothing needs to be duplicated into the app's own container first.
         LSSupportsOpeningDocumentsInPlace: true

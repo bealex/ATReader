@@ -186,6 +186,57 @@ extension WorkScreen {
             isUpdatingLibrary = false
         }
 
+        /// True where the book's own file is still on the device, so re-reading it costs a tap.
+        var hasKeptFile: Bool { isLocal && LocalBooks.hasKeptFile(workId: workId) }
+
+        /// Reads the book again from the file kept when it was imported.
+        func reimportFromKeptFile() async {
+            guard isLocal else { return }
+
+            errorMessage = nil
+
+            guard
+                await BookInbox.shared.reaccept(workId: workId) != nil
+            else {
+                errorMessage = BookInbox.shared.errorMessage
+                return
+            }
+
+            await refreshFromStore()
+        }
+
+        /// Reads an imported book's file again, over the top of what is already here.
+        ///
+        /// The file isn't kept once a book is in, so the reader has to name it again. What an imported
+        /// book holds is whatever the parser made of the file at the time, and a parser that has since
+        /// learned something (pictures, say) can only be applied to the file itself.
+        ///
+        /// Importing over the book rather than deleting it first is what keeps the reading position:
+        /// removing a book takes its position with it, where a file carrying the same book lands on
+        /// this row and leaves the position alone.
+        func reimport(from url: URL) async {
+            guard isLocal else { return }
+
+            errorMessage = nil
+
+            guard
+                let work = await BookInbox.shared.accept(url)
+            else {
+                errorMessage = BookInbox.shared.errorMessage
+                return
+            }
+            guard
+                work.id == workId
+            else {
+                errorMessage = String(
+                    localized: "That file is a different book, so it was added to the library on its own."
+                )
+                return
+            }
+
+            await refreshFromStore()
+        }
+
         /// Takes an imported book off the device. There is no copy anywhere else, so this is the one
         /// place a book is really deleted rather than taken off a shelf.
         func deleteLocalBook() async {

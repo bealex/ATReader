@@ -20,6 +20,9 @@ struct ChapterContent: Codable, Sendable {
 
     var isEmpty: Bool { paragraphs.isEmpty }
 
+    /// Every picture the chapter points at, in the order it stands in the text.
+    var imageSources: [String] { paragraphs.compactMap(\.imageSource) }
+
     /// Parses a chapter body, works out its language and binds the words its typography won't let a
     /// line break between, all away from the main actor.
     static func prepare(html: String) async -> ChapterContent {
@@ -32,14 +35,16 @@ struct ChapterContent: Codable, Sendable {
                     // The dashes are put right first: binding reads them, and so does the layout when
                     // it decides which lines open on the dash of speech.
                     text: Typography.bound(Typography.dashes(paragraph.text, language: language), language: language),
-                    isCentered: paragraph.isCentered
+                    isCentered: paragraph.isCentered,
+                    imageSource: paragraph.imageSource
                 )
             }
             let hyphenated = bound.map { paragraph in
                 ChapterHTML.Paragraph(
                     id: paragraph.id,
                     text: Typography.hyphenated(paragraph.text, language: language),
-                    isCentered: paragraph.isCentered
+                    isCentered: paragraph.isCentered,
+                    imageSource: paragraph.imageSource
                 )
             }
             return ChapterContent(paragraphs: bound, hyphenated: hyphenated, language: language)

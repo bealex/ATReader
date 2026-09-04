@@ -5,7 +5,6 @@
 
 import AuthorToday
 import SwiftUI
-import UniformTypeIdentifiers
 
 enum LibraryScreen {
     struct Component: View {
@@ -78,7 +77,7 @@ enum LibraryScreen {
                 .refreshable { await model.reload() }
                 .fileImporter(
                     isPresented: $isPickingFile,
-                    allowedContentTypes: Self.bookTypes,
+                    allowedContentTypes: LocalBooks.fileTypes,
                     allowsMultipleSelection: true
                 ) { result in
                     guard case let .success(urls) = result else { return }
@@ -122,12 +121,6 @@ enum LibraryScreen {
             }
             .padding(.horizontal, 16)
             .padding(.bottom, 24)
-        }
-
-        /// FB2 has no type of its own on the system, so it is named by its extension. XML is offered
-        /// beside it because a file saved from a browser often arrives typed as that instead.
-        private static var bookTypes: [UTType] {
-            [ UTType(filenameExtension: "fb2"), .xml ].compactMap { $0 }
         }
 
         // MARK: - The shelf's own heading
@@ -280,7 +273,11 @@ enum LibraryScreen {
                             Divider().padding(.leading, 12)
                         }
 
-                        bookRow(model, work: work)
+                        if isBehindTheReader(model, work: work) {
+                            finishedRow(model, work: work)
+                        } else {
+                            bookRow(model, work: work)
+                        }
                     }
                 }
             }
@@ -365,32 +362,87 @@ enum LibraryScreen {
                 .background(Color(.secondarySystemGroupedBackground), in: .rect(cornerRadius: 16))
         }
 
-        /// A button rather than a `NavigationLink`: a link is what draws the disclosure chevron.
+        /// One book on the shelf. The cover opens it; everything else opens its page.
+        ///
+        /// Two tap targets rather than a button and a link, since the row is the larger of the two and
+        /// the cover sits inside it: a gesture on the cover is the inner one, and the inner one wins.
         private func bookRow(_ model: Model, work: WorkSummary) -> some View {
-            Button {
-                if model.isSelecting {
-                    model.toggle(work)
-                } else {
-                    path.append(.work(id: work.id, title: work.title))
-                }
-            } label: {
-                HStack(spacing: 10) {
-                    if model.isSelecting { tick(model.selection.contains(work.id)) }
+            HStack(spacing: 10) {
+                if model.isSelecting { tick(model.selection.contains(work.id)) }
 
-                    VStack(alignment: .leading, spacing: 6) {
-                        WorkRow(work: work, showsSeries: false, newChapters: model.newChapters(for: work.id))
+                VStack(alignment: .leading, spacing: 6) {
+                    WorkRow(
+                        work: work,
+                        showsSeries: false,
+                        newChapters: model.newChapters(for: work.id),
+                        // Selecting books is the whole row's job, so the cover gives up its own tap.
+                        onOpenCover: model.isSelecting ? nil : { open(work) }
+                    )
 
-                        if let progress = model.processing[work.id] {
-                            preparing(progress)
-                        }
+                    if let progress = model.processing[work.id] {
+                        preparing(progress)
                     }
                 }
-                .padding(12)
-                .contentShape(.rect)
             }
-            .buttonStyle(.plain)
+            .padding(12)
+            .contentShape(.rect)
+            .onTapGesture { choose(model, work: work) }
+            .accessibilityElement(children: .combine)
             .accessibilityAddTraits(.isButton)
+            .accessibilityAction(named: "Read") { open(work) }
             .contextMenu { bookActions(model, work: work) }
+        }
+
+        /// A book in a series the reader has finished with, set as one line.
+        ///
+        /// A long series is read in order, so the ones behind the reader only have to stay findable.
+        /// Given a cover and three lines each they push the book actually being read off the screen.
+        private func finishedRow(_ model: Model, work: WorkSummary) -> some View {
+            HStack(spacing: 8) {
+                if model.isSelecting { tick(model.selection.contains(work.id)) }
+
+                Image(systemName: "checkmark.circle.fill")
+                    .font(.caption)
+                    .foregroundStyle(.tint)
+                    .accessibilityHidden(true)
+
+                Text(work.title)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+
+                Spacer(minLength: 8)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 9)
+            .contentShape(.rect)
+            .onTapGesture { choose(model, work: work) }
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("\(work.title), read")
+            .accessibilityAddTraits(.isButton)
+            .accessibilityAction(named: "Read") { open(work) }
+            .contextMenu { bookActions(model, work: work) }
+        }
+
+        /// True where the reader is done with this book and nothing new has arrived in it.
+        ///
+        /// Read to the end of a book still being written doesn't count: the next chapter is what the
+        /// reader is waiting for, and a collapsed row is the wrong place to be told it landed.
+        private func isBehindTheReader(_ model: Model, work: WorkSummary) -> Bool {
+            work.isFinishedReading && model.newChapters(for: work.id) == 0
+        }
+
+        /// What a tap on the body of a row does: pick the book while selecting, else open its page.
+        private func choose(_ model: Model, work: WorkSummary) {
+            if model.isSelecting {
+                model.toggle(work)
+            } else {
+                path.append(.work(id: work.id, title: work.title))
+            }
+        }
+
+        private func open(_ work: WorkSummary) {
+            path.append(.reader(.init(workId: work.id, title: work.title)))
         }
 
         private func tick(_ isOn: Bool) -> some View {

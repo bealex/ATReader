@@ -124,11 +124,12 @@ licensing rather than secrecy. An unconfigured build must keep working for every
 - **Chapter text is encrypted, and the key includes the signed-in account id.** A chapter fetched as a
   guest and the same chapter fetched signed-in don't share a key. See
   `Documentation/ChapterEncryption.md`.
-- **The reader draws with TextKit, not SwiftUI `Text` and not CoreText.** SwiftUI can't justify text;
-  CoreText can't hyphenate, and breaks a word at a soft hyphen without drawing the hyphen. Pagination
-  flows the chapter through one `NSTextContainer` per page, so it agrees exactly with drawing. Drawn
-  text is invisible to VoiceOver, so `ChapterPageView` publishes the page's text as its own
-  accessibility label. Keep that in step with any drawing change.
+- **The reader breaks its own lines.** `ColumnComposer` marks the break points, costs every arrangement
+  of a paragraph's breaks and settles how each line is filled; CoreText only measures and draws, from
+  the same text either way, so what is costed is what is shown. SwiftUI can't justify text, and letting
+  CoreText pick the breaks would split a word at a soft hyphen without drawing the hyphen. Drawn text
+  is invisible to VoiceOver, so `ChapterPageView` publishes the page's text as its own accessibility
+  label. Keep that in step with any drawing change.
 - **Reading position never syncs to the service.** `/v1/reader/update-progress` returns 200 and stores
   nothing; see the note in `Documentation/API.md`. The position a device shows comes from `LocalStore`,
   which is the only place it survives. Don't "fix" the call.

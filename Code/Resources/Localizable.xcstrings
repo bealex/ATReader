@@ -12,6 +12,17 @@
         }
       }
     },
+    "%@ pt": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ пт"
+          }
+        }
+      }
+    },
     "%@ read": {
       "extractionState": "manual",
       "localizations": {
@@ -116,17 +127,6 @@
       }
     },
     "%lld points": {
-      "extractionState": "manual",
-      "localizations": {
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%lld пт"
-          }
-        }
-      }
-    },
-    "%lld pt": {
       "extractionState": "manual",
       "localizations": {
         "ru": {
@@ -318,6 +318,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Жирный"
+          }
+        }
+      }
+    },
+    "Book actions": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Действия с книгой"
           }
         }
       }
@@ -689,6 +700,17 @@
         }
       }
     },
+    "Draws every picture in the page’s own two colours": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Рисует каждую иллюстрацию двумя цветами страницы"
+          }
+        }
+      }
+    },
     "English": {
       "extractionState": "manual",
       "localizations": {
@@ -784,6 +806,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Прочитано"
+          }
+        }
+      }
+    },
+    "Follow the page": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "В цветах страницы"
           }
         }
       }
@@ -1343,6 +1376,28 @@
         }
       }
     },
+    "Picture.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Иллюстрация."
+          }
+        }
+      }
+    },
+    "Pictures": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Иллюстрации"
+          }
+        }
+      }
+    },
     "Portrait only": {
       "extractionState": "manual",
       "localizations": {
@@ -1431,6 +1486,28 @@
         }
       }
     },
+    "Re-import": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Импортировать заново"
+          }
+        }
+      }
+    },
+    "Re-import…": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Импортировать заново…"
+          }
+        }
+      }
+    },
     "Read": {
       "extractionState": "manual",
       "localizations": {
@@ -1493,6 +1570,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Читает файл FB2 в вашу библиотеку"
+          }
+        }
+      }
+    },
+    "Reads this book’s file again, keeping your place": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Читает файл книги заново, сохраняя ваше место"
           }
         }
       }
@@ -2015,6 +2103,28 @@
         }
       }
     },
+    "That archive has no book in it.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "В этом архиве нет книги."
+          }
+        }
+      }
+    },
+    "That archive is password-protected.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Этот архив защищён паролем."
+          }
+        }
+      }
+    },
     "That file couldn’t be read.": {
       "extractionState": "manual",
       "localizations": {
@@ -2022,6 +2132,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Не удалось прочитать файл."
+          }
+        }
+      }
+    },
+    "That file is a different book, so it was added to the library on its own.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Это другая книга, поэтому она добавлена в библиотеку отдельно."
           }
         }
       }

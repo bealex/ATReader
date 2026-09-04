@@ -23,8 +23,16 @@ struct ChapterTextStyle: Equatable, Sendable {
     var justifiesRussian: Bool
     var justifiesEnglish: Bool
     var textColor: UIColor
+    /// The colour the page is set on, which pictures are drawn against as well as text.
+    var backgroundColor: UIColor = .systemBackground
+    /// Every picture is held to the page's two colours, colour art included.
+    var monochromeImages: Bool = false
 
     var font: UIFont { face.font(size: fontSize, weight: weight.uiWeight) }
+
+    var palette: PagePalette {
+        PagePalette(foreground: textColor, background: backgroundColor, isMonochrome: monochromeImages)
+    }
 
     func justifies(_ language: String?) -> Bool {
         Typography.isRussian(language) ? justifiesRussian : justifiesEnglish
@@ -85,7 +93,8 @@ enum ChapterPagination {
         paragraphs: [ChapterHTML.Paragraph],
         heading: ChapterHeading = ChapterHeading(),
         language: String? = nil,
-        style: ChapterTextStyle
+        style: ChapterTextStyle,
+        images: [String: PageImage] = [:]
     ) -> TypesetText {
         let result = NSMutableAttributedString()
         let font = style.font
@@ -96,6 +105,18 @@ enum ChapterPagination {
         let paragraphs = withoutRepeatedHeading(paragraphs, heading: heading)
 
         for (index, paragraph) in paragraphs.enumerated() {
+            let suffix = index == paragraphs.count - 1 ? "" : "\n"
+
+            if let source = paragraph.imageSource {
+                // A picture the device has nothing behind stands for nothing, so its block goes rather
+                // than leaving a hole where it would have been.
+                if let picture = images[source] {
+                    result.append(Self.setting(picture, suffix: suffix, style: style))
+                }
+
+                continue
+            }
+
             let isCentered = paragraph.isCentered
             let paragraphStyle = NSMutableParagraphStyle()
             paragraphStyle.alignment = isCentered ? .center : bodyAlignment
@@ -116,7 +137,6 @@ enum ChapterPagination {
                 paragraphStyle.usesDefaultHyphenation = true
             }
 
-            let suffix = index == paragraphs.count - 1 ? "" : "\n"
             var attributes: [NSAttributedString.Key: Any] = [
                 .font: font,
                 .foregroundColor: style.textColor,
@@ -129,6 +149,30 @@ enum ChapterPagination {
 
         return TypesetText(attributed: result, headingLength: headingLength)
     }
+
+    /// A picture as one block of the chapter.
+    ///
+    /// It stands for a single character, so a reading position counts it the way it counts a paragraph
+    /// and stays put when the page size or the face changes. The column reads the picture off the
+    /// character's own attribute and sets a line as deep as the picture is drawn.
+    private static func setting(_ picture: PageImage, suffix: String, style: ChapterTextStyle) -> NSAttributedString {
+        let paragraphStyle = NSMutableParagraphStyle()
+        paragraphStyle.alignment = .center
+        paragraphStyle.lineSpacing = style.lineSpacing
+        paragraphStyle.paragraphSpacing = style.lineSpacing * 0.8
+
+        return NSAttributedString(
+            string: String(Self.pictureMark) + suffix,
+            attributes: [
+                .font: style.font,
+                .paragraphStyle: paragraphStyle,
+                .pageImage: picture,
+            ]
+        )
+    }
+
+    /// What a picture stands as in the text. VoiceOver is told it is there; nothing draws it.
+    static let pictureMark: Character = "\u{FFFC}"
 
     /// How many opening paragraphs may be given up to a heading the body repeats.
     private static let repeatedHeadingLimit = 3

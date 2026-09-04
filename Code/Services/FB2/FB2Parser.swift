@@ -65,6 +65,11 @@ enum FB2Parser {
         private var cover: Data?
         private var binaryId: String?
         private var binary = ""
+        /// The pictures the body points at, by the name its `<image>` gives them.
+        private var images: [String: Data] = [:]
+        /// Every name an `<image>` in the text has asked for, so the binaries that answer to none of
+        /// them are never decoded. FB2 puts its binaries after the text, so by then every name is known.
+        private var wanted: Set<String> = []
 
         private var sections: [FB2Book.Section] = []
 
@@ -97,6 +102,7 @@ enum FB2Parser {
                 series: series?.trimmed.nilWhenEmpty,
                 seriesOrder: seriesOrder,
                 cover: cover,
+                images: images,
                 sections: sections,
                 identifier: documentId
             )
@@ -113,7 +119,9 @@ enum FB2Parser {
         ) {
             path.append(element)
 
-            if !startedDescription(element, attributes: attributes) { startedBody(element) }
+            if !startedDescription(element, attributes: attributes) {
+                startedBody(element, attributes: attributes)
+            }
 
             // Every block of text starts empty, so the characters of the one before it never leak in.
             if Self.blocks.contains(element) { text = "" }
@@ -134,13 +142,23 @@ enum FB2Parser {
             return true
         }
 
-        private func startedBody(_ element: String) {
+        private func startedBody(_ element: String, attributes: [String: String]) {
             switch element {
                 case "body" where !hasReadBody: region = .body
                 case "section" where region == .body: startSection()
                 case "empty-line" where region == .body: pendingBreak = true
+                case "image" where region == .body: startImage(attributes)
                 default: break
             }
+        }
+
+        /// A picture in the text becomes a block of its own, named after the binary that holds it.
+        private func startImage(_ attributes: [String: String]) {
+            guard !open.isEmpty, let name = Self.reference(in: attributes) else { return }
+
+            wanted.insert(name)
+            pendingBreak = false
+            open[open.count - 1].lines.append("<img src=\"\(Self.escaped(name))\">")
         }
 
         func parser(_ parser: XMLParser, foundCharacters string: String) {
@@ -322,9 +340,10 @@ enum FB2Parser {
             binaryId = attributes["id"]
             binary = ""
 
-            // Only the cover is kept. Chapter illustrations have nowhere to go in a text reader, and a
-            // book's worth of them would sit in the database for good.
-            guard cover == nil, binaryId != nil, binaryId == coverId else { return }
+            guard let binaryId, attributes["content-type"]?.hasPrefix("image/") ?? true else { return }
+            // Only the cover and the pictures the text actually points at. Anything else would be
+            // decoded and then thrown away.
+            guard (cover == nil && binaryId == coverId) || wanted.contains(binaryId) else { return }
 
             region = .binary
         }
@@ -335,10 +354,15 @@ enum FB2Parser {
                 binaryId = nil
             }
 
-            guard region == .binary else { return }
+            guard region == .binary, let binaryId else { return }
 
             region = .none
-            cover = Data(base64Encoded: binary, options: .ignoreUnknownCharacters)
+
+            guard let data = Data(base64Encoded: binary, options: .ignoreUnknownCharacters) else { return }
+
+            if binaryId == coverId, cover == nil { cover = data }
+
+            if wanted.contains(binaryId) { images[binaryId] = data }
         }
 
         /// The id a `coverpage` image points at, less the `#` that makes it a reference.

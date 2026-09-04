@@ -226,7 +226,7 @@ enum ReaderScreen {
         private func runningHead(_ text: String?, edge: VerticalEdge, isCaption: Bool = false) -> some View {
             if let text, !text.isEmpty {
                 Text(text)
-                    .font(.system(size: runningHeadSize))
+                    .font(.system(size: edge == .bottom ? runningHeadSize * Self.captionScale : runningHeadSize))
                     .lineLimit(1)
                     .foregroundStyle(settings.theme.foreground.opacity(0.4))
                     .padding(.horizontal, settings.margins)
@@ -275,6 +275,9 @@ enum ReaderScreen {
 
         /// How long the controls take to fade in or out.
         private static let chromeFade: Double = 0.25
+
+        /// The page number sits a little smaller than the book's title above it.
+        private static let captionScale: CGFloat = 0.9
 
         /// The bar's own controls. Back and the chapter's name come from the navigation stack.
         @ToolbarContentBuilder
@@ -420,7 +423,7 @@ enum ReaderScreen {
                         .accessibilityLabel("Font weight")
                     }
 
-                    Section("Size") {
+                    Section {
                         Slider(
                             value: $settings.fontSize,
                             in: ReaderSettings.fontSizeRange,
@@ -432,22 +435,28 @@ enum ReaderScreen {
                         .accessibilityIdentifier("reader.fontSize")
                         .accessibilityLabel("Font size")
                         .accessibilityValue("\(Int(settings.fontSize)) points")
+                    } header: {
+                        setting("Size", at: settings.fontSize)
                     }
 
-                    Section("Line spacing") {
+                    Section {
                         Slider(value: $settings.lineSpacing, in: 0 ... 16, step: 1)
                             .accessibilityIdentifier("reader.lineSpacing")
                             .accessibilityLabel("Line spacing")
                             .accessibilityValue("\(Int(settings.lineSpacing))")
+                    } header: {
+                        setting("Line spacing", at: settings.lineSpacing)
                     }
 
-                    Section("Letter spacing") {
+                    Section {
                         Slider(value: $settings.letterSpacing, in: ReaderSettings.letterSpacingRange, step: 0.1)
                             .accessibilityIdentifier("reader.letterSpacing")
                             .accessibilityLabel("Letter spacing")
                             .accessibilityValue(
                                 "\(settings.letterSpacing.formatted(.number.precision(.fractionLength(1)))) points"
                             )
+                    } header: {
+                        setting("Letter spacing", at: settings.letterSpacing, fraction: 1)
                     }
 
                     Section {
@@ -456,9 +465,7 @@ enum ReaderScreen {
                             .accessibilityLabel("Page margins")
                             .accessibilityValue("\(Int(settings.margins)) points")
                     } header: {
-                        Text("Margins")
-                    } footer: {
-                        Text("\(Int(settings.margins)) pt")
+                        setting("Margins", at: settings.margins)
                     }
 
                     Section("Alignment") {
@@ -470,6 +477,12 @@ enum ReaderScreen {
                         Toggle("Portrait only", isOn: $settings.isPortraitOnly)
                             .accessibilityIdentifier("reader.portraitOnly")
                             .accessibilityHint("Keeps the page upright when the device is turned")
+                    }
+
+                    Section("Pictures") {
+                        Toggle("Follow the page", isOn: $settings.monochromeImages)
+                            .accessibilityIdentifier("reader.monochromeImages")
+                            .accessibilityHint("Draws every picture in the page’s own two colours")
                     }
 
                     Section("Page") {
@@ -490,6 +503,13 @@ enum ReaderScreen {
             // landing on the real text rather than on a sample.
             .presentationDetents([ .medium ])
             .presentationBackgroundInteraction(.disabled)
+        }
+
+        /// A section's own name with the value its slider stands at, so a setting can be read as well
+        /// as felt for.
+        private func setting(_ title: LocalizedStringKey, at value: Double, fraction: Int = 0) -> Text {
+            let points = value.formatted(.number.precision(.fractionLength(fraction)))
+            return Text(title) + Text(verbatim: " (\(String(localized: "\(points) pt")))")
         }
 
         /// Alignment is set per language: a language's own typography decides whether justifying it

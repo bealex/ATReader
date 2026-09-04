@@ -5,6 +5,7 @@
 
 import AuthorToday
 import SwiftUI
+import UniformTypeIdentifiers
 
 enum WorkScreen {
     struct Component: View {
@@ -21,6 +22,9 @@ enum WorkScreen {
         private var isConfirmingDelete = false
 
         @State
+        private var isPickingFile = false
+
+        @State
         private var model: Model?
 
         var body: some View {
@@ -33,6 +37,17 @@ enum WorkScreen {
             .navigationTitle(title)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar(.hidden, for: .tabBar)
+            .toolbar {
+                if model?.isLocal == true {
+                    ToolbarItem(placement: .topBarTrailing) { fileMenu }
+                }
+            }
+            // One file, not several: this replaces one book rather than adding to the shelf.
+            .fileImporter(isPresented: $isPickingFile, allowedContentTypes: LocalBooks.fileTypes) { result in
+                guard case let .success(url) = result else { return }
+
+                Task { await model?.reimport(from: url) }
+            }
             .onAppear {
                 if model == nil { model = Model(workId: workId, session: session) }
             }
@@ -161,6 +176,33 @@ enum WorkScreen {
             }
 
             if model.isLocal { deleteButton(model) }
+        }
+
+        /// Reading an imported book's file again, for a book that predates something the parser has
+        /// since learned. Only imported books have a file to be read again.
+        private var fileMenu: some View {
+            Menu {
+                if let model, model.hasKeptFile {
+                    Button {
+                        Task { await model.reimportFromKeptFile() }
+                    } label: {
+                        Label("Re-import", systemImage: "arrow.clockwise")
+                    }
+                    .accessibilityIdentifier("work.reimport")
+                } else {
+                    // A book imported before its file was kept has none, so this one asks for it.
+                    Button {
+                        isPickingFile = true
+                    } label: {
+                        Label("Re-import…", systemImage: "arrow.clockwise")
+                    }
+                    .accessibilityIdentifier("work.reimport")
+                }
+            } label: {
+                Image(systemName: "ellipsis.circle")
+            }
+            .accessibilityLabel("Book actions")
+            .accessibilityHint("Reads this book’s file again, keeping your place")
         }
 
         /// An imported book's text is on this device and nowhere else, so taking it off is a deletion

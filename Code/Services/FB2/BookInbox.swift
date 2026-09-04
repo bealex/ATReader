@@ -36,6 +36,29 @@ final class BookInbox {
 
     func dismissError() { errorMessage = nil }
 
+    /// Reads a book already on the shelf again, from the file kept when it was imported.
+    ///
+    /// The same path as a file arriving, so the book is re-parsed, re-stored and put back through the
+    /// typesetter. It lands on its own row, since the file it came from fingerprints the same way.
+    @discardableResult
+    func reaccept(workId: Int) async -> WorkSummary? {
+        isImporting = true
+        errorMessage = nil
+
+        defer { isImporting = false }
+
+        do {
+            let work = try await BookImport.reimport(workId: workId, store: store)
+            await processor.start(workId: work.id, chapters: store.chapters(workId: work.id))
+            importedAt = .now
+            return work
+        } catch {
+            Self.logger.error("re-import failed: \(error.localizedDescription, privacy: .public)")
+            errorMessage = error.localizedDescription
+            return nil
+        }
+    }
+
     /// Reads a file into the library and starts putting it through the typesetter.
     ///
     /// The book is on the shelf and readable as soon as its text is stored. Preparing it runs behind

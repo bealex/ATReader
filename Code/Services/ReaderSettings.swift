@@ -265,6 +265,14 @@ final class ReaderSettings {
         didSet { UserDefaults.standard.set(theme.rawValue, forKey: Keys.theme) }
     }
 
+    /// Draws every picture in the page's own two colours, colour art included.
+    ///
+    /// Line art and scans take them anyway, since a sheet of white paper in the middle of a night page
+    /// reads worse than the text around it. This holds the rest to them too.
+    var monochromeImages: Bool {
+        didSet { UserDefaults.standard.set(monochromeImages, forKey: Keys.monochromeImages) }
+    }
+
     /// Holds the page upright however the device is held, which is what reading lying down asks for.
     var isPortraitOnly: Bool {
         didSet {
@@ -291,6 +299,7 @@ final class ReaderSettings {
         englishAlignment =
             defaults.string(forKey: Keys.englishAlignment).flatMap(Alignment.init(rawValue:)) ?? .leading
         theme = defaults.string(forKey: Keys.theme).flatMap(Theme.init(rawValue:)) ?? .system
+        monochromeImages = defaults.bool(forKey: Keys.monochromeImages)
         isPortraitOnly = defaults.bool(forKey: Keys.portraitOnly)
         OrientationLock.seed(portraitOnly: isPortraitOnly)
     }
@@ -305,7 +314,9 @@ final class ReaderSettings {
             letterSpacing: letterSpacing,
             justifiesRussian: russianAlignment == .justified,
             justifiesEnglish: englishAlignment == .justified,
-            textColor: UIColor(theme.foreground)
+            textColor: UIColor(theme.foreground),
+            backgroundColor: UIColor(theme.background),
+            monochromeImages: monochromeImages
         )
     }
 
@@ -322,6 +333,7 @@ final class ReaderSettings {
         static let russianAlignment = "reader.alignment.ru"
         static let englishAlignment = "reader.alignment.en"
         static let theme = "reader.theme"
+        static let monochromeImages = "reader.monochromeImages"
         static let portraitOnly = "reader.portraitOnly"
     }
 }

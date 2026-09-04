@@ -1,25 +1,33 @@
 # The reader
 
-Chapters are paginated, not scrolled, the text is set by TextKit, and the page fills the screen.
+Chapters are paginated, not scrolled, the column breaks its own lines, and the page fills the screen.
 Most of what follows exists because one of those three forced it.
 
-## Why not SwiftUI, and why not CoreText
+## Why the breaking is ours
 
 SwiftUI `Text` has no justified alignment, which ruled it out first.
 
-CoreText was the next choice and had to be abandoned as well, because it does not hyphenate.
-`hyphenationFactor` and `usesDefaultHyphenation` are TextKit settings and do nothing to a
-`CTFramesetter`. Soft hyphens are not a way round it: CoreText will break a line at one and then draw
-no hyphen, so a word splits with nothing to show for it, which is worse than not breaking at all. That
-was measured, not assumed: a hyphenated line was rendered and its glyphs read back.
+TextKit can set a justified column, but it can't choose where a line ends and how that line is filled
+as one decision. It breaks greedily, taking all it can each time and justifying whatever it took, so a
+line standing before a long word is left holding too little and has to open wide, while the text that
+would have filled it sits above it in lines already settled.
+
+So `ColumnComposer` breaks each paragraph itself. Every arrangement of its breaks is costed by how hard
+the lines it makes have to be pushed to reach the measure, and the cheapest wins. CoreText measures and
+draws, and chooses nothing.
+
+CoreText on its own would be no better. It treats a soft hyphen as a place it may break a word and then
+draws no hyphen there, which is worse than not breaking at all. That's an objection to letting
+`CTTypesetter` pick the breaks. This column marks its own break points and draws its own hyphens, so
+CoreText is left with the shaping of a line whose text is already settled.
 
 Hyphenation matters more here than it would in an English-only reader. Russian words are long, the
-column is narrow, and a justified line that cannot break a word stretches the spaces between its
-letters instead. `NSLayoutManager`
-hyphenates from the system's own dictionaries, in whichever language the text says it is in, and draws
-the hyphen.
+column is narrow, and a justified line that can't break a word has to stretch instead.
+`Typography.hyphenated` walks every word through the system's dictionary for the language the text is
+in and marks every break that dictionary allows.
 
-The cost is that TextKit has to stay on the main actor, which the rest of the design works around.
+The setting is built from `UIFont` and drawn into a UIKit context, so it stays on the main actor and
+yields between paragraphs rather than blocking a page turn.
 
 ## Setting the text
 
@@ -27,8 +35,8 @@ The cost is that TextKit has to stay on the main actor, which the rest of the de
 line must not be broken between. All of it happens in a detached task, since none of it is the main
 actor's business.
 
-`Typography` is that binding. TextKit will break a line at any space it likes, and both traditions
-forbid some of those breaks, though not the same ones:
+`Typography` is that binding. A line may break at any space, and both traditions forbid some of those
+breaks, though not the same ones:
 
 - Russian will not let a line end on a one- or two-letter preposition, nor begin with a dash.
 - English is easier on short words but keeps an abbreviation with the name that follows it.
@@ -74,18 +82,14 @@ since a justified narrow column of short words pulls them apart. The reader can 
 
 ### Hyphenating a justified column
 
-TextKit finds its own break points and settles for fewer than the dictionary knows, which in a narrow
-justified column leaves lines it stretches instead of lines it breaks. `hyphenationFactor = 1` moves
-one line in a page.
-
-So the breaks are marked before the text is laid out. `Typography.hyphenated` walks every word through
+The breaks are marked before anything is measured. `Typography.hyphenated` walks every word through
 `CFStringGetHyphenationLocationBeforeIndex` and puts a soft hyphen at each position the language's own
-dictionary allows, keeping two letters either side of a break. TextKit always sees a soft hyphen, and
-draws a hyphen when it breaks there.
+dictionary allows, keeping two letters either side of a break. The column takes those as break points
+of its own and draws a hyphen wherever it uses one. A soft hyphen has no width, so a line that breaks
+on one is measured with the width of the hyphen that will stand in its place.
 
-Measured on one chapter, 19pt serif at 24pt margins: 34 pages before, 33 after; four hyphens on a page
-became seven, and the line that had been stretched letter by letter to fill its measure now breaks the
-word after it.
+A hyphen the author wrote is a break point as well, `кто-` before `то`, with two letters wanted either
+side and nothing added, since the hyphen is already there.
 
 Two things follow from putting characters into the text:
 
@@ -112,63 +116,125 @@ the opening of the heading, so a chapter whose text merely starts on the same wo
 comparison is made on letters and digits alone, because by then the text carries the soft hyphens and
 word joiners the typesetter put in.
 
-### Filling a justified line
+### Filling a line
 
-TextKit opens a line's spaces to about 3.1 times the width the font gives one, then takes whatever is
-still missing from between the letters. Nothing moves that ceiling: hyphenation, kerning, tracking and
-ligatures each justify identically. Past it the words visibly come apart.
+A line has three levers, and the first two move together rather than in turn:
 
-So `ChapterLayout` sets those lines itself. It lays the line out again on its own, the way the font
-sets it, then draws each word shifted right of where it landed, so all the slack sits between words
-and none of it inside them. Spaces open to twice what TextKit allows itself before the words read as
-too far apart to be one line.
+- **The gaps between the words**, opened by up to 1.6 times the width the font gives a space.
+- **The letters**, tracked apart by up to 3.5% of the type size.
+- **The glyphs**, drawn up to 1.2% wider.
 
-Two rules shape the result:
+The first two reach their ceiling at the same moment, so the share each takes falls out of the line
+instead of being settled in advance: a line of a few long words leans on its letters, a line of many
+short ones leans on its gaps. Tracking spread down a line reads as colour where the same space gathered
+into the gaps reads as holes, which is why the letters take a share from the start rather than only
+what the gaps leave over.
+
+Past that point the gaps go on alone, out to six times a space, and the tracking stops. Letters set
+further apart than that stop reading as colour and start reading as a different face. The glyphs are
+the last lever and by far the smallest, because widening one changes its weight, which shows sooner
+than space does. A line that has to reach so far costs enough that the breaker will nearly always have
+found something better first: a word brought up from the line below, or a word broken.
+
+The levers run the other way too. A line may close its gaps by three tenths of a space and its letters
+by a fiftieth of the type size, which is what sets a paragraph a fraction too wide without breaking a
+word, and what lets a line draw a word up from the one below it. Room to set a line tight is also what
+makes the breaking a choice at all: if a line could only be opened, filling each one as full as it goes
+would be the cheapest arrangement there is and no rearranging could beat it.
+
+Three rules stand outside the arithmetic:
 
 - **The dash opening a paragraph of speech keeps the gap the font gives it.** That dash stands at the
   column's left edge as much as the margin does, and stretching the gap after it lands the first letter
   somewhere different in every paragraph, bending the edge down the page. The rest of the line takes
-  the slack. Every line opening on a dash is set here, however TextKit left it. Otherwise the gap is
-  the font's on the lines TextKit could fill and stretched on the rest.
-- **A line that still can't be filled frees the tie below it first.** The typesetter binds a short
-  preposition to the word after it so that no line ends on one, and that pair can be wider than what is
-  left. Freeing the tie lets the short word come up and the line fill.
-- **A line the gaps can't fill takes the rest from its letters.** The gaps open to their ceiling, and
-  what they can't reach is spread down the line, at most a point a letter. Where the two together still
-  fall short the line stands short: a line under its measure reads; words pulled to pieces don't.
-
-A line is set again where TextKit crowded it or where TextKit left it short. Crowding alone was the
-test once, and a short line strains at nothing, so the lines that most wanted setting again were the
-ones passed over.
-
-Whenever the column leaves a line short it records why, and the line carries that reason out with it.
-The debug report prints it and the tests ask for it. Read from outside, the decision can only be
-guessed at.
+  the slack.
 - **A line ending in a hyphen or a comma sets that mark outside the measure.** Those marks are mostly
   the white space around them, so an edge that lines them up with the letters reads as notched wherever
-  one falls. Hanging a fraction of the mark past the margin puts the letters back on the line the rest
-  of the column keeps. A fraction, not the whole character: hang a comma entirely and the edge bulges
-  where the commas are.
+  one falls. A fraction of the mark hangs rather than the whole character: hang a comma entirely and
+  the edge bulges where the commas are.
+- **A line none of the levers can fill stands short and records why.** A line under its measure reads;
+  words pulled to pieces don't. The debug report prints the reason and the tests ask for it, since from
+  outside the decision can only be guessed at.
 
-### A paragraph a fraction too wide
+### What the breaker weighs besides the fill
 
-A paragraph that misses fitting by a fraction of a line is set again with its letters closed up, by at
-most a fiftieth of the type size, rather than broken with a hyphen that leaves the tail of a word alone
-on the line after it. The opening line is indented, so what it holds is the measure less that indent.
+Filling is most of what a line costs, but four other things are priced against it:
 
-Hanging is why a line ending in punctuation is set here at all. Only a line the app sets itself can put
-a character outside the measure, so those lines join the crowded ones and the speech lines on this
-path, whatever TextKit made of them. A line ending in a letter needs no hang and keeps TextKit's
-setting. TextKit draws the hyphen a line breaks on rather than storing it, so the measurement takes
-that hyphen's width. The soft hyphen standing in the text has none.
+- **A broken word**, so a hyphen is taken only where it buys more than it costs.
+- **A second broken word directly under the first**, dearer again, which is what keeps hyphens from
+  stacking down the page.
+- **A broken tie.** The binder holds a short preposition to the word after it so that no line ends on
+  one, and that pair can be wider than what a line has left. Where the gap it would leave reads worse
+  than the broken rule, the breaker gives up the tie rather than the line.
+- **A stub last line.** A paragraph's last line takes whatever is left, but one holding less than a
+  sixth of the measure reads as a mistake, so the line above it gives a word down.
+
+Ragged-right paragraphs go through the same breaker with the levers switched off, so the edge is as
+even as the words allow and no line is stretched to make it so.
+
+## Pictures
+
+A picture is a line of the column like any other. It has a depth, the page breaker treats it as one
+tall line, and the slack around it is spread the way the slack around a paragraph is. So a plate never
+runs off the foot of a page.
+
+`ChapterHTML` reads an `<img>` as a block of its own and `ChapterPagination` sets it as a single
+character carrying the picture on an attribute of that character. One character rather than none, so a
+reading position counts a picture the way it counts a paragraph and stays put across a change of font.
+Drawn art says nothing to VoiceOver, so the page names it in place of that character.
+
+A picture takes the whole measure, but is never blown up past one of its own pixels to the point: a
+small decoration stays small rather than becoming a blurred plate. One too deep for the page gives up
+width until it fits.
+
+### Which colours a picture takes
+
+Nothing in a file says whether a picture is colour art or line work, so `BookImages` reads it off the
+pixels. A picture counts as colour when more than a fiftieth of its solid pixels carry any.
+
+- **Colour art is shown as it was drawn**, faded a little on a dark page so it doesn't glare beside the
+  text.
+- **Anything monochrome is redrawn in the page's own two colours.** Line art, a grey scan and a black
+  plate on nothing all go this way.
+
+A monochrome picture keeps its own light and dark. What is black in the file lands on the deeper of the
+page's two colours and what is white lands on the paler one, whichever of the foreground and the
+background each of those happens to be. So a drawing is never turned into a negative of itself: on a
+night page it comes out as pale paper with dark ink, in the theme's own colours rather than the file's.
+
+What is kept is how dark each pixel is, alpha included, as a grey picture of its own. Whatever was
+never drawn on counts as light, since the paper is what showed through there. The page lays its paler
+colour down whole and paints the deeper one over it through that shading, which is what turns a grey
+into a mixture of the two rather than one or the other.
+
+Holding the shading rather than a tinted copy is what makes the reader's own setting cheap. "Follow the
+page" in Appearance sends colour art down the same path for the cost of two fills, rather than a second
+reading of the picture. Reading one means looking at every pixel, so it happens once, away from the
+main actor, and what comes back is plain bytes that cost nothing to wrap as a `CGImage`.
+
+### Where a picture sits on the page
+
+A page's spare room is spread between its lines, and what no amount of leading can absorb goes around
+the pictures instead of collecting at the foot of the page. Each picture is centred in everything the
+page gave it, its own line's spacing included, so what stands above it matches what stands below.
+
+A page that ends a chapter keeps its ragged bottom, since its text stops where the chapter stops. Its
+spare room therefore stands after the last line rather than being spread through the page, and only a
+picture standing at the end of one has any of that room beneath it to be centred in. That is the page a
+part title makes: a heading, a plate, and nothing after it. A picture with the chapter's last words
+below it already sits where it belongs and is left alone.
+
+The title page's cover answers to both rules, being a page of the book. Covers elsewhere in the app are
+drawn plainly, since there's no page tint out there to answer to.
 
 ## Cutting the column into pages
 
-`ChapterLayout` sets the chapter as a single column, in slices with a yield between them so a long
-chapter never blocks a page turn, and then cuts that column into pages line by line.
+`ColumnComposer` sets the chapter as a single column, a paragraph at a time with a yield between them
+so a long chapter never blocks a page turn, and `ChapterLayout` cuts that column into pages line by
+line.
 
-Cutting by hand rather than letting TextKit flow the text through page-sized containers is what makes
-the rules possible. None of these is allowed at a break:
+Cutting by hand rather than flowing the text through page-sized containers is what makes the rules
+possible. None of these is allowed at a break:
 
 - a hyphen at the foot of a page,
 - an orphan: a paragraph's first line alone at the bottom,
@@ -195,13 +261,9 @@ foot. Every page but a chapter's last comes down to the same depth: each gets it
 3pt of air per gap, and a gap may be squeezed by 0.75pt to pull one more line on. A page that ends a
 chapter keeps its ragged bottom, since it stops where the chapter stops.
 
-Measured over eight generated chapters at a measure of 15.4 lines: 150 of 166 pages carry 14 or 15
-lines, 14 carry 13 and two carry 12. The 15-line pages are full, and 3pt of air per gap closes the
-14-line ones to within 3pt of full. What the leading can't close is the 13- and 12-line pages, which
-are as short as the rules force them to be; raising the 3pt cap is the lever if they ever matter.
-
-What it still doesn't do: nothing caps consecutive hyphenated lines, and a paragraph's last line may
-be one short word. Both need control over line breaking rather than page breaking.
+Measured over eight generated chapters at 19pt serif and 24pt margins, a measure of about 26 lines:
+every one of the 25 pages that doesn't end a chapter carries 24, 25 or 26 lines, and the leading closes
+that spread. The eight short pages are the eight chapter endings, which stop where their chapters stop.
 
 ## Chapters that run on
 
