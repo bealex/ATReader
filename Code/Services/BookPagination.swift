@@ -217,13 +217,14 @@ final class BookPagination {
         SHA256.hash(data: Data((chain + hash).utf8)).map { String(format: "%02x", $0) }.joined()
     }
 
+    /// Where a chapter sits, or `nil` where the pass hasn't reached it yet.
+    ///
+    /// The two are worth telling apart: a chapter nothing is known about laid out as though it started
+    /// a page of its own is then drawn over the page it really shares.
     func placement(of chapterId: Int) -> Placement? { placements[chapterId] }
 
-    /// How far down its first page a chapter begins. Zero where it starts a page of its own.
-    func startOffset(of chapterId: Int) -> CGFloat { placements[chapterId]?.startOffset ?? 0 }
-
     /// True when this chapter begins part-way down the page the one before it ended on.
-    func runsOn(_ chapterId: Int) -> Bool { startOffset(of: chapterId) > 0 }
+    func runsOn(_ chapterId: Int) -> Bool { (placements[chapterId]?.startOffset ?? 0) > 0 }
 
     /// Where a chapter starts on the page the one before it ended on, and how far down.
     ///
@@ -237,5 +238,19 @@ final class BookPagination {
         guard free >= max(lineHeight * 6, context.textSize.height * 0.25) else { return 0 }
 
         return context.textSize.height - previous.tailFreeSpace + chapterGap
+    }
+
+    /// True when `next` was set to begin on the page `previous` ends, clear of the last line standing
+    /// there.
+    ///
+    /// Read from the offsets the two layouts were built at rather than from the placements this holds,
+    /// because the layouts are what draw. One set as if it started a page of its own is drawn from the
+    /// top of the page it shares, over the chapter already there.
+    static func sharesLastPage(
+        of previous: ChapterLayout,
+        with next: ChapterLayout,
+        context: ChapterLayout.Context
+    ) -> Bool {
+        next.startOffset > 0 && next.startOffset >= context.textSize.height - previous.tailFreeSpace
     }
 }

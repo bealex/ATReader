@@ -284,7 +284,10 @@ A chapter of a heading and nothing else, which is how a part title is filed, run
 lets the chapter after it follow on the same one.
 
 `ChapterLayout` takes a `startOffset` for that and makes its first page shorter by exactly that much,
-and the reader draws such a page from two pieces, one per chapter.
+and the reader draws such a page from two pieces, one per chapter. Whether a page gets its second piece
+is settled from the offsets the two layouts were built at rather than from `BookPagination`'s pass,
+because the layouts are what draw: `BookPagination.sharesLastPage(of:with:context:)` asks whether the
+next chapter was set to begin at or below where the previous one's text stops.
 
 That offset is what makes a chapter's page breaks depend on the chapter before it, whose breaks depend
 on the one before that. Measuring a chapter on its own therefore answers differently from measuring it
@@ -294,7 +297,9 @@ turned back into the chapter before it.
 
 So `BookPagination` measures the book in one pass, in order from its first chapter, and keeps only
 where each chapter starts and how far it runs. Every layout afterwards takes its offset from that pass,
-so a chapter sits in the same place however the reader reaches it. The pass throws each layout away as
+so a chapter sits in the same place however the reader reaches it. A chapter the pass hasn't reached
+has no offset to take, and isn't laid out at all until it does: the reader reads two chapters ahead,
+and one set from a guessed offset is drawn over the page it turns out to share. The pass throws each layout away as
 it goes, so a book of any length costs one chapter's memory at a time, and it runs again whenever the
 style or the page size changes, which is what those measurements depend on.
 

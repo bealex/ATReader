@@ -221,13 +221,18 @@ extension ReaderScreen {
 
             var pieces: [Piece] = []
 
-            if page == 0, runsOnFromPrevious, let previous = previousChapter, let before = layouts[previous.id] {
+            // Both neighbours are taken on where the two layouts were actually set, not on where the
+            // book pass says they go: the layouts are what draw, and one set as if it started a page of
+            // its own is drawn over the chapter already on the page it shares.
+            if page == 0, let previous = previousChapter, let before = layouts[previous.id],
+                    BookPagination.sharesLastPage(of: before, with: layout, context: layout.context) {
                 pieces.append(Piece(layout: before, page: before.pageCount - 1))
             }
 
             pieces.append(Piece(layout: layout, page: page))
 
-            if page == layout.pageCount - 1, nextRunsOn, let next = nextChapter, let after = layouts[next.id] {
+            if page == layout.pageCount - 1, let next = nextChapter, let after = layouts[next.id],
+                    BookPagination.sharesLastPage(of: layout, with: after, context: layout.context) {
                 pieces.append(Piece(layout: after, page: 0))
             }
 
@@ -466,7 +471,7 @@ extension ReaderScreen {
                 chapterId: chapterId,
                 content: content,
                 context: context,
-                startOffset: pagination?.startOffset(of: chapterId) ?? 0,
+                startOffset: pagination?.placement(of: chapterId)?.startOffset ?? 0,
                 reportsProgress: true
             )
             paginationProgress = nil
@@ -625,15 +630,21 @@ extension ReaderScreen {
             _ = await prepare(chapterId: id)
         }
 
+        /// Lays a neighbour out, but only once the book pass has said where it goes.
+        ///
+        /// Reading ahead of the pass is reading ahead of the answer: the chapter would be set as if it
+        /// started a page of its own, and then drawn over the page it turns out to share. It is laid out
+        /// at the next chapter break instead, by when the pass has passed it.
         @discardableResult
         private func prepare(chapterId: Int) async -> ChapterLayout? {
-            guard let context, let content = await content(for: chapterId) else { return nil }
+            guard let context, let placement = pagination?.placement(of: chapterId) else { return nil }
+            guard let content = await content(for: chapterId) else { return nil }
             guard
                 let built = await makeLayout(
                     chapterId: chapterId,
                     content: content,
                     context: context,
-                    startOffset: pagination?.startOffset(of: chapterId) ?? 0,
+                    startOffset: placement.startOffset,
                     reportsProgress: false
                 )
             else { return nil }
