@@ -39,9 +39,9 @@ file. Without it the app still builds and runs, and says plainly that it can't o
 ## Documentation
 
 `Documentation/` holds what was learned building this: the API reference, the chapter-encryption
-scheme, the architecture, the reader, and the testing setup. It describes how the app works now.
-What happened on the way, with the dead ends and the measurements, is a dated journal under
-[Documentation/History/](Documentation/History). Start at
+scheme, the architecture, the reader, books opened from a file, and the testing setup. It describes how
+the app works now. What happened on the way, with the dead ends and the measurements, is a dated
+journal under [Documentation/History/](Documentation/History). Start at
 [Documentation/README.md](Documentation/README.md). Working rules for changing this codebase are in
 [CLAUDE.md](CLAUDE.md).
 
@@ -51,13 +51,17 @@ What happened on the way, with the dead ends and the measurements, is a dated jo
 ATReader/
 ├── Code/                     # the app (SwiftUI, iOS 27)
 │   ├── App/                  # entry point, root screen, routing
-│   ├── Components/           # shared row/cover views
+│   ├── Components/           # shared row/cover views, the drawn page, the page turn
 │   ├── Screens/              # one folder per screen: <Name>.Model.swift + <Name>.Component.swift
 │   ├── Services/             # session, keychain, local store, covers, reader engine
+│   │   └── FB2/              # books opened from a file: the archive, the parser, the import
 │   └── Resources/            # Localizable.xcstrings (en source, ru translation)
 ├── Frameworks/
 │   └── AuthorToday/          # the API client, as a standalone SwiftPM package
+├── Tests/ATReaderTests/      # the app's own suites: typesetting, import, images
 ├── Tests/ATReaderUITests/    # XCUITest suites
+├── Fixtures/                 # book text kept out of git; see Fixtures/README.md
+├── Documentation/            # how the app works now, plus a dated journal under History/
 ├── Scripts/                  # format / lint / check wrappers
 └── project.yml               # XcodeGen. The project file is generated, never edited by hand
 ```
@@ -165,13 +169,27 @@ without storing anything belonging to the service.
 
 ## Reading
 
-The reader paginates rather than scrolls, sets its text with TextKit, and gives the page the whole
-screen: the book's title and the page number are drawn on the page itself, and a tap in the middle
-brings the controls back. Pages break the way a compositor would, with no widows, orphans or hyphens
-left at the foot of a page, and a chapter starts on the page the one before it ended on when there's
-room for a decent piece of it. Hyphenation comes from the system dictionaries, in English and Russian.
+The reader paginates rather than scrolls, breaks its own lines, and gives the page the whole screen:
+the book's title and the page number are drawn on the page itself, and a tap in the middle brings the
+controls back. Every arrangement of a paragraph's breaks is costed by how hard its lines have to be
+pushed to reach the measure, and the cheapest wins, so a line is neither pulled apart nor left holding
+too little. Pages break the way a compositor would, with no widows, orphans or hyphens left at the foot
+of a page, and a chapter starts on the page the one before it ended on when there's room for a decent
+piece of it. Hyphenation comes from the system dictionaries, in English and Russian, and a chapter's
+pictures are set in the column beside its text.
 
-[Documentation/Reader.md](Documentation/Reader.md) explains how, and why CoreText couldn't do it.
+[Documentation/Reader.md](Documentation/Reader.md) explains how, and why neither TextKit nor CoreText
+could do it.
+
+## Books from a file
+
+An FB2 file opened from anywhere, zipped or not, is parsed on the device and read beside the books from
+the service: its text, its cover and every picture in it. An imported book counts down from minus one,
+so it never collides with a work id, and its own file is kept beside it so the book screen can read it
+again in place when the parser learns something new.
+
+[Documentation/LocalBooks.md](Documentation/LocalBooks.md) covers the numbering, the cache and what a
+re-import does and doesn't touch.
 
 ## Offline and background refresh
 

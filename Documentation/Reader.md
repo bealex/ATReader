@@ -13,7 +13,9 @@ line standing before a long word is left holding too little and has to open wide
 would have filled it sits above it in lines already settled.
 
 So `ColumnComposer` breaks each paragraph itself. Every arrangement of its breaks is costed by how hard
-the lines it makes have to be pushed to reach the measure, and the cheapest wins. CoreText measures and
+the lines it makes have to be pushed to reach the measure, and the cheapest wins. `ParagraphRuler`
+measures the paragraph once beforehand, so the width of any piece of it is a subtraction rather than a
+fresh measurement, which is what makes costing every arrangement affordable. CoreText measures and
 draws, and chooses nothing.
 
 CoreText on its own would be no better. It treats a soft hyphen as a place it may break a word and then

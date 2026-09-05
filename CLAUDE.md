@@ -108,6 +108,7 @@ licensing rather than secrecy. An unconfigured build must keep working for every
 
 - **Service content.** No captured API responses, no real book text, titles, covers or author names,
   in fixtures, tests, previews or docs. Tests use generated nonsense; see `ChapterDecryptorTests`.
+  A page reported off a device goes in the gitignored `Fixtures/Reports/`, and nothing quotes it.
 - **Credentials.** Test account details reach the tests through the environment only
   (`AT_TEST_LOGIN`, `AT_TEST_PASSWORD`, `AT_TEST_CODE`, `AT_TEST_TOKEN`), never through source.
 
@@ -156,9 +157,9 @@ licensing rather than secrecy. An unconfigured build must keep working for every
 ## Documentation
 
 `Documentation/` describes how the app works **now**: the API reference, the encryption scheme, the
-architecture, the reader, the testing setup. Read `Documentation/API.md` before touching the client,
-since the service has no official spec and those notes were expensive to get. Read
-`Documentation/Reader.md` before touching layout, pagination or the page turn.
+architecture, the reader, books opened from a file, the testing setup. Read `Documentation/API.md`
+before touching the client, since the service has no official spec and those notes were expensive to
+get. Read `Documentation/Reader.md` before touching layout, pagination or the page turn.
 
 These documents are rewritten when the code changes, never appended to. Anything historical or
 append-only goes in `Documentation/History/<YYYY-MM>/<YYYY-MM-DD>.md` instead, one file per day in a

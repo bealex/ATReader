@@ -38,12 +38,14 @@ Model` and a `struct Component: View`, split across `<Screen>.Model.swift` and
 
 ```
 App/          entry point, RootScreen (signed-in vs signed-out), AppRoute
-Components/   CoverImage, WorkRow, WorkBadge, FlowLayout, LoadingOverlay, WorkSummary,
-              ChapterPageView, PageTurnView
+Components/   CoverImage, PagePicture, WorkRow, WorkBadge, FlowLayout, LoadingOverlay,
+              WorkSummary, BookTitlePageView, ChapterPageView, PageTurnView, DebugReport
 Screens/      Login, Library, Search, Top, Work, Reader, Profile
 Services/     SessionStore, KeychainStore, LocalStore, CoverCache, CatalogFeed,
-              ChapterContent, Typography, ChapterPagination, ChapterLayout,
+              ChapterContent, Typography, ChapterPagination, ParagraphRuler,
+              ColumnComposer, ChapterLayout, BookImages, BookPagination, BookProcessor,
               ChapterUpdateService, BackgroundRefresh, ReaderSettings
+Services/FB2/ BookInbox, ZipArchive, FB2Parser, FB2Book, BookImport, LocalBooks
 ```
 
 ### Routing
@@ -150,10 +152,15 @@ content.
 
 ## The reader
 
-Chapters are paginated rather than scrolled, the text is set by TextKit, and a page fills the screen.
-`ChapterContent` parses and binds the text away from the main actor, `ChapterPagination` sets it,
-`ChapterLayout` cuts the column into pages under a compositor's rules, `PageTurnView` turns them and
-`ChapterPageView` draws one.
+Chapters are paginated rather than scrolled, the column breaks its own lines, and a page fills the
+screen. `ChapterContent` parses and binds the text away from the main actor, `ChapterPagination` sets
+it, `ParagraphRuler` measures a paragraph once, `ColumnComposer` chooses every break in it together
+with how each line is filled, `ChapterLayout` cuts the column into pages under a compositor's rules,
+`PageTurnView` turns them and `ChapterPageView` draws one.
+
+A picture is a line of that column with a depth of its own, so the page breaker treats a plate the way
+it treats any other line. `BookImages` reads one, decides whether it is colour art or line work, and
+draws it in the page's own colours where it is the latter.
 
 It is the most intricate part of the app and has its own document: [Reader.md](Reader.md). Read it
 before changing anything about layout, pagination or the page turn.
