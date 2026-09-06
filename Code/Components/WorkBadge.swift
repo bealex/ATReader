@@ -16,6 +16,10 @@ struct WorkBadge: View {
     let systemImage: String
     var tint: Color = Design.Palette.neutral
 
+    /// One line of the badge's own text style, which follows Dynamic Type as the text in it does.
+    @ScaledMetric(relativeTo: .caption2)
+    private var lineHeight: CGFloat = 13
+
     var body: some View {
         HStack(spacing: Design.Space.extraSmall) {
             Image(systemName: systemImage)
@@ -28,6 +32,9 @@ struct WorkBadge: View {
                     .lineLimit(1)
             }
         }
+        // A glyph is shorter than a line of text, so a badge carrying no word would stand smaller
+        // than the ones beside it in the same row.
+        .frame(minHeight: lineHeight)
         .foregroundStyle(tint)
         .padding(.horizontal, Design.Space.small)
         .padding(.vertical, Design.Space.extraSmall)
