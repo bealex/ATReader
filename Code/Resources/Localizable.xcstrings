@@ -1196,17 +1196,6 @@
       "extractionState": "manual",
       "shouldTranslate": false
     },
-    "Next page": {
-      "extractionState": "manual",
-      "localizations": {
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Следующая страница"
-          }
-        }
-      }
-    },
     "Night": {
       "extractionState": "manual",
       "localizations": {
@@ -1438,17 +1427,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Книга готовится, обработано %1$lld из %2$lld глав"
-          }
-        }
-      }
-    },
-    "Previous page": {
-      "extractionState": "manual",
-      "localizations": {
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Предыдущая страница"
           }
         }
       }
@@ -1912,17 +1890,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Показывать"
-          }
-        }
-      }
-    },
-    "Show or hide the reader controls": {
-      "extractionState": "manual",
-      "localizations": {
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Показать или скрыть элементы управления"
           }
         }
       }

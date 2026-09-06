@@ -6,7 +6,7 @@
 import SwiftUI
 import UIKit
 
-extension View {
+public extension View {
     /// Paints the navigation bar in the page's own colour, drops a shadow under it, and holds the whole
     /// window to the page's light or dark, all for as long as this view is on screen.
     ///
@@ -22,7 +22,7 @@ extension View {
     /// applied by overriding the window, and leaving the reader reverts SwiftUI's own side of it without
     /// clearing the window's. The list underneath came back light while the bar and its search field
     /// stayed dark. An override with one owner and a definite end doesn't strand anything.
-    func readerBarAppearance(background: Color, colorScheme: ColorScheme?, isVisible: Bool) -> some View {
+    public func readerBarAppearance(background: Color, colorScheme: ColorScheme?, isVisible: Bool) -> some View {
         self.background(
             ReaderBarAppearance(
                 background: UIColor(background),
@@ -34,8 +34,8 @@ extension View {
     }
 }
 
-extension UIUserInterfaceStyle {
-    init(_ colorScheme: ColorScheme?) {
+public extension UIUserInterfaceStyle {
+    public init(_ colorScheme: ColorScheme?) {
         switch colorScheme {
             case .light: self = .light
             case .dark: self = .dark
@@ -46,15 +46,15 @@ extension UIUserInterfaceStyle {
 
 /// An empty controller whose only job is to reach the enclosing navigation bar and window.
 private struct ReaderBarAppearance: UIViewControllerRepresentable {
-    let background: UIColor
-    let style: UIUserInterfaceStyle
-    let isVisible: Bool
+    public let background: UIColor
+    public let style: UIUserInterfaceStyle
+    public let isVisible: Bool
 
-    func makeUIViewController(context: Context) -> Controller {
+    public func makeUIViewController(context: Context) -> Controller {
         Controller()
     }
 
-    func updateUIViewController(_ controller: Controller, context: Context) {
+    public func updateUIViewController(_ controller: Controller, context: Context) {
         controller.apply(background: background, style: style)
     }
 

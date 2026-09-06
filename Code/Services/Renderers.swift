@@ -6,6 +6,7 @@
 import BookKit
 import BookRenderer
 import BookStorage
+import Foundation
 
 /// Where the typesetter is handed the store and the picture shelf it works over.
 ///
@@ -19,6 +20,19 @@ extension BookPagination {
     /// The paginator over this app's store.
     static func make(workId: Int, context: ChapterLayout.Context) -> BookPagination {
         make(workId: workId, context: context, store: SQLiteBookStore.shared)
+    }
+}
+
+/// The page's covers, from the shelf the app keeps them on.
+///
+/// Downsampled once and kept on disk by CoverCache, then held to the page's own two colours by the
+/// typesetter. The page asks for a picture and learns neither of those things.
+struct CoverPictures: PagePictureLoading {
+    @MainActor
+    func picture(at url: URL) async -> PageImage? {
+        guard let loaded = await CoverCache.shared.image(for: url) else { return nil }
+
+        return BookImages.shared.prepare(loaded, key: "cover:\(url.absoluteString)")
     }
 }
 

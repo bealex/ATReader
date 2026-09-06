@@ -15,24 +15,46 @@ import SwiftUI
 /// `page` is asked for `-1` and for `pageCount` as well when a neighbouring chapter exists: the turn that
 /// crosses a chapter boundary shows the page it is about to land on, so the swap happens invisibly under
 /// the animation.
-struct PageTurnView<Page: View>: View {
-    let pageCount: Int
+public struct PageTurnView<Page: View>: View {
+    public let pageCount: Int
 
     @Binding
-    var index: Int
+    public var index: Int
 
     /// Whether the chapter either side exists, and what to do once the turn onto it commits.
-    var hasPageBefore = false
-    var hasPageAfter = false
-    var onPastEnd: () -> Void = {}
-    var onPastStart: () -> Void = {}
+    public var hasPageBefore = false
+    public var hasPageAfter = false
+    public var onPastEnd: () -> Void = {}
+    public var onPastStart: () -> Void = {}
     /// A tap in the dead zone between the two turning thirds.
-    var onMiddleTap: () -> Void = {}
+    public var onMiddleTap: () -> Void = {}
     /// The moment a turn takes hold, by tap or by finger.
-    var onTurnStarted: () -> Void = {}
+    public var onTurnStarted: () -> Void = {}
 
     @ViewBuilder
-    let page: (Int) -> Page
+    public let page: (Int) -> Page
+
+    public init(
+        pageCount: Int,
+        index: Binding<Int>,
+        hasPageBefore: Bool = false,
+        hasPageAfter: Bool = false,
+        onPastEnd: @escaping () -> Void = {},
+        onPastStart: @escaping () -> Void = {},
+        onMiddleTap: @escaping () -> Void = {},
+        onTurnStarted: @escaping () -> Void = {},
+        @ViewBuilder page: @escaping (Int) -> Page
+    ) {
+        self.pageCount = pageCount
+        _index = index
+        self.hasPageBefore = hasPageBefore
+        self.hasPageAfter = hasPageAfter
+        self.onPastEnd = onPastEnd
+        self.onPastStart = onPastStart
+        self.onMiddleTap = onMiddleTap
+        self.onTurnStarted = onTurnStarted
+        self.page = page
+    }
 
     @Environment(\.scenePhase)
     private var scenePhase
@@ -87,7 +109,7 @@ struct PageTurnView<Page: View>: View {
     /// A queued turn runs faster, so a burst of taps reads as pages stacking rather than a slow crawl.
     private var turnDuration: Double { queued != 0 ? 0.09 : 0.22 }
 
-    var body: some View {
+    public var body: some View {
         ZStack {
             if let turn, let lower = lowerIndex(turn), let upper = upperIndex(turn) {
                 let covered = coverage(turn)
@@ -124,9 +146,9 @@ struct PageTurnView<Page: View>: View {
             if phase != .active { cancelTurn() }
         }
         .accessibilityElement(children: .contain)
-        .accessibilityAction(named: Text("Next page"), advance)
-        .accessibilityAction(named: Text("Previous page"), retreat)
-        .accessibilityAction(named: Text("Show or hide the reader controls"), onMiddleTap)
+        .accessibilityAction(named: Text("Next page", bundle: .module), advance)
+        .accessibilityAction(named: Text("Previous page", bundle: .module), retreat)
+        .accessibilityAction(named: Text("Show or hide the reader controls", bundle: .module), onMiddleTap)
     }
 
     private var drag: some Gesture {

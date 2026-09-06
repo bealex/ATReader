@@ -3,8 +3,6 @@
 //  Licensed under the MIT License. See LICENSE in the repository root.
 //
 
-import BookRenderer
-import BookStorage
 import SwiftUI
 
 /// A cover drawn the way the reader draws every other picture in a book.
@@ -13,15 +11,18 @@ import SwiftUI
 /// inside do: colour art fades into a dark page, and everything follows the page's own colours once the
 /// reader has asked it to. ``CoverImage`` is the plain one, for the library and the shelves, where
 /// there is no page tint to answer to.
-struct PagePicture: View {
-    let url: URL?
-    var width: CGFloat = 150
-    let palette: PagePalette
+public struct PagePicture: View {
+    @Environment(\.pagePictures)
+    private var pictures
+
+    public let url: URL?
+    public var width: CGFloat = 150
+    public let palette: PagePalette
 
     @State
     private var picture: PageImage?
 
-    var body: some View {
+    public var body: some View {
         Group {
             if let picture, picture.size.width > 0 {
                 let height = width * picture.size.height / picture.size.width
@@ -44,9 +45,8 @@ struct PagePicture: View {
         .accessibilityHidden(true)
         .task(id: url) {
             guard let url else { return picture = nil }
-            guard let loaded = await CoverCache.shared.image(for: url) else { return }
 
-            picture = BookImages.shared.prepare(loaded, key: "cover:\(url.absoluteString)")
+            picture = await pictures?.picture(at: url)
         }
     }
 }

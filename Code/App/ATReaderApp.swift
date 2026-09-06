@@ -3,6 +3,7 @@
 //  Licensed under the MIT License. See LICENSE in the repository root.
 //
 
+import BookRenderer
 import SwiftUI
 
 @main
@@ -33,6 +34,7 @@ struct ATReaderApp: App {
                 .environment(session)
                 .environment(settings)
                 .environment(inbox)
+                .environment(\.pagePictures, CoverPictures())
                 // A book handed over by another app. The library screen may not exist yet, so the
                 // reading-in happens away from it and the shelf picks the book up afterwards.
                 .onOpenURL { url in
