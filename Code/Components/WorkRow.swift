@@ -19,32 +19,32 @@ struct WorkRow: View {
     var onOpenCover: (() -> Void)?
 
     var body: some View {
-        HStack(alignment: .top, spacing: 12) {
+        HStack(alignment: .top, spacing: Design.Space.large) {
             cover
 
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: Design.Space.extraSmall) {
                 Text(work.title)
-                    .font(.headline)
+                    .font(Design.Style.heading)
                     .lineLimit(2)
 
                 Text(work.authorLine)
-                    .font(.subheadline)
+                    .font(Design.Style.label)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
 
                 if showsSeries, let series = work.seriesTitle, !series.isEmpty {
                     Text(series)
-                        .font(.caption)
+                        .font(Design.Style.caption)
                         .foregroundStyle(.tertiary)
                         .lineLimit(1)
                 }
 
                 WorkBadges(work: work, showsProgress: showsProgress)
-                    .padding(.top, 2)
+                    .padding(.top, Design.Space.extraSmall)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .padding(.vertical, 4)
+        .padding(.vertical, Design.Space.extraSmall)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(accessibilityLabel)
     }
@@ -67,19 +67,19 @@ struct WorkRow: View {
     private var picture: some View {
         CoverImage(
             url: work.coverURL,
-            width: 64,
+            width: Design.Size.rowCover,
             progress: showsProgress ? work.readingProgress : nil,
             isLocal: LocalBooks.isLocal(work.id)
         )
         .overlay(alignment: .topTrailing) {
             if newChapters > 0 {
                 Text(newChapters, format: .number)
-                    .font(.caption2.bold())
+                    .font(Design.Style.micro.bold())
                     .foregroundStyle(.white)
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 2)
-                    .background(Color.red, in: .capsule)
-                    .offset(x: 6, y: -6)
+                    .padding(.horizontal, Design.Space.small)
+                    .padding(.vertical, Design.Space.extraSmall)
+                    .background(Design.Palette.alert, in: .capsule)
+                    .offset(x: Design.Space.small, y: -Design.Space.small)
                     .accessibilityHidden(true)
             }
         }

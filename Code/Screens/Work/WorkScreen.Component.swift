@@ -33,7 +33,7 @@ enum WorkScreen {
                     content(model)
                 }
             }
-            .background(Color(.systemGroupedBackground))
+            .background(Design.Surface.screen)
             .navigationTitle(title)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar(.hidden, for: .tabBar)
@@ -59,18 +59,14 @@ enum WorkScreen {
             }
             .overlay {
                 if let model, model.isLoading, model.summary == nil {
-                    LoadingOverlay(
-                        title: "Loading book…",
-                        label: "Loading book",
-                        background: Color(.systemGroupedBackground)
-                    )
+                    LoadingOverlay(title: "Loading book…", label: "Loading book", background: Design.Surface.screen)
                 }
             }
         }
 
         @ViewBuilder
         private func content(_ model: Model) -> some View {
-            VStack(alignment: .leading, spacing: 20) {
+            VStack(alignment: .leading, spacing: Design.Space.extraLarge) {
                 if let summary = model.summary {
                     heading(model, work: summary)
                     actions(model, summary: summary)
@@ -79,7 +75,7 @@ enum WorkScreen {
                 if let annotation = model.summary?.annotation, !annotation.isEmpty {
                     section("Blurb") {
                         ExpandableText(ChapterHTML.paragraphs(from: annotation).map(\.text).joined(separator: "\n\n"))
-                            .font(.callout)
+                            .font(Design.Style.item)
                     }
                 }
 
@@ -93,37 +89,42 @@ enum WorkScreen {
 
                 if let message = model.errorMessage {
                     Text(message)
-                        .font(.footnote)
-                        .foregroundStyle(.red)
+                        .font(Design.Style.caption)
+                        .foregroundStyle(Design.Palette.alert)
                         .accessibilityLabel("Error: \(message)")
                 }
             }
-            .padding(16)
+            .padding(Design.Space.extraLarge)
             // Without this the stack is only as wide as its widest loaded child, so the screen starts
             // narrow and visibly snaps outwards once the contents arrive.
             .frame(maxWidth: .infinity, alignment: .leading)
         }
 
         private func heading(_ model: Model, work: WorkSummary) -> some View {
-            HStack(alignment: .top, spacing: 16) {
-                CoverImage(url: work.coverURL, width: 116, progress: work.readingProgress, isLocal: model.isLocal)
-                    .overlay(alignment: .topTrailing) {
-                        // A book from a file is on no service shelf, so it carries no shelf mark.
-                        if !model.isLocal { libraryMark(model) }
-                    }
+            HStack(alignment: .top, spacing: Design.Space.extraLarge) {
+                CoverImage(
+                    url: work.coverURL,
+                    width: Design.Size.coverLarge,
+                    progress: work.readingProgress,
+                    isLocal: model.isLocal
+                )
+                .overlay(alignment: .topTrailing) {
+                    // A book from a file is on no service shelf, so it carries no shelf mark.
+                    if !model.isLocal { libraryMark(model) }
+                }
 
-                VStack(alignment: .leading, spacing: 6) {
+                VStack(alignment: .leading, spacing: Design.Space.small) {
                     Text(work.title)
-                        .font(.title3.bold())
+                        .font(Design.Style.title)
                         .fixedSize(horizontal: false, vertical: true)
 
                     Text(work.authorLine)
-                        .font(.subheadline)
+                        .font(Design.Style.label)
                         .foregroundStyle(.secondary)
 
                     if let series = work.seriesTitle, !series.isEmpty {
                         Text("Series: \(series)")
-                            .font(.caption)
+                            .font(Design.Style.caption)
                             .foregroundStyle(.tertiary)
                     }
 
@@ -139,7 +140,7 @@ enum WorkScreen {
                 Task { await model.setInLibrary(!model.isInLibrary) }
             } label: {
                 LibraryMark(inLibrary: model.isInLibrary)
-                    .padding(4)
+                    .padding(Design.Space.extraSmall)
             }
             .buttonStyle(.plain)
             .disabled(model.isUpdatingLibrary)
@@ -152,7 +153,7 @@ enum WorkScreen {
 
         private func statistics(_ work: WorkSummary, costsMoney: Bool) -> some View {
             WorkBadges(work: work, showsProgress: true, showsUpdated: true, costsMoney: costsMoney)
-                .padding(.top, 4)
+                .padding(.top, Design.Space.extraSmall)
         }
 
         @ViewBuilder
@@ -162,7 +163,7 @@ enum WorkScreen {
                     value: AppRoute.reader(.init(workId: model.workId, title: summary.title, chapterId: chapterId))
                 ) {
                     Label(summary.hasStartedReading ? "Continue reading" : "Read", systemImage: "book.fill")
-                        .frame(maxWidth: .infinity, minHeight: 30)
+                        .frame(maxWidth: .infinity, minHeight: Design.Size.control)
                 }
                 .buttonStyle(.borderedProminent)
                 .controlSize(.large)
@@ -170,7 +171,7 @@ enum WorkScreen {
                 .accessibilityHint("Opens the reader")
             } else if !model.isLoading {
                 Text("No chapters available to read.")
-                    .font(.footnote)
+                    .font(Design.Style.caption)
                     .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
@@ -212,11 +213,11 @@ enum WorkScreen {
                 isConfirmingDelete = true
             } label: {
                 Label("Delete this book", systemImage: "trash")
-                    .font(.subheadline)
-                    .frame(maxWidth: .infinity, minHeight: 28)
+                    .font(Design.Style.label)
+                    .frame(maxWidth: .infinity, minHeight: Design.Size.control)
             }
             .buttonStyle(.bordered)
-            .padding(.top, 10)
+            .padding(.top, Design.Space.medium)
             .accessibilityIdentifier("work.delete")
             .accessibilityHint("Removes the book and its text from this device")
             .confirmationDialog(
@@ -237,13 +238,13 @@ enum WorkScreen {
         }
 
         private func tagCloud(_ tags: [String]) -> some View {
-            FlowLayout(spacing: 8, lineSpacing: 8) {
+            FlowLayout(spacing: Design.Space.medium, lineSpacing: Design.Space.medium) {
                 ForEach(tags, id: \.self) { label in
                     Text(label)
-                        .font(.caption)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 5)
-                        .background(Color(.tertiarySystemFill), in: .capsule)
+                        .font(Design.Style.caption)
+                        .padding(.horizontal, Design.Space.medium)
+                        .padding(.vertical, Design.Space.small)
+                        .background(Design.Surface.fill, in: .capsule)
                 }
             }
             .accessibilityElement(children: .ignore)
@@ -300,20 +301,22 @@ enum WorkScreen {
         ) -> some View {
             HStack {
                 Text(chapter.displayTitle)
-                    .font(.callout)
+                    .font(Design.Style.item)
                     .foregroundStyle(marker == nil ? .primary : .secondary)
                     .frame(maxWidth: .infinity, alignment: .leading)
 
                 if let marker {
                     Image(systemName: marker.systemImage)
-                        .font(.caption)
-                        .foregroundStyle(marker == .paid ? AnyShapeStyle(Color.indigo) : AnyShapeStyle(.tertiary))
+                        .font(Design.Style.caption)
+                        .foregroundStyle(
+                            marker == .paid ? AnyShapeStyle(Design.Palette.caution) : AnyShapeStyle(.tertiary)
+                        )
                         .accessibilityHidden(true)
                 } else {
                     ChapterMark(state: state)
                 }
             }
-            .padding(.vertical, 9)
+            .padding(.vertical, Design.Space.medium)
             .contentShape(.rect)
             .accessibilityLabel(label(chapter, marker: marker, state: state))
         }
@@ -336,9 +339,9 @@ enum WorkScreen {
 
         @ViewBuilder
         private func section(_ title: String, @ViewBuilder content: () -> some View) -> some View {
-            VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: Design.Space.medium) {
                 Text(title)
-                    .font(.headline)
+                    .font(Design.Style.heading)
 
                 content()
             }
@@ -353,8 +356,8 @@ enum WorkScreen {
     struct ChapterMark: View {
         let state: Model.ChapterState
 
-        private static let size: CGFloat = 16
-        private static let lineWidth: CGFloat = 2
+        private static let size = Design.Size.markSmall
+        private static let lineWidth = Design.Stroke.ring
 
         var body: some View {
             ZStack {
@@ -366,15 +369,18 @@ enum WorkScreen {
 
                         Circle()
                             .trim(from: 0, to: max(0.04, min(1, progress)))
-                            .stroke(Color.accentColor, style: StrokeStyle(lineWidth: Self.lineWidth, lineCap: .round))
+                            .stroke(
+                                Design.Palette.accent,
+                                style: StrokeStyle(lineWidth: Self.lineWidth, lineCap: .round)
+                            )
                             .padding(Self.lineWidth / 2)
                             .rotationEffect(.degrees(-90))
                     case .read:
                         Circle()
-                            .fill(Color.accentColor)
+                            .fill(Design.Palette.accent)
 
                         Image(systemName: "checkmark")
-                            .font(.system(size: 9, weight: .bold))
+                            .font(.system(size: Design.Size.glyph(in: Self.size), weight: .bold))
                             .foregroundStyle(.white)
                 }
             }
@@ -384,7 +390,7 @@ enum WorkScreen {
 
         private var track: some View {
             Circle()
-                .stroke(Color.primary.opacity(0.15), lineWidth: Self.lineWidth)
+                .stroke(Design.Surface.edge, lineWidth: Self.lineWidth)
                 .padding(Self.lineWidth / 2)
         }
     }

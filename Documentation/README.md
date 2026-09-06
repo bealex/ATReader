@@ -8,6 +8,7 @@ because it was worked out rather than looked up.
 | [API.md](API.md) | Touching `Frameworks/AuthorToday`, or adding any endpoint. Where the spec lives, what it gets wrong, headers, auth, search, errors. |
 | [ChapterEncryption.md](ChapterEncryption.md) | Chapter text stops decrypting, or you need to know why decrypted chapters can't be shared between accounts. |
 | [Architecture.md](Architecture.md) | Adding a screen or a service, or wondering where something belongs. |
+| [DesignSystem.md](DesignSystem.md) | Adding a colour, a length or a text style anywhere outside the reader page. |
 | [Reader.md](Reader.md) | Anything about layout, pagination, typography or the page turn. |
 | [LocalBooks.md](LocalBooks.md) | Importing FB2 files, how a local book is numbered, or the cache of already-typeset chapters. |
 | [Testing.md](Testing.md) | Running or writing tests, or a UI test skips when it shouldn't. |

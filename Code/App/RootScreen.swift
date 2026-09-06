@@ -13,11 +13,15 @@ enum RootScreen {
 
         var body: some View {
             Group {
-                switch session.state {
-                    case .restoring: restoring
-                    case .signedOut: LoginScreen.Component()
-                    case .signedIn: signedIn
-                }
+                #if DEBUG
+                    if Self.showsDesignSystem {
+                        NavigationStack { DesignSystemScreen.Component() }
+                    } else {
+                        sessionRoot
+                    }
+                #else
+                    sessionRoot
+                #endif
             }
             .animation(.default, value: session.state)
             .task {
@@ -28,6 +32,15 @@ enum RootScreen {
                 #endif
 
                 await session.restore()
+            }
+        }
+
+        @ViewBuilder
+        private var sessionRoot: some View {
+            switch session.state {
+                case .restoring: restoring
+                case .signedOut: LoginScreen.Component()
+                case .signedIn: signedIn
             }
         }
 
@@ -49,6 +62,12 @@ enum RootScreen {
         }
 
         #if DEBUG
+            /// `-at-design-system YES` opens the catalogue without signing in, since the design system
+            /// has nothing to do with having an account.
+            private static var showsDesignSystem: Bool {
+                UserDefaults.standard.bool(forKey: "at-design-system")
+            }
+
             private static var debugReaderWorkId: Int? {
                 let arguments = ProcessInfo.processInfo.arguments
 
@@ -87,6 +106,20 @@ enum RootScreen {
                 Tab("Profile", systemImage: "person.crop.circle") {
                     ProfileScreen.Component()
                 }
+
+                #if DEBUG
+                    // The token catalogue, drawn by the app from the tokens themselves. Its label is
+                    // verbatim because a token name isn't translated.
+                    Tab {
+                        NavigationStack { DesignSystemScreen.Component() }
+                    } label: {
+                        Label {
+                            Text(verbatim: "Design")
+                        } icon: {
+                            Image(systemName: "ruler")
+                        }
+                    }
+                #endif
             }
         }
     }

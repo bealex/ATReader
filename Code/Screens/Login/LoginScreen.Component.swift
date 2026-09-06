@@ -76,7 +76,7 @@ enum LoginScreen {
                 if let message = model.errorMessage {
                     Text(message)
                         .font(.footnote)
-                        .foregroundStyle(.red)
+                        .foregroundStyle(Design.Palette.alert)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .accessibilityLabel("Sign-in error: \(message)")
                 }

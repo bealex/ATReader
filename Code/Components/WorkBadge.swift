@@ -11,24 +11,24 @@ struct WorkBadge: View {
     /// A badge with no title is its glyph alone.
     let title: String?
     let systemImage: String
-    var tint: Color = .secondary
+    var tint: Color = Design.Palette.neutral
 
     var body: some View {
-        HStack(spacing: 3) {
+        HStack(spacing: Design.Space.extraSmall) {
             Image(systemName: systemImage)
-                .font(.caption2)
+                .font(Design.Style.micro)
                 .imageScale(.small)
 
             if let title {
                 Text(title)
-                    .font(.caption2.weight(.medium))
+                    .font(Design.Style.micro)
                     .lineLimit(1)
             }
         }
         .foregroundStyle(tint)
-        .padding(.horizontal, 7)
-        .padding(.vertical, 3)
-        .background(tint.opacity(0.14), in: .capsule)
+        .padding(.horizontal, Design.Space.small)
+        .padding(.vertical, Design.Space.extraSmall)
+        .background(Design.Surface.ground(tint), in: .capsule)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(title ?? String(localized: "Costs money"))
     }
@@ -52,11 +52,11 @@ struct WorkBadges: View {
             state
 
             if costsMoney ?? work.needsBuying {
-                WorkBadge(title: nil, systemImage: "dollarsign", tint: .indigo)
+                WorkBadge(title: nil, systemImage: "dollarsign", tint: Design.Palette.caution)
             }
 
             if let likes = WorkFormatting.likes(work.likeCount) {
-                WorkBadge(title: likes, systemImage: "heart.fill", tint: .pink)
+                WorkBadge(title: likes, systemImage: "heart.fill")
             }
 
             if showsUpdated, let updated = WorkFormatting.updated(work.lastUpdateTime) {
@@ -71,9 +71,13 @@ struct WorkBadges: View {
     @ViewBuilder
     private var state: some View {
         if showsProgress, work.isFinishedReading {
-            WorkBadge(title: String(localized: "Finished"), systemImage: "checkmark.circle.fill", tint: .green)
+            WorkBadge(
+                title: String(localized: "Finished"),
+                systemImage: "checkmark.circle.fill",
+                tint: Design.Palette.positive
+            )
         } else if work.isOngoing {
-            WorkBadge(title: String(localized: "Ongoing"), systemImage: "pencil", tint: .orange)
+            WorkBadge(title: String(localized: "Ongoing"), systemImage: "pencil")
         }
     }
 }

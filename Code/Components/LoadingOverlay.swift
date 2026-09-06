@@ -13,7 +13,7 @@ struct LoadingOverlay: View {
     let title: LocalizedStringKey
     /// What VoiceOver reads. The title carries an ellipsis, which it would spell out.
     let label: LocalizedStringKey
-    var background: Color = Color(.systemBackground)
+    var background = Design.Surface.screen
 
     var body: some View {
         ProgressView(title)
@@ -33,10 +33,10 @@ struct LoadingCard: View {
     var body: some View {
         ProgressView(title)
             .controlSize(.large)
-            .padding(.horizontal, 28)
-            .padding(.vertical, 22)
-            .background(.regularMaterial, in: .rect(cornerRadius: 18))
-            .shadow(color: .black.opacity(0.12), radius: 12, y: 4)
+            .padding(.horizontal, Design.Space.huge)
+            .padding(.vertical, Design.Space.extraLarge)
+            .background(.regularMaterial, in: .rect(cornerRadius: Design.Radius.large))
+            .shade(.card)
             .accessibilityLabel(label)
     }
 }

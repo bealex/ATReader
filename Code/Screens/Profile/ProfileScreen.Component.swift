@@ -120,8 +120,7 @@ enum ProfileScreen {
         private func avatar(_ user: UserInfo) -> some View {
             AsyncImage(url: user.avatarURL) { image in
                 image
-                    .resizable()
-                    .aspectRatio(contentMode: .fill)
+                    .resizable().scaledToFill()
             } placeholder: {
                 Image(systemName: "person.crop.circle.fill")
                     .resizable()

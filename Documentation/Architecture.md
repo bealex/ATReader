@@ -38,9 +38,10 @@ Model` and a `struct Component: View`, split across `<Screen>.Model.swift` and
 
 ```
 App/          entry point, RootScreen (signed-in vs signed-out), AppRoute
+Design/       Design: the spacing lattice, the five colours, the nine text roles
 Components/   CoverImage, PagePicture, WorkRow, WorkBadge, FlowLayout, LoadingOverlay,
               WorkSummary, BookTitlePageView, ChapterPageView, PageTurnView, DebugReport
-Screens/      Login, Library, Search, Top, Work, Reader, Profile
+Screens/      Login, Library, Search, Top, Work, Reader, Profile, DesignSystem (Debug)
 Services/     SessionStore, KeychainStore, LocalStore, CoverCache, CatalogFeed,
               ChapterContent, Typography, ChapterPagination, ParagraphRuler,
               ColumnComposer, ChapterLayout, BookImages, BookPagination, BookProcessor,

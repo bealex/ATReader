@@ -42,7 +42,14 @@ enum TopScreen {
             List {
                 Section {
                     filters($model)
-                        .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
+                        .listRowInsets(
+                            EdgeInsets(
+                                top: Design.Space.medium,
+                                leading: Design.Space.extraLarge,
+                                bottom: Design.Space.medium,
+                                trailing: Design.Space.extraLarge
+                            )
+                        )
                 }
 
                 ForEach(Array(model.feed.works.enumerated()), id: \.element.id) { position, work in
@@ -79,7 +86,7 @@ enum TopScreen {
 
         @ViewBuilder
         private func filters(_ model: Bindable<Model>) -> some View {
-            VStack(alignment: .leading, spacing: 10) {
+            VStack(alignment: .leading, spacing: Design.Space.medium) {
                 Picker("Ranking", selection: model.sorting) {
                     ForEach(Model.chartOrders, id: \.self) { order in
                         Text(order.title).tag(order)
@@ -89,7 +96,7 @@ enum TopScreen {
                 .accessibilityLabel("Ranking type")
 
                 ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 8) {
+                    HStack(spacing: Design.Space.medium) {
                         ForEach(RatingPeriod.allCases, id: \.self) { period in
                             FilterChip(
                                 title: period.title,
@@ -101,7 +108,7 @@ enum TopScreen {
                 }
 
                 ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 8) {
+                    HStack(spacing: Design.Space.medium) {
                         FilterChip(
                             title: "All genres",
                             isSelected: model.wrappedValue.genreId == nil,
@@ -127,11 +134,11 @@ enum TopScreen {
         let work: WorkSummary
 
         var body: some View {
-            HStack(alignment: .top, spacing: 10) {
+            HStack(alignment: .top, spacing: Design.Space.medium) {
                 Text("\(rank)")
-                    .font(.title3.weight(.semibold).monospacedDigit())
-                    .foregroundStyle(rank <= 3 ? Color.accentColor : .secondary)
-                    .frame(minWidth: 28, alignment: .trailing)
+                    .font(Design.Style.title.monospacedDigit())
+                    .foregroundStyle(rank <= 3 ? Design.Palette.accent : Design.Palette.neutral)
+                    .frame(minWidth: Design.Size.mark, alignment: .trailing)
                     .accessibilityHidden(true)
 
                 WorkRow(work: work, showsProgress: false)
@@ -151,11 +158,11 @@ struct FilterChip: View {
     var body: some View {
         Button(action: action) {
             Text(title)
-                .font(.subheadline)
-                .padding(.horizontal, 14)
-                .padding(.vertical, 7)
+                .font(Design.Style.label)
+                .padding(.horizontal, Design.Space.large)
+                .padding(.vertical, Design.Space.small)
                 .background(
-                    isSelected ? Color.accentColor : Color(.secondarySystemFill),
+                    isSelected ? Design.Palette.accent : Design.Surface.fill,
                     in: .capsule
                 )
                 .foregroundStyle(isSelected ? Color.white : Color.primary)

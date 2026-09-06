@@ -11,7 +11,7 @@ import SwiftUI
 /// scrolling back through a list costs nothing and a second launch shows them immediately.
 struct CoverImage: View {
     let url: URL?
-    var width: CGFloat = 72
+    var width: CGFloat = Design.Size.cover
     /// How far into the book the reader is, drawn as a ring on the cover itself.
     var progress: Double?
     /// True where the book came from a file rather than the service, which the cover says quietly.
@@ -30,8 +30,7 @@ struct CoverImage: View {
                 // Fitted, not filled: the service's covers are not all the same shape, and filling a
                 // box of one shape with an image of another cuts the edges off.
                 Image(uiImage: cover)
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
+                    .resizable().scaledToFit()
                     .transition(.opacity)
             } else {
                 placeholder
@@ -39,21 +38,21 @@ struct CoverImage: View {
             }
         }
         .frame(width: width)
-        .clipShape(.rect(cornerRadius: width * 0.08))
+        .clipShape(.rect(cornerRadius: Design.Radius.cover(width: width)))
         .overlay {
-            RoundedRectangle(cornerRadius: width * 0.08)
-                .strokeBorder(Color.primary.opacity(0.1), lineWidth: 0.5)
+            RoundedRectangle(cornerRadius: Design.Radius.cover(width: width))
+                .strokeBorder(Design.Surface.edge, lineWidth: Design.Stroke.hairline)
         }
         .overlay(alignment: .bottomTrailing) {
             if let progress, progress > 0 {
                 ReadingProgressRing(progress: progress)
-                    .padding(4)
+                    .padding(Design.Space.extraSmall)
             }
         }
         .overlay(alignment: .topLeading) {
             if isLocal {
                 FileMark()
-                    .padding(4)
+                    .padding(Design.Space.extraSmall)
             }
         }
         .accessibilityHidden(true)
@@ -69,7 +68,7 @@ struct CoverImage: View {
     private var placeholder: some View {
         ZStack {
             Rectangle()
-                .fill(Color(.secondarySystemFill))
+                .fill(Design.Surface.fill)
 
             Image(systemName: "book.closed")
                 .font(.system(size: width * 0.3))
@@ -83,7 +82,7 @@ struct CoverImage: View {
 /// Smaller than ``ReadingProgressRing`` and set in the opposite corner, because where a book came from
 /// is a footnote beside how far through it the reader is.
 struct FileMark: View {
-    private static let size: CGFloat = 19
+    private static let size = Design.Size.markSmall
 
     var body: some View {
         ZStack {
@@ -91,7 +90,7 @@ struct FileMark: View {
                 .fill(.thinMaterial)
 
             Image(systemName: "doc.text.fill")
-                .font(.system(size: 9))
+                .font(.system(size: Design.Size.glyph(in: Self.size)))
                 .foregroundStyle(.secondary)
         }
         .frame(width: Self.size, height: Self.size)
@@ -104,11 +103,11 @@ struct FileMark: View {
 struct ReadingProgressRing: View {
     let progress: Double
 
-    static let size: CGFloat = 30
+    static let size = Design.Size.mark
 
     /// The ring is inset by half its own width, so its outer edge lands on the badge's edge and no
     /// backing shows around it.
-    private static let lineWidth: CGFloat = 3.2
+    private static let lineWidth = Design.Stroke.ring
 
     var body: some View {
         ZStack {
@@ -116,12 +115,12 @@ struct ReadingProgressRing: View {
                 .fill(.thinMaterial)
 
             Circle()
-                .stroke(Color.primary.opacity(0.15), lineWidth: Self.lineWidth)
+                .stroke(Design.Surface.edge, lineWidth: Self.lineWidth)
                 .padding(Self.lineWidth / 2)
 
             Circle()
                 .trim(from: 0, to: min(1, max(0, progress)))
-                .stroke(Color.accentColor, style: StrokeStyle(lineWidth: Self.lineWidth, lineCap: .round))
+                .stroke(Design.Palette.accent, style: StrokeStyle(lineWidth: Self.lineWidth, lineCap: .round))
                 .padding(Self.lineWidth / 2)
                 .rotationEffect(.degrees(-90))
 
@@ -137,10 +136,10 @@ struct ReadingProgressRing: View {
     private var label: some View {
         if progress >= WorkSummary.readThreshold {
             Image(systemName: "checkmark")
-                .font(.system(size: 13, weight: .bold))
+                .font(.system(size: Design.Size.glyph(in: Self.size), weight: .bold))
         } else {
             Text(progress.formatted(.percent.precision(.fractionLength(0))))
-                .font(.system(size: 7.2, weight: .semibold).monospacedDigit())
+                .font(.system(size: Design.Size.figure(in: Self.size), weight: .semibold).monospacedDigit())
                 .minimumScaleFactor(0.7)
         }
     }
@@ -157,10 +156,10 @@ struct LibraryMark: View {
                 .fill(.thinMaterial)
 
             Image(systemName: inLibrary ? "book.fill" : "book")
-                .font(.system(size: 14))
-                .foregroundStyle(inLibrary ? Color.accentColor : Color.secondary)
+                .font(.system(size: Design.Size.glyph(in: Design.Size.mark)))
+                .foregroundStyle(inLibrary ? Design.Palette.accent : Design.Palette.neutral)
         }
-        .frame(width: ReadingProgressRing.size, height: ReadingProgressRing.size)
+        .frame(width: Design.Size.mark, height: Design.Size.mark)
         .accessibilityHidden(true)
     }
 }
