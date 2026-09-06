@@ -12,17 +12,6 @@
         }
       }
     },
-    "Chapter %lld": {
-      "extractionState": "manual",
-      "localizations": {
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Глава %lld"
-          }
-        }
-      }
-    },
     "Collection": {
       "extractionState": "manual",
       "localizations": {
@@ -56,17 +45,6 @@
         }
       }
     },
-    "Disliked": {
-      "extractionState": "manual",
-      "localizations": {
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Не понравилось"
-          }
-        }
-      }
-    },
     "Enter the code from your authenticator app.": {
       "extractionState": "manual",
       "localizations": {
@@ -74,17 +52,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Введите код из приложения-аутентификатора."
-          }
-        }
-      }
-    },
-    "Finished": {
-      "extractionState": "manual",
-      "localizations": {
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Прочитано"
           }
         }
       }
@@ -155,17 +122,6 @@
         }
       }
     },
-    "Not in library": {
-      "extractionState": "manual",
-      "localizations": {
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Не в библиотеке"
-          }
-        }
-      }
-    },
     "Novel": {
       "extractionState": "manual",
       "localizations": {
@@ -206,28 +162,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Читатель"
-          }
-        }
-      }
-    },
-    "Reading": {
-      "extractionState": "manual",
-      "localizations": {
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Читаю"
-          }
-        }
-      }
-    },
-    "Saved": {
-      "extractionState": "manual",
-      "localizations": {
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Отложено"
           }
         }
       }

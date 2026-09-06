@@ -4,6 +4,8 @@
 //
 
 import AuthorToday
+import AuthorTodayBooks
+import BookKit
 import DesignSystem
 import SwiftUI
 
@@ -161,7 +163,7 @@ enum SearchScreen {
         }
 
         /// The author/title scopes narrow the service's combined answer on the device.
-        private func visibleWorks(_ feed: CatalogFeed) -> [WorkSummary] {
+        private func visibleWorks(_ feed: CatalogFeed) -> [Book] {
             let term = searchText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
 
             guard !term.isEmpty, scope != .everything else { return feed.works }

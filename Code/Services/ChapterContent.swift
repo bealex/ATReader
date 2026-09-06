@@ -4,16 +4,17 @@
 //
 
 import AuthorToday
+import BookKit
 import Foundation
 import NaturalLanguage
 
 /// A chapter's text, parsed and ready to lay out.
 struct ChapterContent: Codable, Sendable {
-    var paragraphs: [ChapterHTML.Paragraph]
+    var paragraphs: [Paragraph]
     /// The same paragraphs with every break point the language's dictionary allows already marked.
     /// Justified setting uses these; working them out costs about as much as laying the chapter out,
     /// so it happens once here rather than on every re-pagination.
-    var hyphenated: [ChapterHTML.Paragraph]
+    var hyphenated: [Paragraph]
     /// The language the chapter is written in, which decides which hyphenation dictionary lays it out
     /// and how it is shaped.
     var language: String?
@@ -27,10 +28,10 @@ struct ChapterContent: Codable, Sendable {
     /// line break between, all away from the main actor.
     static func prepare(html: String) async -> ChapterContent {
         await Task.detached(priority: .userInitiated) {
-            let paragraphs = ChapterHTML.paragraphs(from: html)
+            let paragraphs = BookHTML.paragraphs(from: html)
             let language = Self.language(of: paragraphs)
             let bound = paragraphs.map { paragraph in
-                ChapterHTML.Paragraph(
+                Paragraph(
                     id: paragraph.id,
                     // The dashes are put right first: binding reads them, and so does the layout when
                     // it decides which lines open on the dash of speech.
@@ -40,7 +41,7 @@ struct ChapterContent: Codable, Sendable {
                 )
             }
             let hyphenated = bound.map { paragraph in
-                ChapterHTML.Paragraph(
+                Paragraph(
                     id: paragraph.id,
                     text: Typography.hyphenated(paragraph.text, language: language),
                     isCentered: paragraph.isCentered,
@@ -51,7 +52,7 @@ struct ChapterContent: Codable, Sendable {
         }.value
     }
 
-    private static func language(of paragraphs: [ChapterHTML.Paragraph]) -> String? {
+    private static func language(of paragraphs: [Paragraph]) -> String? {
         let sample = paragraphs.prefix(8).map(\.text).joined(separator: " ").prefix(1200)
 
         guard !sample.isEmpty else { return nil }

@@ -4,6 +4,8 @@
 //
 
 import AuthorToday
+import AuthorTodayBooks
+import BookKit
 import Foundation
 import OSLog
 import SQLite3
@@ -24,7 +26,7 @@ actor LocalStore {
 
     /// A book as this device knows it: what the lists draw, plus the tags the book page shows.
     struct StoredWork: Sendable {
-        let summary: WorkSummary
+        let summary: Book
         let tags: [String]
     }
 
@@ -93,14 +95,14 @@ actor LocalStore {
         guard let statement = Statement(open(), query) else { return 0 }
 
         statement.bind(1, cutoff)
-        statement.bind(2, WorkSummary.readThreshold)
+        statement.bind(2, Book.readThreshold)
 
         guard statement.step() else { return 0 }
 
         return statement.integer(0)
     }
 
-    func works(in shelf: LibraryState? = nil) -> [WorkSummary] {
+    func works(in shelf: LibraryState? = nil) -> [Book] {
         let query =
             shelf == nil
             ? """
@@ -114,10 +116,10 @@ actor LocalStore {
         if let shelf { statement.bind(1, shelf.rawValue) }
 
         let custom = customSeries()
-        var result: [WorkSummary] = []
+        var result: [Book] = []
 
         while statement.step() {
-            guard var summary = decode(WorkSummary.self, statement.string(0)) else { continue }
+            guard var summary = decode(Book.self, statement.string(0)) else { continue }
 
             summary.readingProgress = progress(statement.number(1), or: summary.readingProgress)
             result.append(filed(summary, by: custom))
@@ -133,7 +135,7 @@ actor LocalStore {
 
         statement.bind(1, id)
 
-        guard statement.step(), var summary = decode(WorkSummary.self, statement.string(0)) else { return nil }
+        guard statement.step(), var summary = decode(Book.self, statement.string(0)) else { return nil }
 
         summary.readingProgress = progress(statement.number(2), or: summary.readingProgress)
         return StoredWork(
@@ -146,7 +148,7 @@ actor LocalStore {
     ///
     /// Applied on the way out rather than written into the book, because the service replaces the whole
     /// payload every time it answers and would carry the reader's grouping away with it.
-    private func filed(_ summary: WorkSummary, by custom: [Int: CustomSeries]) -> WorkSummary {
+    private func filed(_ summary: Book, by custom: [Int: CustomSeries]) -> Book {
         guard let own = custom[summary.id] else { return summary }
 
         var result = summary
@@ -197,7 +199,7 @@ actor LocalStore {
         store(progress: Double(read) / Double(total), workId: workId)
     }
 
-    func store(work: WorkSummary, tags: [String]? = nil) {
+    func store(work: Book, tags: [String]? = nil) {
         store(works: [ work ])
 
         guard let tags, let statement = Statement(open(), "UPDATE work SET tags = ? WHERE id = ?") else { return }
@@ -207,7 +209,7 @@ actor LocalStore {
         statement.execute()
     }
 
-    func store(works: [WorkSummary]) {
+    func store(works: [Book]) {
         let query = """
             INSERT INTO work (
                 id, title, author, library_state, last_read_time, reading_progress, updated_at, payload,
@@ -247,7 +249,7 @@ actor LocalStore {
                 statement.bind(1, merged.id)
                 statement.bind(2, merged.title)
                 statement.bind(3, merged.authorLine)
-                statement.bind(4, merged.libraryState.flatMap { $0 == LibraryState.none ? nil : $0.rawValue })
+                statement.bind(4, merged.libraryState.flatMap { $0 == BookShelf.none ? nil : $0.rawValue })
                 statement.bind(5, merged.lastReadTime?.timeIntervalSince1970)
                 statement.bind(6, merged.readingProgress)
                 statement.bind(7, Date.now.timeIntervalSince1970)
@@ -261,17 +263,17 @@ actor LocalStore {
     }
 
     /// The book as the payload column already has it, read through a statement the caller reuses.
-    private func storedWork(_ id: Int, using statement: Statement) -> WorkSummary? {
+    private func storedWork(_ id: Int, using statement: Statement) -> Book? {
         statement.reset()
         statement.bind(1, id)
 
         guard statement.step() else { return nil }
 
-        return decode(WorkSummary.self, statement.string(0))
+        return decode(Book.self, statement.string(0))
     }
 
     /// Replaces the shelves wholesale, so a book removed on another device stops showing up here.
-    func replaceLibrary(with works: [WorkSummary]) {
+    func replaceLibrary(with works: [Book]) {
         store(works: works)
 
         let ids = works.map { String($0.id) }.joined(separator: ",")
@@ -427,16 +429,16 @@ actor LocalStore {
 
     // MARK: - Chapters
 
-    func chapters(workId: Int) -> [ChapterInfo] {
+    func chapters(workId: Int) -> [BookChapter] {
         let query = "SELECT payload FROM chapter WHERE work_id = ? ORDER BY sort_order ASC, id ASC"
 
         guard let statement = Statement(open(), query) else { return [] }
 
         statement.bind(1, workId)
-        var result: [ChapterInfo] = []
+        var result: [BookChapter] = []
 
         while statement.step() {
-            guard let chapter = decode(ChapterInfo.self, statement.string(0)) else { continue }
+            guard let chapter = decode(BookChapter.self, statement.string(0)) else { continue }
 
             result.append(chapter)
         }
@@ -444,7 +446,7 @@ actor LocalStore {
         return result
     }
 
-    func store(chapters: [ChapterInfo], workId: Int) {
+    func store(chapters: [BookChapter], workId: Int) {
         let query = """
             INSERT INTO chapter (id, work_id, sort_order, is_readable, payload)
             VALUES (?, ?, ?, ?, ?)
@@ -475,7 +477,7 @@ actor LocalStore {
     /// The chapters the service now lists that this device has never seen.
     ///
     /// A book with nothing stored yet has no news to report: everything already published is not new.
-    func unseenChapters(workId: Int, in current: [ChapterInfo]) -> [Int] {
+    func unseenChapters(workId: Int, in current: [BookChapter]) -> [Int] {
         let known = Set(chapters(workId: workId).map(\.id))
 
         guard !known.isEmpty else { return [] }
@@ -790,7 +792,7 @@ actor LocalStore {
         var complete: [Int] = []
 
         while statement.step() {
-            guard let work = decode(WorkSummary.self, statement.string(1)), work.isComplete else { continue }
+            guard let work = decode(Book.self, statement.string(1)), work.isComplete else { continue }
 
             complete.append(statement.integer(0))
         }

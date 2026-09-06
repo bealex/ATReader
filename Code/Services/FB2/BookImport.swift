@@ -4,6 +4,8 @@
 //
 
 import AuthorToday
+import AuthorTodayBooks
+import BookKit
 import Foundation
 import OSLog
 
@@ -21,7 +23,7 @@ enum BookImport {
     /// got to. Its chapters are written again, and the hashes on them are what tells the processor
     /// which ones actually moved.
     @discardableResult
-    static func `import`(from url: URL, store: LocalStore = .shared) async throws -> WorkSummary {
+    static func `import`(from url: URL, store: LocalStore = .shared) async throws -> Book {
         let scoped = url.startAccessingSecurityScopedResource()
 
         defer {
@@ -36,14 +38,14 @@ enum BookImport {
     /// Reads a book this device already holds again, for one imported before the parser learned
     /// something it now knows. The file is kept for exactly this.
     @discardableResult
-    static func reimport(workId: Int, store: LocalStore = .shared) async throws -> WorkSummary {
+    static func reimport(workId: Int, store: LocalStore = .shared) async throws -> Book {
         guard let data = LocalBooks.keptFile(workId: workId) else { throw FB2Error.unreadable }
 
         return try await `import`(source: data, store: store)
     }
 
     /// The whole of an import, from the bytes of a file to the rows a screen reads.
-    private static func `import`(source: Data, store: LocalStore) async throws -> WorkSummary {
+    private static func `import`(source: Data, store: LocalStore) async throws -> Book {
         // A book handed out zipped is the common case, so the archive is opened here rather than the
         // reader being asked to unpack it first. What is kept afterwards is the book, not the archive.
         let data = try await unpacked(source)
@@ -110,9 +112,9 @@ enum BookImport {
         }
     }
 
-    private static func chapters(_ book: FB2Book, workId: Int) -> [ChapterInfo] {
+    private static func chapters(_ book: FB2Book, workId: Int) -> [BookChapter] {
         book.sections.enumerated().map { index, section in
-            ChapterInfo(
+            BookChapter(
                 id: LocalBooks.chapterId(workId: workId, index: index),
                 workId: workId,
                 title: section.title,
@@ -131,9 +133,9 @@ enum BookImport {
         _ book: FB2Book,
         workId: Int,
         coverURL: URL?,
-        existing: WorkSummary?
-    ) -> WorkSummary {
-        WorkSummary(
+        existing: Book?
+    ) -> Book {
+        Book(
             id: workId,
             title: book.title,
             authorLine: book.authorLine,

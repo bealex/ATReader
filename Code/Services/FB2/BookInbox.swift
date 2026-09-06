@@ -3,6 +3,7 @@
 //  Licensed under the MIT License. See LICENSE in the repository root.
 //
 
+import BookKit
 import Foundation
 import OSLog
 
@@ -41,7 +42,7 @@ final class BookInbox {
     /// The same path as a file arriving, so the book is re-parsed, re-stored and put back through the
     /// typesetter. It lands on its own row, since the file it came from fingerprints the same way.
     @discardableResult
-    func reaccept(workId: Int) async -> WorkSummary? {
+    func reaccept(workId: Int) async -> Book? {
         isImporting = true
         errorMessage = nil
 
@@ -64,7 +65,7 @@ final class BookInbox {
     /// The book is on the shelf and readable as soon as its text is stored. Preparing it runs behind
     /// that, so a long book doesn't hold up whatever asked for it.
     @discardableResult
-    func accept(_ url: URL) async -> WorkSummary? {
+    func accept(_ url: URL) async -> Book? {
         isImporting = true
         errorMessage = nil
 

@@ -3,7 +3,7 @@
 //  Licensed under the MIT License. See LICENSE in the repository root.
 //
 
-import AuthorToday
+import BookKit
 import UIKit
 
 /// Everything about the page that changes how text lays out.
@@ -90,7 +90,7 @@ enum ChapterPagination {
     /// Centred blocks (scene breaks, epigraphs) keep their own alignment whatever the reader chose —
     /// justifying a one-line epigraph looks like a bug.
     static func typeset(
-        paragraphs: [ChapterHTML.Paragraph],
+        paragraphs: [Paragraph],
         heading: ChapterHeading = ChapterHeading(),
         language: String? = nil,
         style: ChapterTextStyle,
@@ -187,9 +187,9 @@ enum ChapterPagination {
     /// one line often reaches the body as two. Each is dropped only while everything read so far is
     /// still the opening of the heading, so a body that merely starts on the same word keeps it.
     private static func withoutRepeatedHeading(
-        _ paragraphs: [ChapterHTML.Paragraph],
+        _ paragraphs: [Paragraph],
         heading: ChapterHeading
-    ) -> [ChapterHTML.Paragraph] {
+    ) -> [Paragraph] {
         let wanted = plainWords(heading.spokenText)
 
         guard !wanted.isEmpty else { return paragraphs }

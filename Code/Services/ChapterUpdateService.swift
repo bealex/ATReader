@@ -4,6 +4,8 @@
 //
 
 import AuthorToday
+import AuthorTodayBooks
+import BookKit
 import Foundation
 import UserNotifications
 
@@ -39,7 +41,7 @@ struct ChapterUpdateService: Sendable {
     @discardableResult
     func check(chapterBudget: Int = ChapterUpdateService.foregroundChapterBudget) async throws -> Result {
         let library = try await client.fullUserLibrary()
-        let works = library.worksInLibrary.map(WorkSummary.init)
+        let works = library.worksInLibrary.map(Book.init)
 
         await store.replaceLibrary(with: works)
         return await sweep(works: works, chapterBudget: chapterBudget)
@@ -52,7 +54,7 @@ struct ChapterUpdateService: Sendable {
     /// which is what ``UpdateBadge/lastCheckedAt`` dates.
     @discardableResult
     func sweep(
-        works: [WorkSummary],
+        works: [Book],
         chapterBudget: Int = ChapterUpdateService.foregroundChapterBudget,
         isComplete: Bool = true
     ) async -> Result {
@@ -64,7 +66,7 @@ struct ChapterUpdateService: Sendable {
         var budget = chapterBudget
 
         for work in reading {
-            guard let contents = try? await client.workContents(id: work.id) else { continue }
+            guard let contents = try? await client.workContents(id: work.id).map(BookChapter.init) else { continue }
 
             let fresh = await store.unseenChapters(workId: work.id, in: contents)
             await store.store(chapters: contents, workId: work.id)

@@ -3,11 +3,12 @@
 //  Licensed under the MIT License. See LICENSE in the repository root.
 //
 
+import BookKit
 import Foundation
 
 /// A FictionBook 2 file, parsed into the shape the reader already works in.
 ///
-/// Sections carry `<p>` markup rather than a tree of their own, because that is what `ChapterHTML`
+/// Sections carry `<p>` markup rather than a tree of their own, because that is what `BookHTML`
 /// reads and what a chapter body arrives as from the service. Everything downstream of a chapter body
 /// then works on a local book without knowing it is one.
 struct FB2Book: Sendable {

@@ -17,26 +17,6 @@ public enum LibraryState: String, DefaultingDecodable, CaseIterable, Hashable {
 
     /// The shelves worth offering as a filter — `none` means "not in the library at all".
     public static let shelves: [Self] = [ .reading, .saved, .finished ]
-
-    public var title: String {
-        switch self {
-            case .none: String(localized: "Not in library", bundle: .module)
-            case .reading: String(localized: "Reading", bundle: .module)
-            case .saved: String(localized: "Saved", bundle: .module)
-            case .finished: String(localized: "Finished", bundle: .module)
-            case .disliked: String(localized: "Disliked", bundle: .module)
-        }
-    }
-
-    public var systemImage: String {
-        switch self {
-            case .none: "books.vertical"
-            case .reading: "book"
-            case .saved: "bookmark"
-            case .finished: "checkmark.circle"
-            case .disliked: "hand.thumbsdown"
-        }
-    }
 }
 
 /// How a work is paid for.

@@ -4,6 +4,8 @@
 //
 
 import AuthorToday
+import AuthorTodayBooks
+import BookKit
 import Foundation
 
 extension WorkScreen {
@@ -13,9 +15,9 @@ extension WorkScreen {
 
         /// The book as the device has it, shown before the service is asked and kept when it does not
         /// answer. Progress comes from the store rather than the service, which keeps none.
-        private(set) var summary: WorkSummary?
+        private(set) var summary: Book?
         private(set) var details: WorkDetails?
-        private(set) var chapters: [ChapterInfo] = []
+        private(set) var chapters: [BookChapter] = []
         private(set) var tags: [String] = []
         private(set) var isLoading = false
         private(set) var errorMessage: String?
@@ -50,7 +52,7 @@ extension WorkScreen {
             case read
         }
 
-        func state(of chapter: ChapterInfo) -> ChapterState {
+        func state(of chapter: BookChapter) -> ChapterState {
             guard
                 let currentId = positionChapterId,
                 let current = chapters.firstIndex(where: { $0.id == currentId }),
@@ -60,7 +62,7 @@ extension WorkScreen {
             guard index == current else { return .unread }
 
             let progress = positionProgress ?? 0
-            return progress >= WorkSummary.readThreshold ? .read : .reading(progress)
+            return progress >= Book.readThreshold ? .read : .reading(progress)
         }
 
         /// The chapter the reader is in: this device's own position, or the service's if it has none.
@@ -77,7 +79,7 @@ extension WorkScreen {
             return min(1, max(0, Double(position.characterOffset) / Double(length)))
         }
 
-        var readableChapters: [ChapterInfo] { chapters.filter(\.isReadable) }
+        var readableChapters: [BookChapter] { chapters.filter(\.isReadable) }
 
         /// The book is sold, and part of it is closed to this reader. That is what not having bought it
         /// looks like from the outside, and it holds where the service's own purchase flag doesn't
@@ -145,9 +147,9 @@ extension WorkScreen {
                 let (loadedDetails, loadedChapters) = try await (detailsTask, contentsTask)
 
                 details = loadedDetails
-                await store.store(work: WorkSummary(loadedDetails), tags: loadedDetails.tags ?? [])
+                await store.store(work: Book(loadedDetails), tags: loadedDetails.tags ?? [])
                 await store.store(
-                    chapters: loadedChapters.sorted { ($0.sortOrder ?? 0) < ($1.sortOrder ?? 0) },
+                    chapters: loadedChapters.map(BookChapter.init).sorted { ($0.sortOrder ?? 0) < ($1.sortOrder ?? 0) },
                     workId: workId
                 )
                 // Read back rather than painting what arrived: the service carries none of the progress

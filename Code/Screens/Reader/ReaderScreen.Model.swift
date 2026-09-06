@@ -4,6 +4,8 @@
 //
 
 import AuthorToday
+import AuthorTodayBooks
+import BookKit
 import Foundation
 import UIKit
 
@@ -40,8 +42,8 @@ extension ReaderScreen {
         let workId: Int
         let workTitle: String
 
-        private(set) var book: WorkSummary?
-        private(set) var chapters: [ChapterInfo] = []
+        private(set) var book: Book?
+        private(set) var chapters: [BookChapter] = []
         private(set) var currentChapterId: Int?
         private(set) var layout: ChapterLayout?
         private(set) var isLoading = false
@@ -138,19 +140,19 @@ extension ReaderScreen {
 
         // MARK: - Where the reader is
 
-        var readableChapters: [ChapterInfo] { chapters.filter(\.isReadable) }
+        var readableChapters: [BookChapter] { chapters.filter(\.isReadable) }
 
         private var currentIndex: Int? {
             readableChapters.firstIndex { $0.id == currentChapterId }
         }
 
-        var previousChapter: ChapterInfo? {
+        var previousChapter: BookChapter? {
             guard let index = currentIndex, index > 0 else { return nil }
 
             return readableChapters[index - 1]
         }
 
-        var nextChapter: ChapterInfo? {
+        var nextChapter: BookChapter? {
             guard let index = currentIndex, index + 1 < readableChapters.count else { return nil }
 
             return readableChapters[index + 1]
@@ -387,7 +389,7 @@ extension ReaderScreen {
             guard !isLocal else { return }
 
             do {
-                let fetched = try await session.client.workContents(id: workId)
+                let fetched = try await session.client.workContents(id: workId).map(BookChapter.init)
                 await store.store(chapters: fetched, workId: workId)
                 chapters = fetched.sorted { ($0.sortOrder ?? 0) < ($1.sortOrder ?? 0) }
                 isOffline = false
@@ -406,7 +408,7 @@ extension ReaderScreen {
             guard !isLocal, book == nil else { return }
             guard let details = try? await session.client.workDetails(id: workId) else { return }
 
-            let summary = WorkSummary(details)
+            let summary = Book(details)
             book = summary
             await store.store(work: summary, tags: details.tags)
         }

@@ -4,6 +4,8 @@
 //
 
 import AuthorToday
+import AuthorTodayBooks
+import BookKit
 import DesignSystem
 import SwiftUI
 import UniformTypeIdentifiers
@@ -75,7 +77,7 @@ enum WorkScreen {
 
                 if let annotation = model.summary?.annotation, !annotation.isEmpty {
                     section("Blurb") {
-                        ExpandableText(ChapterHTML.paragraphs(from: annotation).map(\.text).joined(separator: "\n\n"))
+                        ExpandableText(BookHTML.paragraphs(from: annotation).map(\.text).joined(separator: "\n\n"))
                             .font(Design.Style.item)
                     }
                 }
@@ -101,7 +103,7 @@ enum WorkScreen {
             .frame(maxWidth: .infinity, alignment: .leading)
         }
 
-        private func heading(_ model: Model, work: WorkSummary) -> some View {
+        private func heading(_ model: Model, work: Book) -> some View {
             HStack(alignment: .top, spacing: Design.Space.extraLarge) {
                 CoverImage(
                     url: work.coverURL,
@@ -152,13 +154,13 @@ enum WorkScreen {
             )
         }
 
-        private func statistics(_ work: WorkSummary, costsMoney: Bool) -> some View {
+        private func statistics(_ work: Book, costsMoney: Bool) -> some View {
             WorkBadges(work: work, showsProgress: true, showsUpdated: true, costsMoney: costsMoney)
                 .padding(.top, Design.Space.extraSmall)
         }
 
         @ViewBuilder
-        private func actions(_ model: Model, summary: WorkSummary) -> some View {
+        private func actions(_ model: Model, summary: Book) -> some View {
             if let chapterId = model.resumeChapterId {
                 NavigationLink(
                     value: AppRoute.reader(.init(workId: model.workId, title: summary.title, chapterId: chapterId))
@@ -268,7 +270,7 @@ enum WorkScreen {
         }
 
         @ViewBuilder
-        private func chapterRow(_ model: Model, chapter: ChapterInfo) -> some View {
+        private func chapterRow(_ model: Model, chapter: BookChapter) -> some View {
             if chapter.isReadable, let summary = model.summary {
                 NavigationLink(
                     value: AppRoute.reader(.init(workId: model.workId, title: summary.title, chapterId: chapter.id))
@@ -296,7 +298,7 @@ enum WorkScreen {
         }
 
         private func chapterLabel(
-            _ chapter: ChapterInfo,
+            _ chapter: BookChapter,
             marker: ChapterMarker?,
             state: Model.ChapterState = .unread
         ) -> some View {
@@ -322,7 +324,7 @@ enum WorkScreen {
             .accessibilityLabel(label(chapter, marker: marker, state: state))
         }
 
-        private func label(_ chapter: ChapterInfo, marker: ChapterMarker?, state: Model.ChapterState) -> String {
+        private func label(_ chapter: BookChapter, marker: ChapterMarker?, state: Model.ChapterState) -> String {
             switch marker {
                 case .paid: return String(localized: "\(chapter.displayTitle), paid")
                 case .locked: return String(localized: "\(chapter.displayTitle), locked")
@@ -333,7 +335,7 @@ enum WorkScreen {
                 case .unread: return chapter.displayTitle
                 case .read: return String(localized: "\(chapter.displayTitle), read")
                 case let .reading(progress):
-                    let percent = WorkFormatting.progress(progress) ?? ""
+                    let percent = BookFormatting.progress(progress) ?? ""
                     return String(localized: "\(chapter.displayTitle), \(percent) read")
             }
         }

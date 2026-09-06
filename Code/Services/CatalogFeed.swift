@@ -4,6 +4,8 @@
 //
 
 import AuthorToday
+import AuthorTodayBooks
+import BookKit
 import Foundation
 
 /// Paged access to `/v1/catalog/search`, shared by the search and top-list screens.
@@ -12,7 +14,7 @@ import Foundation
 /// a sorting and rating window for the charts.
 @Observable @MainActor
 final class CatalogFeed {
-    private(set) var works: [WorkSummary] = []
+    private(set) var works: [Book] = []
     private(set) var totalCount: Int?
     private(set) var isLoading = false
     private(set) var isLoadingMore = false
@@ -47,7 +49,7 @@ final class CatalogFeed {
     }
 
     /// Called as the list nears its end; a no-op once the service reports the last page.
-    func loadMoreIfNeeded(currentItem: WorkSummary) async {
+    func loadMoreIfNeeded(currentItem: Book) async {
         guard !reachedEnd, !isLoading, !isLoadingMore else { return }
         guard works.suffix(5).contains(where: { $0.id == currentItem.id }) else { return }
 
@@ -66,7 +68,7 @@ final class CatalogFeed {
 
         do {
             let page = try await client.search(query)
-            let incoming = page.works.map(WorkSummary.init)
+            let incoming = page.works.map(Book.init)
 
             if replacing {
                 seenIds = Set(incoming.map(\.id))

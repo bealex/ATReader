@@ -4,6 +4,8 @@
 //
 
 import AuthorToday
+import AuthorTodayBooks
+import BookKit
 import CryptoKit
 import SwiftUI
 import UIKit
@@ -73,7 +75,7 @@ final class BookPagination {
     }
 
     /// True once every chapter has a place.
-    func hasMeasuredEverything(of chapters: [ChapterInfo]) -> Bool { measured >= chapters.count }
+    func hasMeasuredEverything(of chapters: [BookChapter]) -> Bool { measured >= chapters.count }
 
     /// Measures chapters in order until `count` of them are done, carrying on from wherever the last
     /// run stopped.
@@ -85,7 +87,7 @@ final class BookPagination {
     /// A chapter's place depends on every chapter before it and on none of the ones after, so a prefix
     /// is enough to put the reader on a page and the rest can follow behind them.
     func measure(
-        chapters: [ChapterInfo],
+        chapters: [BookChapter],
         through count: Int,
         content: ContentProvider,
         onProgress: (@MainActor (Double) -> Void)? = nil
@@ -164,7 +166,7 @@ final class BookPagination {
     /// The layout itself is thrown away: all this pass keeps is where the chapter starts and how far it
     /// runs, so a book of any length costs one chapter's memory at a time.
     private func layOut(
-        _ chapter: ChapterInfo,
+        _ chapter: BookChapter,
         position: Int,
         text: ChapterContent,
         from startOffset: CGFloat,

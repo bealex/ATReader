@@ -4,6 +4,8 @@
 //
 
 import AuthorToday
+import AuthorTodayBooks
+import BookKit
 import DesignSystem
 import SwiftUI
 
@@ -40,7 +42,7 @@ struct WorkBadge: View {
 /// How far the reader has got is not among them: the ring on the cover says that already, and saying it
 /// twice on one row reads as two different facts.
 struct WorkBadges: View {
-    let work: WorkSummary
+    let work: Book
     /// Whether the reader's own standing in the book counts, which decides between Finished and Ongoing.
     var showsProgress = false
     var showsUpdated = false
@@ -56,11 +58,11 @@ struct WorkBadges: View {
                 WorkBadge(title: nil, systemImage: "dollarsign", tint: Design.Palette.caution)
             }
 
-            if let likes = WorkFormatting.likes(work.likeCount) {
+            if let likes = BookFormatting.likes(work.likeCount) {
                 WorkBadge(title: likes, systemImage: "heart.fill")
             }
 
-            if showsUpdated, let updated = WorkFormatting.updated(work.lastUpdateTime) {
+            if showsUpdated, let updated = BookFormatting.updated(work.lastUpdateTime) {
                 WorkBadge(title: updated, systemImage: "clock")
             }
         }

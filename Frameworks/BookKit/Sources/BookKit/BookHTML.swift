@@ -5,32 +5,32 @@
 
 import Foundation
 
+/// One laid-out block of a chapter: a paragraph of text, or a picture standing on its own.
+public struct Paragraph: Codable, Sendable, Identifiable, Hashable {
+    public let id: Int
+    public let text: String
+    /// Author-centred lines (scene breaks, epigraphs) carry a `text-align: center` style.
+    public let isCentered: Bool
+    /// What the block's `<img>` pointed at, on a block that is a picture rather than text. Whoever
+    /// lays the chapter out decides what a source resolves to, and drops the block where nothing
+    /// answers to it.
+    public let imageSource: String?
+
+    public init(id: Int, text: String, isCentered: Bool, imageSource: String? = nil) {
+        self.id = id
+        self.text = text
+        self.isCentered = isCentered
+        self.imageSource = imageSource
+    }
+
+    public var isImage: Bool { imageSource != nil }
+}
+
 /// Turns the HTML a chapter arrives in into flat paragraphs a reader view can lay out.
 ///
 /// Chapter bodies use a small, predictable subset — `<p>`, `<br>`, `<span>`, emphasis and the odd `<img>` —
 /// so a targeted pass beats pulling in a full HTML stack, and it keeps the work off the main actor.
-public enum ChapterHTML {
-    /// One laid-out block of a chapter: a paragraph of text, or a picture standing on its own.
-    public struct Paragraph: Codable, Sendable, Identifiable, Hashable {
-        public let id: Int
-        public let text: String
-        /// Author-centred lines (scene breaks, epigraphs) carry a `text-align: center` style.
-        public let isCentered: Bool
-        /// What the block's `<img>` pointed at, on a block that is a picture rather than text. Whoever
-        /// lays the chapter out decides what a source resolves to, and drops the block where nothing
-        /// answers to it.
-        public let imageSource: String?
-
-        public init(id: Int, text: String, isCentered: Bool, imageSource: String? = nil) {
-            self.id = id
-            self.text = text
-            self.isCentered = isCentered
-            self.imageSource = imageSource
-        }
-
-        public var isImage: Bool { imageSource != nil }
-    }
-
+public enum BookHTML {
     public static func paragraphs(from html: String) -> [Paragraph] {
         var result: [Paragraph] = []
         var index = 0
@@ -186,9 +186,4 @@ public enum ChapterHTML {
 
         return result
     }
-}
-
-extension ChapterText {
-    /// The chapter body, ready to lay out.
-    public var paragraphs: [ChapterHTML.Paragraph] { ChapterHTML.paragraphs(from: html) }
 }

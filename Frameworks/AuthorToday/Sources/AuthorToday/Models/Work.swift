@@ -172,17 +172,6 @@ public struct ChapterInfo: Codable, Sendable, Identifiable, Hashable {
 
     /// Draft chapters are visible in the contents but carry no readable body.
     public var isReadable: Bool { isAvailable != false && isDraft != true }
-
-    public var displayTitle: String {
-        guard
-            let title,
-            !title.isEmpty
-        else {
-            return String(localized: "Chapter \((sortOrder ?? 0) + 1)", bundle: .module)
-        }
-
-        return title
-    }
 }
 
 /// A chapter body, already decrypted into HTML by ``AuthorTodayClient``.

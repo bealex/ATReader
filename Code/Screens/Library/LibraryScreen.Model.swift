@@ -4,6 +4,8 @@
 //
 
 import AuthorToday
+import AuthorTodayBooks
+import BookKit
 import Foundation
 
 extension LibraryScreen {
@@ -14,7 +16,7 @@ extension LibraryScreen {
         struct Group: Identifiable {
             let id: String
             let series: String?
-            let works: [WorkSummary]
+            let works: [Book]
             /// The last time any book here gained anything, which is what orders the list.
             let updated: Date
             /// True where the reader put this series together themselves.
@@ -48,7 +50,7 @@ extension LibraryScreen {
                 }
             }
 
-            func includes(_ work: WorkSummary) -> Bool {
+            func includes(_ work: Book) -> Bool {
                 switch self {
                     case .reading: !work.isFinishedReading
                     case .finished: work.isFinishedReading
@@ -62,7 +64,7 @@ extension LibraryScreen {
             /// left in it is still being read, books already finished included: those are what the
             /// reader is reading through, and a series that showed only its unread half would hide
             /// where the reader had got to. Only a series read to its last book is finished.
-            func includes(_ works: [WorkSummary]) -> Bool {
+            func includes(_ works: [Book]) -> Bool {
                 switch self {
                     case .reading: works.contains { !$0.isFinishedReading }
                     case .finished: !works.isEmpty && works.allSatisfy(\.isFinishedReading)
@@ -87,7 +89,7 @@ extension LibraryScreen {
         /// rather than newest first.
         private(set) var madeSeries: Set<String> = []
 
-        private(set) var works: [WorkSummary] = []
+        private(set) var works: [Book] = []
         private(set) var isLoading = false
         private(set) var errorMessage: String?
         private(set) var hasLoaded = false
@@ -113,10 +115,10 @@ extension LibraryScreen {
         }
 
         /// Every book on screen, the ones a kept series carries along with it included.
-        var visibleWorks: [WorkSummary] { groups.flatMap(\.works) }
+        var visibleWorks: [Book] { groups.flatMap(\.works) }
 
         /// The books the local title and author search leaves, before the filter has had its say.
-        private var searchedWorks: [WorkSummary] {
+        private var searchedWorks: [Book] {
             let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
 
             guard !query.isEmpty else { return works }
@@ -158,11 +160,11 @@ extension LibraryScreen {
 
         /// When the service last changed the book. Reading it is not a change to it, so the list holds
         /// still while the reader reads rather than shuffling under them.
-        private static func updated(_ work: WorkSummary) -> Date { work.lastUpdateTime ?? .distantPast }
+        private static func updated(_ work: Book) -> Date { work.lastUpdateTime ?? .distantPast }
 
         /// Latest book in the series first, which is the one with a chapter still arriving. Titles
         /// compare numerically, so a series the service gives no order for still lands newest first.
-        private static func withinSeries(_ left: WorkSummary, _ right: WorkSummary) -> Bool {
+        private static func withinSeries(_ left: Book, _ right: Book) -> Bool {
             guard
                 left.seriesOrder == right.seriesOrder
             else {
@@ -173,7 +175,7 @@ extension LibraryScreen {
         }
 
         /// The order the reader put the series in, first book first.
-        private static func byChosenOrder(_ left: WorkSummary, _ right: WorkSummary) -> Bool {
+        private static func byChosenOrder(_ left: Book, _ right: Book) -> Bool {
             (left.seriesOrder ?? 0) < (right.seriesOrder ?? 0)
         }
 
@@ -246,7 +248,7 @@ extension LibraryScreen {
             await refreshFromStore()
         }
 
-        func toggle(_ work: WorkSummary) {
+        func toggle(_ work: Book) {
             if selection.contains(work.id) {
                 selection.remove(work.id)
             } else {
@@ -305,7 +307,7 @@ extension LibraryScreen {
         }
 
         /// Takes an imported book off the device outright. Its text is here and nowhere else.
-        func deleteLocalBook(_ work: WorkSummary) async {
+        func deleteLocalBook(_ work: Book) async {
             guard LocalBooks.isLocal(work.id) else { return }
 
             works.removeAll { $0.id == work.id }
@@ -315,7 +317,7 @@ extension LibraryScreen {
         }
 
         /// True for a book that came from a file rather than the service.
-        func isLocal(_ work: WorkSummary) -> Bool { LocalBooks.isLocal(work.id) }
+        func isLocal(_ work: Book) -> Bool { LocalBooks.isLocal(work.id) }
 
         func loadIfNeeded() async {
             guard !hasLoaded else { return }
@@ -394,7 +396,7 @@ extension LibraryScreen {
         /// read?" on its own. What it does carry is each book's update time, and a book whose time has
         /// moved is the only one worth asking for a table of contents. Once a day everything is walked
         /// instead, which is also what fills the offline cache.
-        private func findNewChapters(since previous: [WorkSummary], in entries: [WorkSummary]) async {
+        private func findNewChapters(since previous: [Book], in entries: [Book]) async {
             let lastChecked = UpdateBadge.lastCheckedAt
             let isDue = lastChecked.map { Date.now.timeIntervalSince($0) > BackgroundRefresh.interval } ?? true
             let books = isDue ? entries : Self.changed(from: previous, to: entries)
@@ -414,7 +416,7 @@ extension LibraryScreen {
 
         /// The books the service has touched since this device last saw them, plus the ones it has
         /// never seen.
-        private static func changed(from previous: [WorkSummary], to entries: [WorkSummary]) -> [WorkSummary] {
+        private static func changed(from previous: [Book], to entries: [Book]) -> [Book] {
             let before = Dictionary(previous.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
 
             return entries.filter { before[$0.id]?.lastUpdateTime != $0.lastUpdateTime }
@@ -426,7 +428,7 @@ extension LibraryScreen {
 
         /// The walk runs behind the list rather than under the refresh spinner: it is one request per
         /// changed book, and the shelf is already on screen.
-        private func startSweep(since previous: [WorkSummary], in entries: [WorkSummary]) {
+        private func startSweep(since previous: [Book], in entries: [Book]) {
             guard sweepTask == nil else { return }
 
             sweepTask = Task { [weak self] in
@@ -446,7 +448,7 @@ extension LibraryScreen {
             do {
                 let previous = works
                 let library = try await session.client.fullUserLibrary()
-                let entries = library.worksInLibrary.map(WorkSummary.init)
+                let entries = library.worksInLibrary.map(Book.init)
                 await store.replaceLibrary(with: entries)
                 // Read back rather than painting what arrived: the service carries no progress this
                 // device made, so its copy would undo a book marked read the moment it landed.
@@ -468,7 +470,7 @@ extension LibraryScreen {
 
         /// Marks a book read through: the ring fills, and the book page's chapter marks fill with it,
         /// which means putting the position at the end of the last chapter it has.
-        func markAsRead(_ work: WorkSummary) async {
+        func markAsRead(_ work: Book) async {
             if let index = works.firstIndex(where: { $0.id == work.id }) {
                 works[index].readingProgress = 1
             }
@@ -510,11 +512,13 @@ extension LibraryScreen {
         }
 
         /// The book's chapters as the device has them, fetched if it has none.
-        private func contents(of workId: Int) async -> [ChapterInfo] {
+        private func contents(of workId: Int) async -> [BookChapter] {
             let stored = await store.chapters(workId: workId)
 
             guard stored.isEmpty, !LocalBooks.isLocal(workId) else { return stored }
-            guard let fetched = try? await session.client.workContents(id: workId) else { return [] }
+            guard
+                let fetched = try? await session.client.workContents(id: workId).map(BookChapter.init)
+            else { return [] }
 
             await store.store(chapters: fetched, workId: workId)
             return fetched.sorted { ($0.sortOrder ?? 0) < ($1.sortOrder ?? 0) }
@@ -522,7 +526,7 @@ extension LibraryScreen {
 
         /// Takes a book out of the reader's library. Removing it is the one thing left that the
         /// service's library state is good for.
-        func remove(_ work: WorkSummary) async {
+        func remove(_ work: Book) async {
             guard !isLocal(work) else { return await deleteLocalBook(work) }
             guard session.isSignedIn else { return }
 
@@ -543,7 +547,7 @@ extension LibraryScreen {
             await store.replaceLibrary(with: works)
         }
 
-        private func apply(entries: [WorkSummary]) {
+        private func apply(entries: [Book]) {
             guard works != entries else { return }
 
             works = entries

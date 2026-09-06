@@ -4,12 +4,14 @@
 //
 
 import AuthorToday
+import AuthorTodayBooks
+import BookKit
 import DesignSystem
 import SwiftUI
 
 /// A book as it appears in every list: cover, title, author and the reader's own position.
 struct WorkRow: View {
-    let work: WorkSummary
+    let work: Book
     var showsProgress = true
     /// Off where the list already groups by series, so the row doesn't repeat its own heading.
     var showsSeries = true
@@ -93,7 +95,7 @@ struct WorkRow: View {
             parts.append(String(localized: "\(newChapters) new chapters"))
         }
 
-        if showsProgress, let percent = WorkFormatting.progress(work.readingProgress) {
+        if showsProgress, let percent = BookFormatting.progress(work.readingProgress) {
             parts.append(String(localized: "\(percent) read"))
         }
 

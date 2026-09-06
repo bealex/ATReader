@@ -3,6 +3,7 @@
 //  Licensed under the MIT License. See LICENSE in the repository root.
 //
 
+import BookKit
 import DesignSystem
 import SwiftUI
 
@@ -135,7 +136,7 @@ struct ReadingProgressRing: View {
     /// A book read to its end says so with a tick, which is the mark the eye finds without reading it.
     @ViewBuilder
     private var label: some View {
-        if progress >= WorkSummary.readThreshold {
+        if progress >= Book.readThreshold {
             Image(systemName: "checkmark")
                 .font(.system(size: Design.Size.glyph(in: Self.size), weight: .bold))
         } else {

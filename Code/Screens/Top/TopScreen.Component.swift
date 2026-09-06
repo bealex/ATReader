@@ -4,6 +4,8 @@
 //
 
 import AuthorToday
+import AuthorTodayBooks
+import BookKit
 import DesignSystem
 import SwiftUI
 
@@ -132,7 +134,7 @@ enum TopScreen {
     /// A top-list row: the position, then the usual book row.
     struct RankedRow: View {
         let rank: Int
-        let work: WorkSummary
+        let work: Book
 
         var body: some View {
             HStack(alignment: .top, spacing: Design.Space.medium) {

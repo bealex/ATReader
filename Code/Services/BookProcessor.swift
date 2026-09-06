@@ -4,6 +4,8 @@
 //
 
 import AuthorToday
+import AuthorTodayBooks
+import BookKit
 import CryptoKit
 import Foundation
 import OSLog
@@ -71,7 +73,7 @@ actor BookProcessor {
     /// Prepares everything in a book that isn't prepared already, in order, once at a time.
     ///
     /// A second call while one is running joins it rather than starting another.
-    func start(workId: Int, chapters: [ChapterInfo]) {
+    func start(workId: Int, chapters: [BookChapter]) {
         guard walks[workId] == nil else { return }
 
         let readable = chapters.filter(\.isReadable)
@@ -100,7 +102,7 @@ actor BookProcessor {
     /// again; the second differs from there on to the end of the book, and is what says the book's shape
     /// has moved even where a later chapter's own words have not. Storing both is what lets a corrected
     /// file re-use every chapter it didn't touch.
-    private func process(workId: Int, chapters: [ChapterInfo]) async {
+    private func process(workId: Int, chapters: [BookChapter]) async {
         var chain = ""
         var done = 0
 

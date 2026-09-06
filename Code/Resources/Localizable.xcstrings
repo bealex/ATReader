@@ -667,6 +667,17 @@
         }
       }
     },
+    "Disliked": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Не понравилось"
+          }
+        }
+      }
+    },
     "Done": {
       "extractionState": "manual",
       "localizations": {
@@ -1218,6 +1229,17 @@
         }
       }
     },
+    "Not in library": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Не в библиотеке"
+          }
+        }
+      }
+    },
     "Nothing here yet": {
       "extractionState": "manual",
       "localizations": {
@@ -1728,6 +1750,17 @@
     "San Francisco": {
       "extractionState": "manual",
       "shouldTranslate": false
+    },
+    "Saved": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Отложено"
+          }
+        }
+      }
     },
     "Screen": {
       "extractionState": "manual",

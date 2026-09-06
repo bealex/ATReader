@@ -4,6 +4,8 @@
 //
 
 import AuthorToday
+import AuthorTodayBooks
+import BookKit
 import DesignSystem
 import SwiftUI
 
@@ -367,7 +369,7 @@ enum LibraryScreen {
         ///
         /// Two tap targets rather than a button and a link, since the row is the larger of the two and
         /// the cover sits inside it: a gesture on the cover is the inner one, and the inner one wins.
-        private func bookRow(_ model: Model, work: WorkSummary) -> some View {
+        private func bookRow(_ model: Model, work: Book) -> some View {
             HStack(spacing: 10) {
                 if model.isSelecting { tick(model.selection.contains(work.id)) }
 
@@ -398,7 +400,7 @@ enum LibraryScreen {
         ///
         /// A long series is read in order, so the ones behind the reader only have to stay findable.
         /// Given a cover and three lines each they push the book actually being read off the screen.
-        private func finishedRow(_ model: Model, work: WorkSummary) -> some View {
+        private func finishedRow(_ model: Model, work: Book) -> some View {
             HStack(spacing: 8) {
                 if model.isSelecting { tick(model.selection.contains(work.id)) }
 
@@ -429,12 +431,12 @@ enum LibraryScreen {
         ///
         /// Read to the end of a book still being written doesn't count: the next chapter is what the
         /// reader is waiting for, and a collapsed row is the wrong place to be told it landed.
-        private func isBehindTheReader(_ model: Model, work: WorkSummary) -> Bool {
+        private func isBehindTheReader(_ model: Model, work: Book) -> Bool {
             work.isFinishedReading && model.newChapters(for: work.id) == 0
         }
 
         /// What a tap on the body of a row does: pick the book while selecting, else open its page.
-        private func choose(_ model: Model, work: WorkSummary) {
+        private func choose(_ model: Model, work: Book) {
             if model.isSelecting {
                 model.toggle(work)
             } else {
@@ -442,7 +444,7 @@ enum LibraryScreen {
             }
         }
 
-        private func open(_ work: WorkSummary) {
+        private func open(_ work: Book) {
             path.append(.reader(.init(workId: work.id, title: work.title)))
         }
 
@@ -464,7 +466,7 @@ enum LibraryScreen {
         }
 
         @ViewBuilder
-        private func bookActions(_ model: Model, work: WorkSummary) -> some View {
+        private func bookActions(_ model: Model, work: Book) -> some View {
             Button {
                 Task { await model.markAsRead(work) }
             } label: {
@@ -538,7 +540,7 @@ struct SeriesOrder: View {
     private var dismiss
 
     @State
-    private var works: [WorkSummary] = []
+    private var works: [Book] = []
 
     var body: some View {
         NavigationStack {
