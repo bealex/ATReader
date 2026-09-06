@@ -6,6 +6,7 @@
 import AuthorToday
 import AuthorTodayBooks
 import BookKit
+import BookRenderer
 import BookStorage
 import Foundation
 

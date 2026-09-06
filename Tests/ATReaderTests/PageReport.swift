@@ -4,6 +4,7 @@
 //
 
 import BookKit
+import BookRenderer
 import SwiftUI
 import UIKit
 

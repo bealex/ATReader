@@ -3,10 +3,7 @@
 //  Licensed under the MIT License. See LICENSE in the repository root.
 //
 
-import AuthorToday
-import AuthorTodayBooks
 import BookKit
-import BookStorage
 import CryptoKit
 import Foundation
 import OSLog
@@ -21,29 +18,27 @@ import OSLog
 ///
 /// The walk runs behind the reader rather than in front of it. A book opens on its first chapter as
 /// soon as that one chapter is ready, and the rest arrive while it is being read.
-actor BookProcessor {
-    static let shared = BookProcessor()
-
+public actor BookProcessor {
     private static let logger = Logger(subsystem: "com.lonelybytes.atreader", category: "processor")
 
     /// How far a book has been through the typesetter.
-    struct Progress: Sendable, Equatable {
-        let prepared: Int
-        let total: Int
+    public struct Progress: Sendable, Equatable {
+        public let prepared: Int
+        public let total: Int
 
-        var fraction: Double { total > 0 ? Double(prepared) / Double(total) : 1 }
-        var isComplete: Bool { prepared >= total }
+        public var fraction: Double { total > 0 ? Double(prepared) / Double(total) : 1 }
+        public var isComplete: Bool { prepared >= total }
     }
 
-    private let store: SQLiteBookStore
+    private let store: any ChapterBodyStore & PreparedChapterStore
     private var walks: [Int: Task<Void, Never>] = [:]
     private var progress: [Int: Progress] = [:]
 
-    init(store: SQLiteBookStore = .shared) {
+    public init(store: any ChapterBodyStore & PreparedChapterStore) {
         self.store = store
     }
 
-    func progress(of workId: Int) -> Progress? { progress[workId] }
+    public func progress(of workId: Int) -> Progress? { progress[workId] }
 
     // MARK: - One chapter, now
 
@@ -51,7 +46,7 @@ actor BookProcessor {
     ///
     /// This is the reader's way in, and it never waits for the rest of the book. The chain is left
     /// empty because only a walk in order can know it, and ``process(workId:chapters:)`` fills it in.
-    func content(workId: Int, chapterId: Int) async -> ChapterContent? {
+    public func content(workId: Int, chapterId: Int) async -> ChapterContent? {
         guard let body = await store.body(workId: workId, chapterId: chapterId) else { return nil }
 
         let hash = Self.hash(body.html)
@@ -74,7 +69,7 @@ actor BookProcessor {
     /// Prepares everything in a book that isn't prepared already, in order, once at a time.
     ///
     /// A second call while one is running joins it rather than starting another.
-    func start(workId: Int, chapters: [BookChapter]) {
+    public func start(workId: Int, chapters: [BookChapter]) {
         guard walks[workId] == nil else { return }
 
         let readable = chapters.filter(\.isReadable)
@@ -87,7 +82,7 @@ actor BookProcessor {
         }
     }
 
-    func stop(workId: Int) {
+    public func stop(workId: Int) {
         walks[workId]?.cancel()
         walks[workId] = nil
     }

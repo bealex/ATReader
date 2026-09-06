@@ -3,14 +3,13 @@
 //  Licensed under the MIT License. See LICENSE in the repository root.
 //
 
-import AuthorToday
 import BookKit
 import Foundation
 import NaturalLanguage
 
 /// Everything that makes a ``ChapterContent``. Moves to BookRenderer with the typesetter.
-extension ChapterContent {
-    static func prepare(html: String) async -> ChapterContent {
+public extension ChapterContent {
+    public static func prepare(html: String) async -> ChapterContent {
         await Task.detached(priority: .userInitiated) {
             let paragraphs = BookHTML.paragraphs(from: html)
             let language = Self.language(of: paragraphs)
@@ -51,7 +50,7 @@ extension ChapterContent {
     }
 
     /// True where the sample carries more Cyrillic letters than Latin ones.
-    static func isMostlyCyrillic(_ text: some StringProtocol) -> Bool {
+    public static func isMostlyCyrillic(_ text: some StringProtocol) -> Bool {
         var cyrillic = 0
         var latin = 0
 

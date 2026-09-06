@@ -3,6 +3,7 @@
 //  Licensed under the MIT License. See LICENSE in the repository root.
 //
 
+import BookKit
 import CoreText
 import UIKit
 
@@ -10,7 +11,7 @@ import UIKit
 ///
 /// The soft hyphens and joiners the typesetter puts in are taken out before measuring and again before
 /// drawing, so what the breaker costs and what the page shows cannot part company.
-struct ParagraphRuler {
+public struct ParagraphRuler {
     /// Where a line may end, and what the reader sees when it does.
     struct Break {
         /// Where the line after it starts, counted from the paragraph's own first character.
@@ -23,16 +24,16 @@ struct ParagraphRuler {
         var tied: Bool
     }
 
-    let range: NSRange
-    let font: UIFont
-    let alignment: NSTextAlignment
-    let firstLineIndent: CGFloat
-    let lineSpacing: CGFloat
-    let paragraphSpacing: CGFloat
+    public let range: NSRange
+    public let font: UIFont
+    public let alignment: NSTextAlignment
+    public let firstLineIndent: CGFloat
+    public let lineSpacing: CGFloat
+    public let paragraphSpacing: CGFloat
     let breaks: [Break]
 
-    let spaceWidth: CGFloat
-    let hyphenWidth: CGFloat
+    public let spaceWidth: CGFloat
+    public let hyphenWidth: CGFloat
 
     /// The paragraph with everything invisible taken out, which is what was measured and what is drawn.
     private let visible: NSAttributedString
@@ -46,12 +47,12 @@ struct ParagraphRuler {
     private let source: [unichar]
 
     /// The length of the paragraph, its trailing newline included.
-    var length: Int { range.length }
+    public var length: Int { range.length }
 
     /// True where the paragraph has no text of its own and stands only for the space it takes.
-    var isBlank: Bool { visible.length == 0 }
+    public var isBlank: Bool { visible.length == 0 }
 
-    init?(text: NSAttributedString, range: NSRange) {
+    public init?(text: NSAttributedString, range: NSRange) {
         guard range.length > 0, NSMaxRange(range) <= text.length else { return nil }
 
         let string = text.string as NSString
@@ -175,7 +176,7 @@ struct ParagraphRuler {
     // MARK: - Measuring a piece of it
 
     /// Where a line drawn from `start` to `ending` actually stops, its trailing space given up.
-    func content(from start: Int, to ending: Int) -> Int {
+    public func content(from start: Int, to ending: Int) -> Int {
         var last = ending
 
         while last > start, Self.isBlank(character(at: last - 1)) { last -= 1 }
@@ -184,27 +185,29 @@ struct ParagraphRuler {
     }
 
     /// How wide a piece of the paragraph is when it is set the way the font sets it.
-    func width(from start: Int, to ending: Int) -> CGFloat {
+    public func width(from start: Int, to ending: Int) -> CGFloat {
         offsets[places[ending]] - offsets[places[start]]
     }
 
     /// How many spaces a piece of the paragraph has to open, the one held after a dash aside.
-    func gaps(from start: Int, to ending: Int) -> Int {
+    public func gaps(from start: Int, to ending: Int) -> Int {
         spacesBefore[ending] - spacesBefore[start]
     }
 
     /// How many characters a piece actually draws, which is what its tracking is spread between.
-    func characters(from start: Int, to ending: Int) -> Int {
+    public func characters(from start: Int, to ending: Int) -> Int {
         places[ending] - places[start]
     }
 
     /// A character of the paragraph as it was written, invisibles and all.
-    func character(at offset: Int) -> unichar {
+    public func character(at offset: Int) -> unichar {
         offset >= 0 && offset < source.count ? source[offset] : 0
     }
 
     /// The line set for drawing: its own text, with the tracking and the gap widths worked into it.
-    func setting(from start: Int, to ending: Int, fill: LineFill, holdsFirstGap: Bool, drawsHyphen: Bool) -> CTLine? {
+    public func setting(from start: Int, to ending: Int, fill: LineFill, holdsFirstGap: Bool, drawsHyphen: Bool)
+        -> CTLine?
+    {
         let first = places[start]
         let last = places[ending]
 
@@ -295,11 +298,11 @@ struct ParagraphRuler {
 
     private static let foregroundColor = NSAttributedString.Key(kCTForegroundColorAttributeName as String)
 
-    static let softHyphen = unichar(0x00AD)
+    public static let softHyphen = unichar(0x00AD)
     /// Ties a short word to the one after it, so no line may end on it.
-    static let wordJoiner = unichar(0x2060)
+    public static let wordJoiner = unichar(0x2060)
 
-    static func isBlank(_ character: unichar) -> Bool { character == 0x20 || character == 0x0A }
+    public static func isBlank(_ character: unichar) -> Bool { character == 0x20 || character == 0x0A }
 
     /// What the typesetter put in to steer the breaking and nobody is meant to see.
     private static func isInvisible(_ character: unichar) -> Bool {

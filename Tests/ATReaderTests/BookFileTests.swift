@@ -5,6 +5,7 @@
 
 import BookFormats
 import BookKit
+import BookRenderer
 import BookStorage
 import Testing
 import UIKit

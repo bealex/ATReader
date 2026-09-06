@@ -16,23 +16,30 @@ import UIKit
 /// page, no hyphen at the foot of a page, no heading stranded without its text. The slack those rules
 /// leave behind is spread between the lines of the page rather than dumped at the bottom.
 @MainActor
-final class ChapterLayout {
+public final class ChapterLayout {
     /// How the pages of a chapter are laid out, before any text is fetched.
     ///
     /// A page fills the screen, so the text has to keep clear of the notch and the home indicator as
     /// well as of the reader's own margins.
-    struct Context: Equatable {
-        var style: ChapterTextStyle
-        var margins: Double
-        var pageSize: CGSize
-        var safeArea: EdgeInsets
+    public struct Context: Equatable, Sendable {
+        public var style: ChapterTextStyle
+        public var margins: Double
+        public var pageSize: CGSize
+        public var safeArea: EdgeInsets
+
+        public init(style: ChapterTextStyle, margins: Double, pageSize: CGSize, safeArea: EdgeInsets) {
+            self.style = style
+            self.margins = margins
+            self.pageSize = pageSize
+            self.safeArea = safeArea
+        }
 
         /// The band kept at the top and bottom of every page for the book title and the page number,
         /// which is as deep as the head drawn in it and no deeper.
-        static let runningHeadHeight: CGFloat = 26
+        public static let runningHeadHeight: CGFloat = 26
 
         /// Where the body text is laid out and drawn, in the page's own coordinates.
-        var textRect: CGRect {
+        public var textRect: CGRect {
             CGRect(origin: .zero, size: pageSize).inset(by: UIEdgeInsets(
                 // Half the margin above and below: the running head's own band already parts the text
                 // from the edge, where the sides have nothing but the margin to do it.
@@ -43,9 +50,9 @@ final class ChapterLayout {
             ))
         }
 
-        var textSize: CGSize { textRect.size }
+        public var textSize: CGSize { textRect.size }
 
-        var isUsable: Bool { textRect.width > 1 && textRect.height > 1 }
+        public var isUsable: Bool { textRect.width > 1 && textRect.height > 1 }
 
         /// Everything about the setting that moves where a line breaks, as one string.
         ///
@@ -54,7 +61,7 @@ final class ChapterLayout {
         /// colours and how its pictures take them are deliberately absent: they change nothing about
         /// where anything sits, and including them would throw the whole book away every time the
         /// reader crossed into the dark.
-        var fingerprint: String {
+        public var fingerprint: String {
             [
                 ChapterLayout.rulesVersion,
                 style.face.rawValue,
@@ -75,9 +82,9 @@ final class ChapterLayout {
     /// Measurements are kept against the setting they were made at, and the setting alone says nothing
     /// about the rules that read it. Without this, changing how far a mark hangs would leave every book
     /// on the device showing the breaks an older layout chose.
-    nonisolated static let rulesVersion = "12"
+    public nonisolated static let rulesVersion = "12"
 
-    enum Rules {
+    public enum Rules {
         /// Lines that have to follow a heading rather than leaving it stranded at the foot of a page.
         static let linesAfterHeading = 2
         /// However hard the other rules push, a page keeps at least this many lines.
@@ -85,7 +92,7 @@ final class ChapterLayout {
         /// A chapter's last page reads as a mistake with fewer lines than this.
         static let shortLastPage = 3
         /// How far a line gap may be squeezed to pull one more line onto a page.
-        static let tightening: CGFloat = 0.75
+        public static let tightening: CGFloat = 0.75
         /// How far a line gap may open to take up the slack a rule left behind.
         static let loosening: CGFloat = 3
         /// What one broken rule costs. Far above any amount of uneven depth, so the rules still decide
@@ -96,17 +103,17 @@ final class ChapterLayout {
     }
 
     /// Text longer than this is worth telling the reader about while it is being laid out.
-    static let progressThreshold = 239 * 1024
+    public static let progressThreshold = 239 * 1024
 
-    let chapterId: Int
-    let context: Context
+    public nonisolated let chapterId: Int
+    public let context: Context
 
     /// What the previous chapter already used on this chapter's first page, when the chapter runs on
     /// from it rather than starting a page of its own.
-    let startOffset: CGFloat
+    public let startOffset: CGFloat
 
     /// The character range each page covers, so a reading position survives a change of font.
-    private(set) var pageRanges: [NSRange] = []
+    public private(set) var pageRanges: [NSRange] = []
 
     private let text: NSAttributedString
     private let headingLength: Int
@@ -134,7 +141,7 @@ final class ChapterLayout {
     ///
     /// CoreText is what measures and draws, but the setting is built from `UIFont` and drawn into a
     /// UIKit context, so this stays on the main actor and yields between paragraphs instead.
-    static func make(
+    public static func make(
         chapterId: Int,
         content: ChapterContent,
         heading: ChapterHeading,
@@ -160,7 +167,7 @@ final class ChapterLayout {
     }
 
     /// True when laying this chapter out takes long enough that the reader should be told.
-    var isLong: Bool { text.string.utf8.count > Self.progressThreshold }
+    public var isLong: Bool { text.string.utf8.count > Self.progressThreshold }
 
     private func build(onProgress: (@MainActor (Double) -> Void)?) async {
         guard context.isUsable, text.length > 0 else { return }
@@ -375,34 +382,34 @@ final class ChapterLayout {
     ///
     /// A justified line that does not end its paragraph is meant to reach the measure exactly, so this
     /// is what a test reads to say whether it did.
-    struct TypesetLine {
-        var text: String
-        var width: CGFloat
+    public struct TypesetLine {
+        public var text: String
+        public var width: CGFloat
         /// How deep the line stands, the space under it included.
-        var height: CGFloat
+        public var height: CGFloat
         /// Why the column left this line short, where it did.
-        var shortReason: String?
+        public var shortReason: String?
         /// How far the line's gaps stand open, against the width the font gives a space.
-        var gapMultiple: CGFloat
+        public var gapMultiple: CGFloat
         /// How many gaps the line had to open, which is all it could fill itself from.
-        var gaps: Int
-        var startsParagraph: Bool
-        var endsParagraph: Bool
-        var isJustified: Bool
-        var isHeading: Bool
+        public var gaps: Int
+        public var startsParagraph: Bool
+        public var endsParagraph: Bool
+        public var isJustified: Bool
+        public var isHeading: Bool
         /// The line is a picture rather than text, and the width is the picture's.
-        var isImage: Bool
+        public var isImage: Bool
     }
 
     /// The lines that fall on one page, in the order they were set.
-    func typesetLines(onPage index: Int) -> [TypesetLine] {
+    public func typesetLines(onPage index: Int) -> [TypesetLine] {
         guard pages.indices.contains(index) else { return [] }
 
         return pages[index].lines.map { described(lines[$0]) }
     }
 
     /// Every line of the chapter, in the order it was set.
-    var typesetLines: [TypesetLine] { lines.map { described($0) } }
+    public var typesetLines: [TypesetLine] { lines.map { described($0) } }
 
     private func described(_ line: ColumnComposer.Line) -> TypesetLine {
         TypesetLine(
@@ -424,18 +431,18 @@ final class ChapterLayout {
     ///
     /// What decides whether a chapter may share the page the one before it ended on: the free space
     /// says nothing on its own, because a heading is far taller than the lines it is measured in.
-    func bodyLineCount(onPage index: Int) -> Int {
+    public func bodyLineCount(onPage index: Int) -> Int {
         guard pages.indices.contains(index) else { return 0 }
 
         return lines[pages[index].lines].filter { !$0.isHeading }.count
     }
 
-    var pageCount: Int { pages.count }
+    public var pageCount: Int { pages.count }
 
-    var isEmpty: Bool { pages.isEmpty }
+    public var isEmpty: Bool { pages.isEmpty }
 
     /// What is left on the last page, for deciding whether the next chapter can run on from here.
-    var tailFreeSpace: CGFloat {
+    public var tailFreeSpace: CGFloat {
         guard let page = pages.last else { return 0 }
 
         let used = page.lines.reduce(CGFloat(0)) { $0 + lines[$1].height }
@@ -443,12 +450,12 @@ final class ChapterLayout {
     }
 
     /// The page a character offset falls on, so a change of font keeps the reader's place.
-    func pageIndex(containing offset: Int) -> Int {
+    public func pageIndex(containing offset: Int) -> Int {
         let laidOut = laidOutOffset(offset)
         return pageRanges.firstIndex { NSLocationInRange(laidOut, $0) } ?? max(0, min(offset, pageCount - 1))
     }
 
-    func characterOffset(ofPage index: Int) -> Int {
+    public func characterOffset(ofPage index: Int) -> Int {
         pageRanges.indices.contains(index) ? sourceOffset(pageRanges[index].location) : 0
     }
 
@@ -488,7 +495,7 @@ final class ChapterLayout {
     ///
     /// The text matrix is flipped because a UIKit context counts downwards and CoreText sets glyphs
     /// upwards; without it every line draws on its head.
-    func draw(page index: Int) {
+    public func draw(page index: Int) {
         guard pages.indices.contains(index), let drawing = UIGraphicsGetCurrentContext() else { return }
 
         let page = pages[index]
@@ -531,7 +538,7 @@ final class ChapterLayout {
     }
 
     /// The page's text, for VoiceOver and for the reader's own accessibility label.
-    func pageText(_ index: Int) -> String {
+    public func pageText(_ index: Int) -> String {
         guard pageRanges.indices.contains(index) else { return "" }
 
         // Without stripping them, VoiceOver reads a page full of soft hyphens. A picture is drawn and
@@ -540,6 +547,9 @@ final class ChapterLayout {
             .substring(with: pageRanges[index])
             .replacingOccurrences(of: String(Typography.softHyphen), with: "")
             .replacingOccurrences(of: "\u{2060}", with: "")
-            .replacingOccurrences(of: String(ChapterPagination.pictureMark), with: String(localized: "Picture."))
+            .replacingOccurrences(
+                of: String(ChapterPagination.pictureMark),
+                with: String(localized: "Picture.", bundle: .module)
+            )
     }
 }

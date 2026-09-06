@@ -3,6 +3,7 @@
 //  Licensed under the MIT License. See LICENSE in the repository root.
 //
 
+import BookRenderer
 import SwiftUI
 import UIKit
 
@@ -58,140 +59,9 @@ final class ReaderSettings {
         }
     }
 
-    /// The faces offered for the page. Two are system designs, which pick up the reader's dynamic-type
-    /// and language settings; the rest are classic book faces that ship with iOS.
-    enum Face: String, CaseIterable, Identifiable {
-        case serif
-        case system
-        case rounded
-        case georgia
-        case palatino
-        case charter
-        case stix
-        case baskerville
-        case hoefler
-        case avenir
-
-        var id: String { rawValue }
-
-        var title: String {
-            switch self {
-                case .serif: String(localized: "New York")
-                case .system: String(localized: "San Francisco")
-                case .rounded: String(localized: "SF Rounded")
-                case .georgia: String(localized: "Georgia")
-                case .palatino: String(localized: "Palatino")
-                case .charter: String(localized: "Charter")
-                case .stix: String(localized: "STIX Two Text")
-                case .baskerville: String(localized: "Baskerville")
-                case .hoefler: String(localized: "Hoefler Text")
-                case .avenir: String(localized: "Avenir Next")
-            }
-        }
-
-        /// The family to ask `UIFont` for, or `nil` when this face is a system design.
-        private var familyName: String? {
-            switch self {
-                case .serif, .system, .rounded: nil
-                case .georgia: "Georgia"
-                case .palatino: "Palatino"
-                case .charter: "Charter"
-                case .stix: "STIX Two Text"
-                case .baskerville: "Baskerville"
-                case .hoefler: "Hoefler Text"
-                case .avenir: "Avenir Next"
-            }
-        }
-
-        private var design: UIFontDescriptor.SystemDesign {
-            switch self {
-                case .serif: .serif
-                case .rounded: .rounded
-                default: .default
-            }
-        }
-
-        /// The weights this face actually ships, in order.
-        ///
-        /// A face silently gives another cut for a weight it hasn't got: New York has no light, and the
-        /// book families carry only a roman and a bold, so asking either of them for medium or semibold
-        /// lands on the same bold. Offering a choice that does nothing, or two that do the same thing,
-        /// is worse than offering fewer.
-        var weights: [Weight] {
-            var seen = Set([ resolvedName(.regular) ])
-
-            return Weight.allCases.filter { weight in
-                weight == .regular || seen.insert(resolvedName(weight.uiWeight)).inserted
-            }
-        }
-
-        /// What the face calls the cut a weight lands on, so a family doesn't label its own black
-        /// "Medium". Hoefler Text has a regular and a black and nothing between; Baskerville's heavier
-        /// cut is a semibold; the book families jump straight to bold.
-        func title(for weight: Weight) -> String {
-            let name = resolvedName(weight.uiWeight)
-
-            if name.contains("Black") || name.contains("Heavy") { return String(localized: "Black") }
-            if name.contains("SemiBold") || name.contains("DemiBold") { return String(localized: "Semibold") }
-            if name.contains("Bold") { return String(localized: "Bold") }
-            if name.contains("Medium") { return String(localized: "Medium") }
-            if name.contains("Light") || name.contains("Thin") { return String(localized: "Light") }
-
-            return weight.title
-        }
-
-        private func resolvedName(_ weight: UIFont.Weight) -> String { font(size: 16, weight: weight).fontName }
-
-        /// Falls back to the system face when a family is missing, rather than dropping to Helvetica.
-        ///
-        /// A named family carries only the weights it ships; the descriptor picks the nearest.
-        func font(size: CGFloat, weight: UIFont.Weight = .regular) -> UIFont {
-            let system = UIFont.systemFont(ofSize: size, weight: weight)
-
-            guard
-                let familyName
-            else {
-                guard let descriptor = system.fontDescriptor.withDesign(design) else { return system }
-
-                return UIFont(descriptor: descriptor, size: size)
-            }
-
-            let descriptor = UIFontDescriptor(fontAttributes: [
-                .family: familyName,
-                .traits: [ UIFontDescriptor.TraitKey.weight: weight ],
-            ])
-            return UIFont(descriptor: descriptor, size: size)
-        }
-    }
-
-    /// How heavy the page is set. A face reads differently at each of these, and a dark theme takes a
-    /// little more weight than a light one.
-    enum Weight: String, CaseIterable, Identifiable {
-        case light
-        case regular
-        case medium
-        case semibold
-
-        var id: String { rawValue }
-
-        var title: String {
-            switch self {
-                case .light: String(localized: "Light")
-                case .regular: String(localized: "Regular")
-                case .medium: String(localized: "Medium")
-                case .semibold: String(localized: "Semibold")
-            }
-        }
-
-        var uiWeight: UIFont.Weight {
-            switch self {
-                case .light: .light
-                case .regular: .regular
-                case .medium: .medium
-                case .semibold: .semibold
-            }
-        }
-    }
+    /// What a face and a weight are belongs to the typesetter; what the reader picked belongs here.
+    public typealias Face = BookFace
+    public typealias Weight = BookWeight
 
     /// Left-aligned keeps an even word spacing; justified keeps an even right edge.
     enum Alignment: String, CaseIterable, Identifiable {

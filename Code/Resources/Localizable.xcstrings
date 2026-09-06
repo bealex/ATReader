@@ -1398,17 +1398,6 @@
         }
       }
     },
-    "Picture.": {
-      "extractionState": "manual",
-      "localizations": {
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Иллюстрация."
-          }
-        }
-      }
-    },
     "Pictures": {
       "extractionState": "manual",
       "localizations": {

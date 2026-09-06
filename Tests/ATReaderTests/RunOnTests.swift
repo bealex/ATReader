@@ -5,6 +5,7 @@
 
 import AuthorToday
 import BookKit
+import BookRenderer
 import BookStorage
 import SwiftUI
 import Testing

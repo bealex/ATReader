@@ -22,6 +22,11 @@ struct ATReaderApp: App {
     @Environment(\.scenePhase)
     private var scenePhase
 
+    /// Hands the typesetter the picture shelf before anything asks it to set a page.
+    init() {
+        Renderers.connect()
+    }
+
     var body: some Scene {
         WindowGroup {
             RootScreen.Component()

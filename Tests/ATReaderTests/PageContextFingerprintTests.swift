@@ -3,6 +3,7 @@
 //  Licensed under the MIT License. See LICENSE in the repository root.
 //
 
+import BookRenderer
 import SwiftUI
 import Testing
 import UIKit

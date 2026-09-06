@@ -11,50 +11,79 @@ import UIKit
 /// Pagination and drawing both build their attributed text from this, so the page breaks the reader
 /// measures are exactly the ones it draws. Margins are deliberately absent — they shrink the frame the
 /// text is laid into rather than the text itself.
-struct ChapterTextStyle: Equatable, Sendable {
-    var face: ReaderSettings.Face
-    var weight: ReaderSettings.Weight
-    var fontSize: Double
-    var lineSpacing: Double
+public struct ChapterTextStyle: Equatable, Sendable {
+    public var face: BookFace
+    public var weight: BookWeight
+    public var fontSize: Double
+    public var lineSpacing: Double
     /// Tracking, in points, added between every pair of letters. Negative tightens.
-    var letterSpacing: Double
+    public var letterSpacing: Double
     /// Justification is settled per language, and which one a chapter is in isn't known until it has
     /// been parsed, so the style carries both answers and the typesetter picks.
-    var justifiesRussian: Bool
-    var justifiesEnglish: Bool
-    var textColor: UIColor
+    public var justifiesRussian: Bool
+    public var justifiesEnglish: Bool
+    public var textColor: UIColor
     /// The colour the page is set on, which pictures are drawn against as well as text.
-    var backgroundColor: UIColor = .systemBackground
+    public var backgroundColor: UIColor = .systemBackground
     /// Every picture is held to the page's two colours, colour art included.
-    var monochromeImages: Bool = false
+    public var monochromeImages: Bool = false
 
-    var font: UIFont { face.font(size: fontSize, weight: weight.uiWeight) }
+    public init(
+        face: BookFace,
+        weight: BookWeight,
+        fontSize: Double,
+        lineSpacing: Double,
+        letterSpacing: Double,
+        justifiesRussian: Bool,
+        justifiesEnglish: Bool,
+        textColor: UIColor,
+        backgroundColor: UIColor = .systemBackground,
+        monochromeImages: Bool = false
+    ) {
+        self.face = face
+        self.weight = weight
+        self.fontSize = fontSize
+        self.lineSpacing = lineSpacing
+        self.letterSpacing = letterSpacing
+        self.justifiesRussian = justifiesRussian
+        self.justifiesEnglish = justifiesEnglish
+        self.textColor = textColor
+        self.backgroundColor = backgroundColor
+        self.monochromeImages = monochromeImages
+    }
 
-    var palette: PagePalette {
+    public var font: UIFont { face.font(size: fontSize, weight: weight.uiWeight) }
+
+    public var palette: PagePalette {
         PagePalette(foreground: textColor, background: backgroundColor, isMonochrome: monochromeImages)
     }
 
-    func justifies(_ language: String?) -> Bool {
+    public func justifies(_ language: String?) -> Bool {
         Typography.isRussian(language) ? justifiesRussian : justifiesEnglish
     }
 }
 
 /// The heading a chapter opens with.
-struct ChapterHeading: Equatable, Sendable {
+public struct ChapterHeading: Equatable, Sendable {
     /// The chapter's place in the book, left out when the chapter's own title already says it.
-    var number: String?
-    var title: String?
+    public var number: String?
+    public var title: String?
 
-    var isEmpty: Bool { number == nil && (title?.isEmpty ?? true) }
+    public init(number: String? = nil, title: String? = nil) {
+        self.number = number
+        self.title = title
+    }
+
+    public var isEmpty: Bool { number == nil && (title?.isEmpty ?? true) }
 
     /// The heading as one line of plain words, which is what the body is compared against.
-    var spokenText: String { [ number, title ].compactMap { $0 }.joined(separator: " ") }
+    public var spokenText: String { [ number, title ].compactMap { $0 }.joined(separator: " ") }
 
     /// Numbers a chapter unless its title already does — "Chapter 4" above "Chapter 4. The Road" reads
     /// like a bug rather than a heading.
-    static func make(position: Int, title: String?) -> ChapterHeading {
+    public static func make(position: Int, title: String?) -> ChapterHeading {
         let trimmed = title?.trimmingCharacters(in: .whitespacesAndNewlines)
-        let number = String(localized: "Chapter \(position)")
+        let number = String(localized: "Chapter \(position)", bundle: .module)
 
         guard let trimmed, !trimmed.isEmpty else { return ChapterHeading(number: number, title: nil) }
         guard !isSelfNumbering(trimmed) else { return ChapterHeading(number: nil, title: trimmed) }
@@ -77,7 +106,7 @@ struct ChapterHeading: Equatable, Sendable {
 }
 
 /// Sets a chapter as text: the heading, then the body, styled as the reader asked.
-enum ChapterPagination {
+public enum ChapterPagination {
     /// A chapter set as one attributed string, with the length of its heading, which the page breaker
     /// needs so a heading is never left at the foot of a page without its text.
     struct TypesetText {
@@ -172,7 +201,7 @@ enum ChapterPagination {
     }
 
     /// What a picture stands as in the text. VoiceOver is told it is there; nothing draws it.
-    static let pictureMark: Character = "\u{FFFC}"
+    public static let pictureMark: Character = "\u{FFFC}"
 
     /// How many opening paragraphs may be given up to a heading the body repeats.
     private static let repeatedHeadingLimit = 3

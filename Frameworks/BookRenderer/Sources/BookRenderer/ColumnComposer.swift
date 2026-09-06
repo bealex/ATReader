@@ -3,6 +3,7 @@
 //  Licensed under the MIT License. See LICENSE in the repository root.
 //
 
+import BookKit
 import CoreText
 import UIKit
 
@@ -12,17 +13,17 @@ import UIKit
 /// The three move together rather than in turn. Each has its own ceiling and all three reach theirs at
 /// the same moment, so a line with few gaps leans on its letters and a line with many leans on its gaps
 /// without either being settled in advance.
-struct LineFill {
+public struct LineFill {
     /// Added to every gap the line may open, on top of the tracking the gap already takes.
-    var perGap: CGFloat = 0
+    public var perGap: CGFloat = 0
     /// Tracking added between every pair of characters, the held gap aside.
-    var perLetter: CGFloat = 0
+    public var perLetter: CGFloat = 0
     /// How far the glyphs are drawn wider than the font draws them.
-    var glyphScale: CGFloat = 1
+    public var glyphScale: CGFloat = 1
     /// What none of the three could reach, negative where the line is still too wide.
-    var shortfall: CGFloat = 0
+    public var shortfall: CGFloat = 0
     /// How far the levers stand towards their comfortable ceilings, from nothing to all of it.
-    var reach: CGFloat = 0
+    public var reach: CGFloat = 0
 
     /// What one line has to give: how many gaps and pairs of letters it can open, and against what.
     struct Room {
@@ -91,7 +92,7 @@ struct LineFill {
 /// one decision instead of two: every arrangement of a paragraph's breaks is costed by how hard its
 /// lines have to be pushed to reach the measure, and the cheapest arrangement wins.
 @MainActor
-final class ColumnComposer {
+public final class ColumnComposer {
     enum Rules {
         /// How far a gap may open before it stops sharing the slack with the letters, against its own
         /// width. Up to here the two move together; past it the gaps go on alone.

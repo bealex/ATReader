@@ -3,10 +3,7 @@
 //  Licensed under the MIT License. See LICENSE in the repository root.
 //
 
-import AuthorToday
-import AuthorTodayBooks
 import BookKit
-import BookStorage
 import CryptoKit
 import SwiftUI
 import UIKit
@@ -27,25 +24,25 @@ import UIKit
 /// book up to that chapter, and a fingerprint of the setting it was made at. A book reopened unchanged
 /// reads its measurements back instead of laying every chapter out again.
 @MainActor
-final class BookPagination {
+public final class BookPagination {
     /// Where one chapter sits: how much of its first page the chapter before it already used, and how
     /// many pages it runs to.
-    struct Placement: Equatable {
-        var startOffset: CGFloat
-        var pageCount: Int
+    public struct Placement: Equatable {
+        public var startOffset: CGFloat
+        public var pageCount: Int
     }
 
     /// How much of a chapter has to reach the page it shares for it to run on at all. A heading with
     /// one or two lines under it reads as a title stranded at the foot of the page.
-    static let runOnLineMinimum = 3
+    public static let runOnLineMinimum = 3
 
     /// A chapter's parsed text, or `nil` where the device doesn't have it.
-    typealias ContentProvider = @MainActor (Int) async -> ChapterContent?
+    public typealias ContentProvider = @MainActor (Int) async -> ChapterContent?
 
-    let context: ChapterLayout.Context
+    public let context: ChapterLayout.Context
 
     private let workId: Int
-    private let store: SQLiteBookStore
+    private let store: any PlacementStore & PreparedChapterStore
     /// The setting these measurements were made at, and the only one they are good for.
     private let style: String
 
@@ -53,7 +50,7 @@ final class BookPagination {
 
     /// How many chapters from the front have been measured. The pass can stop anywhere and carry on
     /// from here, which is what lets a book be opened before all of it has been measured.
-    private(set) var measured = 0
+    public private(set) var measured = 0
 
     /// Where the next chapter starts, carried between runs.
     private var startOffset: CGFloat = 0
@@ -63,7 +60,7 @@ final class BookPagination {
     /// the chain no longer stands for everything that came first.
     private var chained = true
 
-    private init(workId: Int, context: ChapterLayout.Context, store: SQLiteBookStore) {
+    private init(workId: Int, context: ChapterLayout.Context, store: any PlacementStore & PreparedChapterStore) {
         self.workId = workId
         self.context = context
         self.store = store
@@ -71,12 +68,16 @@ final class BookPagination {
     }
 
     /// A book with nothing measured yet.
-    static func make(workId: Int, context: ChapterLayout.Context, store: SQLiteBookStore = .shared) -> BookPagination {
+    public static func make(
+        workId: Int,
+        context: ChapterLayout.Context,
+        store: any PlacementStore & PreparedChapterStore
+    ) -> BookPagination {
         BookPagination(workId: workId, context: context, store: store)
     }
 
     /// True once every chapter has a place.
-    func hasMeasuredEverything(of chapters: [BookChapter]) -> Bool { measured >= chapters.count }
+    public func hasMeasuredEverything(of chapters: [BookChapter]) -> Bool { measured >= chapters.count }
 
     /// Measures chapters in order until `count` of them are done, carrying on from wherever the last
     /// run stopped.
@@ -87,7 +88,7 @@ final class BookPagination {
     ///
     /// A chapter's place depends on every chapter before it and on none of the ones after, so a prefix
     /// is enough to put the reader on a page and the rest can follow behind them.
-    func measure(
+    public func measure(
         chapters: [BookChapter],
         through count: Int,
         content: ContentProvider,
@@ -224,16 +225,16 @@ final class BookPagination {
     ///
     /// The two are worth telling apart: a chapter nothing is known about laid out as though it started
     /// a page of its own is then drawn over the page it really shares.
-    func placement(of chapterId: Int) -> Placement? { placements[chapterId] }
+    public func placement(of chapterId: Int) -> Placement? { placements[chapterId] }
 
     /// True when this chapter begins part-way down the page the one before it ended on.
-    func runsOn(_ chapterId: Int) -> Bool { (placements[chapterId]?.startOffset ?? 0) > 0 }
+    public func runsOn(_ chapterId: Int) -> Bool { (placements[chapterId]?.startOffset ?? 0) > 0 }
 
     /// Where a chapter starts on the page the one before it ended on, and how far down.
     ///
     /// A chapter only runs on when what is left of the page holds a decent piece of it; a heading with
     /// two lines under it belongs on the next page instead.
-    static func startOffset(after previous: ChapterLayout, context: ChapterLayout.Context) -> CGFloat {
+    public static func startOffset(after previous: ChapterLayout, context: ChapterLayout.Context) -> CGFloat {
         let chapterGap = context.style.fontSize * 2.5
         let lineHeight = context.style.fontSize + context.style.lineSpacing
         let free = previous.tailFreeSpace - chapterGap
@@ -249,7 +250,7 @@ final class BookPagination {
     /// Read from the offsets the two layouts were built at rather than from the placements this holds,
     /// because the layouts are what draw. One set as if it started a page of its own is drawn from the
     /// top of the page it shares, over the chapter already there.
-    static func sharesLastPage(
+    public static func sharesLastPage(
         of previous: ChapterLayout,
         with next: ChapterLayout,
         context: ChapterLayout.Context

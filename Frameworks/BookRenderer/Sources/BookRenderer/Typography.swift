@@ -3,6 +3,7 @@
 //  Licensed under the MIT License. See LICENSE in the repository root.
 //
 
+import BookKit
 import Foundation
 
 /// The line-breaking rules a typesetter follows but a layout engine doesn't know about.
@@ -11,14 +12,14 @@ import Foundation
 /// forbid different ones: Russian will not let a line end on a one- or two-letter preposition, nor begin
 /// with a dash; English is easier on short words but keeps an abbreviation with the name it belongs to.
 /// The way to say so is a no-break space, put in before the text is laid out.
-enum Typography {
+public enum Typography {
     /// Bumped whenever a rule here changes what a chapter's prepared text comes out as.
     ///
     /// Prepared text is kept against a hash of the chapter's source, so a chapter whose source hasn't
     /// moved is never set again. A change to these rules moves the output without moving the source,
     /// and nothing in the source would ever say so. This is what tells the store that everything it
     /// holds was made by an older typesetter and has to be made again.
-    static let version = "3"
+    public static let version = "3"
 
     /// A space that cannot be broken at, and that still stretches when a line is justified.
     ///
@@ -26,9 +27,9 @@ enum Typography {
     /// piles into the ordinary spaces around it and then into the gaps between letters. It is a
     /// different width from an ordinary space in most book faces too, which shows even ragged-right. An
     /// ordinary space followed by a word joiner reads as one elastic space that no line may break at.
-    static let boundSpace = " \u{2060}"
+    public static let boundSpace = " \u{2060}"
     /// Invisible until a line breaks there, where the layout draws a hyphen.
-    static let softHyphen: Character = "\u{00AD}"
+    public static let softHyphen: Character = "\u{00AD}"
 
     /// Words shorter than this are left whole: breaking a five-letter word saves nothing and reads badly.
     private static let shortestHyphenatedWord = 6
@@ -36,10 +37,10 @@ enum Typography {
     private static let hyphenationEdge = 2
 
     /// Whether a language tag from the chapter names Russian, which several rules turn on.
-    static func isRussian(_ language: String?) -> Bool { language?.hasPrefix("ru") ?? false }
+    public static func isRussian(_ language: String?) -> Bool { language?.hasPrefix("ru") ?? false }
 
     /// Binds the words that must not be parted, in whichever language the text is written.
-    static func bound(_ text: String, language: String?) -> String {
+    public static func bound(_ text: String, language: String?) -> String {
         guard text.contains(" ") else { return text }
 
         let russian = isRussian(language)
@@ -101,7 +102,7 @@ enum Typography {
     ]
 }
 
-extension Typography {
+public extension Typography {
     /// Puts the right dash in, given the language the text is written in.
     ///
     /// Files write dashes with whatever key was to hand, and one publisher's habit runs through every
@@ -113,7 +114,7 @@ extension Typography {
     /// Every replacement is one character for one. A reading position is an offset into this text, so a
     /// substitution that changed its length would move the reader's place in every book on the device.
     /// That rules out folding `--` into an em dash, which is the one common repair this doesn't make.
-    static func dashes(_ text: String, language: String?) -> String {
+    public static func dashes(_ text: String, language: String?) -> String {
         guard text.contains(where: isDashLike) else { return text }
 
         let russian = isRussian(language)
@@ -176,7 +177,7 @@ extension Typography {
     /// TextKit looks for its own break points and settles for far fewer than the dictionary offers, so a
     /// narrow justified column ends up with lines it stretches instead of lines it breaks. A soft hyphen
     /// is a break it always sees, and one it draws a hyphen at.
-    static func hyphenated(_ text: String, language: String?) -> String {
+    public static func hyphenated(_ text: String, language: String?) -> String {
         guard let locale = hyphenationLocale(language), !text.isEmpty else { return text }
 
         var result = ""

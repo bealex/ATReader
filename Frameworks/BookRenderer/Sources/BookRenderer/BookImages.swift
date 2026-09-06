@@ -3,29 +3,35 @@
 //  Licensed under the MIT License. See LICENSE in the repository root.
 //
 
-import BookStorage
+import BookKit
 import CoreGraphics
 import ImageIO
 import OSLog
 import UIKit
 
 /// The two colours a page is set in, and whether its pictures are held to them.
-struct PagePalette: Equatable {
-    var foreground: UIColor
-    var background: UIColor
+public struct PagePalette: Equatable {
+    public var foreground: UIColor
+    public var background: UIColor
     /// Every picture is drawn in the page's own two colours, colour art included.
-    var isMonochrome: Bool
+    public var isMonochrome: Bool
+
+    public init(foreground: UIColor, background: UIColor, isMonochrome: Bool) {
+        self.foreground = foreground
+        self.background = background
+        self.isMonochrome = isMonochrome
+    }
 
     /// True where the page is set light on dark, which is what a colour picture is faded into.
-    var isDark: Bool { Self.luminance(of: background) < 0.5 }
+    public var isDark: Bool { Self.luminance(of: background) < 0.5 }
 
     /// The paler of the page's two colours, which is what the light parts of a picture land on.
-    var lighter: UIColor {
+    public var lighter: UIColor {
         Self.luminance(of: foreground) > Self.luminance(of: background) ? foreground : background
     }
 
     /// The deeper of the two, which is what the dark parts land on.
-    var darker: UIColor {
+    public var darker: UIColor {
         Self.luminance(of: foreground) > Self.luminance(of: background) ? background : foreground
     }
 
@@ -44,9 +50,9 @@ struct PagePalette: Equatable {
     }
 }
 
-extension NSAttributedString.Key {
+public extension NSAttributedString.Key {
     /// The picture a block stands for, on a block that is a picture rather than text.
-    static let pageImage = NSAttributedString.Key("ATPageImage")
+    public static let pageImage = NSAttributedString.Key("ATPageImage")
 }
 
 /// One picture from a book, decoded once and ready for a page to draw.
@@ -57,8 +63,8 @@ extension NSAttributedString.Key {
 /// the two a picture is comes from its pixels, since nothing in the file says.
 ///
 /// A picture the reader has chosen to see in monochrome takes that path whatever it is made of.
-final class PageImage {
-    enum Kind {
+public final class PageImage {
+    public enum Kind: Sendable {
         /// Colour art, shown as it was drawn.
         case colour
         /// Line art, a scan, anything grey: drawn in the page's own two colours.
@@ -66,8 +72,8 @@ final class PageImage {
     }
 
     /// The picture's own size, in pixels.
-    let size: CGSize
-    let kind: Kind
+    public let size: CGSize
+    public let kind: Kind
 
     /// The picture's own pixels. Only colour art keeps them.
     private let colour: CGImage?
@@ -82,14 +88,14 @@ final class PageImage {
     }
 
     /// How far a colour picture is faded on a dark page, so it doesn't glare beside the text.
-    static let dimming: CGFloat = 0.82
+    public static let dimming: CGFloat = 0.82
 
     /// How large the picture is drawn in a column of a given measure.
     ///
     /// It takes the whole measure, but is never blown up past a pixel to the point: a small decoration
     /// stays small rather than turning into a blurred plate. A picture too deep for the page it lands on
     /// gives up width until it fits.
-    func size(fitting measure: CGFloat, depth: CGFloat) -> CGSize {
+    public func size(fitting measure: CGFloat, depth: CGFloat) -> CGSize {
         guard size.width > 0, size.height > 0, measure > 0, depth > 0 else { return .zero }
 
         var width = min(measure, size.width)
@@ -104,7 +110,7 @@ final class PageImage {
     }
 
     /// Draws the picture into a UIKit context, in the page's colours or its own.
-    func draw(in rect: CGRect, palette: PagePalette, into drawing: CGContext) {
+    public func draw(in rect: CGRect, palette: PagePalette, into drawing: CGContext) {
         drawing.saveGState()
         // CoreGraphics counts upwards and a UIKit context downwards, so a picture drawn straight into
         // one stands on its head.
@@ -137,14 +143,20 @@ final class PageImage {
 /// picture rather than on every re-pagination. Reading and decoding run away from the main actor and
 /// hand back plain bytes; wrapping those in a `CGImage` costs nothing and happens here.
 @MainActor
-final class BookImages {
-    static let shared = BookImages()
+public final class BookImages {
+    /// Where a book's pictures are on this device, set once at launch.
+    ///
+    /// A picture from the service has no file behind it: its bytes arrive with the chapter. This
+    /// answers for the ones a book brought with it out of a file, and `nil` for the rest.
+    public static var pictures: (any PictureLibrary)?
+
+    public static let shared = BookImages()
 
     private static let logger = Logger(subsystem: "com.lonelybytes.atreader", category: "images")
 
     /// The longest edge a picture is kept at, in pixels. Wider than any column this app draws, and the
     /// ceiling on what one picture costs in memory.
-    nonisolated static let maximumPixelSize = 1600
+    public nonisolated static let maximumPixelSize = 1600
 
     /// How coarsely a picture is sampled to work out what it is made of.
     private nonisolated static let sampleSize = 64
@@ -160,7 +172,7 @@ final class BookImages {
     /// every re-pagination. A picture from the service is one of these: its bytes are not here.
     private var unresolved: Set<String> = []
 
-    init() {
+    public init() {
         cache.countLimit = 64
         cache.totalCostLimit = 64 * 1024 * 1024
     }
@@ -169,14 +181,14 @@ final class BookImages {
     ///
     /// A source with no picture behind it is simply absent from the answer, and the block that named it
     /// is dropped rather than left as a gap on the page.
-    func prepare(sources: [String]) async -> [String: PageImage] {
+    public func prepare(sources: [String]) async -> [String: PageImage] {
         var ready: [String: PageImage] = [:]
         var wanted: [String: URL] = [:]
 
         for source in Set(sources) {
             if let known = cache.object(forKey: source as NSString) {
                 ready[source] = known
-            } else if !unresolved.contains(source), let url = LocalBookFiles.imageURL(source: source) {
+            } else if !unresolved.contains(source), let url = Self.pictures?.fileURL(forPicture: source) {
                 wanted[source] = url
             } else {
                 unresolved.insert(source)
@@ -208,7 +220,7 @@ final class BookImages {
     ///
     /// A cover arrives decoded from ``CoverCache`` rather than as a file, and is small enough that
     /// reading it costs less than handing it to another actor would.
-    func prepare(_ image: UIImage, key: String) -> PageImage? {
+    public func prepare(_ image: UIImage, key: String) -> PageImage? {
         if let known = cache.object(forKey: key as NSString) { return known }
 
         guard

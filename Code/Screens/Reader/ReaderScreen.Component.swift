@@ -4,6 +4,7 @@
 //
 
 import AuthorToday
+import BookRenderer
 import DesignSystem
 import SwiftUI
 
