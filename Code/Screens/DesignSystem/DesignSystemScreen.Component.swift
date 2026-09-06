@@ -169,6 +169,34 @@ enum DesignSystemScreen {
                         }
                     }
 
+                    specimen("Action") {
+                        VStack(spacing: Design.Space.medium) {
+                            Button {
+                            } label: {
+                                Label {
+                                    Text(verbatim: "Continue reading")
+                                } icon: {
+                                    Image(systemName: "book.fill")
+                                }
+                                .actionLabel()
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .controlSize(.large)
+
+                            Button(role: .destructive) {
+                            } label: {
+                                Label {
+                                    Text(verbatim: "Delete this book")
+                                } icon: {
+                                    Image(systemName: "trash")
+                                }
+                                .actionLabel()
+                            }
+                            .buttonStyle(.bordered)
+                            .controlSize(.large)
+                        }
+                    }
+
                     specimen("Chip") {
                         HStack(spacing: Design.Space.medium) {
                             FilterChip(title: "Selected", isSelected: true, action: {})

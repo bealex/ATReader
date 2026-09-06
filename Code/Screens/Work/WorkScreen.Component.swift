@@ -167,7 +167,7 @@ enum WorkScreen {
                     value: AppRoute.reader(.init(workId: model.workId, title: summary.title, chapterId: chapterId))
                 ) {
                     Label(summary.hasStartedReading ? "Continue reading" : "Read", systemImage: "book.fill")
-                        .frame(maxWidth: .infinity, minHeight: Design.Size.control)
+                        .actionLabel()
                 }
                 .buttonStyle(.borderedProminent)
                 .controlSize(.large)
@@ -217,10 +217,10 @@ enum WorkScreen {
                 isConfirmingDelete = true
             } label: {
                 Label("Delete this book", systemImage: "trash")
-                    .font(Design.Style.label)
-                    .frame(maxWidth: .infinity, minHeight: Design.Size.control)
+                    .actionLabel()
             }
             .buttonStyle(.bordered)
+            .controlSize(.large)
             .padding(.top, Design.Space.medium)
             .accessibilityIdentifier("work.delete")
             .accessibilityHint("Removes the book and its text from this device")
@@ -350,8 +350,8 @@ enum WorkScreen {
                 content()
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(14)
-            .background(Color(.secondarySystemGroupedBackground), in: .rect(cornerRadius: 14))
+            .padding(Design.Space.large)
+            .background(Design.Surface.card, in: .rect(cornerRadius: Design.Radius.medium))
         }
     }
 

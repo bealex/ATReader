@@ -5,6 +5,7 @@
 
 import AuthorToday
 import BookStorage
+import DesignSystem
 import SwiftUI
 
 enum ProfileScreen {
@@ -98,22 +99,22 @@ enum ProfileScreen {
         }
 
         private func profileRow(_ user: UserInfo) -> some View {
-            HStack(spacing: 14) {
+            HStack(spacing: Design.Space.large) {
                 avatar(user)
 
-                VStack(alignment: .leading, spacing: 3) {
+                VStack(alignment: .leading, spacing: Design.Space.extraSmall) {
                     Text(user.displayName)
-                        .font(.headline)
+                        .font(Design.Style.heading)
 
                     if let userName = user.userName, !userName.isEmpty {
                         Text("@\(userName)")
-                            .font(.subheadline)
+                            .font(Design.Style.label)
                             .foregroundStyle(.secondary)
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .padding(.vertical, 6)
+            .padding(.vertical, Design.Space.small)
             .accessibilityElement(children: .combine)
             .accessibilityLabel("Signed in as \(user.displayName)")
         }
@@ -127,7 +128,7 @@ enum ProfileScreen {
                     .resizable()
                     .foregroundStyle(.tertiary)
             }
-            .frame(width: 54, height: 54)
+            .frame(width: Design.Size.avatar, height: Design.Size.avatar)
             .clipShape(.circle)
             .accessibilityHidden(true)
         }

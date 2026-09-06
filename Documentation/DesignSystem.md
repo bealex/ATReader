@@ -23,6 +23,7 @@ apply `Design` to the page.
 | `Surface` | Screen, card and fill, plus the edge colour and `ground(_:)` for a tinted pill. |
 | `Style` | Nine roles, each one system text style, so the whole app follows Dynamic Type. |
 | `Shade` | Two depths and the page-turn cast, applied with `.shade(_:)`. |
+| `actionLabel()` | The shape of a full-width action, so two on one screen agree on height. |
 
 ## The five colours
 
@@ -39,6 +40,15 @@ tint and let their glyph carry the meaning.
 
 Labels stay as `.primary`, `.secondary` and `.tertiary`. The system already names those better than a
 wrapper would, and wrapping them would hide which one is in play.
+
+## Actions
+
+A full-width action wears `.actionLabel()` on its label and `.controlSize(.large)` on the button.
+Prominence is the only thing that varies: `.borderedProminent` for the one thing a screen is for,
+`.bordered` for the rest, `role: .destructive` where it takes something away.
+
+Setting a height without the control size does nothing, which is how the book page ended up with a
+Read button and a Delete button at two different heights and two different type sizes.
 
 ## Motion isn't in it
 

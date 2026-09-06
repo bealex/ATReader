@@ -124,6 +124,15 @@ public enum Design {
 }
 
 extension View {
+    /// The shape of a full-width action: it fills the width and stands at least one control tall.
+    ///
+    /// Goes on the button's label rather than the button, which is what makes the label fill. Pair it
+    /// with `.controlSize(.large)` on the button itself, so two actions on one screen agree on height
+    /// whether one of them is prominent or not.
+    public func actionLabel() -> some View {
+        frame(maxWidth: .infinity, minHeight: Design.Size.control)
+    }
+
     public func shade(_ shade: Design.Shade) -> some View {
         shadow(color: shade.color, radius: shade.radius, x: shade.x, y: shade.y)
     }
