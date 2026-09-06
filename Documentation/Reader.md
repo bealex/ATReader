@@ -185,7 +185,7 @@ A picture is a line of the column like any other. It has a depth, the page break
 tall line, and the slack around it is spread the way the slack around a paragraph is. So a plate never
 runs off the foot of a page.
 
-`ChapterHTML` reads an `<img>` as a block of its own and `ChapterPagination` sets it as a single
+`BookHTML` reads an `<img>` as a block of its own and `ChapterPagination` sets it as a single
 character carrying the picture on an attribute of that character. One character rather than none, so a
 reading position counts a picture the way it counts a paragraph and stays put across a change of font.
 Drawn art says nothing to VoiceOver, so the page names it in place of that character.
@@ -387,7 +387,7 @@ Nothing in a turn waits for work that could have been done earlier:
 - Parsing, language detection and word binding run in a detached task.
 - The chapters either side are laid out while the reader is busy with this one, so crossing a chapter
   break costs a page turn instead of a round trip.
-- Chapter bodies come from `LocalStore` before the service is asked, and land there when they arrive.
+- Chapter bodies come from `SQLiteBookStore` before the service is asked, and land there when they arrive.
 
 A chapter over 239 KB is long enough that the reader should be told what is happening, so the layout
 reports how far it has got and the page shows a progress bar instead of a spinner. Ordinary chapters

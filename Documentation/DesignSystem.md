@@ -1,6 +1,6 @@
 # Design system
 
-Everything outside the reader page is built from `Code/Design/Design.swift`. Two rules hold it
+Everything outside the reader page is built from `Design`, in the `DesignSystem` package. Two rules hold it
 together:
 
 - **Every length is a multiple of three.** The one exception is the hairline, which is a device pixel and
@@ -48,7 +48,8 @@ duration is worse than a page turn off the lattice.
 ## The catalogue
 
 `DesignSystemScreen` draws every token and every component from the tokens themselves, in Debug builds
-only. A catalogue on the device is the only honest specimen: it picks up the real face, the reader's
+only. It lives in the app rather than the package, so it can show the book-shaped pieces beside the
+generic ones. A catalogue on the device is the only honest specimen: it picks up the real face, the reader's
 Dynamic Type setting, the system's light or dark and the materials, none of which a drawing of the app
 can.
 

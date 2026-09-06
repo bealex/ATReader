@@ -3,9 +3,23 @@
 An iOS reader client for [author.today](https://author.today): sign in, read your library, search the
 catalogue, follow the charts.
 
-Two modules. The `AuthorToday` package (`Frameworks/AuthorToday`) owns everything network- and
-service-shaped; the app (`Code/`) owns screens, session, cache and background work. Keep that line:
-nothing service-specific belongs in `Code/`, and nothing SwiftUI belongs in the package.
+Seven modules. Six packages under `Frameworks/` hold everything that isn't a screen, and `Code/` holds
+the screens, the session and the wiring between them.
+
+```
+BookKit            what a book is, and every protocol the others meet at. Foundation only.
+DesignSystem       the lattice, five colours, nine roles. Knows nothing about books.
+BookFormats        reading a book out of a file.        → BookKit
+BookStorage        one SQLite file, covers, keychain.   → BookKit
+BookRenderer       typography, pagination, the page.    → BookKit
+AuthorTodayBooks   the service's shapes as one Book.    → BookKit, AuthorToday
+AuthorToday        HTTP, models, decryption.
+Code/              screens, session, sweep, composition.
+```
+
+`Scripts/check-modules.sh` holds the rules the compiler can't: nothing that models a book or meets a
+service draws one, only `AuthorTodayBooks` meets `AuthorToday`, and `BookRenderer` never sees
+`DesignSystem`, because the reader page is set by whoever is reading.
 
 ## Before you change anything
 

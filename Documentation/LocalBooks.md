@@ -5,10 +5,10 @@ downstream can tell the difference: the same library row, the same book page, th
 
 ## The seam
 
-Everything a screen shows comes out of `LocalStore`, and the reader's pipeline starts at a chapter
+Everything a screen shows comes out of `SQLiteBookStore`, and the reader's pipeline starts at a chapter
 *body*, which is HTML. So an imported book only has to fill the rows a download would fill: one work,
 one chapter per section, one body per chapter. `FB2Parser` emits each section as the same `<p>` markup
-a chapter arrives in from the service, and `ChapterHTML`, `ChapterContent`, `ChapterPagination` and
+a chapter arrives in from the service, and `BookHTML`, `ChapterContent`, `ChapterPagination` and
 `ChapterLayout` then work on it unchanged.
 
 That's the whole integration. There's no second reader and no second content type.
@@ -115,7 +115,8 @@ where it doesn't. So a corrected file lands on the book it corrects rather than 
 id, its place in the library and the reader's position. Hashing the bytes would file every corrected
 copy as a new book.
 
-`LocalBooks.isLocal` is what a screen asks before calling the service. A shelf replace, a download
+`BookNumbering.isLocal` is what tells the two apart, though a screen rarely asks: a fetch goes
+through `BookLoader`, and a book from a file routes to a loader with nothing to give. A shelf replace, a download
 clear, marking a book read, taking one off a shelf, reporting progress and every fetch step around
 local books. Removing an imported book is a real deletion, since its text is on the device and nowhere
 else, so the book page asks first.
@@ -124,7 +125,7 @@ else, so the book page asks first.
 
 Binding the words a line may not break between and marking every hyphenation point costs about as much
 as laying the book out, and neither depends on the font, the margins or the page size. `BookProcessor`
-does it once per chapter and `LocalStore` keeps the result, so a book opened again costs a read rather
+does it once per chapter and `SQLiteBookStore` keeps the result, so a book opened again costs a read rather
 than the work.
 
 Two hashes ride with each stored chapter:

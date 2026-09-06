@@ -1,14 +1,31 @@
 # Architecture
 
-Two modules with a hard line between them.
+Seven modules, and every edge points one way.
 
 ```
-Frameworks/AuthorToday/   the service: HTTP, models, decryption. No SwiftUI, no app concepts.
-Code/                     the app: screens, session, cache, background work.
+                        DesignSystem            BookKit
+                             ↑                  ↑  ↑  ↑
+                             |      ┌───────────┘  |  └───────────┐
+                             |      |              |              |
+                             |  BookFormats   BookStorage   BookRenderer
+                             |      ↑              ↑              ↑
+                             └──────┴──────┬───────┴──────────────┘
+                                           |
+                                        Code/  ← AuthorTodayBooks → AuthorToday
 ```
 
-The package knows nothing about screens; the app knows nothing about headers, endpoints or ciphers.
-Anything service-shaped that leaks into `Code/` is a mistake, and so is the reverse.
+`BookKit` is where the others meet: what a book, a chapter and a paragraph are, and the protocols that
+keep the arrows pointing down. Those are `BookLoader`, the three store roles, `PictureLibrary` and
+`BookFormat`. It imports Foundation and nothing else.
+
+Nothing below `Code/` knows how a book is fetched, parsed, laid out, drawn or stored except the one
+module whose job that is. What is left in `Code/` is screens, the session, the daily sweep, and the ten
+or so lines that hand one module to another.
+
+Three rules the compiler cannot state are checked by `Scripts/check-modules.sh` instead: nothing that
+models a book or talks to a service may draw one, only `AuthorTodayBooks` may meet `AuthorToday`, and
+`BookRenderer` may never see `DesignSystem`. The reader page is set by whoever is reading, and a
+system imposed on it would be a system imposed on someone else's book.
 
 ## The package
 
@@ -38,16 +55,16 @@ Model` and a `struct Component: View`, split across `<Screen>.Model.swift` and
 
 ```
 App/          entry point, RootScreen (signed-in vs signed-out), AppRoute
-Design/       Design: the spacing lattice, the five colours, the nine text roles
-Components/   CoverImage, PagePicture, WorkRow, WorkBadge, FlowLayout, LoadingOverlay,
-              WorkSummary, BookTitlePageView, ChapterPageView, PageTurnView, DebugReport
+Components/   CoverImage, BookRow, BookBadges, BookFormatting, DebugReport
 Screens/      Login, Library, Search, Top, Work, Reader, Profile, DesignSystem (Debug)
-Services/     SessionStore, KeychainStore, LocalStore, CoverCache, CatalogFeed,
-              ChapterContent, Typography, ChapterPagination, ParagraphRuler,
-              ColumnComposer, ChapterLayout, BookImages, BookPagination, BookProcessor,
-              ChapterUpdateService, BackgroundRefresh, ReaderSettings
-Services/FB2/ BookInbox, ZipArchive, FB2Parser, FB2Book, BookImport, LocalBooks
+Services/     SessionStore, CatalogFeed, ChapterUpdateService, BackgroundRefresh,
+              ReaderSettings, ReaderFaceNames, BookInbox, BookImporting, Renderers
 ```
+
+`Services/` is composition, not a layer that got left behind. `SessionStore` builds the client from
+constants a build phase on the app target writes; `BackgroundRefresh`'s identifier has to agree with
+the Info.plist; `ChapterUpdateService` badges the app icon; `Renderers` is where the typesetter is
+handed a store and a picture shelf. None of those can see what they need from inside a package.
 
 ### Routing
 
