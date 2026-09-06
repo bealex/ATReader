@@ -3,21 +3,38 @@
 //  Licensed under the MIT License. See LICENSE in the repository root.
 //
 
+import BookKit
 import Foundation
 
-/// Reads a FictionBook 2 file into an ``FB2Book``.
+/// Reads a FictionBook 2 file into an ``ParsedBook``.
 ///
 /// `XMLParser` rather than a document tree: these files run to megabytes, and everything wanted from
 /// one is decided on the way past. Namespace processing is off so element names arrive as written,
 /// which is what the `l:href` on an image is.
-enum FB2Parser {
+public enum FB2Parser {
     /// A book's chapters are the sections that hold its text.
     ///
     /// Sections nest, and a book with parts puts its chapters one level further in than a book without.
     /// So a section carrying sections of its own is a part rather than a chapter: what it holds directly
     /// (its title, an epigraph) becomes a short page of its own, and the sections inside it become the
     /// chapters. Splitting at the top level instead gave one 100,000-character chapter per part.
-    static func parse(_ data: Data) throws -> FB2Book {
+    /// Whether these bytes open like an FB2 file, without parsing the whole of one.
+    ///
+    /// The root element is what says so. Only the head is looked at: a book runs to megabytes, and
+    /// deciding whether a picker should offer it is not worth reading them.
+    public static func looksLikeFB2(_ data: Data) -> Bool {
+        let head = data.prefix(4096)
+
+        guard
+            let text = String(data: head, encoding: .utf8) ?? String(data: head, encoding: .isoLatin1)
+        else {
+            return false
+        }
+
+        return text.contains("FictionBook")
+    }
+
+    public static func parse(_ data: Data) throws -> ParsedBook {
         let builder = Builder()
         let parser = XMLParser(data: data)
         parser.delegate = builder
@@ -71,7 +88,7 @@ enum FB2Parser {
         /// them are never decoded. FB2 puts its binaries after the text, so by then every name is known.
         private var wanted: Set<String> = []
 
-        private var sections: [FB2Book.Section] = []
+        private var sections: [ParsedBook.Section] = []
 
         /// A section the parser is inside, filling.
         private struct Open {
@@ -89,12 +106,12 @@ enum FB2Parser {
         /// nowhere to show.
         private var hasReadBody = false
 
-        func book() throws -> FB2Book {
+        func book() throws -> ParsedBook {
             closeChapter()
 
             guard !sections.isEmpty else { throw FB2Error.notABook }
 
-            return FB2Book(
+            return ParsedBook(
                 title: bookTitle?.trimmed ?? String(localized: "Untitled"),
                 authors: authors,
                 annotation: annotation.isEmpty ? nil : annotation.joined(separator: "\n\n"),
@@ -277,7 +294,7 @@ enum FB2Parser {
 
             guard !section.lines.isEmpty || section.title != nil else { return }
 
-            sections.append(FB2Book.Section(
+            sections.append(ParsedBook.Section(
                 title: section.title,
                 html: section.lines.joined(),
                 textLength: section.length

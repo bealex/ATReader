@@ -48,6 +48,7 @@ if [[ ${#CATALOGS[@]} -eq 0 ]]; then
     "$REPO/Code/Resources/Localizable.xcstrings"
     "$REPO/Frameworks/AuthorToday/Sources/AuthorToday/Resources/Localizable.xcstrings"
     "$REPO/Frameworks/DesignSystem/Sources/DesignSystem/Resources/Localizable.xcstrings"
+    "$REPO/Frameworks/BookKit/Sources/BookKit/Resources/Localizable.xcstrings"
 
   )
 fi

@@ -117,7 +117,7 @@ extension WorkScreen {
         /// Each field is left alone unless it actually changed, so a refresh behind a screen the reader
         /// is already looking at moves only the parts that moved.
         func refreshFromStore() async {
-            let stored = await store.work(id: workId)
+            let stored = await store.book(id: workId)
             let storedChapters = await store.chapters(workId: workId)
             let storedPosition = await store.position(workId: workId)
 
@@ -148,7 +148,7 @@ extension WorkScreen {
                 let (loadedDetails, loadedChapters) = try await (detailsTask, contentsTask)
 
                 details = loadedDetails
-                await store.store(work: Book(loadedDetails), tags: loadedDetails.tags ?? [])
+                await store.store(book: Book(loadedDetails), tags: loadedDetails.tags ?? [])
                 await store.store(
                     chapters: loadedChapters.map(BookChapter.init).sorted { ($0.sortOrder ?? 0) < ($1.sortOrder ?? 0) },
                     workId: workId
@@ -246,7 +246,7 @@ extension WorkScreen {
             guard isLocal else { return }
 
             await BookProcessor.shared.stop(workId: workId)
-            await BookImport.remove(workId: workId)
+            await BookInstaller.remove(workId: workId)
         }
     }
 }

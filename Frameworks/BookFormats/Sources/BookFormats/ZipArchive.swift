@@ -13,7 +13,7 @@ import Foundation
 ///
 /// The sizes are read from the central directory rather than from each local header, because a zip
 /// written as a stream leaves them zero in the local header and fills them in afterwards.
-enum ZipArchive {
+public enum ZipArchive {
     /// One member of an archive, located but not yet read.
     struct Entry {
         var name: String
@@ -31,7 +31,7 @@ enum ZipArchive {
     }
 
     /// True where the bytes open with a local header or an empty archive's end record.
-    static func isArchive(_ data: Data) -> Bool {
+    public static func isArchive(_ data: Data) -> Bool {
         guard data.count >= 4 else { return false }
 
         let signature = integer(data, at: 0, bytes: 4)
@@ -39,7 +39,7 @@ enum ZipArchive {
     }
 
     /// The book inside an archive: the first `.fb2` member, or the largest file where none says so.
-    static func book(in data: Data) throws -> Data {
+    public static func book(in data: Data) throws -> Data {
         let entries = try self.entries(in: data).filter(\.isFile)
 
         guard !entries.isEmpty else { throw FB2Error.emptyArchive }

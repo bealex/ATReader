@@ -3,6 +3,7 @@
 //  Licensed under the MIT License. See LICENSE in the repository root.
 //
 
+import BookKit
 import Foundation
 import Testing
 
@@ -81,8 +82,8 @@ struct LibraryFilterTests {
 
     // MARK: - A book to file
 
-    private static func book(read: Double, isFinished: Bool) -> WorkSummary {
-        WorkSummary(
+    private static func book(read: Double, isFinished: Bool) -> Book {
+        Book(
             id: Int.random(in: 1 ... 1_000_000),
             title: "Книга",
             authorLine: "Автор",

@@ -14,7 +14,7 @@ let package = Package(
         .library(name: "BookKit", targets: [ "BookKit" ])
     ],
     targets: [
-        .target(name: "BookKit", swiftSettings: [ .swiftLanguageMode(.v6) ]),
+        .target(name: "BookKit", resources: [ .process("Resources") ], swiftSettings: [ .swiftLanguageMode(.v6) ]),
         .testTarget(name: "BookKitTests", dependencies: [ "BookKit" ], swiftSettings: [ .swiftLanguageMode(.v6) ]),
     ]
 )

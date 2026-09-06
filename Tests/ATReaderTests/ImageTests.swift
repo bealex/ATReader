@@ -3,6 +3,8 @@
 //  Licensed under the MIT License. See LICENSE in the repository root.
 //
 
+import BookKit
+import BookStorage
 import SwiftUI
 import Testing
 import UIKit
@@ -17,7 +19,7 @@ import UIKit
 @MainActor
 struct ImageTests {
     /// The work id these pictures are filed under, well outside anything an import would take.
-    private static let workId = LocalBooks.workId(sequence: 9999)
+    private static let workId = BookNumbering.workId(sequence: 9999)
 
     // MARK: - What a picture is made of
 
@@ -318,7 +320,7 @@ struct ImageTests {
 
     /// Puts a picture where a book's own would sit, so the whole path is what gets exercised.
     private func write(_ image: UIImage, named name: String) async -> String? {
-        let directory = LocalBooks.imagesDirectory(workId: Self.workId)
+        let directory = LocalBookFiles.imagesDirectory(workId: Self.workId)
 
         try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
 
@@ -329,7 +331,7 @@ struct ImageTests {
             (try? data.write(to: directory.appendingPathComponent(file))) != nil
         else { return nil }
 
-        return LocalBooks.imageSource(workId: Self.workId, name: file)
+        return LocalBookFiles.imageSource(workId: Self.workId, name: file)
     }
 
     // MARK: - Drawing one to look at

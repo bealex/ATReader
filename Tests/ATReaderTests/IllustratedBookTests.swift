@@ -4,6 +4,9 @@
 //
 
 import AuthorToday
+import BookFormats
+import BookKit
+import BookStorage
 import Testing
 import UIKit
 
@@ -180,7 +183,7 @@ struct IllustratedBookTests {
         var chapters: [Chapter]
     }
 
-    private func parse() async throws -> FB2Book? {
+    private func parse() async throws -> ParsedBook? {
         guard
             let path = Self.path,
             let data = try? Data(contentsOf: URL(fileURLWithPath: (path as NSString).expandingTildeInPath))
@@ -192,7 +195,7 @@ struct IllustratedBookTests {
 
     /// A book read into a store of its own.
     private struct Opened {
-        var store: LocalStore
+        var store: SQLiteBookStore
         var workId: Int
     }
 
@@ -205,8 +208,8 @@ struct IllustratedBookTests {
 
         let file = FileManager.default.temporaryDirectory
             .appendingPathComponent("illustrated-\(UUID().uuidString).sqlite")
-        let store = LocalStore(fileURL: file)
-        let work = try await BookImport.import(from: url, store: store)
+        let store = SQLiteBookStore(fileURL: file)
+        let work = try await BookImporting.import(from: url, store: store)
 
         return Opened(store: store, workId: work.id)
     }
@@ -233,9 +236,9 @@ struct IllustratedBookTests {
     }
 
     /// The names every `<image>` in the book's text asked for.
-    private static func referenced(in book: FB2Book) -> [String] {
+    private static func referenced(in book: ParsedBook) -> [String] {
         book.sections
-            .flatMap { ChapterHTML.paragraphs(from: $0.html) }
+            .flatMap { BookHTML.paragraphs(from: $0.html) }
             .compactMap(\.imageSource)
             .reduce(into: Set<String>()) { $0.insert($1) }
             .sorted()

@@ -4,6 +4,8 @@
 //
 
 import AuthorToday
+import BookKit
+import BookStorage
 import SwiftUI
 import Testing
 import UIKit
@@ -118,9 +120,9 @@ struct RunOnTests {
     }
 
     /// Chapters short enough that each one leaves room for the next on its last page.
-    private static func book(of count: Int) -> [ChapterInfo] {
+    private static func book(of count: Int) -> [BookChapter] {
         (1 ... count).map {
-            ChapterInfo(id: $0, workId: 1, title: "Глава \($0)", sortOrder: $0, textLength: nil)
+            BookChapter(id: $0, workId: 1, title: "Глава \($0)", sortOrder: $0, textLength: nil)
         }
     }
 
@@ -133,7 +135,7 @@ struct RunOnTests {
         BookPagination.make(
             workId: 1,
             context: context,
-            store: LocalStore(
+            store: SQLiteBookStore(
                 fileURL: URL(fileURLWithPath: NSTemporaryDirectory())
                     .appendingPathComponent("run-on-\(UUID().uuidString).sqlite")
             )

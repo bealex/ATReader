@@ -3,6 +3,9 @@
 //  Licensed under the MIT License. See LICENSE in the repository root.
 //
 
+import BookFormats
+import BookKit
+import BookStorage
 import Testing
 import UIKit
 
@@ -70,7 +73,7 @@ struct BookFileTests {
         defer { Self.clean(plain) }
 
         let archive = try #require(Self.zipped(book, named: "book.fb2"))
-        let zipped = try await BookImport.import(
+        let zipped = try await BookImporting.import(
             from: Self.written(archive, named: "book.fb2.zip"),
             store: plain.store
         )
@@ -87,9 +90,9 @@ struct BookFileTests {
 
         defer { Self.clean(imported) }
 
-        #expect(LocalBooks.hasKeptFile(workId: imported.workId))
+        #expect(LocalBookFiles.hasKeptFile(workId: imported.workId))
         // Kept compressed, so what comes back has to be the book rather than what was written.
-        #expect(LocalBooks.keptFile(workId: imported.workId) == book)
+        #expect(LocalBookFiles.keptFile(workId: imported.workId) == book)
     }
 
     /// What is kept is the book, not the archive it arrived in.
@@ -101,7 +104,7 @@ struct BookFileTests {
 
         defer { Self.clean(imported) }
 
-        #expect(LocalBooks.keptFile(workId: imported.workId) == book)
+        #expect(LocalBookFiles.keptFile(workId: imported.workId) == book)
     }
 
     @Test
@@ -110,7 +113,7 @@ struct BookFileTests {
 
         defer { Self.clean(imported) }
 
-        let again = try await BookImport.reimport(workId: imported.workId, store: imported.store)
+        let again = try await BookImporting.reimport(workId: imported.workId, store: imported.store)
 
         #expect(again.id == imported.workId)
         #expect(await imported.store.chapters(workId: imported.workId).count == 1)
@@ -123,7 +126,7 @@ struct BookFileTests {
 
         defer { Self.clean(imported) }
 
-        try await BookImport.reimport(workId: imported.workId, store: imported.store)
+        try await BookImporting.reimport(workId: imported.workId, store: imported.store)
 
         let chapters = await imported.store.chapters(workId: imported.workId)
         let body = try #require(await imported.store.body(workId: imported.workId, chapterId: chapters[0].id))
@@ -137,16 +140,16 @@ struct BookFileTests {
     func takesTheKeptFileAwayWithTheBook() async throws {
         let imported = try await Self.importing(Self.fb2(), named: "book.fb2")
 
-        await BookImport.remove(workId: imported.workId, store: imported.store)
+        await BookInstaller.remove(workId: imported.workId, store: imported.store)
 
-        #expect(!LocalBooks.hasKeptFile(workId: imported.workId))
+        #expect(!LocalBookFiles.hasKeptFile(workId: imported.workId))
     }
 
     // MARK: - Making a book to read
 
     /// A book read into a store of its own, and the file it was read from.
     private struct Imported {
-        var store: LocalStore
+        var store: SQLiteBookStore
         var workId: Int
         var database: URL
     }
@@ -154,17 +157,17 @@ struct BookFileTests {
     private static func importing(_ data: Data, named name: String) async throws -> Imported {
         let database = FileManager.default.temporaryDirectory
             .appendingPathComponent("books-\(UUID().uuidString).sqlite")
-        let store = LocalStore(fileURL: database)
-        let work = try await BookImport.import(from: written(data, named: name), store: store)
+        let store = SQLiteBookStore(fileURL: database)
+        let work = try await BookImporting.import(from: written(data, named: name), store: store)
 
         return Imported(store: store, workId: work.id, database: database)
     }
 
     private static func clean(_ imported: Imported) {
         try? FileManager.default.removeItem(at: imported.database)
-        try? FileManager.default.removeItem(at: LocalBooks.fileURL(workId: imported.workId))
-        try? FileManager.default.removeItem(at: LocalBooks.imagesDirectory(workId: imported.workId))
-        try? FileManager.default.removeItem(at: LocalBooks.coverURL(workId: imported.workId))
+        try? FileManager.default.removeItem(at: LocalBookFiles.fileURL(workId: imported.workId))
+        try? FileManager.default.removeItem(at: LocalBookFiles.imagesDirectory(workId: imported.workId))
+        try? FileManager.default.removeItem(at: LocalBookFiles.coverURL(workId: imported.workId))
     }
 
     private static func written(_ data: Data, named name: String) -> URL {

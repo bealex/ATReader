@@ -314,7 +314,7 @@ extension LibraryScreen {
             works.removeAll { $0.id == work.id }
             processing[work.id] = nil
             await BookProcessor.shared.stop(workId: work.id)
-            await BookImport.remove(workId: work.id)
+            await BookInstaller.remove(workId: work.id)
         }
 
         /// True for a book that came from a file rather than the service.
@@ -334,7 +334,7 @@ extension LibraryScreen {
         /// Reading fills the rings, and the service knows nothing about it: the position and the
         /// progress it implies live here alone. Coming back from a book has to read them again.
         func refreshFromStore() async {
-            let stored = await store.works()
+            let stored = await store.books()
 
             guard !stored.isEmpty else { return }
 
@@ -384,7 +384,7 @@ extension LibraryScreen {
         /// Draws the library the device already has before the service is asked anything, so it opens
         /// instantly and opens at all with no network.
         private func showStoredLibrary() async {
-            let stored = await store.works()
+            let stored = await store.books()
 
             guard !stored.isEmpty, works.isEmpty else { return }
 
@@ -453,7 +453,7 @@ extension LibraryScreen {
                 await store.replaceLibrary(with: entries)
                 // Read back rather than painting what arrived: the service carries no progress this
                 // device made, so its copy would undo a book marked read the moment it landed.
-                let merged = await store.works()
+                let merged = await store.books()
                 apply(entries: merged.isEmpty ? entries : merged)
                 isOffline = false
                 hasLoaded = true
@@ -486,7 +486,7 @@ extension LibraryScreen {
 
             if let index = works.firstIndex(where: { $0.id == work.id }) {
                 works[index].libraryState = .finished
-                await store.store(work: works[index])
+                await store.store(book: works[index])
             }
 
             guard let last = await contents(of: work.id).last(where: \.isReadable) else { return }

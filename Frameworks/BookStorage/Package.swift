@@ -9,7 +9,7 @@ import PackageDescription
 let package = Package(
     name: "BookStorage",
     defaultLocalization: "en",
-    platforms: [ .iOS("27.0") ],
+    platforms: [ .iOS("27.0"), .macOS(.v15) ],
     products: [
         .library(name: "BookStorage", targets: [ "BookStorage" ])
     ],

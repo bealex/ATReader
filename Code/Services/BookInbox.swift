@@ -3,6 +3,7 @@
 //  Licensed under the MIT License. See LICENSE in the repository root.
 //
 
+import BookFormats
 import BookKit
 import BookStorage
 import Foundation
@@ -50,7 +51,7 @@ final class BookInbox {
         defer { isImporting = false }
 
         do {
-            let work = try await BookImport.reimport(workId: workId, store: store)
+            let work = try await BookImporting.reimport(workId: workId, store: store)
             await processor.start(workId: work.id, chapters: store.chapters(workId: work.id))
             importedAt = .now
             return work
@@ -73,7 +74,7 @@ final class BookInbox {
         defer { isImporting = false }
 
         do {
-            let work = try await BookImport.import(from: url)
+            let work = try await BookImporting.import(from: url, store: store)
             await processor.start(workId: work.id, chapters: store.chapters(workId: work.id))
             importedAt = .now
             return work

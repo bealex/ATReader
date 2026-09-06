@@ -341,7 +341,7 @@ extension ReaderScreen {
             // Opening a book counts as seeing whatever the daily sweep flagged for it.
             await UpdateBadge.clear(workId: workId)
 
-            book = await store.work(id: workId)?.summary
+            book = await store.book(id: workId)?.summary
             chapters = await store.chapters(workId: workId)
             let position = await store.position(workId: workId)
 
@@ -411,7 +411,7 @@ extension ReaderScreen {
 
             let summary = Book(details)
             book = summary
-            await store.store(work: summary, tags: details.tags)
+            await store.store(book: summary, tags: details.tags)
         }
 
         /// Asks the service where this reader stopped and keeps the session id for progress reports.

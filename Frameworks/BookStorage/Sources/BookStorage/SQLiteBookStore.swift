@@ -65,7 +65,7 @@ public actor SQLiteBookStore {
         return statement.integer(0)
     }
 
-    public func works(in shelf: BookShelf? = nil) -> [Book] {
+    public func books(in shelf: BookShelf? = nil) -> [Book] {
         let query =
             shelf == nil
             ? """
@@ -91,7 +91,7 @@ public actor SQLiteBookStore {
         return result
     }
 
-    public func work(id: Int) -> StoredBook? {
+    public func book(id: Int) -> StoredBook? {
         let query = "SELECT payload, tags, reading_progress FROM work WHERE id = ?"
 
         guard let statement = Statement(open(), query) else { return nil }
@@ -162,17 +162,17 @@ public actor SQLiteBookStore {
         store(progress: Double(read) / Double(total), workId: workId)
     }
 
-    public func store(work: Book, tags: [String]? = nil) {
-        store(works: [ work ])
+    public func store(book: Book, tags: [String]? = nil) {
+        store(books: [ book ])
 
         guard let tags, let statement = Statement(open(), "UPDATE work SET tags = ? WHERE id = ?") else { return }
 
         statement.bind(1, encode(tags))
-        statement.bind(2, work.id)
+        statement.bind(2, book.id)
         statement.execute()
     }
 
-    public func store(works: [Book]) {
+    public func store(books: [Book]) {
         let query = """
             INSERT INTO work (
                 id, title, author, library_state, last_read_time, reading_progress, updated_at, payload,
@@ -203,7 +203,7 @@ public actor SQLiteBookStore {
                 let lookup = Statement(open(), "SELECT payload FROM work WHERE id = ?")
             else { return }
 
-            for work in works {
+            for work in books {
                 // Merged rather than replaced: the shelf and a book's own details each leave out what
                 // the other carries, and the payload is one column holding both.
                 let merged = storedWork(work.id, using: lookup).map(work.merged) ?? work
@@ -237,7 +237,7 @@ public actor SQLiteBookStore {
 
     /// Replaces the shelves wholesale, so a book removed on another device stops showing up here.
     public func replaceLibrary(with works: [Book]) {
-        store(works: works)
+        store(books: works)
 
         let ids = works.map { String($0.id) }.joined(separator: ",")
         // Books imported from a file are on no shelf the service knows, so they sit outside this.
