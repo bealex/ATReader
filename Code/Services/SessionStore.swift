@@ -4,6 +4,8 @@
 //
 
 import AuthorToday
+import AuthorTodayBooks
+import BookKit
 import BookStorage
 import Foundation
 import UIKit
@@ -27,6 +29,12 @@ final class SessionStore {
     }
 
     let client: AuthorTodayClient
+
+    /// The two places a book can be refreshed from, asked in turn.
+    ///
+    /// Screens ask this rather than the client, so a book that came from a file routes to a loader
+    /// that answers nothing and no caller has to know which kind it is holding.
+    var loaders: BookLoaders { BookLoaders([ ServiceBookLoader(client: client), FileBookLoader() ]) }
 
     private(set) var state: State = .restoring
 

@@ -388,10 +388,11 @@ extension ReaderScreen {
         private var isLocal: Bool { BookNumbering.isLocal(workId) }
 
         private func refreshContents() async {
-            guard !isLocal else { return }
-
             do {
-                let fetched = try await session.client.workContents(id: workId).map(BookChapter.init)
+                // A book from a file routes to a loader with nothing to give, which is the whole of
+                // what used to be an isLocal branch here.
+                guard let fetched = try await session.loaders.contents(of: workId) else { return }
+
                 await store.store(chapters: fetched, workId: workId)
                 chapters = fetched.sorted { ($0.sortOrder ?? 0) < ($1.sortOrder ?? 0) }
                 isOffline = false
@@ -710,12 +711,12 @@ extension ReaderScreen {
                 return prepared
             }
 
-            // A book from a file carries all its text already; there is nowhere else to look.
-            guard !isLocal else { return nil }
-
             do {
-                let chapter = try await session.client.chapterText(workId: workId, chapterId: chapterId)
-                await store.store(body: ChapterBody(chapter), workId: workId)
+                // A book from a file carries all its text already, and its loader says so by
+                // answering nothing.
+                guard let chapter = try await session.loaders.body(of: chapterId, in: workId) else { return nil }
+
+                await store.store(body: chapter, workId: workId)
                 let prepared = await processor.content(workId: workId, chapterId: chapterId)
                 parsed[chapterId] = prepared
                 isOffline = false
@@ -780,7 +781,7 @@ extension ReaderScreen {
 
         /// Syncs the position upstream in coarse steps rather than on every page.
         private func reportProgress(force: Bool = false) {
-            guard pageCount > 0, !isLocal, session.isSignedIn, let chapterId = currentChapterId else { return }
+            guard pageCount > 0, session.isSignedIn, let chapterId = currentChapterId else { return }
 
             let chapterProgress = Double(currentPage + 1) / Double(pageCount)
 
@@ -790,11 +791,10 @@ extension ReaderScreen {
             let overall = overallProgress(chapterProgress: chapterProgress)
 
             Task { [session, workId, sessionId] in
-                try? await session.client.updateProgress(
-                    workId: workId,
-                    chapterId: chapterId,
-                    workProgress: overall,
+                await session.loaders.report(
+                    ReadingPosition(workId: workId, chapterId: chapterId, characterOffset: 0, updatedAt: .now),
                     chapterProgress: chapterProgress,
+                    bookProgress: overall,
                     sessionId: sessionId
                 )
             }
