@@ -1,0 +1,19 @@
+// swift-tools-version: 6.0
+//
+//  Copyright © 2026 Alexander Babaev.
+//  Licensed under the MIT License. See LICENSE in the repository root.
+//
+
+import PackageDescription
+
+let package = Package(
+    name: "BookKit",
+    defaultLocalization: "en",
+    platforms: [ .iOS("27.0"), .macOS(.v15) ],
+    products: [
+        .library(name: "BookKit", targets: [ "BookKit" ])
+    ],
+    targets: [
+        .target(name: "BookKit", swiftSettings: [ .swiftLanguageMode(.v6) ])
+    ]
+)

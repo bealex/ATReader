@@ -6,11 +6,16 @@
 import SwiftUI
 
 /// Lays its subviews out left to right and wraps to a new line when the width runs out.
-struct FlowLayout: Layout {
-    var spacing: CGFloat = 6
-    var lineSpacing: CGFloat = 6
+public struct FlowLayout: Layout {
+    public var spacing: CGFloat
+    public var lineSpacing: CGFloat
 
-    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout Void) -> CGSize {
+    public init(spacing: CGFloat = Design.Space.small, lineSpacing: CGFloat = Design.Space.small) {
+        self.spacing = spacing
+        self.lineSpacing = lineSpacing
+    }
+
+    public func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout Void) -> CGSize {
         let width = proposal.width ?? .infinity
         let lines = lines(of: subviews, within: width)
         let height = lines.reduce(0) { $0 + $1.height } + lineSpacing * CGFloat(max(0, lines.count - 1))
@@ -18,7 +23,7 @@ struct FlowLayout: Layout {
         return CGSize(width: min(width, lines.map(\.width).max() ?? 0), height: height)
     }
 
-    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout Void) {
+    public func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout Void) {
         var y = bounds.minY
 
         for line in lines(of: subviews, within: bounds.width) {

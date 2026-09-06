@@ -32,7 +32,7 @@ set -uo pipefail
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SCHEME="ATReader"
 PROJECT="$REPO/ATReader.xcodeproj"
-PACKAGE="$REPO/Frameworks/AuthorToday"
+FRAMEWORKS="$REPO/Frameworks"
 DD="$REPO/build/dd"
 MAX_ERRORS=12
 
@@ -348,7 +348,11 @@ test_totals() {
 cmd_test() {
   local rc=0
   if [ "$TESTS" != ui ]; then
-    run_phase "test · package unit" swift test --package-path "$PACKAGE" || rc=1
+    # Every package that ships tests, so a new one is picked up without touching this script.
+    for package in "$FRAMEWORKS"/*/; do
+      [ -d "${package}Tests" ] || continue
+      run_phase "test · $(basename "$package") unit" swift test --package-path "$package" || rc=1
+    done
   fi
   if [ "$TESTS" != unit ]; then
     ensure_project || return 1

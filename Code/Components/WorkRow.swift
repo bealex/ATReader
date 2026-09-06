@@ -4,6 +4,7 @@
 //
 
 import AuthorToday
+import DesignSystem
 import SwiftUI
 
 /// A book as it appears in every list: cover, title, author and the reader's own position.

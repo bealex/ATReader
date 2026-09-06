@@ -3,6 +3,7 @@
 //  Licensed under the MIT License. See LICENSE in the repository root.
 //
 
+import DesignSystem
 import SwiftUI
 
 /// A book cover with a placeholder that keeps the layout stable while the image loads.

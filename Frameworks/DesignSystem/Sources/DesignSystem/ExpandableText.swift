@@ -10,9 +10,9 @@ import SwiftUI
 /// The control appears only when the text is actually longer than the limit, which takes measuring:
 /// a hidden copy with no limit is laid out at the same width, and being taller than the visible one is
 /// what says the visible one was cut.
-struct ExpandableText: View {
-    let text: String
-    var lineLimit = 5
+public struct ExpandableText: View {
+    public let text: String
+    public var lineLimit: Int
 
     @State
     private var isExpanded = false
@@ -23,13 +23,13 @@ struct ExpandableText: View {
 
     private var isCut: Bool { fullHeight > clampedHeight + 1 }
 
-    init(_ text: String, lineLimit: Int = 5) {
+    public init(_ text: String, lineLimit: Int = 5) {
         self.text = text
         self.lineLimit = lineLimit
     }
 
-    var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
+    public var body: some View {
+        VStack(alignment: .leading, spacing: Design.Space.small) {
             Text(text)
                 .lineLimit(isExpanded ? nil : lineLimit)
                 .fixedSize(horizontal: false, vertical: true)
@@ -51,11 +51,15 @@ struct ExpandableText: View {
                 }
 
             if isCut {
-                Button(isExpanded ? "Show less" : "Show more") {
+                Button {
                     withAnimation(.easeInOut(duration: 0.2)) { isExpanded.toggle() }
+                } label: {
+                    Text(isExpanded ? "Show less" : "Show more", bundle: .module)
                 }
-                .font(.footnote)
-                .accessibilityHint(isExpanded ? "Shortens the text" : "Shows the rest of the text")
+                .font(Design.Style.caption)
+                .accessibilityHint(
+                    Text(isExpanded ? "Shortens the text" : "Shows the rest of the text", bundle: .module)
+                )
             }
         }
     }

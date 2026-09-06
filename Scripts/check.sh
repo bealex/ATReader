@@ -78,6 +78,7 @@ else
   step "Bash format" "$SCRIPTS/format-bash.sh" --check
 fi
 step "Bash lint" "$SCRIPTS/lint-bash.sh"
+step "Modules" "$SCRIPTS/check-modules.sh"
 step "Localization" "$SCRIPTS/loc-check.sh"
 
 echo

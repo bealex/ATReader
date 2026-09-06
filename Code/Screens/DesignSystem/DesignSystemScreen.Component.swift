@@ -3,6 +3,7 @@
 //  Licensed under the MIT License. See LICENSE in the repository root.
 //
 
+import DesignSystem
 import SwiftUI
 
 /// Every token in ``Design`` and every component built from them, drawn by the app itself.

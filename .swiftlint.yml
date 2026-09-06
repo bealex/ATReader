@@ -11,6 +11,18 @@ included:
   - Code
   - Frameworks/AuthorToday/Sources
   - Frameworks/AuthorToday/Tests
+  - Frameworks/BookKit/Sources
+  - Frameworks/BookKit/Tests
+  - Frameworks/DesignSystem/Sources
+  - Frameworks/DesignSystem/Tests
+  - Frameworks/BookFormats/Sources
+  - Frameworks/BookFormats/Tests
+  - Frameworks/BookStorage/Sources
+  - Frameworks/BookStorage/Tests
+  - Frameworks/BookRenderer/Sources
+  - Frameworks/BookRenderer/Tests
+  - Frameworks/AuthorTodayBooks/Sources
+  - Frameworks/AuthorTodayBooks/Tests
 
 excluded:
   - "**/.build"           # any SwiftPM build dir (incl. the StyleRespace tool's checked-out swift-syntax)

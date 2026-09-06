@@ -14,7 +14,7 @@ extension View {
     /// with them: a rightward swipe that starts near the leading edge pops the screen instead of turning
     /// back a page. SwiftUI exposes no way to disable it without also hiding the back button, so this
     /// reaches the underlying `UINavigationController` directly.
-    func backSwipeDisabled(_ isDisabled: Bool = true) -> some View {
+    public func backSwipeDisabled(_ isDisabled: Bool = true) -> some View {
         background(BackSwipeDisabler(isDisabled: isDisabled).frame(width: 0, height: 0))
     }
 }

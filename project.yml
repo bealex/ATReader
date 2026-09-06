@@ -16,6 +16,18 @@ configFiles:
 packages:
   AuthorToday:
     path: Frameworks/AuthorToday
+  BookKit:
+    path: Frameworks/BookKit
+  DesignSystem:
+    path: Frameworks/DesignSystem
+  BookFormats:
+    path: Frameworks/BookFormats
+  BookStorage:
+    path: Frameworks/BookStorage
+  BookRenderer:
+    path: Frameworks/BookRenderer
+  AuthorTodayBooks:
+    path: Frameworks/AuthorTodayBooks
 
 targets:
   ATReader:
@@ -45,6 +57,18 @@ targets:
     dependencies:
       - package: AuthorToday
         product: AuthorToday
+      - package: BookKit
+        product: BookKit
+      - package: DesignSystem
+        product: DesignSystem
+      - package: BookFormats
+        product: BookFormats
+      - package: BookStorage
+        product: BookStorage
+      - package: BookRenderer
+        product: BookRenderer
+      - package: AuthorTodayBooks
+        product: AuthorTodayBooks
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.lonelybytes.atreader

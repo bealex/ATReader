@@ -3,6 +3,7 @@
 //  Licensed under the MIT License. See LICENSE in the repository root.
 //
 
+import DesignSystem
 import SwiftUI
 
 /// Decides between the sign-in screen and the signed-in tabs.
