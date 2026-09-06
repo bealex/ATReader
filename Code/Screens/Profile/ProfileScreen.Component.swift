@@ -4,6 +4,7 @@
 //
 
 import AuthorToday
+import BookStorage
 import SwiftUI
 
 enum ProfileScreen {
@@ -46,7 +47,7 @@ enum ProfileScreen {
 
                         Button("Clear downloads", systemImage: "trash") {
                             Task {
-                                await LocalStore.shared.clearDownloads()
+                                await SQLiteBookStore.shared.clearDownloads()
                                 await CoverCache.shared.clear()
                                 cacheSize = 0
                             }
@@ -81,7 +82,7 @@ enum ProfileScreen {
                 }
                 .navigationTitle("Profile")
                 .task {
-                    cacheSize = await LocalStore.shared.downloadSize() + CoverCache.shared.diskUsage()
+                    cacheSize = await SQLiteBookStore.shared.downloadSize() + CoverCache.shared.diskUsage()
                     await UpdateBadge.requestBadgePermission()
                 }
                 .confirmationDialog(

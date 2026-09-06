@@ -6,6 +6,7 @@
 import AuthorToday
 import AuthorTodayBooks
 import BookKit
+import BookStorage
 import CryptoKit
 import Foundation
 import OSLog
@@ -34,11 +35,11 @@ actor BookProcessor {
         var isComplete: Bool { prepared >= total }
     }
 
-    private let store: LocalStore
+    private let store: SQLiteBookStore
     private var walks: [Int: Task<Void, Never>] = [:]
     private var progress: [Int: Progress] = [:]
 
-    init(store: LocalStore = .shared) {
+    init(store: SQLiteBookStore = .shared) {
         self.store = store
     }
 

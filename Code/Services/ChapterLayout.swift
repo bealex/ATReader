@@ -3,7 +3,7 @@
 //  Licensed under the MIT License. See LICENSE in the repository root.
 //
 
-import AuthorToday
+import BookKit
 import CoreText
 import SwiftUI
 import UIKit

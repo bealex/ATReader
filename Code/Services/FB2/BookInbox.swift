@@ -4,6 +4,7 @@
 //
 
 import BookKit
+import BookStorage
 import Foundation
 import OSLog
 
@@ -27,10 +28,10 @@ final class BookInbox {
 
     private(set) var errorMessage: String?
 
-    private let store: LocalStore
+    private let store: SQLiteBookStore
     private let processor: BookProcessor
 
-    init(store: LocalStore = .shared, processor: BookProcessor = .shared) {
+    init(store: SQLiteBookStore = .shared, processor: BookProcessor = .shared) {
         self.store = store
         self.processor = processor
     }

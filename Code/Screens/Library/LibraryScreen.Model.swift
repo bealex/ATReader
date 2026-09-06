@@ -6,6 +6,7 @@
 import AuthorToday
 import AuthorTodayBooks
 import BookKit
+import BookStorage
 import Foundation
 
 extension LibraryScreen {
@@ -107,9 +108,9 @@ extension LibraryScreen {
         private let session: SessionStore
 
         @ObservationIgnored
-        private let store: LocalStore
+        private let store: SQLiteBookStore
 
-        init(session: SessionStore, store: LocalStore = .shared) {
+        init(session: SessionStore, store: SQLiteBookStore = .shared) {
             self.session = session
             self.store = store
         }
@@ -308,7 +309,7 @@ extension LibraryScreen {
 
         /// Takes an imported book off the device outright. Its text is here and nowhere else.
         func deleteLocalBook(_ work: Book) async {
-            guard LocalBooks.isLocal(work.id) else { return }
+            guard BookNumbering.isLocal(work.id) else { return }
 
             works.removeAll { $0.id == work.id }
             processing[work.id] = nil
@@ -317,7 +318,7 @@ extension LibraryScreen {
         }
 
         /// True for a book that came from a file rather than the service.
-        func isLocal(_ work: Book) -> Bool { LocalBooks.isLocal(work.id) }
+        func isLocal(_ work: Book) -> Bool { BookNumbering.isLocal(work.id) }
 
         func loadIfNeeded() async {
             guard !hasLoaded else { return }
@@ -515,7 +516,7 @@ extension LibraryScreen {
         private func contents(of workId: Int) async -> [BookChapter] {
             let stored = await store.chapters(workId: workId)
 
-            guard stored.isEmpty, !LocalBooks.isLocal(workId) else { return stored }
+            guard stored.isEmpty, !BookNumbering.isLocal(workId) else { return stored }
             guard
                 let fetched = try? await session.client.workContents(id: workId).map(BookChapter.init)
             else { return [] }

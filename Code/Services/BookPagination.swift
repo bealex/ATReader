@@ -6,6 +6,7 @@
 import AuthorToday
 import AuthorTodayBooks
 import BookKit
+import BookStorage
 import CryptoKit
 import SwiftUI
 import UIKit
@@ -44,7 +45,7 @@ final class BookPagination {
     let context: ChapterLayout.Context
 
     private let workId: Int
-    private let store: LocalStore
+    private let store: SQLiteBookStore
     /// The setting these measurements were made at, and the only one they are good for.
     private let style: String
 
@@ -62,7 +63,7 @@ final class BookPagination {
     /// the chain no longer stands for everything that came first.
     private var chained = true
 
-    private init(workId: Int, context: ChapterLayout.Context, store: LocalStore) {
+    private init(workId: Int, context: ChapterLayout.Context, store: SQLiteBookStore) {
         self.workId = workId
         self.context = context
         self.store = store
@@ -70,7 +71,7 @@ final class BookPagination {
     }
 
     /// A book with nothing measured yet.
-    static func make(workId: Int, context: ChapterLayout.Context, store: LocalStore = .shared) -> BookPagination {
+    static func make(workId: Int, context: ChapterLayout.Context, store: SQLiteBookStore = .shared) -> BookPagination {
         BookPagination(workId: workId, context: context, store: store)
     }
 
@@ -156,7 +157,7 @@ final class BookPagination {
         return true
     }
 
-    private func stored(_ chapterId: Int, chain: String) async -> LocalStore.StoredPlacement? {
+    private func stored(_ chapterId: Int, chain: String) async -> ChapterPlacement? {
         await store.placement(workId: workId, chapterId: chapterId, chain: chain, style: style)
     }
 

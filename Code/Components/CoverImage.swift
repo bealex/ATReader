@@ -4,6 +4,7 @@
 //
 
 import BookKit
+import BookStorage
 import DesignSystem
 import SwiftUI
 

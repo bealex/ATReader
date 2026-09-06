@@ -4,6 +4,7 @@
 //
 
 import AuthorToday
+import BookStorage
 import Foundation
 import UIKit
 

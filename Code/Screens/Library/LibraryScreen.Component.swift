@@ -6,6 +6,7 @@
 import AuthorToday
 import AuthorTodayBooks
 import BookKit
+import BookStorage
 import DesignSystem
 import SwiftUI
 
@@ -80,7 +81,7 @@ enum LibraryScreen {
                 .refreshable { await model.reload() }
                 .fileImporter(
                     isPresented: $isPickingFile,
-                    allowedContentTypes: LocalBooks.fileTypes,
+                    allowedContentTypes: LocalBookFiles.fileTypes,
                     allowsMultipleSelection: true
                 ) { result in
                     guard case let .success(urls) = result else { return }

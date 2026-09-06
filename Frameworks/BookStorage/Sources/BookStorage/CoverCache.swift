@@ -17,8 +17,8 @@ import UIKit
 ///
 /// Covers live in Application Support rather than Caches: a shelf that empties itself the first time the
 /// device runs low on space is worse than one that holds a bounded number of small files.
-actor CoverCache {
-    static let shared = CoverCache()
+public actor CoverCache {
+    public static let shared = CoverCache()
 
     private static let logger = Logger(subsystem: "com.lonelybytes.atreader", category: "covers")
 
@@ -27,10 +27,10 @@ actor CoverCache {
     /// The widest cover the app draws is the reader's title page at 150pt, so this is that rounded up
     /// for a 3x screen. Smaller rows scale the same image down, which costs nothing and means one file
     /// per cover rather than one per size.
-    static let maximumPixelSize = 480
+    public static let maximumPixelSize = 480
 
     /// How many covers to keep. Roughly 30 KB each, so the whole shelf is tens of megabytes.
-    static let maximumCoverCount = 2000
+    public static let maximumCoverCount = 2000
 
     private let directory: URL
     private let session: URLSession
@@ -43,7 +43,7 @@ actor CoverCache {
     private var writesSinceSweep = 0
     private var hasSwept = false
 
-    init(directory: URL? = nil, session: URLSession = .shared) {
+    public init(directory: URL? = nil, session: URLSession = .shared) {
         let base =
             directory
             ?? FileManager.default
@@ -60,7 +60,7 @@ actor CoverCache {
         Self.excludeFromBackup(base)
     }
 
-    func image(for url: URL) async -> UIImage? {
+    public func image(for url: URL) async -> UIImage? {
         let key = Self.fileKey(for: url)
 
         if let cached = memory.object(forKey: key as NSString) { return cached }
@@ -91,7 +91,7 @@ actor CoverCache {
     }
 
     /// Warms the covers a list is about to show. Failures are silent — this is only ever an optimisation.
-    func prefetch(_ urls: [URL]) async {
+    public func prefetch(_ urls: [URL]) async {
         for url in urls where memory.object(forKey: Self.fileKey(for: url) as NSString) == nil {
             _ = await image(for: url)
         }
@@ -189,7 +189,7 @@ actor CoverCache {
         try? FileManager.default.setAttributes([ .modificationDate: Date.now ], ofItemAtPath: url.path)
     }
 
-    func diskUsage() -> Int64 {
+    public func diskUsage() -> Int64 {
         guard
             let entries = try? FileManager.default.contentsOfDirectory(
                 at: directory,
@@ -202,7 +202,7 @@ actor CoverCache {
         }
     }
 
-    func clear() {
+    public func clear() {
         memory.removeAllObjects()
         try? FileManager.default.removeItem(at: directory)
         try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
@@ -232,7 +232,7 @@ actor CoverCache {
 
     /// Decodes straight to the size wanted. `CGImageSourceCreateThumbnailAtIndex` never materialises
     /// the full-resolution bitmap, which is the whole point.
-    static func downsample(_ data: Data, maximumPixelSize: Int) -> UIImage? {
+    public static func downsample(_ data: Data, maximumPixelSize: Int) -> UIImage? {
         let options: [CFString: Any] = [
             kCGImageSourceCreateThumbnailFromImageAlways: true,
             kCGImageSourceCreateThumbnailWithTransform: true,
@@ -254,14 +254,14 @@ actor CoverCache {
 /// ``CoverCache`` is an actor, so a view rebuilt under a new identity draws its placeholder until the
 /// hop returns. A cover already in hand appears in the first frame instead.
 @MainActor
-enum CoverImages {
+public enum CoverImages {
     private static let images: NSCache<NSURL, UIImage> = {
         let cache = NSCache<NSURL, UIImage>()
         cache.countLimit = 300
         return cache
     }()
 
-    static func image(for url: URL) -> UIImage? { images.object(forKey: url as NSURL) }
+    public static func image(for url: URL) -> UIImage? { images.object(forKey: url as NSURL) }
 
-    static func remember(_ image: UIImage, for url: URL) { images.setObject(image, forKey: url as NSURL) }
+    public static func remember(_ image: UIImage, for url: URL) { images.setObject(image, forKey: url as NSURL) }
 }

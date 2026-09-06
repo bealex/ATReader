@@ -72,7 +72,7 @@ struct WorkRow: View {
             url: work.coverURL,
             width: Design.Size.rowCover,
             progress: showsProgress ? work.readingProgress : nil,
-            isLocal: LocalBooks.isLocal(work.id)
+            isLocal: BookNumbering.isLocal(work.id)
         )
         .overlay(alignment: .topTrailing) {
             if newChapters > 0 {

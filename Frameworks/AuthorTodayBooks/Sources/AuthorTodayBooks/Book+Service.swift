@@ -123,3 +123,11 @@ extension Book {
         )
     }
 }
+
+extension ChapterBody {
+    /// The service's chapter, already decrypted by the client. From here on nothing can tell it from a
+    /// chapter read out of a file.
+    public init(_ text: ChapterText) {
+        self.init(id: text.id, title: text.title, html: text.html, lastModificationTime: text.lastModificationTime)
+    }
+}

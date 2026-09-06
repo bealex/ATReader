@@ -6,6 +6,7 @@
 import AuthorToday
 import AuthorTodayBooks
 import BookKit
+import BookStorage
 import Foundation
 import UIKit
 
@@ -69,7 +70,7 @@ extension ReaderScreen {
         private let session: SessionStore
 
         @ObservationIgnored
-        private let store: LocalStore
+        private let store: SQLiteBookStore
 
         @ObservationIgnored
         private let processor: BookProcessor
@@ -127,7 +128,7 @@ extension ReaderScreen {
             workTitle: String,
             initialChapterId: Int?,
             session: SessionStore,
-            store: LocalStore = .shared,
+            store: SQLiteBookStore = .shared,
             processor: BookProcessor = .shared
         ) {
             self.workId = workId
@@ -358,7 +359,7 @@ extension ReaderScreen {
         }
 
         /// Picks the chapter to open: the one asked for, else the one the reader stopped in, else the first.
-        private func openTarget(position: LocalStore.ReadingPosition?) {
+        private func openTarget(position: ReadingPosition?) {
             let requested = requestedChapterId.flatMap { candidate in
                 readableChapters.first { $0.id == candidate }?.id
             }
@@ -383,7 +384,7 @@ extension ReaderScreen {
         }
 
         /// True for a book that came from a file. Nothing about it is the service's to answer.
-        private var isLocal: Bool { LocalBooks.isLocal(workId) }
+        private var isLocal: Bool { BookNumbering.isLocal(workId) }
 
         private func refreshContents() async {
             guard !isLocal else { return }
@@ -713,7 +714,7 @@ extension ReaderScreen {
 
             do {
                 let chapter = try await session.client.chapterText(workId: workId, chapterId: chapterId)
-                await store.store(body: chapter, workId: workId)
+                await store.store(body: ChapterBody(chapter), workId: workId)
                 let prepared = await processor.content(workId: workId, chapterId: chapterId)
                 parsed[chapterId] = prepared
                 isOffline = false

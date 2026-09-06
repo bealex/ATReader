@@ -3,8 +3,6 @@
 //  Licensed under the MIT License. See LICENSE in the repository root.
 //
 
-import AuthorToday
-import AuthorTodayBooks
 import BookKit
 import Foundation
 import OSLog
@@ -15,43 +13,8 @@ import SQLite3
 /// Everything a screen shows comes from here first and from the service second, so the app opens and
 /// reads with no network at all. One SQLite file under Application Support, excluded from backup: it is
 /// all re-fetchable, and a book kept for offline reading should not go through iCloud.
-actor LocalStore {
-    /// Where a reader stopped in a book, as a character offset so it survives a change of font.
-    struct ReadingPosition: Sendable, Equatable {
-        let workId: Int
-        let chapterId: Int
-        let characterOffset: Int
-        let updatedAt: Date
-    }
-
-    /// A book as this device knows it: what the lists draw, plus the tags the book page shows.
-    struct StoredWork: Sendable {
-        let summary: Book
-        let tags: [String]
-    }
-
-    /// Where one chapter sat when the book was last measured at a given setting.
-    struct StoredPlacement: Sendable {
-        let startOffset: Double
-        let pageCount: Int
-        /// Where the chapter after this one begins, so a run of cached chapters can carry on without
-        /// laying any of them out.
-        let nextOffset: Double
-    }
-
-    /// A chapter's text after the typesetter has been through it, and the hashes that say whether it
-    /// is still the text the reader was given.
-    struct PreparedChapter: Sendable {
-        let chapterId: Int
-        /// The chapter's own source text, hashed.
-        let contentHash: String
-        /// This chapter's hash folded into every chapter before it. Equal chains mean equal books up
-        /// to this point, which is what makes a re-run pick up where the last one stopped.
-        let chainHash: String
-        let content: ChapterContent
-    }
-
-    static let shared = LocalStore()
+public actor SQLiteBookStore {
+    public static let shared = SQLiteBookStore()
 
     private static let logger = Logger(subsystem: "com.lonelybytes.atreader", category: "store")
 
@@ -60,7 +23,7 @@ actor LocalStore {
     private let encoder = JSONEncoder()
     private let decoder = JSONDecoder()
 
-    init(fileURL: URL? = nil) {
+    public init(fileURL: URL? = nil) {
         let base =
             FileManager.default
             .urls(for: .applicationSupportDirectory, in: .userDomainMask)
@@ -81,7 +44,7 @@ actor LocalStore {
     /// author stopped, because the badge is for writing this device actually watched happen. Books
     /// imported from a file are numbered below zero and have no author still at work, so they are out
     /// too, as are catalogue books the reader only looked at, which have no shelf.
-    func followedBookCount(finishedWithin days: Int = 14) -> Int {
+    public func followedBookCount(finishedWithin days: Int = 14) -> Int {
         let cutoff = Date.now.addingTimeInterval(-Double(days) * 24 * 60 * 60).timeIntervalSince1970
         let query = """
             SELECT COUNT(*) FROM work
@@ -102,7 +65,7 @@ actor LocalStore {
         return statement.integer(0)
     }
 
-    func works(in shelf: LibraryState? = nil) -> [Book] {
+    public func works(in shelf: BookShelf? = nil) -> [Book] {
         let query =
             shelf == nil
             ? """
@@ -128,7 +91,7 @@ actor LocalStore {
         return result
     }
 
-    func work(id: Int) -> StoredWork? {
+    public func work(id: Int) -> StoredBook? {
         let query = "SELECT payload, tags, reading_progress FROM work WHERE id = ?"
 
         guard let statement = Statement(open(), query) else { return nil }
@@ -138,7 +101,7 @@ actor LocalStore {
         guard statement.step(), var summary = decode(Book.self, statement.string(0)) else { return nil }
 
         summary.readingProgress = progress(statement.number(2), or: summary.readingProgress)
-        return StoredWork(
+        return StoredBook(
             summary: filed(summary, by: customSeries()),
             tags: decode([ String ].self, statement.string(1)) ?? []
         )
@@ -166,7 +129,7 @@ actor LocalStore {
     private func progress(_ stored: Double?, or reported: Double?) -> Double? { stored ?? reported }
 
     /// Records where this device believes the reader has got to in a book, `0…1`.
-    func store(progress: Double, workId: Int) {
+    public func store(progress: Double, workId: Int) {
         guard let statement = Statement(open(), "UPDATE work SET reading_progress = ? WHERE id = ?") else { return }
 
         statement.bind(1, min(1, max(0, progress)))
@@ -199,7 +162,7 @@ actor LocalStore {
         store(progress: Double(read) / Double(total), workId: workId)
     }
 
-    func store(work: Book, tags: [String]? = nil) {
+    public func store(work: Book, tags: [String]? = nil) {
         store(works: [ work ])
 
         guard let tags, let statement = Statement(open(), "UPDATE work SET tags = ? WHERE id = ?") else { return }
@@ -209,7 +172,7 @@ actor LocalStore {
         statement.execute()
     }
 
-    func store(works: [Book]) {
+    public func store(works: [Book]) {
         let query = """
             INSERT INTO work (
                 id, title, author, library_state, last_read_time, reading_progress, updated_at, payload,
@@ -273,7 +236,7 @@ actor LocalStore {
     }
 
     /// Replaces the shelves wholesale, so a book removed on another device stops showing up here.
-    func replaceLibrary(with works: [Book]) {
+    public func replaceLibrary(with works: [Book]) {
         store(works: works)
 
         let ids = works.map { String($0.id) }.joined(separator: ",")
@@ -290,16 +253,16 @@ actor LocalStore {
     // MARK: - Series the reader made
 
     /// A book's place in a series the reader put together.
-    struct CustomSeries: Sendable, Equatable {
-        let series: String
-        let order: Int
+    public struct CustomSeries: Sendable, Equatable {
+        public let series: String
+        public let order: Int
     }
 
     /// Every book the reader has filed by hand.
     ///
     /// Kept apart from the book itself because the payload is replaced wholesale every time the service
     /// answers, and a grouping written into it would last until the next refresh.
-    func customSeries() -> [Int: CustomSeries] {
+    public func customSeries() -> [Int: CustomSeries] {
         guard
             let statement = Statement(open(), "SELECT work_id, series, sort_order FROM book_series")
         else { return [:] }
@@ -316,7 +279,7 @@ actor LocalStore {
     }
 
     /// Files a run of books as one series, in the order given.
-    func store(series: String, workIds: [Int]) {
+    public func store(series: String, workIds: [Int]) {
         let query = """
             INSERT INTO book_series (work_id, series, sort_order) VALUES (?, ?, ?)
             ON CONFLICT(work_id) DO UPDATE SET series = excluded.series, sort_order = excluded.sort_order
@@ -336,7 +299,7 @@ actor LocalStore {
     }
 
     /// Gives books back to whatever series the service or the file says they belong to.
-    func removeFromCustomSeries(workIds: [Int]) {
+    public func removeFromCustomSeries(workIds: [Int]) {
         let ids = workIds.map(String.init).joined(separator: ",")
 
         execute("DELETE FROM book_series WHERE work_id IN (\(ids.isEmpty ? "0" : ids))")
@@ -349,7 +312,7 @@ actor LocalStore {
     /// Service works count up from one, so local books count down from minus one and the two can never
     /// meet. A chapter takes an id from a block of its own beneath the book's, which is what keeps the
     /// chapter table's primary key unique across a library holding both kinds.
-    func localBookId(fingerprint: String) -> Int {
+    public func localBookId(fingerprint: String) -> Int {
         if let statement = Statement(open(), "SELECT work_id FROM local_book WHERE fingerprint = ?") {
             statement.bind(1, fingerprint)
 
@@ -363,9 +326,9 @@ actor LocalStore {
                 open(),
                 "INSERT INTO local_book (work_id, fingerprint, imported_at) VALUES (?, ?, ?)"
             )
-        else { return LocalBooks.workId(sequence: next) }
+        else { return BookNumbering.workId(sequence: next) }
 
-        let workId = LocalBooks.workId(sequence: next)
+        let workId = BookNumbering.workId(sequence: next)
         insert.bind(1, workId)
         insert.bind(2, fingerprint)
         insert.bind(3, Date.now.timeIntervalSince1970)
@@ -377,14 +340,14 @@ actor LocalStore {
         guard let statement = Statement(open(), "SELECT MIN(work_id) FROM local_book") else { return 1 }
         guard statement.step(), let lowest = statement.number(0) else { return 1 }
 
-        return LocalBooks.sequence(workId: Int(lowest)) + 1
+        return BookNumbering.sequence(workId: Int(lowest)) + 1
     }
 
     /// Drops every chapter of a book that isn't in the list, text and prepared text with it.
     ///
     /// A corrected file can be shorter than the one it replaces. Storing its chapters only writes the
     /// ones it has, so without this the chapters it dropped would stay in the contents for good.
-    func removeChapters(workId: Int, keeping ids: [Int]) {
+    public func removeChapters(workId: Int, keeping ids: [Int]) {
         let kept = ids.map(String.init).joined(separator: ",")
         let list = kept.isEmpty ? "0" : kept
 
@@ -396,7 +359,7 @@ actor LocalStore {
         }
     }
 
-    func isLocalBook(id: Int) -> Bool {
+    public func isLocalBook(id: Int) -> Bool {
         guard let statement = Statement(open(), "SELECT 1 FROM local_book WHERE work_id = ?") else { return false }
 
         statement.bind(1, id)
@@ -407,7 +370,7 @@ actor LocalStore {
     ///
     /// Only a local book is ever removed this way. A service book taken off a shelf keeps its rows, so
     /// putting it back doesn't cost a fresh download.
-    func removeBook(id: Int) {
+    public func removeBook(id: Int) {
         transaction {
             for table in [ "chapter_body", "chapter_content", "chapter_placement", "chapter", "reading_position" ] {
                 if let statement = Statement(open(), "DELETE FROM \(table) WHERE work_id = ?") {
@@ -429,7 +392,7 @@ actor LocalStore {
 
     // MARK: - Chapters
 
-    func chapters(workId: Int) -> [BookChapter] {
+    public func chapters(workId: Int) -> [BookChapter] {
         let query = "SELECT payload FROM chapter WHERE work_id = ? ORDER BY sort_order ASC, id ASC"
 
         guard let statement = Statement(open(), query) else { return [] }
@@ -446,7 +409,7 @@ actor LocalStore {
         return result
     }
 
-    func store(chapters: [BookChapter], workId: Int) {
+    public func store(chapters: [BookChapter], workId: Int) {
         let query = """
             INSERT INTO chapter (id, work_id, sort_order, is_readable, payload)
             VALUES (?, ?, ?, ?, ?)
@@ -477,7 +440,7 @@ actor LocalStore {
     /// The chapters the service now lists that this device has never seen.
     ///
     /// A book with nothing stored yet has no news to report: everything already published is not new.
-    func unseenChapters(workId: Int, in current: [BookChapter]) -> [Int] {
+    public func unseenChapters(workId: Int, in current: [BookChapter]) -> [Int] {
         let known = Set(chapters(workId: workId).map(\.id))
 
         guard !known.isEmpty else { return [] }
@@ -487,7 +450,7 @@ actor LocalStore {
 
     // MARK: - Chapter bodies
 
-    func body(workId: Int, chapterId: Int) -> ChapterText? {
+    public func body(workId: Int, chapterId: Int) -> ChapterBody? {
         let query = "SELECT title, html, last_modification_time FROM chapter_body WHERE chapter_id = ? AND work_id = ?"
 
         guard let statement = Statement(open(), query) else { return nil }
@@ -497,7 +460,7 @@ actor LocalStore {
 
         guard statement.step(), let html = statement.string(1) else { return nil }
 
-        return ChapterText(
+        return ChapterBody(
             id: chapterId,
             title: statement.string(0),
             html: html,
@@ -505,7 +468,7 @@ actor LocalStore {
         )
     }
 
-    func hasBody(workId: Int, chapterId: Int) -> Bool {
+    public func hasBody(workId: Int, chapterId: Int) -> Bool {
         guard
             let statement = Statement(open(), "SELECT 1 FROM chapter_body WHERE chapter_id = ? AND work_id = ?")
         else { return false }
@@ -515,7 +478,7 @@ actor LocalStore {
         return statement.step()
     }
 
-    func storedBodyIds(workId: Int) -> Set<Int> {
+    public func storedBodyIds(workId: Int) -> Set<Int> {
         guard
             let statement = Statement(open(), "SELECT chapter_id FROM chapter_body WHERE work_id = ?")
         else { return [] }
@@ -528,7 +491,7 @@ actor LocalStore {
         return result
     }
 
-    func store(body: ChapterText, workId: Int) {
+    public func store(body: ChapterBody, workId: Int) {
         let query = """
             INSERT INTO chapter_body (chapter_id, work_id, title, html, last_modification_time, stored_at)
             VALUES (?, ?, ?, ?, ?, ?)
@@ -558,7 +521,7 @@ actor LocalStore {
     /// The caller passes the hash it expects. A chapter whose source has changed since it was prepared
     /// answers `nil` rather than yesterday's paragraphs, which is what makes a re-imported book pick up
     /// its new chapters without being told which ones they are.
-    func preparedChapter(workId: Int, chapterId: Int, contentHash: String) -> PreparedChapter? {
+    public func preparedChapter(workId: Int, chapterId: Int, contentHash: String) -> PreparedChapter? {
         let query = """
             SELECT content_hash, chain_hash, content FROM chapter_content
             WHERE chapter_id = ? AND work_id = ? AND content_hash = ?
@@ -581,7 +544,7 @@ actor LocalStore {
     }
 
     /// One chapter's own text hash, which is what a measuring run folds into its chain.
-    func contentHash(workId: Int, chapterId: Int) -> String? {
+    public func contentHash(workId: Int, chapterId: Int) -> String? {
         let query = "SELECT content_hash FROM chapter_content WHERE chapter_id = ? AND work_id = ?"
 
         guard let statement = Statement(open(), query) else { return nil }
@@ -598,7 +561,7 @@ actor LocalStore {
 
     /// Where a chapter sat last time the book was measured, if the book and the setting are both still
     /// the ones it was measured against.
-    func placement(workId: Int, chapterId: Int, chain: String, style: String) -> StoredPlacement? {
+    public func placement(workId: Int, chapterId: Int, chain: String, style: String) -> ChapterPlacement? {
         let query = """
             SELECT start_offset, page_count, next_offset FROM chapter_placement
             WHERE chapter_id = ? AND work_id = ? AND chain_hash = ? AND style_hash = ?
@@ -613,11 +576,11 @@ actor LocalStore {
 
         guard statement.step(), let start = statement.number(0), let next = statement.number(2) else { return nil }
 
-        return StoredPlacement(startOffset: start, pageCount: statement.integer(1), nextOffset: next)
+        return ChapterPlacement(startOffset: start, pageCount: statement.integer(1), nextOffset: next)
     }
 
-    func store(
-        placement: StoredPlacement,
+    public func store(
+        placement: ChapterPlacement,
         workId: Int,
         chapterId: Int,
         chain: String,
@@ -649,7 +612,7 @@ actor LocalStore {
         statement.execute()
     }
 
-    func store(prepared: PreparedChapter, workId: Int) {
+    public func store(prepared: PreparedChapter, workId: Int) {
         let query = """
             INSERT INTO chapter_content (chapter_id, work_id, content_hash, chain_hash, content, stored_at)
             VALUES (?, ?, ?, ?, ?, ?)
@@ -674,7 +637,7 @@ actor LocalStore {
 
     // MARK: - Reading positions
 
-    func position(workId: Int) -> ReadingPosition? {
+    public func position(workId: Int) -> ReadingPosition? {
         let query = "SELECT chapter_id, character_offset, updated_at FROM reading_position WHERE work_id = ?"
 
         guard let statement = Statement(open(), query) else { return nil }
@@ -691,7 +654,7 @@ actor LocalStore {
         )
     }
 
-    func store(position: ReadingPosition) {
+    public func store(position: ReadingPosition) {
         let query = """
             INSERT INTO reading_position (work_id, chapter_id, character_offset, updated_at)
             VALUES (?, ?, ?, ?)
@@ -718,7 +681,7 @@ actor LocalStore {
     ///
     /// A book imported from a file is left alone. The service can send its text again and this cannot:
     /// the copy here is the only one, and clearing it would throw the book away.
-    func clearDownloads() {
+    public func clearDownloads() {
         execute("DELETE FROM chapter_body WHERE work_id NOT IN (SELECT work_id FROM local_book)")
         execute("DELETE FROM chapter_content WHERE work_id NOT IN (SELECT work_id FROM local_book)")
         // Measurements are worked out again from text the device still has, so they always go.
@@ -726,7 +689,7 @@ actor LocalStore {
         execute("VACUUM")
     }
 
-    func downloadSize() -> Int64 {
+    public func downloadSize() -> Int64 {
         let query = """
             SELECT
                 (SELECT COALESCE(SUM(LENGTH(html)), 0) FROM chapter_body)
@@ -1013,7 +976,7 @@ actor LocalStore {
             guard
                 sqlite3_prepare_v2(database, query, -1, &handle, nil) == SQLITE_OK
             else {
-                LocalStore.logger.error("\(String(cString: sqlite3_errmsg(database)), privacy: .public)")
+                SQLiteBookStore.logger.error("\(String(cString: sqlite3_errmsg(database)), privacy: .public)")
                 return nil
             }
         }

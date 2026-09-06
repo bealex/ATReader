@@ -3,6 +3,7 @@
 //  Licensed under the MIT License. See LICENSE in the repository root.
 //
 
+import BookStorage
 import SwiftUI
 
 /// A cover drawn the way the reader draws every other picture in a book.

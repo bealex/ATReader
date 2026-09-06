@@ -6,6 +6,7 @@
 import AuthorToday
 import AuthorTodayBooks
 import BookKit
+import BookStorage
 import DesignSystem
 import SwiftUI
 import UniformTypeIdentifiers
@@ -46,7 +47,7 @@ enum WorkScreen {
                 }
             }
             // One file, not several: this replaces one book rather than adding to the shelf.
-            .fileImporter(isPresented: $isPickingFile, allowedContentTypes: LocalBooks.fileTypes) { result in
+            .fileImporter(isPresented: $isPickingFile, allowedContentTypes: LocalBookFiles.fileTypes) { result in
                 guard case let .success(url) = result else { return }
 
                 Task { await model?.reimport(from: url) }

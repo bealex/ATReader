@@ -6,6 +6,7 @@
 import AuthorToday
 import AuthorTodayBooks
 import BookKit
+import BookStorage
 import Foundation
 
 extension WorkScreen {
@@ -24,19 +25,19 @@ extension WorkScreen {
         private(set) var isInLibrary = false
 
         /// Where this device left off, which is what says how much of each chapter has been read.
-        private(set) var position: LocalStore.ReadingPosition?
+        private(set) var position: ReadingPosition?
         private(set) var isUpdatingLibrary = false
 
         @ObservationIgnored
         private let session: SessionStore
 
         @ObservationIgnored
-        private let store: LocalStore
+        private let store: SQLiteBookStore
 
         @ObservationIgnored
         private var hasLoaded = false
 
-        init(workId: Int, session: SessionStore, store: LocalStore = .shared) {
+        init(workId: Int, session: SessionStore, store: SQLiteBookStore = .shared) {
             self.workId = workId
             self.session = session
             self.store = store
@@ -132,7 +133,7 @@ extension WorkScreen {
         }
 
         /// True for a book that came from a file. The service has nothing to say about one.
-        var isLocal: Bool { LocalBooks.isLocal(workId) }
+        var isLocal: Bool { BookNumbering.isLocal(workId) }
 
         /// Asks the service for the book again, behind whatever the store already put on screen.
         func reload() async {
@@ -189,7 +190,7 @@ extension WorkScreen {
         }
 
         /// True where the book's own file is still on the device, so re-reading it costs a tap.
-        var hasKeptFile: Bool { isLocal && LocalBooks.hasKeptFile(workId: workId) }
+        var hasKeptFile: Bool { isLocal && LocalBookFiles.hasKeptFile(workId: workId) }
 
         /// Reads the book again from the file kept when it was imported.
         func reimportFromKeptFile() async {

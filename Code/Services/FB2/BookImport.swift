@@ -3,15 +3,14 @@
 //  Licensed under the MIT License. See LICENSE in the repository root.
 //
 
-import AuthorToday
-import AuthorTodayBooks
 import BookKit
+import BookStorage
 import Foundation
 import OSLog
 
 /// Turns a file the reader picked into a book the rest of the app can't tell from a fetched one.
 ///
-/// Everything a screen reads comes out of ``LocalStore``, so an imported book only has to fill the same
+/// Everything a screen reads comes out of ``SQLiteBookStore``, so an imported book only has to fill the same
 /// rows a download would: the work, its contents, and one body per chapter. Nothing downstream of that
 /// knows the difference.
 enum BookImport {
@@ -23,7 +22,7 @@ enum BookImport {
     /// got to. Its chapters are written again, and the hashes on them are what tells the processor
     /// which ones actually moved.
     @discardableResult
-    static func `import`(from url: URL, store: LocalStore = .shared) async throws -> Book {
+    static func `import`(from url: URL, store: SQLiteBookStore = .shared) async throws -> Book {
         let scoped = url.startAccessingSecurityScopedResource()
 
         defer {
@@ -38,14 +37,14 @@ enum BookImport {
     /// Reads a book this device already holds again, for one imported before the parser learned
     /// something it now knows. The file is kept for exactly this.
     @discardableResult
-    static func reimport(workId: Int, store: LocalStore = .shared) async throws -> Book {
-        guard let data = LocalBooks.keptFile(workId: workId) else { throw FB2Error.unreadable }
+    static func reimport(workId: Int, store: SQLiteBookStore = .shared) async throws -> Book {
+        guard let data = LocalBookFiles.keptFile(workId: workId) else { throw FB2Error.unreadable }
 
         return try await `import`(source: data, store: store)
     }
 
     /// The whole of an import, from the bytes of a file to the rows a screen reads.
-    private static func `import`(source: Data, store: LocalStore) async throws -> Book {
+    private static func `import`(source: Data, store: SQLiteBookStore) async throws -> Book {
         // A book handed out zipped is the common case, so the archive is opened here rather than the
         // reader being asked to unpack it first. What is kept afterwards is the book, not the archive.
         let data = try await unpacked(source)
@@ -67,8 +66,8 @@ enum BookImport {
 
         for (index, section) in book.sections.enumerated() {
             await store.store(
-                body: ChapterText(
-                    id: LocalBooks.chapterId(workId: workId, index: index),
+                body: ChapterBody(
+                    id: BookNumbering.chapterId(workId: workId, index: index),
                     title: section.title,
                     html: named(section.html, pictures: pictures),
                     lastModificationTime: nil
@@ -106,7 +105,7 @@ enum BookImport {
     /// is already readable by the time this runs.
     private static func keep(_ data: Data, workId: Int) {
         do {
-            try LocalBooks.keep(data, workId: workId)
+            try LocalBookFiles.keep(data, workId: workId)
         } catch {
             logger.error("keeping the file failed: \(error.localizedDescription, privacy: .public)")
         }
@@ -115,7 +114,7 @@ enum BookImport {
     private static func chapters(_ book: FB2Book, workId: Int) -> [BookChapter] {
         book.sections.enumerated().map { index, section in
             BookChapter(
-                id: LocalBooks.chapterId(workId: workId, index: index),
+                id: BookNumbering.chapterId(workId: workId, index: index),
                 workId: workId,
                 title: section.title,
                 sortOrder: index,
@@ -163,7 +162,7 @@ enum BookImport {
     /// A picture is a file rather than bytes in the database: a chapter body is read on every
     /// re-pagination, and a megabyte of base64 riding along with it would be read every time.
     private static func write(images: [String: Data], workId: Int) -> [String: String] {
-        let directory = LocalBooks.imagesDirectory(workId: workId)
+        let directory = LocalBookFiles.imagesDirectory(workId: workId)
 
         // A corrected file may drop pictures the one it replaces had.
         try? FileManager.default.removeItem(at: directory)
@@ -182,7 +181,7 @@ enum BookImport {
 
             guard (try? entry.value.write(to: file, options: .atomic)) != nil else { return }
 
-            result[entry.key] = LocalBooks.imageSource(workId: workId, name: file.lastPathComponent)
+            result[entry.key] = LocalBookFiles.imageSource(workId: workId, name: file.lastPathComponent)
         }
     }
 
@@ -201,7 +200,7 @@ enum BookImport {
     private static func write(cover: Data?, workId: Int) -> URL? {
         guard let cover, !cover.isEmpty else { return nil }
 
-        let destination = LocalBooks.coverURL(workId: workId)
+        let destination = LocalBookFiles.coverURL(workId: workId)
 
         do {
             try cover.write(to: destination, options: .atomic)
@@ -213,10 +212,10 @@ enum BookImport {
     }
 
     /// Takes an imported book off the device, text and all.
-    static func remove(workId: Int, store: LocalStore = .shared) async {
+    static func remove(workId: Int, store: SQLiteBookStore = .shared) async {
         await store.removeBook(id: workId)
-        try? FileManager.default.removeItem(at: LocalBooks.coverURL(workId: workId))
-        try? FileManager.default.removeItem(at: LocalBooks.imagesDirectory(workId: workId))
-        try? FileManager.default.removeItem(at: LocalBooks.fileURL(workId: workId))
+        try? FileManager.default.removeItem(at: LocalBookFiles.coverURL(workId: workId))
+        try? FileManager.default.removeItem(at: LocalBookFiles.imagesDirectory(workId: workId))
+        try? FileManager.default.removeItem(at: LocalBookFiles.fileURL(workId: workId))
     }
 }

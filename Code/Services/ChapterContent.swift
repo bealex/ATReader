@@ -8,24 +8,8 @@ import BookKit
 import Foundation
 import NaturalLanguage
 
-/// A chapter's text, parsed and ready to lay out.
-struct ChapterContent: Codable, Sendable {
-    var paragraphs: [Paragraph]
-    /// The same paragraphs with every break point the language's dictionary allows already marked.
-    /// Justified setting uses these; working them out costs about as much as laying the chapter out,
-    /// so it happens once here rather than on every re-pagination.
-    var hyphenated: [Paragraph]
-    /// The language the chapter is written in, which decides which hyphenation dictionary lays it out
-    /// and how it is shaped.
-    var language: String?
-
-    var isEmpty: Bool { paragraphs.isEmpty }
-
-    /// Every picture the chapter points at, in the order it stands in the text.
-    var imageSources: [String] { paragraphs.compactMap(\.imageSource) }
-
-    /// Parses a chapter body, works out its language and binds the words its typography won't let a
-    /// line break between, all away from the main actor.
+/// Everything that makes a ``ChapterContent``. Moves to BookRenderer with the typesetter.
+extension ChapterContent {
     static func prepare(html: String) async -> ChapterContent {
         await Task.detached(priority: .userInitiated) {
             let paragraphs = BookHTML.paragraphs(from: html)

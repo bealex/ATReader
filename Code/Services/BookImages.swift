@@ -3,6 +3,7 @@
 //  Licensed under the MIT License. See LICENSE in the repository root.
 //
 
+import BookStorage
 import CoreGraphics
 import ImageIO
 import OSLog
@@ -175,7 +176,7 @@ final class BookImages {
         for source in Set(sources) {
             if let known = cache.object(forKey: source as NSString) {
                 ready[source] = known
-            } else if !unresolved.contains(source), let url = LocalBooks.imageURL(source: source) {
+            } else if !unresolved.contains(source), let url = LocalBookFiles.imageURL(source: source) {
                 wanted[source] = url
             } else {
                 unresolved.insert(source)

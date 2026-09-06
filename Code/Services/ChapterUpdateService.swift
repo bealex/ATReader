@@ -6,6 +6,7 @@
 import AuthorToday
 import AuthorTodayBooks
 import BookKit
+import BookStorage
 import Foundation
 import UserNotifications
 
@@ -30,9 +31,9 @@ struct ChapterUpdateService: Sendable {
     static let backgroundChapterBudget = 15
 
     private let client: AuthorTodayClient
-    private let store: LocalStore
+    private let store: SQLiteBookStore
 
-    init(client: AuthorTodayClient, store: LocalStore = .shared) {
+    init(client: AuthorTodayClient, store: SQLiteBookStore = .shared) {
         self.client = client
         self.store = store
     }
@@ -98,7 +99,7 @@ struct ChapterUpdateService: Sendable {
             guard await !store.hasBody(workId: workId, chapterId: chapterId) else { continue }
             guard let chapter = try? await client.chapterText(workId: workId, chapterId: chapterId) else { continue }
 
-            await store.store(body: chapter, workId: workId)
+            await store.store(body: ChapterBody(chapter), workId: workId)
             downloaded += 1
         }
 
@@ -169,7 +170,7 @@ enum UpdateBadge {
     /// The badge counts books rather than chapters: the ones whose author is still writing, plus the
     /// ones that finished recently, minus whatever the reader has already read to the end.
     private static func applyBadge() async {
-        let count = await LocalStore.shared.followedBookCount()
+        let count = await SQLiteBookStore.shared.followedBookCount()
         try? await UNUserNotificationCenter.current().setBadgeCount(count)
     }
 
