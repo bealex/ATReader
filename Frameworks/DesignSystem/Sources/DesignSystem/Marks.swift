@@ -29,7 +29,10 @@ public struct ProgressMark: View {
     /// A book at 99% swept to 99% is a full disc to the eye, and finishing a book is worth being able
     /// to see. The whole range is scaled into this instead of clipped at the top, so the wedge still
     /// grows with every page rather than stalling near the end.
-    private static let widestUnfinished = 0.88
+    ///
+    /// Held to a notch rather than a slice: enough that a closed circle means finished, little enough
+    /// that a book nearly read looks nearly read.
+    private static let widestUnfinished = 0.95
 
     public init(progress: Double, isComplete: Bool, ground: Ground = .surface, minimumSweep: Double = 0) {
         self.progress = progress
