@@ -317,12 +317,7 @@ enum WorkScreen {
                         )
                         .accessibilityHidden(true)
                 } else {
-                    ProgressMark(
-                        progress: state.progress,
-                        isComplete: state == .read,
-                        // A chapter just begun still reads as begun.
-                        minimumSweep: 0.04
-                    )
+                    ProgressMark(progress: state.progress, isComplete: state == .read)
                 }
             }
             .padding(.vertical, Design.Space.medium)

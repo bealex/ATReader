@@ -21,8 +21,6 @@ public struct ProgressMark: View {
     public let progress: Double
     public let isComplete: Bool
     public var ground: Ground
-    /// A wedge just begun still reads as begun rather than as untouched.
-    public var minimumSweep: Double
 
     /// How far an unfinished wedge is allowed to close.
     ///
@@ -34,15 +32,27 @@ public struct ProgressMark: View {
     /// that a book nearly read looks nearly read.
     private static let widestUnfinished = 0.95
 
-    public init(progress: Double, isComplete: Bool, ground: Ground = .surface, minimumSweep: Double = 0) {
+    /// The narrowest a wedge is drawn once there is anything to draw.
+    ///
+    /// A page into a long book is a fraction of a degree, which is nothing at all at this size. Both
+    /// ends of the sweep are held off their extremes for the same reason: started has to look started
+    /// and finished has to look finished, and neither can be left to a wedge too thin to see.
+    private static let narrowestStarted = 0.06
+
+    public init(progress: Double, isComplete: Bool, ground: Ground = .surface) {
         self.progress = progress
         self.isComplete = isComplete
         self.ground = ground
-        self.minimumSweep = minimumSweep
     }
 
+    /// Nothing read draws nothing. Everything else is scaled into the band between the two limits, so
+    /// the wedge grows the whole way without ever reaching either end by accident.
     private var sweep: Double {
-        max(minimumSweep, min(1, max(0, progress)) * Self.widestUnfinished)
+        let read = min(1, max(0, progress))
+
+        guard read > 0 else { return 0 }
+
+        return Self.narrowestStarted + read * (Self.widestUnfinished - Self.narrowestStarted)
     }
 
     public var body: some View {

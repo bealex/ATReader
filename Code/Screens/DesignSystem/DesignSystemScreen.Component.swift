@@ -212,7 +212,10 @@ enum DesignSystemScreen {
 
                     specimen("Mark") {
                         HStack(spacing: Design.Space.extraLarge) {
-                            ProgressMark(progress: 0.05, isComplete: false, ground: .artwork)
+                            // The two pairs worth telling apart: nothing read from barely read,
+                            // and nearly finished from finished.
+                            ProgressMark(progress: 0, isComplete: false, ground: .artwork)
+                            ProgressMark(progress: 0.01, isComplete: false, ground: .artwork)
                             ProgressMark(progress: 0.47, isComplete: false, ground: .artwork)
                             // The pair worth telling apart at a glance.
                             ProgressMark(progress: 0.99, isComplete: false, ground: .artwork)
