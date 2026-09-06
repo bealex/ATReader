@@ -37,5 +37,5 @@ public protocol PlacementStore: Sendable {
 public protocol PictureLibrary: Sendable {
     /// The file an `<img src>` in a stored chapter body points at, or `nil` where nothing here answers
     /// to it. A picture from the service is one of those: its bytes are not on the device.
-    func url(forPicture source: String) -> URL?
+    func fileURL(forPicture source: String) -> URL?
 }
