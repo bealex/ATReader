@@ -85,7 +85,7 @@ enum RootScreen {
             LoadingOverlay(
                 title: "Restoring your session…",
                 label: "Restoring your session",
-                background: Color(.systemGroupedBackground)
+                background: Design.Surface.screen
             )
         }
     }

@@ -74,7 +74,7 @@ enum LibraryScreen {
             @Bindable var model = model
 
             ScrollView { shelf(model) }
-                .background(Color(.systemGroupedBackground))
+                .background(Design.Surface.screen)
                 .safeAreaInset(edge: .bottom) {
                     if model.isSelecting { selectionBar(model) }
                 }
@@ -108,7 +108,7 @@ enum LibraryScreen {
         }
 
         private func shelf(_ model: Model) -> some View {
-            LazyVStack(alignment: .leading, spacing: 14) {
+            LazyVStack(alignment: .leading, spacing: Design.Space.large) {
                 heading(model)
                 search(model)
 
@@ -124,20 +124,20 @@ enum LibraryScreen {
                     }
                 }
             }
-            .padding(.horizontal, 16)
-            .padding(.bottom, 24)
+            .padding(.horizontal, Design.Space.extraLarge)
+            .padding(.bottom, Design.Space.huge)
         }
 
         // MARK: - The shelf's own heading
 
         private func heading(_ model: Model) -> some View {
             HStack(alignment: .firstTextBaseline) {
-                VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: Design.Space.extraSmall) {
                     Text("Library")
-                        .font(.largeTitle.bold())
+                        .font(Design.Style.screenTitle)
 
                     Text(model.filter.title)
-                        .font(.subheadline)
+                        .font(Design.Style.label)
                         .foregroundStyle(.secondary)
                 }
 
@@ -147,7 +147,7 @@ enum LibraryScreen {
                 addButton(model)
                 filterMenu(model)
             }
-            .padding(.top, 8)
+            .padding(.top, Design.Space.medium)
             .accessibilityElement(children: .contain)
         }
 
@@ -156,7 +156,7 @@ enum LibraryScreen {
                 model.isSelecting.toggle()
             } label: {
                 Image(systemName: model.isSelecting ? "xmark" : "checklist")
-                    .font(.title3)
+                    .font(Design.Style.title)
                     .frame(width: 34, height: 34)
             }
             .accessibilityIdentifier("library.select")
@@ -168,7 +168,7 @@ enum LibraryScreen {
         private func selectionBar(_ model: Model) -> some View {
             HStack {
                 Text("\(model.selection.count) selected")
-                    .font(.subheadline)
+                    .font(Design.Style.label)
                     .foregroundStyle(.secondary)
 
                 Spacer()
@@ -181,8 +181,8 @@ enum LibraryScreen {
                 .disabled(model.selection.count < 2)
                 .accessibilityIdentifier("library.combine")
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 12)
+            .padding(.horizontal, Design.Space.extraLarge)
+            .padding(.vertical, Design.Space.large)
             .background(.bar)
         }
 
@@ -199,7 +199,7 @@ enum LibraryScreen {
                 isPickingFile = true
             } label: {
                 Image(systemName: model.isImporting ? "hourglass" : "plus")
-                    .font(.title3)
+                    .font(Design.Style.title)
                     .frame(width: 34, height: 34)
             }
             .disabled(model.isImporting)
@@ -222,7 +222,7 @@ enum LibraryScreen {
                 )
             } label: {
                 Image(systemName: "line.3.horizontal.decrease.circle")
-                    .font(.title3)
+                    .font(Design.Style.title)
                     .frame(width: 34, height: 34)
             }
             .accessibilityLabel("Choose what to show")
@@ -239,7 +239,7 @@ enum LibraryScreen {
         private func search(_ model: Model) -> some View {
             @Bindable var model = model
 
-            return HStack(spacing: 8) {
+            return HStack(spacing: Design.Space.medium) {
                 Image(systemName: "magnifyingglass")
                     .foregroundStyle(.secondary)
                     .accessibilityHidden(true)
@@ -259,9 +259,9 @@ enum LibraryScreen {
                     .accessibilityLabel("Clear the search")
                 }
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 9)
-            .background(Color(.secondarySystemGroupedBackground), in: .rect(cornerRadius: 12))
+            .padding(.horizontal, Design.Space.large)
+            .padding(.vertical, Design.Space.medium)
+            .background(Design.Surface.card, in: .rect(cornerRadius: Design.Radius.medium))
         }
 
         // MARK: - Cards
@@ -275,7 +275,7 @@ enum LibraryScreen {
 
                     ForEach(Array(group.works.enumerated()), id: \.element.id) { index, work in
                         if index > 0 {
-                            Divider().padding(.leading, 12)
+                            Divider().padding(.leading, Design.Space.large)
                         }
 
                         if isBehindTheReader(model, work: work) {
@@ -289,33 +289,33 @@ enum LibraryScreen {
         }
 
         private func seriesHeader(_ model: Model, group: Model.Group) -> some View {
-            HStack(spacing: 8) {
+            HStack(spacing: Design.Space.medium) {
                 if model.isSelecting {
                     tick(Set(group.works.map(\.id)).isSubset(of: model.selection))
                 }
 
                 Image(systemName: "books.vertical.fill")
-                    .font(.caption)
+                    .font(Design.Style.caption)
                     .foregroundStyle(.tint)
                     .accessibilityHidden(true)
 
                 Text(group.series ?? "")
-                    .font(.subheadline.weight(.semibold))
+                    .font(Design.Style.heading)
                     .lineLimit(2)
 
                 Spacer(minLength: 8)
 
                 Text("\(group.works.count)")
-                    .font(.caption.monospacedDigit())
+                    .font(Design.Style.caption.monospacedDigit())
                     .foregroundStyle(.secondary)
 
                 // A button rather than a long press alone: a series has to say that its order is the
                 // reader's to set, and a context menu says nothing until it is found.
                 if !model.isSelecting { seriesMenu(model, group: group) }
             }
-            .padding(.horizontal, 12)
-            .padding(.top, 12)
-            .padding(.bottom, 8)
+            .padding(.horizontal, Design.Space.large)
+            .padding(.top, Design.Space.large)
+            .padding(.bottom, Design.Space.medium)
             .contentShape(.rect)
             .onTapGesture {
                 guard model.isSelecting else { return }
@@ -331,7 +331,7 @@ enum LibraryScreen {
                 seriesActions(model, group: group)
             } label: {
                 Image(systemName: "ellipsis.circle")
-                    .font(.subheadline)
+                    .font(Design.Style.label)
                     .foregroundStyle(.secondary)
                     .frame(width: 30, height: 30)
                     .contentShape(.rect)
@@ -364,7 +364,7 @@ enum LibraryScreen {
         private func card(@ViewBuilder _ content: () -> some View) -> some View {
             content()
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .background(Color(.secondarySystemGroupedBackground), in: .rect(cornerRadius: 16))
+                .background(Design.Surface.card, in: .rect(cornerRadius: Design.Radius.large))
         }
 
         /// One book on the shelf. The cover opens it; everything else opens its page.
@@ -372,10 +372,10 @@ enum LibraryScreen {
         /// Two tap targets rather than a button and a link, since the row is the larger of the two and
         /// the cover sits inside it: a gesture on the cover is the inner one, and the inner one wins.
         private func bookRow(_ model: Model, work: Book) -> some View {
-            HStack(spacing: 10) {
+            HStack(spacing: Design.Space.medium) {
                 if model.isSelecting { tick(model.selection.contains(work.id)) }
 
-                VStack(alignment: .leading, spacing: 6) {
+                VStack(alignment: .leading, spacing: Design.Space.small) {
                     WorkRow(
                         work: work,
                         showsSeries: false,
@@ -389,7 +389,7 @@ enum LibraryScreen {
                     }
                 }
             }
-            .padding(12)
+            .padding(Design.Space.large)
             .contentShape(.rect)
             .onTapGesture { choose(model, work: work) }
             .accessibilityElement(children: .combine)
@@ -403,23 +403,23 @@ enum LibraryScreen {
         /// A long series is read in order, so the ones behind the reader only have to stay findable.
         /// Given a cover and three lines each they push the book actually being read off the screen.
         private func finishedRow(_ model: Model, work: Book) -> some View {
-            HStack(spacing: 8) {
+            HStack(spacing: Design.Space.medium) {
                 if model.isSelecting { tick(model.selection.contains(work.id)) }
 
                 Image(systemName: "checkmark.circle.fill")
-                    .font(.caption)
+                    .font(Design.Style.caption)
                     .foregroundStyle(.tint)
                     .accessibilityHidden(true)
 
                 Text(work.title)
-                    .font(.subheadline)
+                    .font(Design.Style.label)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
 
                 Spacer(minLength: 8)
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 9)
+            .padding(.horizontal, Design.Space.large)
+            .padding(.vertical, Design.Space.medium)
             .contentShape(.rect)
             .onTapGesture { choose(model, work: work) }
             .accessibilityElement(children: .ignore)
@@ -452,7 +452,7 @@ enum LibraryScreen {
 
         private func tick(_ isOn: Bool) -> some View {
             Image(systemName: isOn ? "checkmark.circle.fill" : "circle")
-                .font(.title3)
+                .font(Design.Style.title)
                 .foregroundStyle(isOn ? AnyShapeStyle(.tint) : AnyShapeStyle(.tertiary))
                 .accessibilityHidden(true)
         }
@@ -461,7 +461,7 @@ enum LibraryScreen {
         private func preparing(_ progress: BookProcessor.Progress) -> some View {
             ProgressView(value: progress.fraction) {
                 Text("Preparing \(progress.prepared) of \(progress.total) chapters…")
-                    .font(.caption2)
+                    .font(Design.Style.micro)
                     .foregroundStyle(.secondary)
             }
             .accessibilityLabel("Preparing this book, \(progress.prepared) of \(progress.total) chapters done")
@@ -548,11 +548,11 @@ struct SeriesOrder: View {
         NavigationStack {
             List {
                 ForEach(works) { work in
-                    VStack(alignment: .leading, spacing: 2) {
+                    VStack(alignment: .leading, spacing: Design.Space.extraSmall) {
                         Text(work.title)
 
                         Text(work.authorLine)
-                            .font(.caption)
+                            .font(Design.Style.caption)
                             .foregroundStyle(.secondary)
                     }
                     .accessibilityElement(children: .combine)

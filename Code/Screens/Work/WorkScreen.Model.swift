@@ -52,6 +52,15 @@ extension WorkScreen {
             case unread
             case reading(Double)
             case read
+
+            /// How far through the chapter the reader is, as the ring draws it.
+            var progress: Double {
+                switch self {
+                    case .unread: 0
+                    case let .reading(progress): progress
+                    case .read: 1
+                }
+            }
         }
 
         func state(of chapter: BookChapter) -> ChapterState {

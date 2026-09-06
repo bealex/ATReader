@@ -79,6 +79,7 @@ else
 fi
 step "Bash lint" "$SCRIPTS/lint-bash.sh"
 step "Modules" "$SCRIPTS/check-modules.sh"
+step "Design" "$SCRIPTS/check-design.sh"
 step "Localization" "$SCRIPTS/loc-check.sh"
 
 echo

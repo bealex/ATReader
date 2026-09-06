@@ -26,18 +26,18 @@ enum LoginScreen {
 
         var body: some View {
             ScrollView {
-                VStack(spacing: 24) {
+                VStack(spacing: Design.Space.huge) {
                     header
 
                     if let model {
                         form(model)
                     }
                 }
-                .padding(24)
+                .padding(Design.Space.huge)
                 .frame(maxWidth: 480)
                 .frame(maxWidth: .infinity)
             }
-            .background(Color(.systemGroupedBackground))
+            .background(Design.Surface.screen)
             .scrollDismissesKeyboard(.interactively)
             .onAppear {
                 if model == nil { model = Model(session: session) }
@@ -45,17 +45,17 @@ enum LoginScreen {
         }
 
         private var header: some View {
-            VStack(spacing: 10) {
+            VStack(spacing: Design.Space.medium) {
                 Image(systemName: "books.vertical.fill")
                     .font(.system(size: 52))
                     .foregroundStyle(.tint)
                     .accessibilityHidden(true)
 
                 Text("ATReader")
-                    .font(.largeTitle.bold())
+                    .font(Design.Style.screenTitle)
 
                 Text("Read your author.today library")
-                    .font(.subheadline)
+                    .font(Design.Style.label)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
             }
@@ -66,7 +66,7 @@ enum LoginScreen {
         private func form(_ model: Model) -> some View {
             @Bindable var model = model
 
-            VStack(spacing: 16) {
+            VStack(spacing: Design.Space.extraLarge) {
                 switch model.stage {
                     case .credentials:
                         credentialFields($model)
@@ -76,7 +76,7 @@ enum LoginScreen {
 
                 if let message = model.errorMessage {
                     Text(message)
-                        .font(.footnote)
+                        .font(Design.Style.caption)
                         .foregroundStyle(Design.Palette.alert)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .accessibilityLabel("Sign-in error: \(message)")
@@ -92,11 +92,11 @@ enum LoginScreen {
                                 Text(model.submitTitle)
                             }
                         }
-                        .frame(maxWidth: .infinity, minHeight: 28)
+                        .actionLabel()
                     }
                 )
                 .buttonStyle(.borderedProminent)
-                .controlSize(.large)
+                .controlSize(.small)
                 .disabled(!model.canSubmit)
                 .accessibilityIdentifier("login.submit")
                 .accessibilityLabel(model.submitTitle)
@@ -104,19 +104,19 @@ enum LoginScreen {
 
                 if case .twoFactor = model.stage {
                     Button("Use a different account", action: model.restart)
-                        .font(.footnote)
+                        .font(Design.Style.caption)
                         .accessibilityHint("Go back to the username and password step")
                 }
             }
-            .padding(20)
-            .background(Color(.secondarySystemGroupedBackground), in: .rect(cornerRadius: 16))
+            .padding(Design.Space.extraLarge)
+            .background(Design.Surface.card, in: .rect(cornerRadius: Design.Radius.large))
         }
 
         @ViewBuilder
         private func credentialFields(_ model: Bindable<Model>) -> some View {
-            VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .leading, spacing: Design.Space.small) {
                 Text("Username or email")
-                    .font(.caption)
+                    .font(Design.Style.caption)
                     .foregroundStyle(.secondary)
 
                 TextField("mail@example.com", text: model.login)
@@ -132,9 +132,9 @@ enum LoginScreen {
                     .accessibilityLabel("Username or email address")
             }
 
-            VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .leading, spacing: Design.Space.small) {
                 Text("Password")
-                    .font(.caption)
+                    .font(Design.Style.caption)
                     .foregroundStyle(.secondary)
 
                 SecureField("Password", text: model.password)
@@ -150,9 +150,9 @@ enum LoginScreen {
 
         @ViewBuilder
         private func twoFactorFields(_ model: Bindable<Model>, type: TwoFactorType) -> some View {
-            VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .leading, spacing: Design.Space.small) {
                 Text(type.prompt)
-                    .font(.footnote)
+                    .font(Design.Style.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
 

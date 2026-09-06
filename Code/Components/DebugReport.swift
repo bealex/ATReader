@@ -3,6 +3,7 @@
 //  Licensed under the MIT License. See LICENSE in the repository root.
 //
 
+import DesignSystem
 import SwiftUI
 import UIKit
 import UniformTypeIdentifiers
@@ -73,22 +74,4 @@ enum DebugReport {
         formatter.dateFormat = "yyyyMMdd-HHmmss"
         return formatter
     }()
-}
-
-/// A file to share, which a sheet needs to be identifiable to present.
-struct SharedFile: Identifiable {
-    let url: URL
-
-    var id: String { url.path }
-}
-
-/// The system's own share sheet.
-struct ShareSheet: UIViewControllerRepresentable {
-    let url: URL
-
-    func makeUIViewController(context: Context) -> UIActivityViewController {
-        UIActivityViewController(activityItems: [ url ], applicationActivities: nil)
-    }
-
-    func updateUIViewController(_ controller: UIActivityViewController, context: Context) {}
 }

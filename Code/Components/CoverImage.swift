@@ -48,7 +48,7 @@ struct CoverImage: View {
         }
         .overlay(alignment: .bottomTrailing) {
             if let progress, progress > 0 {
-                ReadingProgressRing(progress: progress)
+                ProgressRing(progress: progress, isComplete: progress >= Book.readThreshold, ground: .artwork)
                     .padding(Design.Space.extraSmall)
             }
         }
@@ -81,88 +81,20 @@ struct CoverImage: View {
 }
 
 /// A book that came from a file rather than from the service.
-///
-/// Smaller than ``ReadingProgressRing`` and set in the opposite corner, because where a book came from
-/// is a footnote beside how far through it the reader is.
 struct FileMark: View {
-    private static let size = Design.Size.markSmall
-
     var body: some View {
-        ZStack {
-            Circle()
-                .fill(.thinMaterial)
-
-            Image(systemName: "doc.text.fill")
-                .font(.system(size: Design.Size.glyph(in: Self.size)))
-                .foregroundStyle(.secondary)
-        }
-        .frame(width: Self.size, height: Self.size)
-        .accessibilityHidden(true)
+        CircleMark(systemImage: "doc.text.fill")
     }
 }
 
-/// How far through a book the reader is, as a ring with the figure inside it. Always 30pt across,
-/// whatever the cover it sits on: it is a badge rather than a part of the artwork.
-struct ReadingProgressRing: View {
-    let progress: Double
-
-    static let size = Design.Size.mark
-
-    /// The ring is inset by half its own width, so its outer edge lands on the badge's edge and no
-    /// backing shows around it.
-    private static let lineWidth = Design.Stroke.ring
-
-    var body: some View {
-        ZStack {
-            Circle()
-                .fill(.thinMaterial)
-
-            Circle()
-                .stroke(Design.Surface.edge, lineWidth: Self.lineWidth)
-                .padding(Self.lineWidth / 2)
-
-            Circle()
-                .trim(from: 0, to: min(1, max(0, progress)))
-                .stroke(Design.Palette.accent, style: StrokeStyle(lineWidth: Self.lineWidth, lineCap: .round))
-                .padding(Self.lineWidth / 2)
-                .rotationEffect(.degrees(-90))
-
-            label
-                .foregroundStyle(.primary)
-        }
-        .frame(width: Self.size, height: Self.size)
-        .accessibilityHidden(true)
-    }
-
-    /// A book read to its end says so with a tick, which is the mark the eye finds without reading it.
-    @ViewBuilder
-    private var label: some View {
-        if progress >= Book.readThreshold {
-            Image(systemName: "checkmark")
-                .font(.system(size: Design.Size.glyph(in: Self.size), weight: .bold))
-        } else {
-            Text(progress.formatted(.percent.precision(.fractionLength(0))))
-                .font(.system(size: Design.Size.figure(in: Self.size), weight: .semibold).monospacedDigit())
-                .minimumScaleFactor(0.7)
-        }
-    }
-}
-
-/// Whether a book sits in the reader's library, as a badge on its cover. Sized to match
-/// ``ReadingProgressRing`` so the two sit as a pair on the same cover.
+/// Whether a book sits in the reader's library, as a mark on its cover.
 struct LibraryMark: View {
     let inLibrary: Bool
 
     var body: some View {
-        ZStack {
-            Circle()
-                .fill(.thinMaterial)
-
-            Image(systemName: inLibrary ? "book.fill" : "book")
-                .font(.system(size: Design.Size.glyph(in: Design.Size.mark)))
-                .foregroundStyle(inLibrary ? Design.Palette.accent : Design.Palette.neutral)
-        }
-        .frame(width: Design.Size.mark, height: Design.Size.mark)
-        .accessibilityHidden(true)
+        CircleMark(
+            systemImage: inLibrary ? "book.fill" : "book",
+            tint: inLibrary ? Design.Palette.accent : Design.Palette.neutral
+        )
     }
 }

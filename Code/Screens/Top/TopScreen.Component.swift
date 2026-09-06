@@ -104,6 +104,7 @@ enum TopScreen {
                             FilterChip(
                                 title: period.title,
                                 isSelected: model.wrappedValue.period == period,
+                                hint: String(localized: "Filters the chart"),
                                 action: { model.wrappedValue.period = period }
                             )
                         }
@@ -113,8 +114,9 @@ enum TopScreen {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: Design.Space.medium) {
                         FilterChip(
-                            title: "All genres",
+                            title: String(localized: "All genres"),
                             isSelected: model.wrappedValue.genreId == nil,
+                            hint: String(localized: "Filters the chart"),
                             action: { model.wrappedValue.genreId = nil }
                         )
 
@@ -122,6 +124,7 @@ enum TopScreen {
                             FilterChip(
                                 title: genre.title,
                                 isSelected: model.wrappedValue.genreId == genre.id,
+                                hint: String(localized: "Filters the chart"),
                                 action: { model.wrappedValue.genreId = genre.id }
                             )
                         }
@@ -149,31 +152,5 @@ enum TopScreen {
             .accessibilityElement(children: .combine)
             .accessibilityLabel("Rank \(rank). \(work.title), \(work.authorLine)")
         }
-    }
-}
-
-/// A pill-shaped toggle used by the top-list filters.
-struct FilterChip: View {
-    let title: String
-    let isSelected: Bool
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            Text(title)
-                .font(Design.Style.label)
-                .padding(.horizontal, Design.Space.large)
-                .padding(.vertical, Design.Space.small)
-                .background(
-                    isSelected ? Design.Palette.accent : Design.Surface.fill,
-                    in: .capsule
-                )
-                .foregroundStyle(isSelected ? Color.white : Color.primary)
-                .contentShape(.capsule)
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel(title)
-        .accessibilityAddTraits(isSelected ? [ .isButton, .isSelected ] : .isButton)
-        .accessibilityHint("Filters the chart")
     }
 }

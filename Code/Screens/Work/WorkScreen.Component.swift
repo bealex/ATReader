@@ -170,7 +170,7 @@ enum WorkScreen {
                         .actionLabel()
                 }
                 .buttonStyle(.borderedProminent)
-                .controlSize(.large)
+                .controlSize(.small)
                 .accessibilityIdentifier("work.read")
                 .accessibilityHint("Opens the reader")
             } else if !model.isLoading {
@@ -220,7 +220,7 @@ enum WorkScreen {
                     .actionLabel()
             }
             .buttonStyle(.bordered)
-            .controlSize(.large)
+            .controlSize(.small)
             .padding(.top, Design.Space.medium)
             .accessibilityIdentifier("work.delete")
             .accessibilityHint("Removes the book and its text from this device")
@@ -317,7 +317,12 @@ enum WorkScreen {
                         )
                         .accessibilityHidden(true)
                 } else {
-                    ChapterMark(state: state)
+                    ProgressRing(
+                        progress: state.progress,
+                        isComplete: state == .read,
+                        // A chapter just begun still reads as begun.
+                        minimumTrim: 0.04
+                    )
                 }
             }
             .padding(.vertical, Design.Space.medium)
@@ -356,46 +361,4 @@ enum WorkScreen {
     }
 
     /// A chapter's own progress: a tick once it has been read, a ring filled as far as the reader got,
-    /// and an outline for one they have not opened.
-    struct ChapterMark: View {
-        let state: Model.ChapterState
-
-        private static let size = Design.Size.markSmall
-        private static let lineWidth = Design.Stroke.ring
-
-        var body: some View {
-            ZStack {
-                switch state {
-                    case .unread:
-                        track
-                    case let .reading(progress):
-                        track
-
-                        Circle()
-                            .trim(from: 0, to: max(0.04, min(1, progress)))
-                            .stroke(
-                                Design.Palette.accent,
-                                style: StrokeStyle(lineWidth: Self.lineWidth, lineCap: .round)
-                            )
-                            .padding(Self.lineWidth / 2)
-                            .rotationEffect(.degrees(-90))
-                    case .read:
-                        Circle()
-                            .fill(Design.Palette.accent)
-
-                        Image(systemName: "checkmark")
-                            .font(.system(size: Design.Size.glyph(in: Self.size), weight: .bold))
-                            .foregroundStyle(.white)
-                }
-            }
-            .frame(width: Self.size, height: Self.size)
-            .accessibilityHidden(true)
-        }
-
-        private var track: some View {
-            Circle()
-                .stroke(Design.Surface.edge, lineWidth: Self.lineWidth)
-                .padding(Self.lineWidth / 2)
-        }
-    }
 }

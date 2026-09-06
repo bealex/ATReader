@@ -95,11 +95,11 @@ enum DesignSystemScreen {
 
                             Circle()
                                 .fill(meaning.colour)
-                                .frame(width: Design.Size.markSmall, height: Design.Size.markSmall)
+                                .frame(width: Design.Size.mark, height: Design.Size.mark)
 
                             Circle()
                                 .fill(Design.Surface.ground(meaning.colour))
-                                .frame(width: Design.Size.markSmall, height: Design.Size.markSmall)
+                                .frame(width: Design.Size.mark, height: Design.Size.mark)
 
                             Text(verbatim: meaning.usage)
                                 .font(Design.Style.caption)
@@ -158,14 +158,20 @@ enum DesignSystemScreen {
                 VStack(alignment: .leading, spacing: Design.Space.extraLarge) {
                     specimen("Badge") {
                         FlowLayout(spacing: Design.Space.small, lineSpacing: Design.Space.small) {
-                            WorkBadge(
-                                title: String(localized: "Finished"),
+                            Pill(
+                                title: "Finished",
                                 systemImage: "checkmark.circle.fill",
-                                tint: Design.Palette.positive
+                                tint: Design.Palette.positive,
+                                label: "Finished"
                             )
-                            WorkBadge(title: String(localized: "Ongoing"), systemImage: "pencil")
-                            WorkBadge(title: nil, systemImage: "dollarsign", tint: Design.Palette.caution)
-                            WorkBadge(title: "1.2K", systemImage: "heart.fill")
+                            Pill(title: "Ongoing", systemImage: "pencil", label: "Ongoing")
+                            Pill(
+                                title: nil,
+                                systemImage: "dollarsign",
+                                tint: Design.Palette.caution,
+                                label: "Costs money"
+                            )
+                            Pill(title: "1.2K", systemImage: "heart.fill", label: "1.2K")
                         }
                     }
 
@@ -181,7 +187,7 @@ enum DesignSystemScreen {
                                 .actionLabel()
                             }
                             .buttonStyle(.borderedProminent)
-                            .controlSize(.large)
+                            .controlSize(.small)
 
                             Button(role: .destructive) {
                             } label: {
@@ -193,21 +199,22 @@ enum DesignSystemScreen {
                                 .actionLabel()
                             }
                             .buttonStyle(.bordered)
-                            .controlSize(.large)
+                            .controlSize(.small)
                         }
                     }
 
                     specimen("Chip") {
                         HStack(spacing: Design.Space.medium) {
-                            FilterChip(title: "Selected", isSelected: true, action: {})
-                            FilterChip(title: "Not selected", isSelected: false, action: {})
+                            FilterChip(title: "Selected", isSelected: true, hint: "", action: {})
+                            FilterChip(title: "Not selected", isSelected: false, hint: "", action: {})
                         }
                     }
 
                     specimen("Mark") {
                         HStack(spacing: Design.Space.extraLarge) {
-                            ReadingProgressRing(progress: 0.47)
-                            ReadingProgressRing(progress: 1)
+                            ProgressRing(progress: 0.47, isComplete: false, ground: .artwork)
+                            ProgressRing(progress: 1, isComplete: true, ground: .artwork)
+                            ProgressRing(progress: 0.47, isComplete: false)
                             FileMark()
                             LibraryMark(inLibrary: true)
                             LibraryMark(inLibrary: false)
@@ -305,7 +312,7 @@ enum DesignSystemScreen {
         ]
 
         private static let sizes: [(String, CGFloat)] = [
-            ("markSmall", Design.Size.markSmall),
+            ("markSmall", Design.Size.mark),
             ("mark", Design.Size.mark),
             ("control", Design.Size.control),
             ("touch", Design.Size.touch),
@@ -342,10 +349,8 @@ enum DesignSystemScreen {
             ("screenTitle", Design.Style.screenTitle),
             ("title", Design.Style.title),
             ("heading", Design.Style.heading),
-            ("body", Design.Style.body),
             ("item", Design.Style.item),
             ("label", Design.Style.label),
-            ("labelStrong", Design.Style.labelStrong),
             ("caption", Design.Style.caption),
             ("micro", Design.Style.micro),
         ]

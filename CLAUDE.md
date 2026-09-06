@@ -68,6 +68,14 @@ this codebase leans on hardest:
 - Every interactive element gets an `.accessibilityLabel()`; decorative views get
   `.accessibilityHidden(true)`.
 
+- **A component goes in `DesignSystem`, and if one is there already you use it.** Never draw a second
+  capsule, ring or circular mark. What may not go there is knowledge of what a book is: that package
+  cannot see `BookKit`, so book-shaped views live in `Code/Components` and are built from the generic
+  ones. See `Documentation/DesignSystem.md`.
+- **Every length and text style in the app has a name.** `Design.Space`, `Radius`, `Size` and `Style`,
+  never a literal. `Scripts/check-design.sh` fails the build on a number written into a view. The
+  reader page is exempt, since its type and margins belong to whoever is reading.
+
 Run `Scripts/check.sh` before you call a change done (`--fix` applies formatting). It gates
 swift-format, SwiftLint, shell scripts and the String Catalogs in one pass. Never invoke
 `swift-format` or `swiftlint` directly.

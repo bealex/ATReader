@@ -3,46 +3,9 @@
 //  Licensed under the MIT License. See LICENSE in the repository root.
 //
 
-import AuthorToday
-import AuthorTodayBooks
 import BookKit
 import DesignSystem
 import SwiftUI
-
-/// One fact about a book, as a tinted pill: a glyph and a short phrase.
-struct WorkBadge: View {
-    /// A badge with no title is its glyph alone.
-    let title: String?
-    let systemImage: String
-    var tint: Color = Design.Palette.neutral
-
-    /// One line of the badge's own text style, which follows Dynamic Type as the text in it does.
-    @ScaledMetric(relativeTo: .caption2)
-    private var lineHeight: CGFloat = 13
-
-    var body: some View {
-        HStack(spacing: Design.Space.extraSmall) {
-            Image(systemName: systemImage)
-                .font(Design.Style.micro)
-                .imageScale(.small)
-
-            if let title {
-                Text(title)
-                    .font(Design.Style.micro)
-                    .lineLimit(1)
-            }
-        }
-        // A glyph is shorter than a line of text, so a badge carrying no word would stand smaller
-        // than the ones beside it in the same row.
-        .frame(minHeight: lineHeight)
-        .foregroundStyle(tint)
-        .padding(.horizontal, Design.Space.small)
-        .padding(.vertical, Design.Space.extraSmall)
-        .background(Design.Surface.ground(tint), in: .capsule)
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(title ?? String(localized: "Costs money"))
-    }
-}
 
 /// The pills a book carries. Which of them a screen shows differs, so each is asked for by name.
 ///
@@ -62,15 +25,20 @@ struct WorkBadges: View {
             state
 
             if costsMoney ?? work.needsBuying {
-                WorkBadge(title: nil, systemImage: "dollarsign", tint: Design.Palette.caution)
+                Pill(
+                    title: nil,
+                    systemImage: "dollarsign",
+                    tint: Design.Palette.caution,
+                    label: String(localized: "Costs money")
+                )
             }
 
             if let likes = BookFormatting.likes(work.likeCount) {
-                WorkBadge(title: likes, systemImage: "heart.fill")
+                Pill(title: likes, systemImage: "heart.fill", label: likes)
             }
 
             if showsUpdated, let updated = BookFormatting.updated(work.lastUpdateTime) {
-                WorkBadge(title: updated, systemImage: "clock")
+                Pill(title: updated, systemImage: "clock", label: updated)
             }
         }
     }
@@ -81,13 +49,11 @@ struct WorkBadges: View {
     @ViewBuilder
     private var state: some View {
         if showsProgress, work.isFinishedReading {
-            WorkBadge(
-                title: String(localized: "Finished"),
-                systemImage: "checkmark.circle.fill",
-                tint: Design.Palette.positive
-            )
+            let title = String(localized: "Finished")
+            Pill(title: title, systemImage: "checkmark.circle.fill", tint: Design.Palette.positive, label: title)
         } else if work.isOngoing {
-            WorkBadge(title: String(localized: "Ongoing"), systemImage: "pencil")
+            let title = String(localized: "Ongoing")
+            Pill(title: title, systemImage: "pencil", label: title)
         }
     }
 }

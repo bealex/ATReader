@@ -111,7 +111,7 @@ enum SearchScreen {
         private func resultsHeader(_ feed: CatalogFeed) -> some View {
             HStack {
                 Text(headerText(feed))
-                    .font(.footnote)
+                    .font(Design.Style.caption)
                     .foregroundStyle(.secondary)
             }
             .listRowSeparator(.hidden)

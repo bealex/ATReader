@@ -28,6 +28,7 @@ public enum Design {
         public static let small = Space.unit * 2
         public static let medium = Space.unit * 4
         public static let large = Space.unit * 6
+        public static let extraLarge = Space.unit * 9
 
         /// A cover rounds in proportion to its own width, so it reads the same at any size.
         public static func cover(width: CGFloat) -> CGFloat { width * 0.08 }
@@ -40,8 +41,9 @@ public enum Design {
     }
 
     public enum Size {
-        public static let markSmall = Space.unit * 6
-        public static let mark = Space.unit * 10
+        /// Every circular mark on a cover. Small on purpose: a mark is a footnote beside the
+        /// artwork rather than a second subject.
+        public static let mark = Space.unit * 6
         public static let control = Space.unit * 12
         /// The smallest thing a finger should have to find.
         public static let touch = Space.unit * 15
@@ -52,9 +54,6 @@ public enum Design {
 
         /// A glyph inside a circular mark, sized to the mark rather than to a text style.
         public static func glyph(in mark: CGFloat) -> CGFloat { mark * 0.45 }
-
-        /// A figure inside a circular mark, which has to fit there rather than be read at a glance.
-        public static func figure(in mark: CGFloat) -> CGFloat { mark * 0.24 }
     }
 
     /// The five colours that mean something. Nothing outside this list carries a fact.
@@ -86,16 +85,15 @@ public enum Design {
         public static func ground(_ tint: Color) -> Color { tint.opacity(Palette.veil) }
     }
 
-    /// Nine roles, each one system text style, so the whole app follows Dynamic Type.
+    /// Seven roles, each one system text style, so the whole app follows Dynamic Type.
     public enum Style {
         public static let screenTitle = Font.largeTitle.bold()
         public static let title = Font.title3.bold()
         public static let heading = Font.headline
-        public static let body = Font.body
-        /// A row in a list of things: a chapter, a setting.
+        /// A row in a list of things: a chapter, a setting. Close enough to body that body never
+        /// needed a name: an unstyled Text is already that.
         public static let item = Font.callout
         public static let label = Font.subheadline
-        public static let labelStrong = Font.subheadline.weight(.semibold)
         public static let caption = Font.caption
         public static let micro = Font.caption2
     }
@@ -127,10 +125,11 @@ extension View {
     /// The shape of a full-width action: it fills the width and stands at least one control tall.
     ///
     /// Goes on the button's label rather than the button, which is what makes the label fill. Pair it
-    /// with `.controlSize(.large)` on the button itself, so two actions on one screen agree on height
-    /// whether one of them is prominent or not.
+    /// with `.controlSize(.small)` on the button itself, so the minimum height below is what
+    /// governs and two actions on one screen agree whether one of them is prominent or not.
     public func actionLabel() -> some View {
-        frame(maxWidth: .infinity, minHeight: Design.Size.control)
+        font(Design.Style.label)
+            .frame(maxWidth: .infinity, minHeight: Design.Size.control)
     }
 
     public func shade(_ shade: Design.Shade) -> some View {
