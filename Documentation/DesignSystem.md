@@ -75,7 +75,7 @@ Its labels are `Text(verbatim:)`, because a token name isn't translated.
 
 **A component goes in `DesignSystem`, and if one is already there you use it.** Drawing a second
 capsule, a second ring or a second circular mark is how a design system stops being one. There were two
-progress rings before this rule, differing in ways nobody had chosen.
+progress marks before this rule, differing in ways nobody had chosen.
 
 The one thing that cannot go in `DesignSystem` is knowledge of what a book is. The package has no
 dependency on `BookKit`, and `Scripts/check-modules.sh` fails the build if it grows one. So a component
@@ -83,7 +83,7 @@ splits along that line:
 
 | | Lives in | Examples |
 | --- | --- | --- |
-| Knows no domain | `DesignSystem` | `Pill`, `ProgressRing`, `CircleMark`, `FilterChip`, `FlowLayout`, `LoadingOverlay`, `ExpandableText`, `ShareSheet` |
+| Knows no domain | `DesignSystem` | `Pill`, `ProgressMark`, `CircleMark`, `FilterChip`, `FlowLayout`, `LoadingOverlay`, `ExpandableText`, `ShareSheet` |
 | Knows what a book is | `Code/Components` | `BookRow`, `WorkBadges`, `CoverImage`, `FileMark`, `LibraryMark` |
 
 The second kind is built from the first and never redraws a shape the first already has. `FileMark` is

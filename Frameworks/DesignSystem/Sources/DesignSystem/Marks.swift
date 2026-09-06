@@ -5,14 +5,14 @@
 
 import SwiftUI
 
-/// How far through something the reader is, as a ring, with a tick once it is done.
+/// A wedge that fills as something is read, closing to a full disc and a tick once it is done.
 ///
-/// One ring for every place that shows progress round a circle. There were two, drawn separately and
+/// One mark for every place that shows progress round a circle. There were two, drawn separately and
 /// differing in ways nobody had chosen.
-public struct ProgressRing: View {
-    /// What the ring is drawn over.
+public struct ProgressMark: View {
+    /// What the mark is drawn over.
     public enum Ground {
-        /// Over artwork nobody has seen, so the ring brings its own backing.
+        /// Over artwork nobody has seen, so the mark brings its own backing.
         case artwork
         /// On a surface the app painted, where the track alone reads.
         case surface
@@ -21,17 +21,26 @@ public struct ProgressRing: View {
     public let progress: Double
     public let isComplete: Bool
     public var ground: Ground
-    /// A ring just begun still reads as begun rather than as untouched.
-    public var minimumTrim: Double
+    /// A wedge just begun still reads as begun rather than as untouched.
+    public var minimumSweep: Double
 
-    public init(progress: Double, isComplete: Bool, ground: Ground = .surface, minimumTrim: Double = 0) {
+    /// How far an unfinished wedge is allowed to close.
+    ///
+    /// A book at 99% swept to 99% is a full disc to the eye, and finishing a book is worth being able
+    /// to see. The whole range is scaled into this instead of clipped at the top, so the wedge still
+    /// grows with every page rather than stalling near the end.
+    private static let widestUnfinished = 0.88
+
+    public init(progress: Double, isComplete: Bool, ground: Ground = .surface, minimumSweep: Double = 0) {
         self.progress = progress
         self.isComplete = isComplete
         self.ground = ground
-        self.minimumTrim = minimumTrim
+        self.minimumSweep = minimumSweep
     }
 
-    private var trim: Double { max(minimumTrim, min(1, max(0, progress))) }
+    private var sweep: Double {
+        max(minimumSweep, min(1, max(0, progress)) * Self.widestUnfinished)
+    }
 
     public var body: some View {
         ZStack {
@@ -39,29 +48,45 @@ public struct ProgressRing: View {
                 Circle().fill(.thinMaterial)
             }
 
+            Circle()
+                .fill(Design.Surface.edge)
+
             if isComplete {
-                Circle().fill(Design.Palette.accent)
+                Circle()
+                    .fill(Design.Palette.accent)
 
                 Image(systemName: "checkmark")
                     .font(.system(size: Design.Size.glyph(in: Design.Size.mark), weight: .bold))
                     .foregroundStyle(.white)
             } else {
-                Circle()
-                    .stroke(Design.Surface.edge, lineWidth: Design.Stroke.ring)
-                    .padding(Design.Stroke.ring / 2)
-
-                Circle()
-                    .trim(from: 0, to: trim)
-                    .stroke(
-                        Design.Palette.accent,
-                        style: StrokeStyle(lineWidth: Design.Stroke.ring, lineCap: .round)
-                    )
-                    .padding(Design.Stroke.ring / 2)
-                    .rotationEffect(.degrees(-90))
+                Sector(sweep: sweep)
+                    .fill(Design.Palette.accent)
             }
         }
         .frame(width: Design.Size.mark, height: Design.Size.mark)
         .accessibilityHidden(true)
+    }
+}
+
+/// A wedge of a circle, swept clockwise from the top.
+struct Sector: Shape {
+    let sweep: Double
+
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        let centre = CGPoint(x: rect.midX, y: rect.midY)
+
+        path.move(to: centre)
+        path.addArc(
+            center: centre,
+            radius: min(rect.width, rect.height) / 2,
+            startAngle: .degrees(-90),
+            endAngle: .degrees(-90 + 360 * sweep),
+            clockwise: false
+        )
+        path.closeSubpath()
+
+        return path
     }
 }
 

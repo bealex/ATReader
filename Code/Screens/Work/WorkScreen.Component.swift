@@ -317,11 +317,11 @@ enum WorkScreen {
                         )
                         .accessibilityHidden(true)
                 } else {
-                    ProgressRing(
+                    ProgressMark(
                         progress: state.progress,
                         isComplete: state == .read,
                         // A chapter just begun still reads as begun.
-                        minimumTrim: 0.04
+                        minimumSweep: 0.04
                     )
                 }
             }

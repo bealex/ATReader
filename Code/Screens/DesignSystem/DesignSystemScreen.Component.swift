@@ -212,9 +212,12 @@ enum DesignSystemScreen {
 
                     specimen("Mark") {
                         HStack(spacing: Design.Space.extraLarge) {
-                            ProgressRing(progress: 0.47, isComplete: false, ground: .artwork)
-                            ProgressRing(progress: 1, isComplete: true, ground: .artwork)
-                            ProgressRing(progress: 0.47, isComplete: false)
+                            ProgressMark(progress: 0.05, isComplete: false, ground: .artwork)
+                            ProgressMark(progress: 0.47, isComplete: false, ground: .artwork)
+                            // The pair worth telling apart at a glance.
+                            ProgressMark(progress: 0.99, isComplete: false, ground: .artwork)
+                            ProgressMark(progress: 1, isComplete: true, ground: .artwork)
+                            ProgressMark(progress: 0.47, isComplete: false)
                             FileMark()
                             LibraryMark(inLibrary: true)
                             LibraryMark(inLibrary: false)

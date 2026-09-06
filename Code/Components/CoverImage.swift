@@ -48,7 +48,7 @@ struct CoverImage: View {
         }
         .overlay(alignment: .bottomTrailing) {
             if let progress, progress > 0 {
-                ProgressRing(progress: progress, isComplete: progress >= Book.readThreshold, ground: .artwork)
+                ProgressMark(progress: progress, isComplete: progress >= Book.readThreshold, ground: .artwork)
                     .padding(Design.Space.extraSmall)
             }
         }
