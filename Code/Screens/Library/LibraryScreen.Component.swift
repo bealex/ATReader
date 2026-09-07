@@ -384,12 +384,14 @@ enum LibraryScreen {
                     .hidden()
                     .accessibilityHidden(true)
 
-                SeriesNumber(number: number)
+                HStack(alignment: .firstTextBaseline, spacing: Design.Space.small) {
+                    SeriesNumber(number: number)
 
-                Text("Not in your library")
-                    .font(Design.Style.label)
-                    .foregroundStyle(.tertiary)
-                    .lineLimit(1)
+                    Text("Not in your library")
+                        .font(Design.Style.label)
+                        .foregroundStyle(.tertiary)
+                        .lineLimit(1)
+                }
 
                 Spacer(minLength: Design.Space.medium)
             }
@@ -442,14 +444,16 @@ enum LibraryScreen {
                     .foregroundStyle(.tint)
                     .accessibilityHidden(true)
 
-                if let number { SeriesNumber(number: number) }
+                HStack(alignment: .firstTextBaseline, spacing: Design.Space.small) {
+                    if let number { SeriesNumber(number: number) }
 
-                Text(title)
-                    .font(Design.Style.label)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
+                    Text(title)
+                        .font(Design.Style.label)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
 
-                Spacer(minLength: 8)
+                Spacer(minLength: Design.Space.medium)
             }
             .padding(.horizontal, Design.Space.large)
             .padding(.vertical, Design.Space.medium)
