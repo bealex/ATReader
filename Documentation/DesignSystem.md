@@ -43,9 +43,12 @@ wrapper would, and wrapping them would hide which one is in play.
 
 ## Actions
 
-A full-width action wears `.actionLabel()` on its label and `.controlSize(.large)` on the button.
+A full-width action wears `.actionLabel()` on its label and `.controlSize(.small)` on the button.
 Prominence is the only thing that varies: `.borderedProminent` for the one thing a screen is for,
 `.bordered` for the rest, `role: .destructive` where it takes something away.
+
+The action carries the one size in the app that is not a text style: 18 points, a shade over a
+heading, at medium weight. It still scales with Dynamic Type.
 
 Setting a height without the control size does nothing, which is how the book page ended up with a
 Read button and a Delete button at two different heights and two different type sizes.

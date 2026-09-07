@@ -128,8 +128,10 @@ extension View {
     /// with `.controlSize(.small)` on the button itself, so the minimum height below is what
     /// governs and two actions on one screen agree whether one of them is prominent or not.
     public func actionLabel() -> some View {
-        // The heading's size, a step under its weight: an action should carry without shouting.
-        font(Design.Style.heading.weight(.medium))
+        // The one size in the app that is not a text style. A heading is a shade small for the thing a
+        // screen is for, and a point over it carries without shouting. It still follows Dynamic Type,
+        // which is why this is a size rather than a fixed point count.
+        font(.system(size: 18, weight: .medium))
             .frame(maxWidth: .infinity, minHeight: Design.Size.control)
     }
 
