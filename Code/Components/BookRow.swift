@@ -10,7 +10,7 @@ import DesignSystem
 import SwiftUI
 
 /// A book as it appears in every list: cover, title, author and the reader's own position.
-struct WorkRow: View {
+struct BookRow: View {
     let work: Book
     var showsProgress = true
     /// Off where the list already groups by series, so the row doesn't repeat its own heading.
@@ -42,7 +42,7 @@ struct WorkRow: View {
                         .lineLimit(1)
                 }
 
-                WorkBadges(work: work, showsProgress: showsProgress)
+                BookBadges(work: work, showsProgress: showsProgress)
                     .padding(.top, Design.Space.extraSmall)
             }
             .frame(maxWidth: .infinity, alignment: .leading)

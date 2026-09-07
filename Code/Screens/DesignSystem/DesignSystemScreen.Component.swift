@@ -3,6 +3,7 @@
 //  Licensed under the MIT License. See LICENSE in the repository root.
 //
 
+import BookKit
 import DesignSystem
 import SwiftUI
 
@@ -154,7 +155,11 @@ enum DesignSystemScreen {
         // MARK: - Components
 
         private var components: some View {
-            card("Components", "The shared pieces, at the size they render, built from the tokens above.") {
+            card(
+                "Components",
+                "Every shared piece, at the size it renders. Two are missing on purpose: the loading "
+                    + "overlay fills a screen, and the share sheet is the system's own."
+            ) {
                 VStack(alignment: .leading, spacing: Design.Space.extraLarge) {
                     specimen("Badge") {
                         FlowLayout(spacing: Design.Space.small, lineSpacing: Design.Space.small) {
@@ -238,6 +243,24 @@ enum DesignSystemScreen {
                         }
                     }
 
+                    specimen("Row") {
+                        VStack(alignment: .leading, spacing: Design.Space.extraLarge) {
+                            BookRow(work: Self.placeholder)
+                            RankedRow(rank: 2, work: Self.placeholder)
+                        }
+                    }
+
+                    specimen("Expandable text") {
+                        ExpandableText(Self.placeholderProse, lineLimit: 2)
+                    }
+
+                    specimen("Loading card") {
+                        LoadingCard(title: "Building the chart…", label: "Loading top books")
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, Design.Space.medium)
+                            .background(Design.Surface.screen, in: .rect(cornerRadius: Design.Radius.medium))
+                    }
+
                     specimen("Cover, with nothing loaded") {
                         HStack(alignment: .top, spacing: Design.Space.medium) {
                             CoverImage(url: nil, width: Design.Size.rowCover, progress: 0.47, isLocal: true)
@@ -306,6 +329,25 @@ enum DesignSystemScreen {
         }
 
         // MARK: - The tables themselves
+
+        /// Invented, and obviously so. Nothing the service returned ever goes in the repository.
+        private static let placeholder = Book(
+            id: 1,
+            title: "Title of the book, long enough that it runs to a second line",
+            authorLine: "Author Name",
+            coverURL: nil,
+            annotation: nil,
+            seriesTitle: "Name of the series",
+            likeCount: 1200,
+            isFinished: false,
+            readingProgress: 0.47,
+            hasStartedReading: true
+        )
+
+        private static let placeholderProse = """
+            A blurb runs to a few lines and then stops, and the control below opens the rest of it \
+            where there is more to read than the limit allows.
+            """
 
         private static let barGlyphs = [
             "checklist", "plus", "line.3.horizontal.decrease.circle", "ellipsis.circle",

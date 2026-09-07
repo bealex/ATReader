@@ -11,7 +11,7 @@ import SwiftUI
 ///
 /// How far the reader has got is not among them: the ring on the cover says that already, and saying it
 /// twice on one row reads as two different facts.
-struct WorkBadges: View {
+struct BookBadges: View {
     let work: Book
     /// Whether the reader's own standing in the book counts, which decides between Finished and Ongoing.
     var showsProgress = false

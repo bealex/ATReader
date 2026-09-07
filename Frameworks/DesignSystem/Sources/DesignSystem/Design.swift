@@ -108,7 +108,7 @@ public enum Design {
         /// A full-width action, prominent or not.
         public static let action = Font.system(size: 18, weight: .medium)
         /// An icon-only button in a bar.
-        public static let bar = Font.system(size: 20, weight: .regular)
+        public static let barGlyph = Font.system(size: 20, weight: .regular)
     }
 
     /// A cast shadow, at one of two depths.
@@ -151,7 +151,7 @@ extension View {
     /// A glyph is already a solid shape. Setting one at the title's own bold makes it read as heavier
     /// than the words beside it rather than as the same size.
     public func barGlyph() -> some View {
-        font(Design.Control.bar)
+        font(Design.Control.barGlyph)
             .frame(width: Design.Size.control, height: Design.Size.control)
     }
 

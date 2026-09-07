@@ -156,7 +156,7 @@ enum WorkScreen {
         }
 
         private func statistics(_ work: Book, costsMoney: Bool) -> some View {
-            WorkBadges(work: work, showsProgress: true, showsUpdated: true, costsMoney: costsMoney)
+            BookBadges(work: work, showsProgress: true, showsUpdated: true, costsMoney: costsMoney)
                 .padding(.top, Design.Space.extraSmall)
         }
 

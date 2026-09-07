@@ -372,7 +372,7 @@ enum LibraryScreen {
                 if model.isSelecting { tick(model.selection.contains(work.id)) }
 
                 VStack(alignment: .leading, spacing: Design.Space.small) {
-                    WorkRow(
+                    BookRow(
                         work: work,
                         showsSeries: false,
                         newChapters: model.newChapters(for: work.id),
@@ -448,7 +448,7 @@ enum LibraryScreen {
 
         private func tick(_ isOn: Bool) -> some View {
             Image(systemName: isOn ? "checkmark.circle.fill" : "circle")
-                .font(Design.Control.bar)
+                .font(Design.Control.barGlyph)
                 .foregroundStyle(isOn ? AnyShapeStyle(.tint) : AnyShapeStyle(.tertiary))
                 .accessibilityHidden(true)
         }

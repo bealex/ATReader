@@ -75,7 +75,7 @@ enum SearchScreen {
                     Button {
                         path.append(.work(id: work.id, title: work.title))
                     } label: {
-                        WorkRow(work: work, showsProgress: false)
+                        BookRow(work: work, showsProgress: false)
                             .contentShape(.rect)
                     }
                     .buttonStyle(.plain)

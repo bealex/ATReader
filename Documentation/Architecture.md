@@ -91,7 +91,7 @@ The session is meant to outlive the token. Tokens last a day, and three things k
 ### One row type, three sources
 
 The library, the catalogue and a work's own details return three different shapes for the same idea.
-`WorkSummary` is the single presentation struct they all map into, so `WorkRow` serves every list.
+`Book` is the single presentation struct they all map into, so `BookRow` serves every list.
 Adding a fourth source means adding an initialiser, not a view.
 
 ### The library
