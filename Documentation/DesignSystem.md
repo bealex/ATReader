@@ -23,7 +23,9 @@ apply `Design` to the page.
 | `Surface` | Screen, card and fill, plus the edge colour and `ground(_:)` for a tinted pill. |
 | `Style` | Nine roles, each one system text style, so the whole app follows Dynamic Type. |
 | `Shade` | Two depths and the page-turn cast, applied with `.shade(_:)`. |
+| `Control` | What a button is set in: the action and the bar glyph. Neither is a text role. |
 | `actionLabel()` | The shape of a full-width action, so two on one screen agree on height. |
+| `barGlyph()` | An icon-only button in a bar: its type, and a hit area a finger can find. |
 
 ## The five colours
 
@@ -47,8 +49,12 @@ A full-width action wears `.actionLabel()` on its label and `.controlSize(.small
 Prominence is the only thing that varies: `.borderedProminent` for the one thing a screen is for,
 `.bordered` for the rest, `role: .destructive` where it takes something away.
 
-The action carries the one size in the app that is not a text style: 18 points, a shade over a
-heading, at medium weight. It still scales with Dynamic Type.
+A button is not a sentence, so neither of its two sizes is one of the seven text roles. They live in
+`Design.Control`: the action at 18 points medium, a shade over a heading, because it carries the one
+thing a screen is for; the bar glyph at 20 points regular, because a glyph is already a solid shape
+and needs none of a heading's weight. Both are written as sizes, so both still follow Dynamic Type.
+
+An icon-only button in a bar wears `.barGlyph()`, which carries that type and a hit area with it.
 
 Setting a height without the control size does nothing, which is how the book page ended up with a
 Read button and a Delete button at two different heights and two different type sizes.

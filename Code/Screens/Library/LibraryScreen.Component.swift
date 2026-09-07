@@ -156,8 +156,7 @@ enum LibraryScreen {
                 model.isSelecting.toggle()
             } label: {
                 Image(systemName: model.isSelecting ? "xmark" : "checklist")
-                    .font(Design.Style.title)
-                    .frame(width: 34, height: 34)
+                    .barGlyph()
             }
             .accessibilityIdentifier("library.select")
             .accessibilityLabel(model.isSelecting ? "Stop picking books" : "Pick books out")
@@ -199,8 +198,7 @@ enum LibraryScreen {
                 isPickingFile = true
             } label: {
                 Image(systemName: model.isImporting ? "hourglass" : "plus")
-                    .font(Design.Style.title)
-                    .frame(width: 34, height: 34)
+                    .barGlyph()
             }
             .disabled(model.isImporting)
             .accessibilityIdentifier("library.add")
@@ -222,8 +220,7 @@ enum LibraryScreen {
                 )
             } label: {
                 Image(systemName: "line.3.horizontal.decrease.circle")
-                    .font(Design.Style.title)
-                    .frame(width: 34, height: 34)
+                    .barGlyph()
             }
             .accessibilityLabel("Choose what to show")
             .accessibilityHint("Filters your library")
@@ -331,9 +328,8 @@ enum LibraryScreen {
                 seriesActions(model, group: group)
             } label: {
                 Image(systemName: "ellipsis.circle")
-                    .font(Design.Style.label)
                     .foregroundStyle(.secondary)
-                    .frame(width: 30, height: 30)
+                    .barGlyph()
                     .contentShape(.rect)
             }
             .accessibilityIdentifier("series.menu")
@@ -452,7 +448,7 @@ enum LibraryScreen {
 
         private func tick(_ isOn: Bool) -> some View {
             Image(systemName: isOn ? "checkmark.circle.fill" : "circle")
-                .font(Design.Style.title)
+                .font(Design.Control.bar)
                 .foregroundStyle(isOn ? AnyShapeStyle(.tint) : AnyShapeStyle(.tertiary))
                 .accessibilityHidden(true)
         }

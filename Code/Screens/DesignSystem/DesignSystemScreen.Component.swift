@@ -203,6 +203,17 @@ enum DesignSystemScreen {
                         }
                     }
 
+                    specimen("Bar glyph") {
+                        HStack(spacing: Design.Space.medium) {
+                            ForEach(Self.barGlyphs, id: \.self) { name in
+                                Button {
+                                } label: {
+                                    Image(systemName: name).barGlyph()
+                                }
+                            }
+                        }
+                    }
+
                     specimen("Chip") {
                         HStack(spacing: Design.Space.medium) {
                             FilterChip(title: "Selected", isSelected: true, hint: "", action: {})
@@ -295,6 +306,10 @@ enum DesignSystemScreen {
         }
 
         // MARK: - The tables themselves
+
+        private static let barGlyphs = [
+            "checklist", "plus", "line.3.horizontal.decrease.circle", "ellipsis.circle",
+        ]
 
         private static let spaces: [(String, CGFloat)] = [
             ("extraSmall", Design.Space.extraSmall),

@@ -98,6 +98,19 @@ public enum Design {
         public static let micro = Font.caption2
     }
 
+    /// What a control is set in.
+    ///
+    /// Neither of these is one of the text roles, and that is the point: a button is not a sentence.
+    /// A heading is a shade small for the thing a screen is for, and a glyph is already a solid shape
+    /// that needs none of a heading's weight. Both are written as sizes rather than point counts, so
+    /// they still follow Dynamic Type.
+    public enum Control {
+        /// A full-width action, prominent or not.
+        public static let action = Font.system(size: 18, weight: .medium)
+        /// An icon-only button in a bar.
+        public static let bar = Font.system(size: 20, weight: .regular)
+    }
+
     /// A cast shadow, at one of two depths.
     public struct Shade: Sendable {
         public let color: Color
@@ -128,11 +141,18 @@ extension View {
     /// with `.controlSize(.small)` on the button itself, so the minimum height below is what
     /// governs and two actions on one screen agree whether one of them is prominent or not.
     public func actionLabel() -> some View {
-        // The one size in the app that is not a text style. A heading is a shade small for the thing a
-        // screen is for, and a point over it carries without shouting. It still follows Dynamic Type,
-        // which is why this is a size rather than a fixed point count.
-        font(.system(size: 18, weight: .medium))
+        font(Design.Control.action)
             .frame(maxWidth: .infinity, minHeight: Design.Size.control)
+    }
+
+    /// An icon-only button in a navigation bar: the title's size at its plain weight, over a hit area
+    /// a finger can find.
+    ///
+    /// A glyph is already a solid shape. Setting one at the title's own bold makes it read as heavier
+    /// than the words beside it rather than as the same size.
+    public func barGlyph() -> some View {
+        font(Design.Control.bar)
+            .frame(width: Design.Size.control, height: Design.Size.control)
     }
 
     public func shade(_ shade: Design.Shade) -> some View {

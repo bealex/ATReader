@@ -30,7 +30,7 @@ report() {
 }
 
 report "a length with no name (use Design.Space, Radius or Size):" \
-  '\.padding\([0-9]|(spacing|cornerRadius|minHeight|lineWidth): [1-9][0-9]*'
+  '\.padding\([0-9]|(spacing|cornerRadius|minHeight|lineWidth|width|height): [1-9][0-9]*'
 
 report "a text style with no role (use Design.Style):" \
   '\.font\(\.(largeTitle|title|title2|title3|headline|subheadline|body|callout|footnote|caption|caption2)'
