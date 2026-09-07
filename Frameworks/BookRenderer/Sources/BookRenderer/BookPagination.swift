@@ -225,6 +225,44 @@ public final class BookPagination {
     ///
     /// The two are worth telling apart: a chapter nothing is known about laid out as though it started
     /// a page of its own is then drawn over the page it really shares.
+    /// Where each chapter's first page falls in the book, counting from one.
+    ///
+    /// Not a running total of page counts: a chapter that runs on begins on the page the one before it
+    /// ended on, and that page belongs to both. Stops at the first chapter nothing has been measured
+    /// for, since nothing past it has a place yet.
+    public func firstPages(of chapters: [BookChapter]) -> [Int: Int] {
+        var pages: [Int: Int] = [:]
+        var last = 0
+
+        for chapter in chapters {
+            guard let placement = placements[chapter.id] else { break }
+
+            let sharesPage = placement.startOffset > 0 && last > 0
+            let first = sharesPage ? last : last + 1
+
+            pages[chapter.id] = first
+            last = max(first, first + placement.pageCount - 1)
+        }
+
+        return pages
+    }
+
+    /// How many pages the book runs to, as far as it has been measured.
+    public func pageCount(of chapters: [BookChapter]) -> Int {
+        var last = 0
+
+        for chapter in chapters {
+            guard let placement = placements[chapter.id] else { break }
+
+            let sharesPage = placement.startOffset > 0 && last > 0
+            let first = sharesPage ? last : last + 1
+
+            last = max(first, first + placement.pageCount - 1)
+        }
+
+        return last
+    }
+
     public func placement(of chapterId: Int) -> Placement? { placements[chapterId] }
 
     /// True when this chapter begins part-way down the page the one before it ended on.

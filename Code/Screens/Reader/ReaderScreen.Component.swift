@@ -63,7 +63,9 @@ enum ReaderScreen {
                 }
             }
             .background(settings.theme.background.ignoresSafeArea())
-            .navigationTitle(model?.chapterTitle ?? title)
+            // Nothing but the controls. The page names the book at its own head, so a title in the
+            // bar says it twice.
+            .navigationTitle("")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar(.hidden, for: .tabBar)
             // The system's own bar, so its buttons sit and size themselves the way they do elsewhere.

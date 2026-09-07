@@ -29,7 +29,22 @@ extension LibraryScreen {
 
             /// The rows to draw, in order: the books held, and the volumes nothing accounts for.
             var rows: [SeriesRow] {
-                guard let numbering else { return works.map { .book($0, number: nil, title: $0.title) } }
+                guard
+                    let numbering
+                else {
+                    // A series whose titles carry no numbering is still numbered, counting from one at
+                    // the bottom, which is where a series starts. A book on its own is not a series.
+                    guard
+                        series != nil,
+                        works.count > 1
+                    else {
+                        return works.map { .book($0, number: nil, title: $0.title) }
+                    }
+
+                    return works.enumerated().map { index, work in
+                        .book(work, number: works.count - index, title: work.title)
+                    }
+                }
 
                 let held = numbering.books.map { SeriesRow.book($0.book, number: $0.number, title: $0.title) }
 

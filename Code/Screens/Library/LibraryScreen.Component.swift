@@ -377,6 +377,13 @@ enum LibraryScreen {
         /// anything happens on: it is here to show the run is broken.
         private func missingRow(_ number: Int) -> some View {
             HStack(spacing: Design.Space.medium) {
+                // The read row's tick, kept as space rather than drawn, so the numbers line up down
+                // the card however wide that glyph turns out to be.
+                Image(systemName: "checkmark.circle.fill")
+                    .font(Design.Style.caption)
+                    .hidden()
+                    .accessibilityHidden(true)
+
                 SeriesNumber(number: number)
 
                 Text("Not in your library")
