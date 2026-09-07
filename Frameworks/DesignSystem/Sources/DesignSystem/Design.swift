@@ -128,7 +128,8 @@ extension View {
     /// with `.controlSize(.small)` on the button itself, so the minimum height below is what
     /// governs and two actions on one screen agree whether one of them is prominent or not.
     public func actionLabel() -> some View {
-        font(Design.Style.label)
+        // The heading's size, a step under its weight: an action should carry without shouting.
+        font(Design.Style.heading.weight(.medium))
             .frame(maxWidth: .infinity, minHeight: Design.Size.control)
     }
 
