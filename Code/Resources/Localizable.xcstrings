@@ -322,6 +322,17 @@
         }
       }
     },
+    "Book %lld, not in your library": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Книга %lld, нет в вашей библиотеке"
+          }
+        }
+      }
+    },
     "Book actions": {
       "extractionState": "manual",
       "localizations": {
@@ -406,17 +417,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Глава %lld"
-          }
-        }
-      }
-    },
-    "Chapter %lld/%lld · page %lld/%lld": {
-      "extractionState": "manual",
-      "localizations": {
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Глава %1$lld/%2$lld · страница %3$lld/%4$lld"
           }
         }
       }
@@ -1225,6 +1225,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Не в библиотеке"
+          }
+        }
+      }
+    },
+    "Not in your library": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Нет в вашей библиотеке"
           }
         }
       }
@@ -2326,6 +2337,17 @@
     "mail@example.com": {
       "extractionState": "manual",
       "shouldTranslate": false
+    },
+    "page %lld of %lld": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "страница %lld из %lld"
+          }
+        }
+      }
     },
     "still being written": {
       "extractionState": "manual",

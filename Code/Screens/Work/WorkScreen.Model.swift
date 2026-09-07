@@ -18,6 +18,12 @@ extension WorkScreen {
         /// The book as the device has it, shown before the service is asked and kept when it does not
         /// answer. Progress comes from the store rather than the service, which keeps none.
         private(set) var summary: Book?
+        /// This book's place in its series, and its title with the series' repeated words taken off.
+        ///
+        /// Worked out from the books the device holds of the same series, because a numbering is only
+        /// visible across several titles. A book whose siblings are not on the shelf keeps its title.
+        private(set) var seriesNumber: Int?
+        private(set) var shortTitle: String?
         private(set) var details: WorkDetails?
         private(set) var chapters: [BookChapter] = []
         private(set) var tags: [String] = []
@@ -61,6 +67,22 @@ extension WorkScreen {
                     case .read: 1
                 }
             }
+        }
+
+        /// Reads this book's number out of its series, using the siblings the device holds. The same
+        /// routine the library runs, so a book is the same volume on both screens.
+        private func readSeriesNumber(of book: Book) async {
+            guard let series = book.series else { return }
+
+            let siblings = await store.books().filter { $0.series == series }
+
+            guard
+                let reading = SeriesNumbering.read(siblings),
+                let mine = reading.books.first(where: { $0.book.id == book.id })
+            else { return }
+
+            seriesNumber = mine.number
+            shortTitle = mine.title
         }
 
         func state(of chapter: BookChapter) -> ChapterState {
@@ -135,6 +157,8 @@ extension WorkScreen {
             if chapters != storedChapters { chapters = storedChapters }
 
             guard let stored else { return }
+
+            await readSeriesNumber(of: stored.summary)
 
             if summary != stored.summary { summary = stored.summary }
             if tags != stored.tags { tags = stored.tags }

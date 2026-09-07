@@ -119,7 +119,8 @@ enum LibraryScreen {
                         if group.series != nil {
                             seriesCard(model, group: group)
                         } else if let work = group.works.first {
-                            card { bookRow(model, work: work) }
+                            // A book standing on its own has no series to be numbered within.
+                            card { bookRow(model, work: work, number: nil, title: work.title) }
                         }
                     }
                 }
@@ -270,15 +271,20 @@ enum LibraryScreen {
                 VStack(alignment: .leading, spacing: 0) {
                     seriesHeader(model, group: group)
 
-                    ForEach(Array(group.works.enumerated()), id: \.element.id) { index, work in
+                    ForEach(Array(group.rows.enumerated()), id: \.element.id) { index, row in
                         if index > 0 {
                             Divider().padding(.leading, Design.Space.large)
                         }
 
-                        if isBehindTheReader(model, work: work) {
-                            finishedRow(model, work: work)
-                        } else {
-                            bookRow(model, work: work)
+                        switch row {
+                            case let .book(work, number, title):
+                                if isBehindTheReader(model, work: work) {
+                                    finishedRow(model, work: work, number: number, title: title)
+                                } else {
+                                    bookRow(model, work: work, number: number, title: title)
+                                }
+                            case let .missing(number):
+                                missingRow(number)
                         }
                     }
                 }
@@ -367,7 +373,27 @@ enum LibraryScreen {
         ///
         /// Two tap targets rather than a button and a link, since the row is the larger of the two and
         /// the cover sits inside it: a gesture on the cover is the inner one, and the inner one wins.
-        private func bookRow(_ model: Model, work: Book) -> some View {
+        /// A volume between two the reader holds that is not on the shelf. Not a book, so not a row
+        /// anything happens on: it is here to show the run is broken.
+        private func missingRow(_ number: Int) -> some View {
+            HStack(spacing: Design.Space.medium) {
+                SeriesNumber(number: number)
+
+                Text("Not in your library")
+                    .font(Design.Style.label)
+                    .foregroundStyle(.tertiary)
+                    .lineLimit(1)
+
+                Spacer(minLength: Design.Space.medium)
+            }
+            .padding(.horizontal, Design.Space.large)
+            .padding(.vertical, Design.Space.medium)
+            .foregroundStyle(.tertiary)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("Book \(number), not in your library")
+        }
+
+        private func bookRow(_ model: Model, work: Book, number: Int?, title: String) -> some View {
             HStack(spacing: Design.Space.medium) {
                 if model.isSelecting { tick(model.selection.contains(work.id)) }
 
@@ -375,6 +401,8 @@ enum LibraryScreen {
                     BookRow(
                         work: work,
                         showsSeries: false,
+                        number: number,
+                        shortTitle: title,
                         newChapters: model.newChapters(for: work.id),
                         // Selecting books is the whole row's job, so the cover gives up its own tap.
                         onOpenCover: model.isSelecting ? nil : { open(work) }
@@ -398,7 +426,7 @@ enum LibraryScreen {
         ///
         /// A long series is read in order, so the ones behind the reader only have to stay findable.
         /// Given a cover and three lines each they push the book actually being read off the screen.
-        private func finishedRow(_ model: Model, work: Book) -> some View {
+        private func finishedRow(_ model: Model, work: Book, number: Int?, title: String) -> some View {
             HStack(spacing: Design.Space.medium) {
                 if model.isSelecting { tick(model.selection.contains(work.id)) }
 
@@ -407,7 +435,9 @@ enum LibraryScreen {
                     .foregroundStyle(.tint)
                     .accessibilityHidden(true)
 
-                Text(work.title)
+                if let number { SeriesNumber(number: number) }
+
+                Text(title)
                     .font(Design.Style.label)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)

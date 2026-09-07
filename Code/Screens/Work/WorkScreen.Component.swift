@@ -118,9 +118,13 @@ enum WorkScreen {
                 }
 
                 VStack(alignment: .leading, spacing: Design.Space.small) {
-                    Text(work.title)
-                        .font(Design.Style.title)
-                        .fixedSize(horizontal: false, vertical: true)
+                    HStack(alignment: .firstTextBaseline, spacing: Design.Space.small) {
+                        if let number = model.seriesNumber { SeriesNumber(number: number) }
+
+                        Text(model.shortTitle ?? work.title)
+                            .font(Design.Style.title)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
 
                     Text(work.authorLine)
                         .font(Design.Style.label)

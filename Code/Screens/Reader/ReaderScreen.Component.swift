@@ -191,7 +191,7 @@ enum ReaderScreen {
         /// Both run with the page rather than sitting in chrome around it, so a turn moves everything.
         @ViewBuilder
         private func pageContent(_ model: Model, at index: Int) -> some View {
-            let footer = model.caption(at: index)
+            let footer = model.caption(at: index, expanded: !isChromeHidden)
             let isCurrent = index == model.currentPage
 
             switch model.page(at: index) {
@@ -230,7 +230,9 @@ enum ReaderScreen {
                 Text(text)
                     .font(.system(size: edge == .bottom ? runningHeadSize * Self.captionScale : runningHeadSize))
                     .lineLimit(1)
-                    .foregroundStyle(settings.theme.foreground.opacity(0.4))
+                    // With the controls away this is the only thing naming the page, so it takes a
+                    // little more ink; with them up it steps back and lets them carry it.
+                    .foregroundStyle(settings.theme.foreground.opacity(isChromeHidden ? 0.6 : 0.4))
                     .padding(.horizontal, settings.margins)
                     .padding(.top, edge == .top ? safeArea.top + 4 : 0)
                     .padding(.bottom, edge == .bottom ? safeArea.bottom + 4 : 0)

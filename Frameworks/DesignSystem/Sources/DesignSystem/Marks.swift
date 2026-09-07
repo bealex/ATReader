@@ -200,3 +200,24 @@ public struct FilterChip: View {
         .accessibilityHint(hint)
     }
 }
+
+/// A volume's place in its series, set in front of the title it belongs to.
+///
+/// Takes the colour of whatever it stands beside rather than a tint of its own: the number is part of
+/// the title, not a fact about the book like the pills are.
+public struct SeriesNumber: View {
+    public let number: Int
+
+    public init(number: Int) {
+        self.number = number
+    }
+
+    public var body: some View {
+        Text(number, format: .number)
+            .font(Design.Style.micro.monospacedDigit())
+            .padding(.horizontal, Design.Space.small)
+            .padding(.vertical, Design.Space.extraSmall)
+            .background(Design.Surface.fill, in: .rect(cornerRadius: Design.Radius.small))
+            .accessibilityHidden(true)
+    }
+}

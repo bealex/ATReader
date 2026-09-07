@@ -15,6 +15,10 @@ struct BookRow: View {
     var showsProgress = true
     /// Off where the list already groups by series, so the row doesn't repeat its own heading.
     var showsSeries = true
+    /// This book's place in its series, where the series numbers itself in its titles.
+    var number: Int?
+    /// The title with the series' own repeated words taken off. The book's own title when absent.
+    var shortTitle: String?
     /// Chapters published since the last daily sweep, surfaced as a badge on the cover.
     var newChapters = 0
     /// Where the cover is a way into the book itself rather than part of the row. A list that sets
@@ -26,9 +30,13 @@ struct BookRow: View {
             cover
 
             VStack(alignment: .leading, spacing: Design.Space.extraSmall) {
-                Text(work.title)
-                    .font(Design.Style.heading)
-                    .lineLimit(2)
+                HStack(alignment: .firstTextBaseline, spacing: Design.Space.small) {
+                    if let number { SeriesNumber(number: number) }
+
+                    Text(shortTitle ?? work.title)
+                        .font(Design.Style.heading)
+                        .lineLimit(2)
+                }
 
                 Text(work.authorLine)
                     .font(Design.Style.label)

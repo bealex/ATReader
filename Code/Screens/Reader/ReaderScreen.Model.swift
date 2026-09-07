@@ -271,12 +271,17 @@ extension ReaderScreen {
         ///
         /// Every page names itself rather than the reader's position, because the pages either side of
         /// this one are on screen during a turn and belong to their own chapters.
-        func caption(at index: Int) -> String? {
+        func caption(at index: Int, expanded: Bool) -> String? {
             switch page(at: index) {
                 case .title:
                     guard let layout else { return nil }
 
-                    return caption(chapterId: layout.chapterId, number: 1, total: layout.pageCount + 1)
+                    return caption(
+                        chapterId: layout.chapterId,
+                        number: 1,
+                        total: layout.pageCount + 1,
+                        expanded: expanded
+                    )
                 case let .text(pieces):
                     // A shared page names the chapter that starts on it: that is the news.
                     guard let piece = pieces.last else { return nil }
@@ -286,17 +291,24 @@ extension ReaderScreen {
                     return caption(
                         chapterId: piece.layout.chapterId,
                         number: piece.page + 1 + extra,
-                        total: piece.layout.pageCount + extra
+                        total: piece.layout.pageCount + extra,
+                        expanded: expanded
                     )
                 case .blank:
                     return nil
             }
         }
 
-        private func caption(chapterId: Int, number: Int, total: Int) -> String? {
-            guard let position = position(of: chapterId), total > 0 else { return nil }
+        /// The page alone while the reader is reading, and where it sits once they ask.
+        ///
+        /// A page turn is the only thing on screen with the controls away, so the footer is the figure
+        /// and nothing else. Bringing the controls up is the moment the rest is worth the room.
+        private func caption(chapterId: Int, number: Int, total: Int, expanded: Bool) -> String? {
+            guard position(of: chapterId) != nil, total > 0 else { return nil }
 
-            return String(localized: "Chapter \(position + 1)/\(readableChapters.count) · page \(number)/\(total)")
+            return expanded
+                ? String(localized: "page \(number) of \(total)")
+                : number.formatted(.number)
         }
 
         private func position(of chapterId: Int) -> Int? {

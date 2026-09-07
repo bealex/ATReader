@@ -243,9 +243,15 @@ enum DesignSystemScreen {
                         }
                     }
 
+                    specimen("Series number") {
+                        HStack(spacing: Design.Space.medium) {
+                            ForEach([ 1, 7, 14 ], id: \.self) { SeriesNumber(number: $0) }
+                        }
+                    }
+
                     specimen("Row") {
                         VStack(alignment: .leading, spacing: Design.Space.extraLarge) {
-                            BookRow(work: Self.placeholder)
+                            BookRow(work: Self.placeholder, number: 3, shortTitle: "Long Winter")
                             RankedRow(rank: 2, work: Self.placeholder)
                         }
                     }

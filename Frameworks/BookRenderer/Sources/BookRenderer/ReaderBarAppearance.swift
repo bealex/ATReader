@@ -173,22 +173,15 @@ private struct ReaderBarAppearance: UIViewControllerRepresentable {
                 )
             }
 
+            // Nothing but the controls. The page runs under the bar rather than stopping at it, so a
+            // band of colour and a shadow would only cut the top off the text they sit over.
             let appearance = UINavigationBarAppearance()
-            appearance.configureWithOpaqueBackground()
-            appearance.backgroundColor = background
-            // The bar's own hairline would be a line drawn on the page; the shadow below is the edge.
+            appearance.configureWithTransparentBackground()
             appearance.shadowColor = nil
             navigationBar.standardAppearance = appearance
             navigationBar.scrollEdgeAppearance = appearance
             navigationBar.compactAppearance = appearance
-
-            // Black on every theme, and deeper than a shadow over a light page would need, so a page
-            // that is nearly black still shows an edge under the bar.
-            navigationBar.layer.masksToBounds = false
-            navigationBar.layer.shadowColor = UIColor.black.cgColor
-            navigationBar.layer.shadowOpacity = 0.45
-            navigationBar.layer.shadowRadius = 6
-            navigationBar.layer.shadowOffset = CGSize(width: 0, height: 3)
+            navigationBar.layer.shadowOpacity = 0
         }
 
         /// Every other screen expects the bar the navigation stack gave it, and the window's own light

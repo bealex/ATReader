@@ -23,6 +23,48 @@ extension LibraryScreen {
             let updated: Date
             /// True where the reader put this series together themselves.
             var isCustom = false
+            /// The volume numbers the titles carry, where they carry any. Absent for a series whose
+            /// books are named without a numbering, and for a book standing on its own.
+            var numbering: SeriesNumbering.Reading?
+
+            /// The rows to draw, in order: the books held, and the volumes nothing accounts for.
+            var rows: [SeriesRow] {
+                guard let numbering else { return works.map { .book($0, number: nil, title: $0.title) } }
+
+                let held = numbering.books.map { SeriesRow.book($0.book, number: $0.number, title: $0.title) }
+
+                guard !numbering.missing.isEmpty else { return held }
+
+                // A gap sits where its volume would have, which is what makes it read as a gap rather
+                // than as a note at the end of the list.
+                let missing = numbering.missing.map(SeriesRow.missing)
+                let order = numbering.books.map(\.number)
+                let descending = order.count > 1 && (order.first ?? 0) > (order.last ?? 0)
+
+                return (held + missing).sorted { left, right in
+                    descending ? left.number > right.number : left.number < right.number
+                }
+            }
+        }
+
+        /// A line in a series card: a book on the shelf, or a volume between two that is not.
+        enum SeriesRow: Identifiable {
+            case book(Book, number: Int?, title: String)
+            case missing(Int)
+
+            var id: String {
+                switch self {
+                    case let .book(work, _, _): "book:\(work.id)"
+                    case let .missing(number): "gap:\(number)"
+                }
+            }
+
+            var number: Int {
+                switch self {
+                    case let .book(_, number, _): number ?? 0
+                    case let .missing(number): number
+                }
+            }
         }
 
         /// What the list is showing. The service's shelves say nothing dependable about where a reader
@@ -145,12 +187,17 @@ extension LibraryScreen {
                 // leads with its newest book, which is the one still gaining chapters.
                 let made = madeSeries.contains(title)
 
+                let ordered = works.sorted(by: made ? Self.byChosenOrder : Self.withinSeries)
+
                 return Group(
                     id: "series:\(title)",
                     series: title,
-                    works: works.sorted(by: made ? Self.byChosenOrder : Self.withinSeries),
+                    works: ordered,
                     updated: works.map(Self.updated).max() ?? .distantPast,
-                    isCustom: made
+                    isCustom: made,
+                    // A series the reader assembled by hand is theirs to order, so its titles are left
+                    // as they are.
+                    numbering: made ? nil : SeriesNumbering.read(ordered)
                 )
             }
             let alone = searched.filter { $0.series == nil && filter.includes([ $0 ]) }.map { work in
