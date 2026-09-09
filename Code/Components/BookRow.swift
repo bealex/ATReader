@@ -30,7 +30,7 @@ struct BookRow: View {
             cover
 
             VStack(alignment: .leading, spacing: Design.Space.extraSmall) {
-                HStack(alignment: .firstTextBaseline, spacing: Design.Space.small) {
+                RowStack {
                     if let number { SeriesNumber(number: number) }
 
                     Text(shortTitle ?? work.title)

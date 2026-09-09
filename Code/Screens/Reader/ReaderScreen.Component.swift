@@ -4,9 +4,11 @@
 //
 
 import AuthorToday
+import BookKit
 import BookRenderer
 import DesignSystem
 import SwiftUI
+import Translation
 
 enum ReaderScreen {
     struct Component: View {
@@ -48,6 +50,24 @@ enum ReaderScreen {
         /// A page fills the screen, and the controls are a tap in the middle away.
         @State
         private var isChromeHidden = true
+
+        /// The note a marker was tapped for, which carries where that marker stands so the aside can
+        /// point at it.
+        @State
+        private var note: Model.TappedNote?
+
+        /// Text picked off the page, once the finger has come up and there is something to offer.
+        @State
+        private var picked: Model.PickedText?
+
+        @State
+        private var lookedUp: LookedUpTerm?
+
+        @State
+        private var isTranslating = false
+
+        @State
+        private var translating = ""
 
         /// The type size of the running head, which ``ChapterLayout/Context/runningHeadHeight`` keeps
         /// the body text clear of.
@@ -174,6 +194,10 @@ enum ReaderScreen {
                 hasPageAfter: value.hasPageAfter,
                 onPastEnd: value.goToNextChapter,
                 onPastStart: value.goToPreviousChapter,
+                onPageTap: { point in show(value.note(at: point)) },
+                onPickOut: { start, finish in value.pickOut(from: start, to: finish) },
+                onPickedOut: { withAnimation(CalloutMotion.showing) { picked = value.picked } },
+                isChoosing: value.picked != nil,
                 onMiddleTap: toggleChrome,
                 onTurnStarted: {
                     hideChrome()
@@ -183,11 +207,148 @@ enum ReaderScreen {
             )
             .accessibilityIdentifier("reader.page")
             .ignoresSafeArea()
+            // Drawn text is invisible to VoiceOver, so a marker cannot be touched. The page offers its
+            // notes as actions of its own instead.
+            .accessibilityActions {
+                ForEach(value.notesOnPage) { found in
+                    Button("Note \(found.marker)") {
+                        let middle = CGPoint(x: pageSize.width / 2, y: pageSize.height / 2)
+                        note = .init(note: found, rect: CGRect(origin: middle, size: .zero))
+                    }
+                }
+            }
+            .callout(
+                over: anchor(of: note?.rect),
+                item: $note,
+                ground: Callout<EmptyView>.surface(over: settings.theme.background, with: settings.theme.foreground),
+                coversSafeArea: true
+            ) { noteCard($0.note) }
+            .callout(
+                over: anchor(of: pickedBox(picked)),
+                item: pickedBinding,
+                ground: Callout<EmptyView>.surface(over: settings.theme.background, with: settings.theme.foreground),
+                coversSafeArea: true,
+                content: { chosen in pickedMenu(chosen) }
+            )
+            .modifier(ReaderFeedback(picked: value.picked?.id, showing: picked != nil, note: note?.id))
+            .sheet(item: $lookedUp) { DictionaryView(term: $0.term) }
+            .translationPresentation(isPresented: $isTranslating, text: translating)
             // The window, not the layout: a page ignores the safe area, so the size its parent hands
             // it is not the size it draws at, and a toolbar coming and going would move it besides.
             .onGeometryChange(for: CGSize.self, of: { $0.size }, action: { _ in applyWindowMetrics() })
             .onChange(of: layoutContext, initial: true) { value.apply(context: layoutContext) }
         }
+
+        /// What an aside is hung over, in the page's own coordinates.
+        ///
+        /// No correction: the aside is told the page reaches past the safe area, so it counts from the
+        /// same corner the page's own taps and boxes do. Correcting each place by hand is what put
+        /// every aside a notch's depth away from what it pointed at.
+        private func anchor(of rect: CGRect?) -> CGRect { rect ?? .zero }
+
+        /// Everything the reader picked out, as one box for an aside to stand clear of.
+        private func pickedBox(_ chosen: Model.PickedText?) -> CGRect? {
+            CalloutPlacement.bounds(around: chosen?.rects ?? [])
+        }
+
+        /// Opens a note where one was tapped. Reports whether there was one, since the page turns if not.
+        private func show(_ found: Model.TappedNote?) -> Bool {
+            guard let found else { return false }
+
+            withAnimation(CalloutMotion.showing) { note = found }
+            return true
+        }
+
+        /// Putting the menu away takes the paint under the words with it.
+        private var pickedBinding: Binding<Model.PickedText?> {
+            Binding(
+                get: { picked },
+                set: { chosen in
+                    withAnimation(chosen == nil ? CalloutMotion.hiding : CalloutMotion.showing) {
+                        picked = chosen
+                    }
+
+                    if chosen == nil { model?.clearPicked() }
+                }
+            )
+        }
+
+        private func clearPicked() {
+            withAnimation(CalloutMotion.hiding) { picked = nil }
+            model?.clearPicked()
+        }
+
+        /// What can be done with the words the reader drew a finger across.
+        private func pickedMenu(_ chosen: Model.PickedText) -> some View {
+            Callout(
+                foreground: settings.theme.foreground,
+                background: settings.theme.background,
+                onClose: clearPicked,
+                content: {
+                    VStack(alignment: .leading, spacing: Design.Space.small) {
+                        action("Look up", systemImage: "character.book.closed") {
+                            lookedUp = LookedUpTerm(term: chosen.selection.text)
+                        }
+
+                        action("Translate", systemImage: "translate") {
+                            translating = chosen.selection.text
+                            isTranslating = true
+                        }
+
+                        action("Copy", systemImage: "doc.on.doc") {
+                            UIPasteboard.general.string = chosen.selection.text
+                        }
+                    }
+                }
+            )
+            .accessibilityIdentifier("reader.picked")
+        }
+
+        private func action(
+            _ title: LocalizedStringKey,
+            systemImage: String,
+            perform: @escaping () -> Void
+        ) -> some View {
+            Button {
+                perform()
+                clearPicked()
+            } label: {
+                Label(title, systemImage: systemImage)
+                    .font(Design.Style.item)
+                    .foregroundStyle(settings.theme.foreground)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .frame(height: Design.Size.control)
+                    .contentShape(.rect)
+            }
+            .buttonStyle(.plain)
+        }
+
+        /// A note, in the page's own colours and face: these are the book's words, not the app's chrome.
+        private func noteCard(_ note: BookNote) -> some View {
+            Callout(
+                title: note.marker,
+                foreground: settings.theme.foreground,
+                background: settings.theme.background,
+                onClose: { withAnimation(CalloutMotion.hiding) { self.note = nil } },
+                content: { BookTextView(text: note.text, style: noteStyle, width: Design.Size.calloutText) }
+            )
+            .accessibilityIdentifier("reader.note")
+            .accessibilityLabel("Note \(note.marker)")
+        }
+
+        /// A note is the book's own text, so it is set the way the page is and only a shade smaller,
+        /// being an aside rather than the text itself.
+        private var noteStyle: ChapterTextStyle {
+            var style = settings.textStyle
+
+            style.fontSize *= Self.noteScale
+            style.lineSpacing *= Self.noteScale
+            // A note is one aside standing on its own, with nothing above it to be told apart from.
+            style.indentsParagraphs = false
+            return style
+        }
+
+        private static let noteScale = 0.88
 
         /// One page, drawn edge to edge: the text, the book's title above it and the page number below.
         /// Both run with the page rather than sitting in chrome around it, so a turn moves everything.
@@ -216,12 +377,28 @@ enum ReaderScreen {
                         ForEach(pieces) { piece in
                             ChapterPageView(layout: piece.layout, pageIndex: piece.page)
                         }
+
+                        if isCurrent { picking(model) }
                     }
                     .background(settings.theme.background)
                     .overlay(alignment: .top) { runningHead(model.book?.title ?? title, edge: .top) }
                     .overlay(alignment: .bottom) { runningHead(footer, edge: .bottom, isCaption: isCurrent) }
                 case .blank:
                     settings.theme.background
+            }
+        }
+
+        /// What the reader has drawn a finger across, painted under the words rather than over them.
+        @ViewBuilder
+        private func picking(_ model: Model) -> some View {
+            if let picked = model.picked {
+                ForEach(Array(picked.rects.enumerated()), id: \.offset) { _, painted in
+                    RoundedRectangle(cornerRadius: Design.Radius.small)
+                        .fill(Design.Surface.picked(settings.theme.foreground))
+                        .frame(width: painted.width, height: painted.height)
+                        .position(x: painted.midX, y: painted.midY)
+                }
+                .accessibilityHidden(true)
             }
         }
 
@@ -325,11 +502,14 @@ enum ReaderScreen {
                 Task { @MainActor in
                     try? await Task.sleep(for: .milliseconds(400))
 
+                    let markup = await model.chapterMarkup()
+
                     guard
                         let url = try? DebugReport.make(
                             pageText: model.pageText,
                             settings: settingsReport,
-                            lines: linesReport(model)
+                            lines: linesReport(model),
+                            markup: markup
                         )
                     else {
                         return
@@ -624,5 +804,32 @@ enum ReaderScreen {
                 }
             }
         }
+    }
+}
+
+/// What the page answers with a tick as well as a picture.
+///
+/// The first word under the finger, each new one taken in after it, and the moment an aside arrives.
+/// Kept apart from the page's own body, which has enough to say already.
+private struct ReaderFeedback: ViewModifier {
+    let picked: String?
+    let showing: Bool
+    let note: String?
+
+    func body(content: Content) -> some View {
+        content
+            .sensoryFeedback(trigger: picked) { before, now in
+                guard now != nil else { return nil }
+
+                // Firmer for the first word, since that is the moment picking began; lighter for each
+                // one after it, which is the tick a picker gives as it passes a value.
+                return before == nil ? .impact(weight: .medium) : .selection
+            }
+            .sensoryFeedback(trigger: showing) { _, shown in
+                shown ? .impact(flexibility: .soft) : nil
+            }
+            .sensoryFeedback(trigger: note) { _, shown in
+                shown != nil ? .impact(flexibility: .soft) : nil
+            }
     }
 }

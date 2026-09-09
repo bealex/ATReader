@@ -18,19 +18,123 @@ enum DesignSystemScreen {
         private static let valueColumn = Design.Space.unit * 14
         private static let sampleCap = Design.Space.unit * 24
 
+        /// An aside for the catalogue to hang on a point, and where on that panel it hangs.
+        private struct Aside: Identifiable {
+            let id = 0
+            let text: String
+        }
+
+        @State
+        private var highAside: Aside?
+
+        @State
+        private var lowAside: Aside?
+
+        /// One panel with two points on it, each hanging its own aside.
+        ///
+        /// Two points on the same panel rather than two panels, because that is what tells a hung
+        /// aside from a dropped one: an aside that ignored its point would hang from the panel's own
+        /// corner, and both of these would then open in exactly the same place.
+        private var calloutAnchor: some View {
+            let highPoint = CGPoint(x: Design.Size.callout / 2, y: Design.Size.calloutDepth * 0.15)
+            let lowPoint = CGPoint(x: Design.Size.callout / 2, y: Design.Size.calloutDepth * 0.85)
+            let highBox = CGRect(origin: highPoint, size: .zero)
+            let lowBox = CGRect(origin: lowPoint, size: .zero)
+
+            return ZStack {
+                Design.Surface.fill
+
+                VStack {
+                    anchorButton("Top", identifier: "catalog.callout.high") {
+                        highAside = Aside(text: Self.placeholderProse)
+                    }
+
+                    Spacer()
+
+                    anchorButton("Bottom", identifier: "catalog.callout.low") {
+                        lowAside = Aside(text: Self.placeholderProse)
+                    }
+                }
+                .padding(Design.Space.large)
+            }
+            .frame(width: Design.Size.callout, height: Design.Size.calloutDepth)
+            .callout(over: highBox, item: $highAside, ground: Self.asideGround) { held in
+                presented(held) { highAside = nil }
+            }
+            .callout(over: lowBox, item: $lowAside, ground: Self.asideGround) { held in
+                presented(held) { lowAside = nil }
+            }
+        }
+
+        /// The ground the catalogue's asides stand on, which their arrows take as well.
+        private static var asideGround: Color {
+            Callout<EmptyView>.surface(over: Design.Surface.card, with: .primary)
+        }
+
+        private func anchorButton(_ title: String, identifier: String, action: @escaping () -> Void) -> some View {
+            Button(action: action) { Text(verbatim: title) }
+                .buttonStyle(.bordered)
+                .accessibilityIdentifier(identifier)
+        }
+
+        private func presented(_ held: Aside, onClose: @escaping () -> Void) -> some View {
+            // Titled, since what calls an aside up stands apart from what it says.
+            Callout(title: "15", text: held.text, onClose: onClose)
+                .accessibilityIdentifier("catalog.callout.presented")
+        }
+
+        /// The two halves of the catalogue: what the app is built from, and what a page is set in.
+        ///
+        /// Apart because they answer to different rules. Everything in the app is on the lattice and
+        /// takes one of the nine text roles; the reader's page is set in the face, the size and the
+        /// colours whoever is reading chose, and none of that is `Design`'s to name.
+        enum Segment: String, CaseIterable, Identifiable {
+            case interface
+            case reader
+
+            var id: String { rawValue }
+
+            var title: String {
+                switch self {
+                    case .interface: "UI"
+                    case .reader: "Reader"
+                }
+            }
+        }
+
+        @State
+        private var segment: Segment = .interface
+
         var body: some View {
             ScrollView {
                 VStack(alignment: .leading, spacing: Design.Space.extraLarge) {
-                    lattice
-                    palette
-                    type
-                    components
+                    picker
+
+                    switch segment {
+                        case .interface:
+                            lattice
+                            palette
+                            type
+                            components
+                        case .reader:
+                            readerSpecimens
+                    }
                 }
                 .padding(Design.Space.extraLarge)
             }
             .background(Design.Surface.screen)
             .navigationTitle(Text(verbatim: "Design System"))
             .navigationBarTitleDisplayMode(.inline)
+        }
+
+        private var picker: some View {
+            Picker(selection: $segment) {
+                ForEach(Segment.allCases) { Text(verbatim: $0.title).tag($0) }
+            } label: {
+                Text(verbatim: "Catalogue")
+            }
+            .pickerStyle(.segmented)
+            .accessibilityIdentifier("catalog.segment")
         }
 
         // MARK: - Lattice
@@ -244,8 +348,45 @@ enum DesignSystemScreen {
                     }
 
                     specimen("Series number") {
-                        HStack(spacing: Design.Space.medium) {
+                        RowStack(spacing: Design.Space.medium) {
                             ForEach([ 1, 7, 14 ], id: \.self) { SeriesNumber(number: $0) }
+                        }
+                    }
+
+                    // Every line here should read as one line. A badge or a pill that hangs below the
+                    // words beside it, or floats above them, is the thing this specimen is for.
+                    specimen("Baseline: a row sets everything on one line") {
+                        VStack(alignment: .leading, spacing: Design.Space.large) {
+                            RowStack {
+                                SeriesNumber(number: 3)
+                                Text(verbatim: "Title, in the title role").font(Design.Style.title)
+                            }
+
+                            RowStack {
+                                SeriesNumber(number: 12)
+                                Text(verbatim: "Heading, the role a row wears").font(Design.Style.heading)
+                            }
+
+                            RowStack {
+                                SeriesNumber(number: 7)
+                                Text(verbatim: "Label, the role a quiet row wears").font(Design.Style.label)
+                            }
+
+                            // The folded run on the shelf: two numbers and the gap between them.
+                            RowStack {
+                                SeriesNumber(number: 1)
+                                Text(verbatim: "…").font(Design.Style.label).foregroundStyle(.tertiary)
+                                SeriesNumber(number: 17)
+                            }
+
+                            RowStack(spacing: Design.Space.medium) {
+                                Image(systemName: "checkmark.circle.fill")
+                                    .font(Design.Style.caption)
+                                    .foregroundStyle(.tint)
+                                SeriesNumber(number: 4)
+                                Text(verbatim: "Glyph, badge, words and pill").font(Design.Style.label)
+                                Pill(title: "Ongoing", systemImage: "pencil", label: "Ongoing")
+                            }
                         }
                     }
 
@@ -253,6 +394,32 @@ enum DesignSystemScreen {
                         VStack(alignment: .leading, spacing: Design.Space.extraLarge) {
                             BookRow(work: Self.placeholder, number: 3, shortTitle: "Long Winter")
                             RankedRow(rank: 2, work: Self.placeholder)
+                        }
+                    }
+
+                    // Shown twice on purpose. In the column an aside is handed a width and any layout
+                    // would look right; hung on a point it has to find its way to that point, which is
+                    // the half that went wrong.
+                    specimen("Callout") {
+                        VStack(alignment: .leading, spacing: Design.Space.large) {
+                            Callout(text: Self.placeholderProse)
+                                .accessibilityIdentifier("catalog.callout")
+
+                            // Tap the panel to hang one on the dot. The way this fails is by hanging
+                            // in the top corner instead, where a popover has no room and is clipped.
+                            calloutAnchor
+                        }
+                    }
+
+                    // The card and its pointer are one path, which is what keeps them one colour and
+                    // lets one shadow be cast by both.
+                    specimen("Callout shape") {
+                        RowStack(spacing: Design.Space.large) {
+                            ForEach([ true, false ], id: \.self) { down in
+                                CalloutShape(pointerX: Design.Size.mark, pointsDown: down)
+                                    .fill(Design.Surface.fill)
+                                    .frame(width: Design.Size.callout / 2, height: Design.Size.mark * 3)
+                            }
                         }
                     }
 
@@ -279,7 +446,7 @@ enum DesignSystemScreen {
 
         // MARK: - Furniture
 
-        private func card(
+        func card(
             _ title: String,
             _ subtitle: String,
             @ViewBuilder content: () -> some View
@@ -323,7 +490,7 @@ enum DesignSystemScreen {
             }
         }
 
-        private func specimen(_ title: String, @ViewBuilder content: () -> some View) -> some View {
+        func specimen(_ title: String, @ViewBuilder content: () -> some View) -> some View {
             VStack(alignment: .leading, spacing: Design.Space.medium) {
                 Text(verbatim: title)
                     .font(Design.Style.caption)

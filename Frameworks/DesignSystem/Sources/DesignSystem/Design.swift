@@ -51,6 +51,14 @@ public enum Design {
         public static let rowCover = Space.unit * 22
         public static let cover = Space.unit * 24
         public static let coverLarge = Space.unit * 40
+        /// How wide an aside stands beside what it belongs to, and how deep before it scrolls.
+        ///
+        /// Narrow on purpose. An aside nearly as wide as the screen has nowhere to go, so it is
+        /// clamped to the middle and points at whatever happens to be under it.
+        public static let callout = Space.unit * 104
+        /// What is left for an aside's own content once its padding is off.
+        public static let calloutText = callout - Space.extraLarge * 2
+        public static let calloutDepth = Space.unit * 64
 
         /// A glyph inside a circular mark, sized to the mark rather than to a text style.
         public static func glyph(in mark: CGFloat) -> CGFloat { mark * 0.45 }
@@ -80,6 +88,11 @@ public enum Design {
         public static let fill = Color(.secondarySystemFill)
 
         public static let edge = Color.primary.opacity(Palette.veil)
+
+        /// The paint under words a reader has picked out, in whatever colour the words are set in.
+        public static func picked(_ foreground: Color) -> Color {
+            foreground.opacity(Palette.veil * 1.5)
+        }
 
         /// A badge is filled with its own colour, whichever colour that is.
         public static func ground(_ tint: Color) -> Color { tint.opacity(Palette.veil) }

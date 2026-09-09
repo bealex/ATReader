@@ -217,6 +217,86 @@ extension ReaderScreen {
             }
         }
 
+        /// The markup the chapter arrived in, for a report about how something in it was set.
+        ///
+        /// The paragraphs say what the reader made of the chapter; only the markup says what it was
+        /// given, which is the difference that matters when a marker was not recognised as one.
+        func chapterMarkup() async -> String? {
+            guard let currentChapterId else { return nil }
+
+            return await store.body(workId: workId, chapterId: currentChapterId)?.html
+        }
+
+        // MARK: - Text picked off the page
+
+        /// Text the reader has drawn a finger across, and where it stands on the page.
+        struct PickedText: Identifiable {
+            let selection: ChapterLayout.Selection
+            /// One box per line it runs through, for painting under it.
+            let rects: [CGRect]
+
+            var id: String { "\(selection.range.location).\(selection.range.length)" }
+        }
+
+        private(set) var picked: PickedText?
+
+        /// Picks out everything between two points on the page showing, out to whole words.
+        func pickOut(from start: CGPoint, to finish: CGPoint) {
+            guard case let .text(pieces) = page(at: currentPage) else { return }
+
+            for piece in pieces {
+                guard let range = piece.layout.words(from: start, to: finish, onPage: piece.page) else { continue }
+
+                let chosen = piece.layout.selection(of: range)
+
+                guard !chosen.isEmpty else { continue }
+
+                picked = PickedText(selection: chosen, rects: piece.layout.rects(of: range, onPage: piece.page))
+                return
+            }
+        }
+
+        func clearPicked() { picked = nil }
+
+        // MARK: - The notes the text points at
+
+        /// A note the reader went for, and where the marker they went for stands on the page.
+        struct TappedNote: Identifiable {
+            let note: BookNote
+            /// The marker's own box, so an aside can point at the marker rather than at the finger.
+            let rect: CGRect
+
+            var id: String { note.id }
+        }
+
+        /// The note whose marker stands under a point on the page showing, where one does.
+        ///
+        /// Asked before the page turns: a marker is far smaller than the turning zone it stands in,
+        /// so the zone would swallow every tap meant for one.
+        func note(at point: CGPoint) -> TappedNote? {
+            guard case let .text(pieces) = page(at: currentPage) else { return nil }
+
+            for piece in pieces {
+                guard
+                    let marker = piece.layout.note(at: point, onPage: piece.page),
+                    let note = parsed[piece.layout.chapterId]?.notes[marker.id]
+                else { continue }
+
+                return TappedNote(note: note, rect: marker.rect)
+            }
+
+            return nil
+        }
+
+        /// Every note the page showing refers to, for a reader who cannot touch a marker they can't see.
+        var notesOnPage: [BookNote] {
+            guard case let .text(pieces) = page(at: currentPage) else { return [] }
+
+            return pieces.flatMap { piece in
+                piece.layout.notes(onPage: piece.page).compactMap { parsed[piece.layout.chapterId]?.notes[$0] }
+            }
+        }
+
         func page(at index: Int) -> Page {
             if index < 0 { return pageBefore() }
 

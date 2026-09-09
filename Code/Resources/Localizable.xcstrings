@@ -355,6 +355,17 @@
         }
       }
     },
+    "Books %lld to %lld, read": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Книги с %1$lld по %2$lld, прочитаны"
+          }
+        }
+      }
+    },
     "Books you are reading are checked daily; new chapters download and badge the icon.": {
       "extractionState": "manual",
       "localizations": {
@@ -531,6 +542,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Продолжить чтение"
+          }
+        }
+      }
+    },
+    "Copy": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Скопировать"
           }
         }
       }
@@ -1137,6 +1159,17 @@
         }
       }
     },
+    "Look up": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Найти в словаре"
+          }
+        }
+      }
+    },
     "Margins": {
       "extractionState": "manual",
       "localizations": {
@@ -1236,6 +1269,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Нет в вашей библиотеке"
+          }
+        }
+      }
+    },
+    "Note %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Примечание %@"
           }
         }
       }
@@ -1905,6 +1949,17 @@
         }
       }
     },
+    "Shows the books you have read": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Показывает прочитанные книги"
+          }
+        }
+      }
+    },
     "Shows the chapter list": {
       "extractionState": "manual",
       "localizations": {
@@ -2187,6 +2242,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Топ книг"
+          }
+        }
+      }
+    },
+    "Translate": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Перевести"
           }
         }
       }

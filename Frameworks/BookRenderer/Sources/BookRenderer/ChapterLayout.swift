@@ -26,12 +26,22 @@ public final class ChapterLayout {
         public var margins: Double
         public var pageSize: CGSize
         public var safeArea: EdgeInsets
+        /// False for text that is not a page of the book: a note in a popup has no title above it and
+        /// no page number below, so it keeps the band those would have stood in.
+        public var hasRunningHeads: Bool
 
-        public init(style: ChapterTextStyle, margins: Double, pageSize: CGSize, safeArea: EdgeInsets) {
+        public init(
+            style: ChapterTextStyle,
+            margins: Double,
+            pageSize: CGSize,
+            safeArea: EdgeInsets,
+            hasRunningHeads: Bool = true
+        ) {
             self.style = style
             self.margins = margins
             self.pageSize = pageSize
             self.safeArea = safeArea
+            self.hasRunningHeads = hasRunningHeads
         }
 
         /// The band kept at the top and bottom of every page for the book title and the page number,
@@ -40,12 +50,14 @@ public final class ChapterLayout {
 
         /// Where the body text is laid out and drawn, in the page's own coordinates.
         public var textRect: CGRect {
-            CGRect(origin: .zero, size: pageSize).inset(by: UIEdgeInsets(
+            let band = hasRunningHeads ? Self.runningHeadHeight : 0
+
+            return CGRect(origin: .zero, size: pageSize).inset(by: UIEdgeInsets(
                 // Half the margin above and below: the running head's own band already parts the text
                 // from the edge, where the sides have nothing but the margin to do it.
-                top: safeArea.top + margins / 2 + Self.runningHeadHeight,
+                top: safeArea.top + margins / 2 + band,
                 left: safeArea.leading + margins,
-                bottom: safeArea.bottom + margins / 2 + Self.runningHeadHeight,
+                bottom: safeArea.bottom + margins / 2 + band,
                 right: safeArea.trailing + margins
             ))
         }
@@ -70,7 +82,11 @@ public final class ChapterLayout {
                 "\(style.justifiesRussian)", "\(style.justifiesEnglish)",
                 "\(margins)", "\(pageSize.width)x\(pageSize.height)",
                 "\(safeArea.top),\(safeArea.leading),\(safeArea.bottom),\(safeArea.trailing)",
-            ].joined(separator: "|")
+                // Only a page that is not one of the book's own says so, which leaves every book
+                // already measured with the fingerprint it was measured under.
+                hasRunningHeads ? nil : "noheads",
+                style.indentsParagraphs ? nil : "noindent",
+            ].compactMap { $0 }.joined(separator: "|")
         }
     }
 
@@ -115,14 +131,14 @@ public final class ChapterLayout {
     /// The character range each page covers, so a reading position survives a change of font.
     public private(set) var pageRanges: [NSRange] = []
 
-    private let text: NSAttributedString
+    let text: NSAttributedString
     private let headingLength: Int
 
-    private var lines: [ColumnComposer.Line] = []
-    private var pages: [Page] = []
+    private(set) var lines: [ColumnComposer.Line] = []
+    private(set) var pages: [Page] = []
 
     /// One page: the lines it carries and the space added to (or taken from) each gap between them.
-    private struct Page {
+    struct Page {
         var lines: Range<Int>
         var leading: CGFloat
         /// Air set above and below each picture on the page, which is what centres one in its space.
@@ -535,6 +551,93 @@ public final class ChapterLayout {
         }
 
         drawing.restoreGState()
+    }
+
+    /// The note whose marker stands under a point on a page, in the page's own coordinates.
+    ///
+    /// Walked the same way the page is drawn, so what a finger finds is what the reader can see. The
+    /// marker carries the note on its own glyph run, which saves counting characters back through the
+    /// soft hyphens the line was set with.
+    public func note(at point: CGPoint, onPage index: Int) -> NoteHit? {
+        guard pages.indices.contains(index) else { return nil }
+
+        let page = pages[index]
+        var cursor = context.textRect.minY + (index == 0 ? startOffset : 0)
+
+        for line in page.lines {
+            let allotted = lines[line].height + (lines[line].image != nil ? page.imagePadding * 2 : 0)
+
+            defer { cursor += allotted + page.leading }
+
+            guard point.y >= cursor, point.y < cursor + allotted, let drawn = lines[line].drawn else { continue }
+
+            let origin = context.textRect.minX + lines[line].origin
+
+            guard let found = note(at: point.x - origin, in: drawn) else { return nil }
+
+            return NoteHit(
+                id: found.id,
+                rect: CGRect(x: origin + found.start, y: cursor, width: found.width, height: lines[line].height)
+            )
+        }
+
+        return nil
+    }
+
+    /// A marker found in a line: which note it points at, and where along the line it stands.
+    private struct FoundNote {
+        var id: String
+        var start: CGFloat
+        var width: CGFloat
+    }
+
+    /// Every note a page refers to, in the order its markers stand on it.
+    ///
+    /// Drawn text is invisible to VoiceOver, so a marker cannot be reached by touch there. The reader
+    /// offers these as actions on the page instead.
+    public func notes(onPage index: Int) -> [String] {
+        guard pages.indices.contains(index) else { return [] }
+
+        var result: [String] = []
+
+        for line in pages[index].lines {
+            guard let runs = lines[line].drawn.flatMap({ CTLineGetGlyphRuns($0) as? [CTRun] }) else { continue }
+
+            for glyphs in runs {
+                let attributes = CTRunGetAttributes(glyphs) as NSDictionary
+
+                guard
+                    let note = attributes[NSAttributedString.Key.bookNote] as? String,
+                    !result.contains(note)
+                else { continue }
+
+                result.append(note)
+            }
+        }
+
+        return result
+    }
+
+    /// The note marked in a line at a distance along it, where one stands close enough to be meant.
+    private func note(at distance: CGFloat, in line: CTLine) -> FoundNote? {
+        guard let runs = CTLineGetGlyphRuns(line) as? [CTRun] else { return nil }
+
+        for glyphs in runs {
+            let attributes = CTRunGetAttributes(glyphs) as NSDictionary
+
+            guard let note = attributes[NSAttributedString.Key.bookNote] as? String else { continue }
+
+            let width = CGFloat(CTRunGetTypographicBounds(glyphs, CFRange(location: 0, length: 0), nil, nil, nil))
+            let start = CTLineGetOffsetForStringIndex(line, CTRunGetStringRange(glyphs).location, nil)
+            // A superscript digit is a couple of points across, so the target is widened about the
+            // marker's middle rather than drawn from its ink.
+            let middle = start + width / 2
+            let reach = max(width, NoteMarker.target) / 2
+
+            if abs(distance - middle) <= reach { return FoundNote(id: note, start: start, width: width) }
+        }
+
+        return nil
     }
 
     /// The page's text, for VoiceOver and for the reader's own accessibility label.

@@ -234,6 +234,87 @@ below it already sits where it belongs and is left alone.
 The title page's cover answers to both rules, being a page of the book. Covers elsewhere in the app are
 drawn plainly, since there's no page tint out there to answer to.
 
+## Notes
+
+A note is an aside the text points at, and a book carries them two ways. A chapter from the service
+anchors into itself, `<a href="#n1">1</a>`, with the note's own words further down under `id="n1"`. A
+file keeps its notes in a body of their own at the end, far past the chapter that refers to them, so
+`FB2Parser` carries each note down to the chapters whose anchors name it and writes it out as the same
+markup. Everything after that reads one shape.
+
+`BookHTML` lifts the words out, drops the block that held them, and records where each marker stands.
+A note nothing points at stays in the chapter as ordinary text, since it was never a note; an anchor
+with nothing behind it stays as the characters it always was, rather than opening an empty popup. An
+anchor carrying its words on a `title` attribute is read the same way as one pointing at a block.
+
+**The marker keeps the characters the text gave it.** A reading position is an offset into that text,
+so renumbering a marker would move the reader's place in every book already on the device. What
+changes is how it is set: `ChapterPagination` gives those characters a smaller face, raises them off
+the line and hangs the note's id on them, the way a picture hangs on the character standing for it.
+The raise is short of a printed superscript's, because the column takes its line height and its
+baseline from the body font and a marker climbing past the body's own ascent would foul the line above.
+
+**The offset is negative.** The page draws through a flipped text matrix, so CoreText's own upwards is
+the page's downwards, and asking for a positive rise sinks every marker below its line.
+`NoteMarker.baselineOffset(forFontSize:)` is where that sign lives, so there is one place to read it
+and one thing to test.
+
+Markers travel as offsets into the text as it arrived, not as it was set. Binding and hyphenation both
+put characters in, so a mark counted straight through would drift a little further with every word
+joiner and soft hyphen before it; `ChapterContent` counts only the characters the text came with, the
+same way a reading position is counted.
+
+`ParagraphRuler` measures the real attributed text rather than a font of its own, so a marker set
+smaller measures smaller and the lines around it are filled to the width they actually take.
+
+### Tapping one
+
+A marker is two or three points across, and it stands inside the third of the page that turns it. So
+the page is asked about a note before the turning zones see the tap, and a marker's target is widened
+to a finger's width about its own middle, which makes it findable without moving it.
+
+The tap is resolved the way the page is drawn: the same walk down the lines, then the marker's own
+glyph run, which carries the note's id. Reading it off the run saves counting characters back through
+the soft hyphens the line was set with.
+
+The note opens as a `Callout` hung over the marker, in the page's own colours and face, since these are
+the book's words rather than the app's chrome. Its text goes through `BookTextView`, which runs the
+typesetter over it: a note is hyphenated and filled the way a page is. That view lays out with a margin
+of its own, because the column hangs a line-ending comma or hyphen outside its measure and without one
+those marks fall off the edge.
+
+Drawn text is invisible to VoiceOver and a marker cannot be touched there, so the page offers its notes
+as actions of its own instead.
+
+## Picking text off the page
+
+A drawn page has no selection of its own, so `ChapterSelection` works out every part of one. Which
+character a point is over comes from the same walk down the lines the page is drawn by, then
+`CTLineGetStringIndexForPosition`. That index counts the line as CoreText was given it, carrying none of
+the soft hyphens or word joiners the typesetter put in, so it is converted back by counting the
+characters that are not those: the same arithmetic the note markers travel by.
+
+Word boundaries treat those buried marks as part of the word, so a hyphenated break does not split
+`кто-то` in two, and a press landing in a gap takes the word before it rather than nothing. What comes
+out is the text as written, with the typesetter's own marks stripped.
+
+A press is `UILongPressGestureRecognizer` rather than SwiftUI's. `LongPressGesture` carries no place of
+its own, and the zero-distance drag usually paired with it to find one swallows every tap on the page:
+the taps that turn it, open a note, and show the controls all went that way. The recognizer reports its
+own place, fires while the finger is still down so the words light up under it rather than when it comes
+up, and is set not to cancel the touches around it. It hangs on the window, the one view certain to see
+every touch, and ignores a press that began outside the page.
+
+**The page holds still while text is picked.** Three things had to be told so: the drag that turns a
+page, the end of that drag, and the tap zones. A turn already under way is dropped when a press takes
+hold, since a finger can cover the eight points that start one inside the time a press takes to be
+held. With something picked, the layer over the page answers taps and the page ignores them, or a tap
+would put the aside away and turn the page in one go.
+
+Lifting the finger opens a `Callout` over the words: look up, translate, copy. The paint under them is
+`Design.Surface.picked`, and the page ticks as it goes: firmer for the first word, lighter for each one
+taken in after it, softer again when the aside arrives.
+
 ## Cutting the column into pages
 
 `ColumnComposer` sets the chapter as a single column, a paragraph at a time with a yield between them

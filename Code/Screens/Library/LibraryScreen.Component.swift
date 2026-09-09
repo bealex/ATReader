@@ -74,6 +74,12 @@ enum LibraryScreen {
             @Bindable var model = model
 
             ScrollView { shelf(model) }
+                .onScrollPhaseChange { _, phase in
+                    // A drag means the reader has moved on, which is when an opened run folds back.
+                    guard phase == .interacting else { return }
+
+                    withAnimation { model.closeRuns() }
+                }
                 .background(Design.Surface.screen)
                 .safeAreaInset(edge: .bottom) {
                     if model.isSelecting { selectionBar(model) }
@@ -271,20 +277,14 @@ enum LibraryScreen {
                 VStack(alignment: .leading, spacing: 0) {
                     seriesHeader(model, group: group)
 
-                    ForEach(Array(group.rows.enumerated()), id: \.element.id) { index, row in
+                    ForEach(Array(model.shelfRows(of: group).enumerated()), id: \.element.id) { index, line in
                         if index > 0 {
                             Divider().padding(.leading, Design.Space.large)
                         }
 
-                        switch row {
-                            case let .book(work, number, title):
-                                if isBehindTheReader(model, work: work) {
-                                    finishedRow(model, work: work, number: number, title: title)
-                                } else {
-                                    bookRow(model, work: work, number: number, title: title)
-                                }
-                            case let .missing(number):
-                                missingRow(number)
+                        switch line {
+                            case let .row(row): seriesRow(model, row: row)
+                            case let .read(folded): readRunRow(model, folded: folded)
                         }
                     }
                 }
@@ -376,7 +376,7 @@ enum LibraryScreen {
         /// A volume between two the reader holds that is not on the shelf. Not a book, so not a row
         /// anything happens on: it is here to show the run is broken.
         private func missingRow(_ number: Int) -> some View {
-            HStack(spacing: Design.Space.medium) {
+            RowStack(spacing: Design.Space.medium) {
                 // The read row's tick, kept as space rather than drawn, so the numbers line up down
                 // the card however wide that glyph turns out to be.
                 Image(systemName: "checkmark.circle.fill")
@@ -384,7 +384,7 @@ enum LibraryScreen {
                     .hidden()
                     .accessibilityHidden(true)
 
-                HStack(alignment: .firstTextBaseline, spacing: Design.Space.small) {
+                RowStack {
                     SeriesNumber(number: number)
 
                     Text("Not in your library")
@@ -436,7 +436,7 @@ enum LibraryScreen {
         /// A long series is read in order, so the ones behind the reader only have to stay findable.
         /// Given a cover and three lines each they push the book actually being read off the screen.
         private func finishedRow(_ model: Model, work: Book, number: Int?, title: String) -> some View {
-            HStack(spacing: Design.Space.medium) {
+            RowStack(spacing: Design.Space.medium) {
                 if model.isSelecting { tick(model.selection.contains(work.id)) }
 
                 Image(systemName: "checkmark.circle.fill")
@@ -444,7 +444,7 @@ enum LibraryScreen {
                     .foregroundStyle(.tint)
                     .accessibilityHidden(true)
 
-                HStack(alignment: .firstTextBaseline, spacing: Design.Space.small) {
+                RowStack {
                     if let number { SeriesNumber(number: number) }
 
                     Text(title)
@@ -466,12 +466,60 @@ enum LibraryScreen {
             .contextMenu { bookActions(model, work: work) }
         }
 
-        /// True where the reader is done with this book and nothing new has arrived in it.
+        @ViewBuilder
+        private func seriesRow(_ model: Model, row: Model.SeriesRow) -> some View {
+            switch row {
+                case let .book(work, number, title):
+                    if model.isBehindTheReader(work) {
+                        finishedRow(model, work: work, number: number, title: title)
+                    } else {
+                        bookRow(model, work: work, number: number, title: title)
+                    }
+                case let .missing(number):
+                    missingRow(number)
+            }
+        }
+
+        /// A run of books the reader is done with, folded into the volumes it covers.
         ///
-        /// Read to the end of a book still being written doesn't count: the next chapter is what the
-        /// reader is waiting for, and a collapsed row is the wrong place to be told it landed.
-        private func isBehindTheReader(_ model: Model, work: Book) -> Bool {
-            work.isFinishedReading && model.newChapters(for: work.id) == 0
+        /// Four titles behind the reader are four lines that say the same thing, so the line that
+        /// stands for them says only which volumes they are. Tapping opens the run, and scrolling the
+        /// shelf folds it back.
+        private func readRunRow(_ model: Model, folded: Model.ReadRun) -> some View {
+            RowStack(spacing: Design.Space.medium) {
+                Image(systemName: "checkmark.circle.fill")
+                    .font(Design.Style.caption)
+                    .foregroundStyle(.tint)
+                    .accessibilityHidden(true)
+
+                RowStack {
+                    SeriesNumber(number: folded.numbers.lowerBound)
+
+                    Text(verbatim: "…")
+                        .font(Design.Style.label)
+                        .foregroundStyle(.tertiary)
+                        .accessibilityHidden(true)
+
+                    SeriesNumber(number: folded.numbers.upperBound)
+                }
+
+                Spacer(minLength: Design.Space.medium)
+
+                Image(systemName: "chevron.down")
+                    .font(Design.Style.micro)
+                    .foregroundStyle(.tertiary)
+                    .accessibilityHidden(true)
+            }
+            .padding(.horizontal, Design.Space.large)
+            .padding(.vertical, Design.Space.medium)
+            .contentShape(.rect)
+            .onTapGesture {
+                withAnimation { model.open(folded) }
+            }
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("Books \(folded.numbers.lowerBound) to \(folded.numbers.upperBound), read")
+            .accessibilityAddTraits(.isButton)
+            .accessibilityHint("Shows the books you have read")
         }
 
         /// What a tap on the body of a row does: pick the book while selecting, else open its page.

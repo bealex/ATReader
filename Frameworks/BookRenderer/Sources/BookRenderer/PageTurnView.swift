@@ -26,6 +26,15 @@ public struct PageTurnView<Page: View>: View {
     public var hasPageAfter = false
     public var onPastEnd: () -> Void = {}
     public var onPastStart: () -> Void = {}
+    /// A tap on the page itself, offered before the turning zones see it. True where it was taken.
+    public var onPageTap: (CGPoint) -> Bool = { _ in false }
+    /// A finger held on the page and then drawn across it, which is how text is picked out. The page
+    /// stops turning for as long as this is going on.
+    public var onPickOut: (CGPoint, CGPoint) -> Void = { _, _ in }
+    public var onPickedOut: () -> Void = {}
+    /// True while text is picked out and something is being decided about it. The page holds still:
+    /// a finger moving over a page in this state is working on the words, not asking for the next one.
+    public var isChoosing = false
     /// A tap in the dead zone between the two turning thirds.
     public var onMiddleTap: () -> Void = {}
     /// The moment a turn takes hold, by tap or by finger.
@@ -41,6 +50,10 @@ public struct PageTurnView<Page: View>: View {
         hasPageAfter: Bool = false,
         onPastEnd: @escaping () -> Void = {},
         onPastStart: @escaping () -> Void = {},
+        onPageTap: @escaping (CGPoint) -> Bool = { _ in false },
+        onPickOut: @escaping (CGPoint, CGPoint) -> Void = { _, _ in },
+        onPickedOut: @escaping () -> Void = {},
+        isChoosing: Bool = false,
         onMiddleTap: @escaping () -> Void = {},
         onTurnStarted: @escaping () -> Void = {},
         @ViewBuilder page: @escaping (Int) -> Page
@@ -51,6 +64,10 @@ public struct PageTurnView<Page: View>: View {
         self.hasPageAfter = hasPageAfter
         self.onPastEnd = onPastEnd
         self.onPastStart = onPastStart
+        self.onPageTap = onPageTap
+        self.onPickOut = onPickOut
+        self.onPickedOut = onPickedOut
+        self.isChoosing = isChoosing
         self.onMiddleTap = onMiddleTap
         self.onTurnStarted = onTurnStarted
         self.page = page
@@ -66,6 +83,14 @@ public struct PageTurnView<Page: View>: View {
 
     @State
     private var turn: Turn?
+
+    /// True while a finger is drawing text out of the page, which is not a turn however far it moves.
+    @State
+    private var isPickingOut = false
+
+    /// Where the finger was when the press was held long enough to count.
+    @State
+    private var heldAt: CGPoint = .zero
 
     /// `0` is the resting state, `1` is fully committed to the neighbouring page.
     @State
@@ -132,7 +157,16 @@ public struct PageTurnView<Page: View>: View {
         .contentShape(.rect)
         .onGeometryChange(for: CGFloat.self, of: { $0.size.width }, action: { width = max(1, $0) })
         .gesture(drag)
+        // Watched rather than caught: everything else on the page still answers its own taps.
+        .overlay { press }
         .onTapGesture(coordinateSpace: .local) { location in
+            // With something picked out, the layer over the page answers taps and the page holds its
+            // place. A tap here as well would put the aside away and turn the page in one go.
+            guard !isChoosing else { return }
+            // Something on the page itself answers first. A note's marker is far smaller than the
+            // zone it stands in, so the zones would swallow every tap meant for one.
+            guard !onPageTap(location) else { return }
+
             // Both outer thirds turn forward; the middle third is a dead zone so a reader can rest a
             // thumb there without losing their place.
             let third = width / 3
@@ -151,9 +185,41 @@ public struct PageTurnView<Page: View>: View {
         .accessibilityAction(named: Text("Show or hide the reader controls", bundle: .module), onMiddleTap)
     }
 
+    /// A finger held still long enough to mean it starts picking text out, there and then.
+    ///
+    /// The words light up under the finger rather than when it comes up, so what is about to be taken
+    /// can be seen while it is still being chosen.
+    private var press: some View {
+        PagePressGesture(
+            onBegan: { point in
+                isPickingOut = true
+                heldAt = point
+                // A turn may already be under way: a finger can travel the eight points that start one
+                // inside the time a press takes to be held. Picking text out is what was meant.
+                cancelTurn()
+                onPickOut(point, point)
+            },
+            onMoved: { point in
+                guard isPickingOut else { return }
+
+                onPickOut(heldAt, point)
+            },
+            onEnded: {
+                guard isPickingOut else { return }
+
+                isPickingOut = false
+                onPickedOut()
+            }
+        )
+    }
+
     private var drag: some Gesture {
         DragGesture(minimumDistance: 8)
             .onChanged { value in
+                // A finger picking text out, or moving over a page with something already picked, is
+                // not turning it however far it travels.
+                guard !isPickingOut, !isChoosing else { return }
+
                 let translation = value.translation.width
 
                 if turn == nil {
@@ -190,6 +256,7 @@ public struct PageTurnView<Page: View>: View {
                 withAnimation(.easeInOut(duration: Self.grabDuration)) { progress = target }
             }
             .onEnded { value in
+                guard !isPickingOut, !isChoosing else { return releaseOverscroll() }
                 guard let turn else { return releaseOverscroll() }
 
                 let translation = value.translation.width

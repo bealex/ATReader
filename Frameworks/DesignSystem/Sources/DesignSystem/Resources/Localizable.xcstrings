@@ -2,6 +2,17 @@
   "sourceLanguage": "en",
   "version": "1.0",
   "strings": {
+    "Close": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Закрыть"
+          }
+        }
+      }
+    },
     "Shortens the text": {
       "extractionState": "manual",
       "localizations": {

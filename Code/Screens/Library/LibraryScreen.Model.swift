@@ -62,6 +62,46 @@ extension LibraryScreen {
             }
         }
 
+        /// A run of books the reader is done with, drawn as one line until it is opened.
+        struct ReadRun: Identifiable {
+            let rows: [SeriesRow]
+            /// The volumes it covers, which is the whole of what the folded line says. A run whose
+            /// books carry no numbers has nothing to fold into, so it stays as it is.
+            let numbers: ClosedRange<Int>
+
+            var id: String { "run:\(rows.first?.id ?? "")" }
+
+            init?(_ rows: [SeriesRow]) {
+                let numbers = rows.compactMap { row -> Int? in
+                    guard case let .book(_, number, _) = row else { return nil }
+
+                    return number
+                }
+
+                guard
+                    numbers.count == rows.count,
+                    let first = numbers.min(),
+                    let last = numbers.max()
+                else { return nil }
+
+                self.rows = rows
+                self.numbers = first ... last
+            }
+        }
+
+        /// A line of a series card as it is drawn: a row of its own, or a run folded into one.
+        enum ShelfRow: Identifiable {
+            case row(SeriesRow)
+            case read(ReadRun)
+
+            var id: String {
+                switch self {
+                    case let .row(row): row.id
+                    case let .read(folded): folded.id
+                }
+            }
+        }
+
         /// A line in a series card: a book on the shelf, or a volume between two that is not.
         enum SeriesRow: Identifiable {
             case book(Book, number: Int?, title: String)
@@ -271,6 +311,70 @@ extension LibraryScreen {
         func newChapters(for workId: Int) -> Int { newChaptersByWork[workId] ?? 0 }
 
         func dismissError() { errorMessage = nil }
+
+        // MARK: - Runs the reader has read through
+
+        /// A run of finished books longer than this is folded into one line.
+        private static let longestOpenRun = 3
+
+        /// The folded runs the reader has opened. Scrolling the shelf closes them again.
+        private(set) var openRuns: Set<String> = []
+
+        func open(_ folded: ReadRun) { openRuns.insert(folded.id) }
+
+        func closeRuns() {
+            guard !openRuns.isEmpty else { return }
+
+            openRuns = []
+        }
+
+        /// True where the reader is done with this book and nothing new has arrived in it.
+        ///
+        /// Read to the end of a book still being written doesn't count: the next chapter is what the
+        /// reader is waiting for, and a folded row is the wrong place to be told it landed.
+        func isBehindTheReader(_ work: Book) -> Bool {
+            work.isFinishedReading && newChapters(for: work.id) == 0
+        }
+
+        /// The card's lines, with each long run of books already read folded into one.
+        ///
+        /// Picking books out leaves every row showing, since a folded run hides books the reader is
+        /// reaching for.
+        func shelfRows(of group: Group) -> [ShelfRow] {
+            guard !isSelecting else { return group.rows.map(ShelfRow.row) }
+
+            var shelf: [ShelfRow] = []
+            var behind: [SeriesRow] = []
+
+            func fold() {
+                defer { behind = [] }
+
+                guard
+                    behind.count > Self.longestOpenRun,
+                    let folded = ReadRun(behind),
+                    !openRuns.contains(folded.id)
+                else { return shelf.append(contentsOf: behind.map(ShelfRow.row)) }
+
+                shelf.append(.read(folded))
+            }
+
+            for row in group.rows {
+                guard
+                    case let .book(work, _, _) = row,
+                    isBehindTheReader(work)
+                else {
+                    fold()
+                    shelf.append(.row(row))
+                    continue
+                }
+
+                behind.append(row)
+            }
+
+            fold()
+
+            return shelf
+        }
 
         // MARK: - Series the reader puts together
 

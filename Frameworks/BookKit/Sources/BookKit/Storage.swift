@@ -74,11 +74,24 @@ public struct ChapterContent: Codable, Sendable {
     /// The language the chapter is written in, which decides which hyphenation dictionary lays it out
     /// and how it is shaped.
     public var language: String?
+    /// The notes the text points at, by the id its markers carry.
+    public var notes: [String: BookNote] = [:]
 
-    public init(paragraphs: [Paragraph], hyphenated: [Paragraph], language: String?) {
+    public init(paragraphs: [Paragraph], hyphenated: [Paragraph], language: String?, notes: [String: BookNote] = [:]) {
         self.paragraphs = paragraphs
         self.hyphenated = hyphenated
         self.language = language
+        self.notes = notes
+    }
+
+    public init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+
+        paragraphs = try container.decode([ Paragraph ].self, forKey: .paragraphs)
+        hyphenated = try container.decode([ Paragraph ].self, forKey: .hyphenated)
+        language = try container.decodeIfPresent(String.self, forKey: .language)
+        // A chapter prepared before notes were read carries none, and is still good text.
+        notes = try container.decodeIfPresent([ String: BookNote ].self, forKey: .notes) ?? [:]
     }
 
     public var isEmpty: Bool { paragraphs.isEmpty }

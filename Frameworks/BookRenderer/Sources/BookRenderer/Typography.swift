@@ -19,7 +19,7 @@ public enum Typography {
     /// moved is never set again. A change to these rules moves the output without moving the source,
     /// and nothing in the source would ever say so. This is what tells the store that everything it
     /// holds was made by an older typesetter and has to be made again.
-    public static let version = "3"
+    public static let version = "5"
 
     /// A space that cannot be broken at, and that still stretches when a line is justified.
     ///

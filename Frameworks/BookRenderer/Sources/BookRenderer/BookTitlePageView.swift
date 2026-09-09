@@ -37,7 +37,7 @@ public struct BookTitlePageView: View {
 
     public var body: some View {
         VStack(spacing: 0) {
-            PagePicture(url: coverURL, palette: style.palette)
+            PagePicture(url: coverURL, width: 255, palette: style.palette)
                 .padding(.bottom, 32)
 
             Text(title)

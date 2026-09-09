@@ -118,7 +118,7 @@ enum WorkScreen {
                 }
 
                 VStack(alignment: .leading, spacing: Design.Space.small) {
-                    HStack(alignment: .firstTextBaseline, spacing: Design.Space.small) {
+                    RowStack {
                         if let number = model.seriesNumber { SeriesNumber(number: number) }
 
                         Text(model.shortTitle ?? work.title)

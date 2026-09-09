@@ -27,6 +27,10 @@ public struct ChapterTextStyle: Equatable, Sendable {
     public var backgroundColor: UIColor = .systemBackground
     /// Every picture is held to the page's two colours, colour art included.
     public var monochromeImages: Bool = false
+    /// False for text that is not a page of the book. A paragraph opens indented because the one
+    /// before it ended somewhere unpredictable; an aside standing alone has nothing to be told apart
+    /// from, so the indent only loses it a line's worth of room.
+    public var indentsParagraphs: Bool = true
 
     public init(
         face: BookFace,
@@ -38,7 +42,8 @@ public struct ChapterTextStyle: Equatable, Sendable {
         justifiesEnglish: Bool,
         textColor: UIColor,
         backgroundColor: UIColor = .systemBackground,
-        monochromeImages: Bool = false
+        monochromeImages: Bool = false,
+        indentsParagraphs: Bool = true
     ) {
         self.face = face
         self.weight = weight
@@ -50,6 +55,7 @@ public struct ChapterTextStyle: Equatable, Sendable {
         self.textColor = textColor
         self.backgroundColor = backgroundColor
         self.monochromeImages = monochromeImages
+        self.indentsParagraphs = indentsParagraphs
     }
 
     public var font: UIFont { face.font(size: fontSize, weight: weight.uiWeight) }
@@ -151,7 +157,7 @@ public enum ChapterPagination {
             paragraphStyle.alignment = isCentered ? .center : bodyAlignment
             paragraphStyle.lineSpacing = style.lineSpacing
             paragraphStyle.paragraphSpacing = style.lineSpacing * 0.8
-            paragraphStyle.firstLineHeadIndent = isCentered ? 0 : font.pointSize
+            paragraphStyle.firstLineHeadIndent = isCentered || !style.indentsParagraphs ? 0 : font.pointSize
             paragraphStyle.lineBreakMode = .byWordWrapping
             // Hyphenation, from the system's dictionary for the language the run carries. Without it a
             // justified narrow column pulls the words apart instead of breaking them.
@@ -173,10 +179,43 @@ public enum ChapterPagination {
             ]
             attributes.merge(languageAttributes(language)) { current, _ in current }
             if style.letterSpacing != 0 { attributes[.kern] = style.letterSpacing }
+
+            let start = result.length
             result.append(NSAttributedString(string: paragraph.text + suffix, attributes: attributes))
+            mark(paragraph.notes, in: result, from: start, style: style)
         }
 
         return TypesetText(attributed: result, headingLength: headingLength)
+    }
+
+    /// Sets a paragraph's note markers as references rather than as digits that wandered into the words.
+    ///
+    /// The characters are the ones the text arrived with. A reading position is an offset into that
+    /// text, so a marker renumbered here would move the reader's place in every book on the device.
+    private static func mark(
+        _ notes: [NoteMark],
+        in text: NSMutableAttributedString,
+        from start: Int,
+        style: ChapterTextStyle
+    ) {
+        guard !notes.isEmpty else { return }
+
+        let font = style.face.font(size: style.fontSize * NoteMarker.scale, weight: style.weight.uiWeight)
+
+        for note in notes {
+            let range = NSRange(location: start + note.location, length: note.length)
+
+            guard NSMaxRange(range) <= text.length else { continue }
+
+            text.addAttributes(
+                [
+                    .font: font,
+                    .baselineOffset: NoteMarker.baselineOffset(forFontSize: style.fontSize),
+                    .bookNote: note.noteId,
+                ],
+                range: range
+            )
+        }
     }
 
     /// A picture as one block of the chapter.

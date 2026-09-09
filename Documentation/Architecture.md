@@ -140,6 +140,17 @@ lines each they push the one being read off the screen. A book read to the end o
 still gaining chapters is not collapsed, nor is one carrying new chapters: the next chapter is what the
 reader is waiting for, and a collapsed row is the wrong place to be told it arrived.
 
+More than three of those lines in a row fold again, into one line carrying the volumes they cover and
+nothing else: the first number, an ellipsis, the last. Four titles behind the reader are four lines
+saying the same thing, and a reader twenty books into a series wants the shelf to open on book
+twenty-one. Three or fewer stays as it is, being quicker to read past than a line asking to be tapped.
+A run whose books carry no numbers has nothing to fold into, so it stays as it is too.
+
+The run has to be sequential, so a book still being read, or a volume missing from the shelf, splits one
+long run into two short ones. Tapping the folded line opens it and the next drag on the shelf closes it
+again, so nothing accumulates behind a reader scrolling past. Picking books out leaves every row
+showing, since a fold would hide the books the reader is reaching for.
+
 The plus button reads an FB2 file into the library. See [LocalBooks.md](LocalBooks.md).
 
 How far the reader has got is a ring on the cover, always 30pt across whatever the cover's size, with

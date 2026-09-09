@@ -5,6 +5,39 @@
 
 import Foundation
 
+/// A note the text points at: what it says, and the marker standing for it on the page.
+public struct BookNote: Codable, Sendable, Hashable, Identifiable {
+    public let id: String
+    /// The marker as the text itself writes it, `1` or `[1]`. Kept rather than renumbered, because a
+    /// reading position counts these characters.
+    public let marker: String
+    public let text: String
+
+    public init(id: String, marker: String, text: String) {
+        self.id = id
+        self.marker = marker
+        self.text = text
+    }
+}
+
+/// Where a note's marker stands in a paragraph's own text.
+///
+/// Counted in the text as it arrived, the way a reading position is, so the typesetter's own soft
+/// hyphens and word joiners don't move it.
+public struct NoteMark: Codable, Sendable, Hashable {
+    public let location: Int
+    public let length: Int
+    public let noteId: String
+
+    public init(location: Int, length: Int, noteId: String) {
+        self.location = location
+        self.length = length
+        self.noteId = noteId
+    }
+
+    public var range: NSRange { NSRange(location: location, length: length) }
+}
+
 /// One laid-out block of a chapter: a paragraph of text, or a picture standing on its own.
 public struct Paragraph: Codable, Sendable, Identifiable, Hashable {
     public let id: Int
@@ -15,53 +48,52 @@ public struct Paragraph: Codable, Sendable, Identifiable, Hashable {
     /// lays the chapter out decides what a source resolves to, and drops the block where nothing
     /// answers to it.
     public let imageSource: String?
+    /// The note markers standing in this paragraph, in the order they stand in it.
+    public let notes: [NoteMark]
 
-    public init(id: Int, text: String, isCentered: Bool, imageSource: String? = nil) {
+    public init(id: Int, text: String, isCentered: Bool, imageSource: String? = nil, notes: [NoteMark] = []) {
         self.id = id
         self.text = text
         self.isCentered = isCentered
         self.imageSource = imageSource
+        self.notes = notes
+    }
+
+    public init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+
+        id = try container.decode(Int.self, forKey: .id)
+        text = try container.decode(String.self, forKey: .text)
+        isCentered = try container.decode(Bool.self, forKey: .isCentered)
+        imageSource = try container.decodeIfPresent(String.self, forKey: .imageSource)
+        // A chapter prepared before notes were read carries none, and is still good text.
+        notes = try container.decodeIfPresent([ NoteMark ].self, forKey: .notes) ?? []
     }
 
     public var isImage: Bool { imageSource != nil }
 }
+
+/// A chapter as its markup gives it: the blocks to set, and the notes their text points at.
+public struct ChapterMarkup: Sendable {
+    public let paragraphs: [Paragraph]
+    public let notes: [String: BookNote]
+
+    public init(paragraphs: [Paragraph], notes: [String: BookNote]) {
+        self.paragraphs = paragraphs
+        self.notes = notes
+    }
+}
+
+/// A stretch of the markup being read.
+private typealias HTMLRange = Range<String.Index>
 
 /// Turns the HTML a chapter arrives in into flat paragraphs a reader view can lay out.
 ///
 /// Chapter bodies use a small, predictable subset — `<p>`, `<br>`, `<span>`, emphasis and the odd `<img>` —
 /// so a targeted pass beats pulling in a full HTML stack, and it keeps the work off the main actor.
 public enum BookHTML {
-    public static func paragraphs(from html: String) -> [Paragraph] {
-        var result: [Paragraph] = []
-        var index = 0
-        let blocks = blocks(in: html)
-
-        for block in blocks {
-            switch block {
-                case let .picture(source):
-                    result.append(Paragraph(id: index, text: "", isCentered: true, imageSource: source))
-                    index += 1
-                case let .text(attributes, inner):
-                    let centered =
-                        attributes.contains("text-align:center")
-                        || attributes.contains("text-align: center")
-                    let text = plainText(from: inner)
-
-                    guard !text.isEmpty else { continue }
-
-                    result.append(Paragraph(id: index, text: text, isCentered: centered))
-                    index += 1
-            }
-        }
-
-        // A body with no paragraph markup at all still deserves to be readable.
-        if blocks.isEmpty {
-            let text = plainText(from: html)
-            if !text.isEmpty { result = [ Paragraph(id: 0, text: text, isCentered: false) ] }
-        }
-
-        return result
-    }
+    /// A chapter's blocks alone, for text that carries no notes worth showing: an annotation, a blurb.
+    public static func paragraphs(from html: String) -> [Paragraph] { chapter(from: html).paragraphs }
 
     private enum Block {
         case text(attributes: String, inner: String)
@@ -182,6 +214,346 @@ public enum BookHTML {
 
         for (entity, replacement) in entities {
             result = result.replacingOccurrences(of: entity, with: replacement, options: .caseInsensitive)
+        }
+
+        return result
+    }
+
+    // MARK: - The notes the text points at
+
+    /// A chapter's blocks and the notes standing behind them.
+    ///
+    /// A note is an anchor into the chapter itself, `<a href="#n1">1</a>`, with the note's own words
+    /// further down under `id="n1"`. Those words are lifted out and the block holding them dropped, so
+    /// a note reads where it is referred to rather than as a stray paragraph at the foot of the
+    /// chapter. An anchor carrying its note on a `title` attribute instead is read the same way.
+    ///
+    /// The marker keeps exactly the characters the text gave it. A reading position is an offset into
+    /// this text, so a renumbered marker would move the reader's place in every book on the device.
+    public static func chapter(from html: String) -> ChapterMarkup {
+        let bodies = noteBodies(among: referencedIds(in: html), in: html)
+        let body = removing(bodies.values.map(\.range), from: html)
+        let blocks = blocks(in: body)
+        var notes = bodies.compactMapValues { $0.text.isEmpty ? nil : BookNote(id: $0.id, marker: "", text: $0.text) }
+        var result: [Paragraph] = []
+        var index = 0
+
+        for block in blocks {
+            switch block {
+                case let .picture(source):
+                    result.append(Paragraph(id: index, text: "", isCentered: true, imageSource: source))
+                    index += 1
+                case let .text(attributes, inner):
+                    let centered =
+                        attributes.contains("text-align:center")
+                        || attributes.contains("text-align: center")
+                    let read = readingNotes(in: inner, paragraph: index, notes: &notes)
+
+                    guard !read.text.isEmpty else { continue }
+
+                    result.append(Paragraph(id: index, text: read.text, isCentered: centered, notes: read.marks))
+                    index += 1
+            }
+        }
+
+        // A body with no paragraph markup at all still deserves to be readable.
+        if blocks.isEmpty {
+            let text = plainText(from: body)
+            if !text.isEmpty { result = [ Paragraph(id: 0, text: text, isCentered: false) ] }
+        }
+
+        // A note nothing points at is not a note, and would otherwise be text the reader lost.
+        let marked = Set(result.flatMap(\.notes).map(\.noteId))
+        return ChapterMarkup(paragraphs: result, notes: notes.filter { marked.contains($0.key) })
+    }
+
+    /// What a marker is wrapped in while the text around it is being flattened.
+    ///
+    /// The flattening collapses white space and decodes entities, either of which moves a position, so
+    /// the marker is fenced beforehand and its place read off afterwards. Private-use characters,
+    /// because no book contains one and neither step touches them.
+    private static let markerOpen: Character = "\u{E000}"
+    private static let markerClose: Character = "\u{E001}"
+
+    private struct ReadText {
+        var text: String
+        var marks: [NoteMark]
+    }
+
+    /// One paragraph's text, with the note markers in it found and placed.
+    private static func readingNotes(
+        in fragment: String,
+        paragraph: Int,
+        notes: inout [String: BookNote]
+    ) -> ReadText {
+        var fenced = ""
+        var ids: [String] = []
+        var cursor = fragment.startIndex
+
+        while let anchor = anchor(in: fragment, from: cursor) {
+            fenced += fragment[cursor ..< anchor.range.lowerBound]
+            cursor = anchor.range.upperBound
+
+            // An anchor pointing at a note the chapter carries, or carrying its own words. Anything
+            // else is an ordinary link and goes the way of the rest of the markup.
+            var id: String?
+
+            if let target = anchor.target, notes[target] != nil {
+                id = target
+            } else if let inline = anchor.inlineText {
+                let synthetic = "inline:\(paragraph):\(ids.count)"
+                notes[synthetic] = BookNote(id: synthetic, marker: "", text: inline)
+                id = synthetic
+            }
+
+            guard
+                let id
+            else {
+                fenced += fragment[anchor.range]
+                continue
+            }
+
+            ids.append(id)
+            fenced += String(markerOpen) + anchor.inner + String(markerClose)
+        }
+
+        fenced += fragment[cursor...]
+
+        guard !ids.isEmpty else { return ReadText(text: plainText(from: fenced), marks: []) }
+
+        return placing(ids, in: plainText(from: fenced), notes: &notes)
+    }
+
+    /// Reads the fenced markers back out of the flattened text, and records where each one landed.
+    private static func placing(_ ids: [String], in text: String, notes: inout [String: BookNote]) -> ReadText {
+        var result = ""
+        var marks: [NoteMark] = []
+        var length = 0
+        var start: Int?
+        var marker = ""
+        var index = 0
+
+        for character in text {
+            switch character {
+                case markerOpen:
+                    start = length
+                    marker = ""
+                case markerClose:
+                    defer { index += 1 }
+
+                    guard let from = start, index < ids.count, length > from else { break }
+
+                    let id = ids[index]
+                    marks.append(NoteMark(location: from, length: length - from, noteId: id))
+                    // The marker is what names the note where it is shown, and it is only known here.
+                    if let note = notes[id] {
+                        notes[id] = BookNote(id: id, marker: marker, text: withoutLeading(marker, in: note.text))
+                    }
+                    start = nil
+                default:
+                    result.append(character)
+                    length += character.utf16.count
+                    if start != nil { marker.append(character) }
+            }
+        }
+
+        return ReadText(text: result, marks: marks)
+    }
+
+    /// A note that opens by repeating its own figure, with that figure taken off.
+    ///
+    /// The figure is how the note is named where it is shown, so leaving it at the head of the words
+    /// as well reads as though it were the note's first word. Only an exact repeat goes: a note that
+    /// happens to begin with some other number keeps it.
+    private static func withoutLeading(_ marker: String, in text: String) -> String {
+        let figure = marker.filter(\.isNumber)
+
+        guard !figure.isEmpty, text.hasPrefix(figure) else { return text }
+
+        let rest = text.dropFirst(figure.count).drop { $0.isWhitespace || $0 == "." || $0 == ")" || $0 == "]" }
+
+        return rest.isEmpty ? text : String(rest)
+    }
+
+    private struct Anchor {
+        var range: Range<String.Index>
+        var inner: String
+        /// The `#id` the anchor points at, less the hash.
+        var target: String?
+        /// The note's words, where the anchor carries them itself.
+        var inlineText: String?
+    }
+
+    /// The next `<a>…</a>` at or after `cursor`, whole.
+    private static func anchor(in fragment: String, from cursor: String.Index) -> Anchor? {
+        var searching = cursor
+
+        while let open = fragment.range(of: "<a", options: .caseInsensitive, range: searching ..< fragment.endIndex) {
+            searching = open.upperBound
+
+            // `<a` opens an anchor only where the tag name ends there; `<abbr` is not one.
+            guard
+                let next = fragment[open.upperBound...].first,
+                next.isWhitespace || next == ">" || next == "/"
+            else { continue }
+            guard
+                let openEnd = fragment.range(of: ">", range: open.upperBound ..< fragment.endIndex),
+                let close = fragment.range(
+                    of: "</a>",
+                    options: .caseInsensitive,
+                    range: openEnd.upperBound ..< fragment.endIndex
+                )
+            else { return nil }
+
+            let attributes = attributes(in: fragment[open.upperBound ..< openEnd.lowerBound])
+            let href = attributes["href"] ?? attributes["l:href"] ?? attributes["xlink:href"]
+            let inline = attributes["title"] ?? attributes["data-note"] ?? attributes["data-title"]
+
+            return Anchor(
+                range: open.lowerBound ..< close.upperBound,
+                inner: String(fragment[openEnd.upperBound ..< close.lowerBound]),
+                target: href.flatMap { $0.hasPrefix("#") ? String($0.dropFirst()) : nil },
+                inlineText: inline.map(decodeEntities).flatMap { $0.isEmpty ? nil : $0 }
+            )
+        }
+
+        return nil
+    }
+
+    /// A tag's attributes, by lowercased name. Values keep their case, being text rather than markup.
+    private static func attributes(in markup: some StringProtocol) -> [String: String] {
+        var result: [String: String] = [:]
+        var cursor = markup.startIndex
+
+        while let equals = markup[cursor...].firstIndex(of: "=") {
+            let name = markup[cursor ..< equals].trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            let rest = markup[markup.index(after: equals)...].drop { $0.isWhitespace }
+
+            guard let quote = rest.first else { break }
+
+            if quote == "\"" || quote == "'" {
+                let value = rest.dropFirst().prefix { $0 != quote }
+                result[name] = decodeEntities(in: String(value))
+                cursor =
+                    markup.index(rest.startIndex, offsetBy: value.count + 2, limitedBy: markup.endIndex)
+                    ?? markup.endIndex
+            } else {
+                let value = rest.prefix { !$0.isWhitespace }
+                result[name] = decodeEntities(in: String(value))
+                cursor = value.endIndex
+            }
+
+            if cursor >= markup.endIndex { break }
+        }
+
+        return result
+    }
+
+    /// Every `#id` the chapter's anchors point at.
+    private static func referencedIds(in html: String) -> Set<String> {
+        var result: Set<String> = []
+        var cursor = html.startIndex
+
+        while let anchor = anchor(in: html, from: cursor) {
+            cursor = anchor.range.upperBound
+
+            if let target = anchor.target { result.insert(target) }
+        }
+
+        return result
+    }
+
+    private struct NoteBody {
+        var id: String
+        var text: String
+        var range: Range<String.Index>
+    }
+
+    /// The element behind each referenced id, and the words in it.
+    private static func noteBodies(among ids: Set<String>, in html: String) -> [String: NoteBody] {
+        var result: [String: NoteBody] = [:]
+
+        for id in ids {
+            guard let element = element(withId: id, in: html) else { continue }
+
+            result[id] = NoteBody(
+                id: id,
+                text: plainText(from: withoutLeadingAnchor(element.inner)),
+                range: element.range
+            )
+        }
+
+        return result
+    }
+
+    /// A note usually opens with its own marker as a link back to the text. That is navigation rather
+    /// than the note, and there is nowhere to go back to from a popup.
+    private static func withoutLeadingAnchor(_ inner: String) -> String {
+        let start = inner.drop { $0.isWhitespace }
+
+        guard start.hasPrefix("<a"), let anchor = anchor(in: inner, from: inner.startIndex) else { return inner }
+
+        return String(inner[anchor.range.upperBound...])
+    }
+
+    /// The element carrying an id, from its opening bracket through its closing tag.
+    private static func element(withId id: String, in html: String) -> (inner: String, range: Range<String.Index>)? {
+        let escaped = NSRegularExpression.escapedPattern(for: id)
+        let pattern = "<([a-zA-Z][a-zA-Z0-9]*)\\b[^>]*\\bid\\s*=\\s*[\"']\(escaped)[\"'][^>]*>"
+
+        guard
+            let match = html.range(of: pattern, options: [ .regularExpression, .caseInsensitive ]),
+            let name = tagName(at: match, in: html)
+        else { return nil }
+        guard let close = closingTag(of: name, in: html, from: match.upperBound) else { return nil }
+
+        return (String(html[match.upperBound ..< close.lowerBound]), match.lowerBound ..< close.upperBound)
+    }
+
+    private static func tagName(at opening: Range<String.Index>, in html: String) -> String? {
+        let name = html[html.index(after: opening.lowerBound) ..< opening.upperBound]
+            .prefix { $0.isLetter || $0.isNumber }
+
+        return name.isEmpty ? nil : String(name).lowercased()
+    }
+
+    /// The closing tag that matches an already-open one, stepping over any of the same name inside it.
+    private static func closingTag(of name: String, in html: String, from cursor: String.Index) -> HTMLRange? {
+        var depth = 0
+        var searching = cursor
+
+        while searching < html.endIndex {
+            let opening = html.range(of: "<\(name)", options: .caseInsensitive, range: searching ..< html.endIndex)
+            let closing = html.range(of: "</\(name)", options: .caseInsensitive, range: searching ..< html.endIndex)
+
+            guard let closing else { return nil }
+
+            if let opening, opening.lowerBound < closing.lowerBound {
+                depth += 1
+                searching = opening.upperBound
+                continue
+            }
+
+            guard
+                depth > 0
+            else {
+                let stop = html.range(of: ">", range: closing.upperBound ..< html.endIndex)
+                return closing.lowerBound ..< (stop?.upperBound ?? html.endIndex)
+            }
+
+            depth -= 1
+            searching = closing.upperBound
+        }
+
+        return nil
+    }
+
+    /// Cuts the note bodies out of the chapter, back to front so the ranges hold.
+    private static func removing(_ ranges: some Sequence<Range<String.Index>>, from html: String) -> String {
+        var result = html
+
+        for range in ranges.sorted(by: { $0.lowerBound > $1.lowerBound }) {
+            result.replaceSubrange(range, with: "")
         }
 
         return result

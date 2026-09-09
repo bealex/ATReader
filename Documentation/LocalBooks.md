@@ -88,6 +88,14 @@ lands on the same row and leaves the position alone.
 
 A book imported before its file was kept has none, and its menu asks for the file instead.
 
+## Notes
+
+A file keeps its notes in a second `<body>`, at the end, long after the chapter pointing at them. The
+parser reads that body into notes by id, keeps the `<a>` anchors in the paragraphs that refer to them,
+and writes each note out under the chapters that use it. A chapter from a file then carries its own
+notes exactly as one from the service does, and nothing downstream knows which it is holding. See the
+Notes section of [Reader.md](Reader.md).
+
 ## Getting a file in
 
 Two ways, one path. The plus button on the shelf opens the picker; a file opened from another app

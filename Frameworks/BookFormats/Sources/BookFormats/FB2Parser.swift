@@ -55,6 +55,8 @@ public enum FB2Parser {
             case titleInfo
             case documentInfo
             case body
+            /// A body after the first, which is where a file keeps its notes.
+            case notes
             case binary
         }
 
@@ -102,9 +104,25 @@ public enum FB2Parser {
         /// Runs of `<empty-line/>` collapse into a single scene break.
         private var pendingBreak = false
 
-        /// Only the first `<body>` is the book. A second one holds the footnotes, which the reader has
-        /// nowhere to show.
+        /// Only the first `<body>` is the book. A body after it holds the notes the text points at,
+        /// which are read into ``notes`` and handed to the chapters that refer to them.
         private var hasReadBody = false
+
+        /// A note's marker, and the note it points at, inside the paragraph being read.
+        private struct Anchor {
+            let target: String
+            let start: Int
+            var stop: Int
+        }
+
+        /// The anchor open in the paragraph being read, and the ones already closed in it.
+        private var openAnchor: Anchor?
+        private var anchors: [Anchor] = []
+
+        /// The notes the file keeps in a body of their own, by the id its anchors point at.
+        private var notes: [String: String] = [:]
+        private var noteId: String?
+        private var noteLines: [String] = []
 
         func book() throws -> ParsedBook {
             closeChapter()
@@ -120,8 +138,29 @@ public enum FB2Parser {
                 seriesOrder: seriesOrder,
                 cover: cover,
                 images: images,
-                sections: sections,
+                sections: sections.map(carryingNotes),
                 identifier: documentId
+            )
+        }
+
+        /// A chapter with the notes its own text points at written under it.
+        ///
+        /// A file keeps its notes in a body of their own, at the end, where the chapter referring to
+        /// them is long past. Carrying each note down to the chapter that uses it is what lets a
+        /// chapter from a file be read exactly the way one from the service is.
+        private func carryingNotes(_ section: ParsedBook.Section) -> ParsedBook.Section {
+            guard !notes.isEmpty else { return section }
+
+            let used = notes.keys.filter { section.html.contains("href=\"#\($0)\"") }.sorted()
+
+            guard !used.isEmpty else { return section }
+
+            let carried = used.map { "<div id=\"\(Self.escaped($0))\">\(Self.escaped(notes[$0] ?? ""))</div>" }
+
+            return ParsedBook.Section(
+                title: section.title,
+                html: section.html + carried.joined(),
+                textLength: section.textLength
             )
         }
 
@@ -141,7 +180,11 @@ public enum FB2Parser {
             }
 
             // Every block of text starts empty, so the characters of the one before it never leak in.
-            if Self.blocks.contains(element) { text = "" }
+            if Self.blocks.contains(element) {
+                text = ""
+                anchors = []
+                openAnchor = nil
+            }
         }
 
         /// Handles what the file says about itself. Reports whether the element was one of those.
@@ -161,12 +204,57 @@ public enum FB2Parser {
 
         private func startedBody(_ element: String, attributes: [String: String]) {
             switch element {
-                case "body" where !hasReadBody: region = .body
+                case "body": region = hasReadBody ? .notes : .body
                 case "section" where region == .body: startSection()
                 case "empty-line" where region == .body: pendingBreak = true
                 case "image" where region == .body: startImage(attributes)
+                case "a" where region == .body: startAnchor(attributes)
+                case "section" where region == .notes: startNote(attributes)
                 default: break
             }
+        }
+
+        /// A link into the book's own notes. Anything else an `<a>` may point at is not one.
+        private func startAnchor(_ attributes: [String: String]) {
+            guard let target = Self.noteTarget(in: attributes) else { return }
+
+            openAnchor = Anchor(target: target, start: text.count, stop: text.count)
+        }
+
+        private func startNote(_ attributes: [String: String]) {
+            noteId = attributes["id"]?.trimmed.nilWhenEmpty
+            noteLines = []
+        }
+
+        private func endAnchor() {
+            guard var anchor = openAnchor else { return }
+
+            openAnchor = nil
+            anchor.stop = text.count
+
+            guard anchor.stop > anchor.start else { return }
+
+            anchors.append(anchor)
+        }
+
+        private func endNote() {
+            defer {
+                noteId = nil
+                noteLines = []
+            }
+
+            guard let noteId, !noteLines.isEmpty else { return }
+
+            notes[noteId] = noteLines.joined(separator: " ")
+        }
+
+        /// The note an anchor points at: a reference into the file, rather than a link out of it.
+        private static func noteTarget(in attributes: [String: String]) -> String? {
+            let href = attributes["l:href"] ?? attributes["xlink:href"] ?? attributes["href"]
+
+            guard let href, href.hasPrefix("#") else { return nil }
+
+            return String(href.dropFirst()).trimmed.nilWhenEmpty
         }
 
         /// A picture in the text becomes a block of its own, named after the binary that holds it.
@@ -205,6 +293,8 @@ public enum FB2Parser {
                 case .documentInfo where element == "id" && parent == "document-info":
                     documentId = text.trimmed.nilWhenEmpty
                 case .body: endBodyElement(element)
+                case .notes where Self.blocks.contains(element):
+                    if let line = text.trimmed.nilWhenEmpty { noteLines.append(line) }
                 default: break
             }
         }
@@ -217,6 +307,9 @@ public enum FB2Parser {
                     closeChapter()
                     region = .none
                     hasReadBody = true
+                case "body" where region == .notes: region = .none
+                case "section" where region == .notes: endNote()
+                case "a" where region == .body: endAnchor()
                 case "binary": endBinary()
                 case "author" where region == .titleInfo: endAuthor()
                 case "section" where region == .body: endSection()
@@ -343,12 +436,37 @@ public enum FB2Parser {
             }
 
             pendingBreak = false
+
+            let body = anchors.isEmpty ? Self.escaped(line) : Self.escaped(raw, marking: anchors).trimmed
+
             open[open.count - 1].lines.append(
                 centered
-                    ? "<p style=\"text-align:center\">\(Self.escaped(line))</p>"
-                    : "<p>\(Self.escaped(line))</p>"
+                    ? "<p style=\"text-align:center\">\(body)</p>"
+                    : "<p>\(body)</p>"
             )
             open[open.count - 1].length += line.count
+        }
+
+        /// The paragraph escaped, with each note marker wrapped in the anchor that pointed at it.
+        ///
+        /// The markers keep the characters the file gave them: a reading position counts them, and the
+        /// reader sets them as references rather than renumbering them.
+        private static func escaped(_ text: String, marking anchors: [Anchor]) -> String {
+            let characters = Array(text)
+            var result = ""
+            var cursor = 0
+
+            for anchor in anchors.sorted(by: { $0.start < $1.start }) {
+                guard anchor.start >= cursor, anchor.stop <= characters.count else { continue }
+
+                result += escaped(String(characters[cursor ..< anchor.start]))
+                result += "<a href=\"#\(escaped(anchor.target))\">"
+                result += escaped(String(characters[anchor.start ..< anchor.stop]))
+                result += "</a>"
+                cursor = anchor.stop
+            }
+
+            return result + escaped(String(characters[cursor...]))
         }
 
         // MARK: - The cover

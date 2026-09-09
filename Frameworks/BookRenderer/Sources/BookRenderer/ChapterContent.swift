@@ -11,28 +11,63 @@ import NaturalLanguage
 public extension ChapterContent {
     public static func prepare(html: String) async -> ChapterContent {
         await Task.detached(priority: .userInitiated) {
-            let paragraphs = BookHTML.paragraphs(from: html)
+            let chapter = BookHTML.chapter(from: html)
+            let paragraphs = chapter.paragraphs
             let language = Self.language(of: paragraphs)
             let bound = paragraphs.map { paragraph in
-                Paragraph(
-                    id: paragraph.id,
+                Self.setting(
+                    paragraph,
                     // The dashes are put right first: binding reads them, and so does the layout when
                     // it decides which lines open on the dash of speech.
-                    text: Typography.bound(Typography.dashes(paragraph.text, language: language), language: language),
-                    isCentered: paragraph.isCentered,
-                    imageSource: paragraph.imageSource
+                    as: Typography.bound(Typography.dashes(paragraph.text, language: language), language: language)
                 )
             }
             let hyphenated = bound.map { paragraph in
-                Paragraph(
-                    id: paragraph.id,
-                    text: Typography.hyphenated(paragraph.text, language: language),
-                    isCentered: paragraph.isCentered,
-                    imageSource: paragraph.imageSource
-                )
+                Self.setting(paragraph, as: Typography.hyphenated(paragraph.text, language: language))
             }
-            return ChapterContent(paragraphs: bound, hyphenated: hyphenated, language: language)
+            return ChapterContent(paragraphs: bound, hyphenated: hyphenated, language: language, notes: chapter.notes)
         }.value
+    }
+
+    /// One paragraph as the typesetter left it, with its note markers put back where they now stand.
+    private static func setting(_ paragraph: Paragraph, as text: String) -> Paragraph {
+        Paragraph(
+            id: paragraph.id,
+            text: text,
+            isCentered: paragraph.isCentered,
+            imageSource: paragraph.imageSource,
+            notes: placed(paragraph.notes, in: text)
+        )
+    }
+
+    /// Where a paragraph's note markers land once the typesetter has been through its text.
+    ///
+    /// Binding and hyphenation both put characters in — word joiners and soft hyphens — so a mark
+    /// counted straight through would drift a little further with every one of them. Counting only
+    /// the characters the text arrived with puts each marker back where it was.
+    private static func placed(_ marks: [NoteMark], in text: String) -> [NoteMark] {
+        guard !marks.isEmpty else { return [] }
+
+        let string = text as NSString
+        var positions: [Int] = []
+
+        positions.reserveCapacity(string.length)
+
+        for index in 0 ..< string.length {
+            let unit = string.character(at: index)
+            let isFormat = Unicode.Scalar(unit).map { $0.properties.generalCategory == .format } ?? false
+
+            if !isFormat { positions.append(index) }
+        }
+
+        return marks.compactMap { mark in
+            let last = mark.location + mark.length - 1
+
+            guard mark.location < positions.count, last < positions.count, last >= mark.location else { return nil }
+
+            let start = positions[mark.location]
+            return NoteMark(location: start, length: positions[last] + 1 - start, noteId: mark.noteId)
+        }
     }
 
     private static func language(of paragraphs: [Paragraph]) -> String? {

@@ -12,7 +12,7 @@ import UniformTypeIdentifiers
 enum DebugReport {
     /// Writes the files into a folder and returns it zipped, ready to be shared.
     @MainActor
-    static func make(pageText: String, settings: String, lines: String) throws -> URL {
+    static func make(pageText: String, settings: String, lines: String, markup: String?) throws -> URL {
         let stamp = Self.stamp.string(from: .now)
         let folder = FileManager.default.temporaryDirectory.appendingPathComponent("reader-\(stamp)")
 
@@ -21,6 +21,12 @@ enum DebugReport {
         try pageText.write(to: folder.appendingPathComponent("page.txt"), atomically: true, encoding: .utf8)
         try settings.write(to: folder.appendingPathComponent("settings.txt"), atomically: true, encoding: .utf8)
         try lines.write(to: folder.appendingPathComponent("lines.txt"), atomically: true, encoding: .utf8)
+
+        // The chapter as it arrived. What the page shows says what the reader made of the markup;
+        // only the markup says what it was given.
+        if let markup {
+            try markup.write(to: folder.appendingPathComponent("chapter.html"), atomically: true, encoding: .utf8)
+        }
 
         if let image = screenshot(), let png = image.pngData() {
             try png.write(to: folder.appendingPathComponent("screen.png"))

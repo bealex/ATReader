@@ -165,6 +165,7 @@ public struct Pill: View {
         .padding(.horizontal, Design.Space.small)
         .padding(.vertical, Design.Space.extraSmall)
         .background(Design.Surface.ground(tint), in: .capsule)
+        .sitsOnTheLine()
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(label)
     }
@@ -218,6 +219,7 @@ public struct SeriesNumber: View {
             .padding(.horizontal, Design.Space.small)
             .padding(.vertical, Design.Space.extraSmall)
             .background(Design.Surface.fill, in: .rect(cornerRadius: Design.Radius.small))
+            .sitsOnTheLine()
             .accessibilityHidden(true)
     }
 }
