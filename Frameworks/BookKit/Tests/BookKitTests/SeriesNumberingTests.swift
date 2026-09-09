@@ -99,4 +99,42 @@ struct SeriesNumberingTests {
 
         #expect(reading.books.allSatisfy { !$0.title.isEmpty })
     }
+
+    // MARK: - The aside a series writes into a title
+
+    /// One library writes the series into a title where the other leaves it out, and half a series
+    /// carrying the aside is no run to read. The aside is not part of the book's name either way.
+    @Test
+    func takesTheSeriesAsideOffATitle() {
+        #expect(SeriesNumbering.withoutSeries("Tin Garden (Ember-4)", in: "Ember") == "Tin Garden")
+    }
+
+    /// Anything else in brackets is part of what the book is called.
+    @Test
+    func keepsAnAsideThatIsNotTheSeries() {
+        #expect(SeriesNumbering.withoutSeries("Tin Garden (a collection)", in: "Ember") == "Tin Garden (a collection)")
+    }
+
+    /// A title that is nothing but its aside keeps it: there would be nothing left to call it.
+    @Test
+    func keepsATitleThatIsOnlyItsAside() {
+        #expect(SeriesNumbering.withoutSeries("(Ember-4)", in: "Ember") == "(Ember-4)")
+    }
+
+    /// The series' name at the front of a title, and the figure it carried, belong to the series.
+    @Test
+    func takesTheSeriesNameOffTheFrontOfATitle() {
+        #expect(SeriesNumbering.withoutSeries("Ember 3. Tin Garden", in: "Ember") == "Tin Garden")
+    }
+
+    /// A book whose title is its series' name is called that, so nothing is taken.
+    @Test
+    func keepsATitleThatIsOnlyTheSeriesName() {
+        #expect(SeriesNumbering.withoutSeries("Ember", in: "Ember") == "Ember")
+    }
+
+    @Test
+    func leavesATitleAloneWithoutASeries() {
+        #expect(SeriesNumbering.withoutSeries("Tin Garden (Ember-4)", in: nil) == "Tin Garden (Ember-4)")
+    }
 }

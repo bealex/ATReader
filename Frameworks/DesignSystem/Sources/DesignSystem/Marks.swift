@@ -131,6 +131,10 @@ public struct CircleMark: View {
 /// An `Image` carries no baseline, so a symbol dropped into a row is lined up by its bottom edge and
 /// sits below the type beside it. Set as text, the glyph is on the line the row is on, and takes its
 /// size from whatever font the row is using.
+///
+/// It then rides a nudge above that line. A letter's baseline runs under its body; a round glyph's
+/// body straddles it, so a symbol sitting exactly on the line reads low beside words and lower still
+/// beside a badge, which has been lifted to put its own ground on the line.
 public struct LineGlyph: View {
     public let systemImage: String
 
@@ -140,6 +144,7 @@ public struct LineGlyph: View {
 
     public var body: some View {
         Text(Image(systemName: systemImage))
+            .alignmentGuide(.firstTextBaseline) { $0[.firstTextBaseline] + Design.Space.nudge }
             .accessibilityHidden(true)
     }
 }

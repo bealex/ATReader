@@ -50,6 +50,73 @@ public enum SeriesNumbering {
         return Reading(books: numbered, missing: Self.missing(among: numbered.map(\.number)))
     }
 
+    /// A title with the series' own name taken out of it, from either end.
+    ///
+    /// ``read(_:)`` does this properly, by finding the words several titles have in common. A series
+    /// only half of whose titles carry the series name has no run to read, and the name is no more
+    /// part of a book's own title for that: one library writes the series into a title where the other
+    /// leaves it out, and the reader wants the book's name either way.
+    ///
+    /// Nothing is taken where nothing would be left. A book whose title is its series' name is called
+    /// that, and an empty line on a shelf says less than a repeated one.
+    public static func withoutSeries(_ title: String, in series: String?) -> String {
+        guard let series else { return title }
+
+        let kept = withoutLeadingName(withoutAside(title, in: series), in: series)
+
+        return kept.isEmpty ? title : kept
+    }
+
+    /// "Name 3. Subtitle" and "Name. Subtitle": the words a series writes at the front of a title, and
+    /// the figure they carry, are the series rather than the book.
+    private static func withoutLeadingName(_ title: String, in series: String) -> String {
+        var titleWords = words(in: title)
+        let seriesWords = words(in: series).map(sameWordKey(of:))
+        var taken = 0
+
+        while taken < titleWords.count,
+                taken < seriesWords.count,
+                sameWordKey(of: titleWords[taken]) == seriesWords[taken] {
+            taken += 1
+        }
+
+        guard taken > 0 else { return title }
+
+        titleWords.removeFirst(taken)
+
+        if isNumber(titleWords.first) { titleWords.removeFirst() }
+
+        return titleWords.joined(separator: " ").trimmingCharacters(in: .whitespacesAndPunctuation)
+    }
+
+    /// A title with the series' own aside taken off the end of it.
+    ///
+    /// ``read(_:)`` takes the repeated words off wherever it can read a run across several titles. A
+    /// series only half of whose titles carry the aside has no run to read, and the aside is no more
+    /// part of a book's name for that: one library writes the series into a title where the other
+    /// leaves it out, and the reader wants the book's name either way.
+    ///
+    /// Only the series' own aside goes. Anything else in brackets is part of what the book is called.
+    private static func withoutAside(_ title: String, in series: String) -> String {
+        let trimmed = title.trimmingCharacters(in: .whitespaces)
+
+        guard trimmed.hasSuffix(")"), let opening = trimmed.lastIndex(of: "(") else { return title }
+
+        let kept = String(trimmed[..<opening]).trimmingCharacters(in: .whitespaces)
+        let aside = String(trimmed[trimmed.index(after: opening) ..< trimmed.index(before: trimmed.endIndex)])
+
+        // A title that is nothing but its aside keeps it: there would be nothing left to call it.
+        guard !kept.isEmpty, !names(in: series).isDisjoint(with: names(in: aside)) else { return title }
+
+        return kept
+    }
+
+    /// The words in a name, with case, figures and punctuation off them. Short ones are dropped, since
+    /// a preposition two series have in common is not the series.
+    private static func names(in text: String) -> Set<String> {
+        Set(text.lowercased().split { !$0.isLetter }.map(String.init).filter { $0.count > 2 })
+    }
+
     // MARK: - Finding the wordRun
 
     /// Where the repeated words sit, and how many of them there are.

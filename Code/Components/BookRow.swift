@@ -18,6 +18,9 @@ struct BookRow: View {
     var showsProgress = true
     /// Off where the list already groups by series, so the row doesn't repeat its own heading.
     var showsSeries = true
+    /// Off inside a series card whose heading already names the author, so the row doesn't say it
+    /// twice. A book by someone else in the same series says so for itself.
+    var showsAuthor = true
     /// This book's place in its series, where the series numbers itself in its titles.
     var number: Int?
     /// The title with the series' own repeated words taken off. The book's own title when absent.
@@ -41,10 +44,12 @@ struct BookRow: View {
                         .lineLimit(2)
                 }
 
-                Text(work.authorLine)
-                    .font(Design.Style.label)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
+                if showsAuthor {
+                    Text(work.authorLine)
+                        .font(Design.Style.label)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
 
                 if showsSeries, let series = work.seriesTitle, !series.isEmpty {
                     Text(series)

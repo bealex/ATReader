@@ -465,6 +465,17 @@
         }
       }
     },
+    "Book details": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "О книге"
+          }
+        }
+      }
+    },
     "Book title or author name": {
       "extractionState": "manual",
       "localizations": {
@@ -472,6 +483,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Название книги или имя автора"
+          }
+        }
+      }
+    },
+    "Books": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Книги"
           }
         }
       }
@@ -516,6 +538,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Разделить серию"
+          }
+        }
+      }
+    },
+    "Break up this series?": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Разбить эту серию?"
           }
         }
       }
@@ -931,6 +964,17 @@
         }
       }
     },
+    "Drag to put the series in the order you read it.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Перетащите, чтобы расставить серию в порядке чтения."
+          }
+        }
+      }
+    },
     "Draws every picture in the page’s own two colours": {
       "extractionState": "manual",
       "localizations": {
@@ -1059,6 +1103,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Папка"
+          }
+        }
+      }
+    },
+    "Folds these lines back into one": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сворачивает эти строки обратно в одну"
           }
         }
       }
@@ -1632,6 +1687,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Пишется"
+          }
+        }
+      }
+    },
+    "Opens the book": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Открывает книгу"
           }
         }
       }
@@ -2224,6 +2290,17 @@
         }
       }
     },
+    "Series details": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "О серии"
+          }
+        }
+      }
+    },
     "Series name": {
       "extractionState": "manual",
       "localizations": {
@@ -2532,6 +2609,17 @@
         }
       }
     },
+    "Switches between every cover and the books left to read": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Переключает между всеми обложками и тем, что осталось прочитать"
+          }
+        }
+      }
+    },
     "Tags": {
       "extractionState": "manual",
       "localizations": {
@@ -2649,6 +2737,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Папка больше недоступна. Выберите её снова."
+          }
+        }
+      }
+    },
+    "The books go back to whatever the service and their own files say they belong to.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Книги вернутся туда, куда их относят сервис и их собственные файлы."
           }
         }
       }
@@ -2829,6 +2928,28 @@
         }
       }
     },
+    "Volume %lld, %@, read": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Том %1$lld, %2$@, прочитано"
+          }
+        }
+      }
+    },
+    "Volume %lld, not in your library": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Том %lld, не в вашей библиотеке"
+          }
+        }
+      }
+    },
     "Volumes %lld to %lld, not in your library": {
       "extractionState": "manual",
       "localizations": {
@@ -2836,6 +2957,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Тома с %1$lld по %2$lld, не в вашей библиотеке"
+          }
+        }
+      }
+    },
+    "Volumes you don't have": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Каких томов нет"
           }
         }
       }
@@ -2880,6 +3012,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Выполняется…"
+          }
+        }
+      }
+    },
+    "Yes, break it up": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Да, разбить"
           }
         }
       }

@@ -9,6 +9,7 @@ import Foundation
 enum AppRoute: Hashable {
     case work(id: Int, title: String)
     case reader(Reader)
+    case series(name: String)
 
     struct Reader: Hashable {
         let workId: Int

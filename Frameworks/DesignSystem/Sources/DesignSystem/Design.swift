@@ -15,6 +15,9 @@ public enum Design {
     public enum Space {
         public static let unit: CGFloat = 3
 
+        /// An optical correction rather than a gap: what a glyph needs to read as level with the type
+        /// beside it. Never a space between two things.
+        public static let nudge = unit / 3
         public static let extraSmall = unit
         public static let small = unit * 2
         public static let medium = unit * 3
@@ -29,6 +32,9 @@ public enum Design {
         public static let medium = Space.unit * 4
         public static let large = Space.unit * 6
         public static let extraLarge = Space.unit * 9
+        /// A book block is square-cut. What rounds a spine is the light falling across it, not its
+        /// corners, so this is barely a radius at all.
+        public static let spine = Space.unit
 
         /// A cover rounds in proportion to its own width, so it reads the same at any size.
         public static func cover(width: CGFloat) -> CGFloat { width * 0.08 }
@@ -51,6 +57,14 @@ public enum Design {
         public static let rowCover = Space.unit * 22
         public static let cover = Space.unit * 24
         public static let coverLarge = Space.unit * 40
+        /// A cover standing in a series' own shelf, sized so three or four fit across a phone.
+        public static let gridCover = Space.unit * 32
+        /// The thinnest a book stands on its edge. A spine narrower than this has no room left for
+        /// the writing once its own shading is off.
+        public static let spine = Space.unit * 6
+        /// How far a cover is thrown out of focus behind a spine. Enough that no part of the picture
+        /// is legible, since what is wanted is its colour.
+        public static let spineBlur = Space.unit * 4
         /// How wide an aside stands beside what it belongs to, and how deep before it scrolls.
         ///
         /// Narrow on purpose. An aside nearly as wide as the screen has nowhere to go, so it is
@@ -62,6 +76,25 @@ public enum Design {
 
         /// A glyph inside a circular mark, sized to the mark rather than to a text style.
         public static func glyph(in mark: CGFloat) -> CGFloat { mark * 0.45 }
+
+        /// How wide a cover stands so that a row of them fills the space it is given exactly.
+        ///
+        /// Covers are laid out at one size across the whole shelf, and a fixed size leaves a ragged
+        /// margin down the right that changes with the width of the screen. So the size wanted decides
+        /// how many go in a row, the count is rounded to a whole number of them, and what is actually
+        /// there is shared out between that many.
+        public static func coverWidth(across available: CGFloat, ideal: CGFloat = gridCover, spacing: CGFloat)
+            -> CGFloat
+        {
+            guard available > 0 else { return ideal }
+
+            let count = max(1, (available / ideal).rounded())
+
+            return (available - spacing * (count - 1)) / count
+        }
+
+        /// A cover stands half again as tall as it is wide, which is the slot a shelf keeps for one.
+        public static func coverHeight(width: CGFloat) -> CGFloat { width * 1.5 }
     }
 
     /// The five colours that mean something. Nothing outside this list carries a fact.
@@ -109,6 +142,9 @@ public enum Design {
         public static let label = Font.subheadline
         public static let caption = Font.caption
         public static let micro = Font.caption2
+        /// What is printed on a book's spine: a point under the smallest role and narrowed, because
+        /// the width of a spine belongs to the book and the writing lives in what is left of it.
+        public static let spine = Font.system(size: 9, weight: .medium).width(.condensed)
     }
 
     /// What a control is set in.

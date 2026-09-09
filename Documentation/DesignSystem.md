@@ -34,6 +34,8 @@ apply `Design` to the page.
 | `callout(over:item:ground:)` | Hangs an aside over something in a view's own space. |
 | `sitsOnTheLine()` | What a boxed label wears so its ground sits on the line rather than under it. |
 | `LineGlyph` | A symbol set as text, so a row's baseline runs through it. |
+| `Style.spine` | What is printed on a book's spine: under the smallest role, and narrowed. |
+| `Size.coverWidth(across:ideal:spacing:)` | The width that fits a whole number of covers into a row. |
 
 ## The five colours
 

@@ -63,11 +63,116 @@ struct SeriesOrderTests {
         #expect(group.rows.map(\.number) == [ 1, 2, 3 ])
     }
 
-    private static func book(id: Int, order: Int? = nil) -> Book {
+    /// A series the shelf holds one book of is not a run of books, so it is drawn as the book it is.
+    /// The row still names the series, which is all the shelf can honestly say about it.
+    @Test
+    func oneBookOfASeriesIsNotASeries() async {
+        let model = await Self.shelf(holding: [ Self.book(id: 1, order: 1) ])
+
+        #expect(model.groups.count == 1)
+        #expect(model.groups.first?.series == nil)
+    }
+
+    @Test
+    func twoBooksOfASeriesAreASeries() async {
+        let model = await Self.shelf(holding: [ Self.book(id: 1, order: 1), Self.book(id: 2, order: 2) ])
+
+        #expect(model.groups.count == 1)
+        #expect(model.groups.first?.series == "Зимпель")
+    }
+
+    /// A shelf reading from a store of its own, holding just these books.
+    private static func shelf(holding held: [Book]) async -> LibraryScreen.Model {
+        let database = FileManager.default.temporaryDirectory
+            .appendingPathComponent("shelf-\(UUID().uuidString).sqlite")
+        let store = SQLiteBookStore(fileURL: database)
+        let model = LibraryScreen.Model(session: SessionStore(), store: store)
+
+        await store.store(books: held)
+        await model.refreshFromStore()
+        model.filter = .everything
+        return model
+    }
+
+    /// A series the reader put together is numbered from the bottom, where a series starts, and keeps
+    /// the order they arranged. The figure filed for each book is its place in that list, not a volume
+    /// it claims, so drawing it as one turns their first pick into volume one at the top of the card.
+    @Test
+    func aSeriesTheReaderAssembledIsNumberedFromTheBottom() {
+        let works = [
+            Self.book(id: 1, order: 1),
+            Self.book(id: 2, order: 2),
+            Self.book(id: 3, order: 3),
+        ]
+        let group = Model.Group(
+            id: "series:Зимпель",
+            series: "Зимпель",
+            works: works,
+            updated: .now,
+            isCustom: true
+        )
+
+        #expect(group.rows.map(\.number) == [ 3, 2, 1 ])
+    }
+
+    /// A co-author joining a long series partway through leaves the books disagreeing about who wrote
+    /// it, and the heading takes the name most of them carry rather than going blank.
+    @Test
+    func aSeriesIsNamedByTheAuthorMostOfItsBooksCarry() {
+        let works = [
+            Self.book(id: 1, author: "Имя Фамилия, Второе Имя"),
+            Self.book(id: 2, author: "Имя Фамилия"),
+            Self.book(id: 3, author: "Имя Фамилия"),
+        ]
+        let group = Model.Group(id: "series:Зимпель", series: "Зимпель", works: works, updated: .now)
+
+        #expect(group.author == "Имя Фамилия")
+    }
+
+    /// Where they disagree evenly, the book the card leads with is the one being read.
+    @Test
+    func anEvenDisagreementTakesTheLeadingBooksAuthor() {
+        let works = [ Self.book(id: 1, author: "Первый Автор"), Self.book(id: 2, author: "Второй Автор") ]
+        let group = Model.Group(id: "series:Зимпель", series: "Зимпель", works: works, updated: .now)
+
+        #expect(group.author == "Первый Автор")
+    }
+
+    /// A series the reader arranged still says which of its volumes are absent.
+    ///
+    /// What they arranged is the order the books stand in. The numbers are the titles' own, and only
+    /// those can say a volume is missing: a place counted off the rows has no gaps in it by
+    /// definition, since every row has one.
+    @Test
+    func aseriesTheReaderArrangedStillShowsWhatIsMissing() async {
+        let works = [
+            Self.book(id: 1, title: "Зимпель 1. Первая"),
+            Self.book(id: 3, title: "Зимпель 3. Третья"),
+        ]
+        let database = FileManager.default.temporaryDirectory
+            .appendingPathComponent("arranged-\(UUID().uuidString).sqlite")
+        let store = SQLiteBookStore(fileURL: database)
+        let model = LibraryScreen.Model(session: SessionStore(), store: store)
+
+        defer { try? FileManager.default.removeItem(at: database) }
+
+        await store.store(books: works)
+        await store.store(series: "Зимпель", workIds: [ 1, 3 ])
+        await model.refreshFromStore()
+        model.filter = .everything
+
+        let rows = model.groups.first?.rows ?? []
+
+        #expect(rows.contains { if case .missing(2) = $0 { true } else { false } })
+    }
+
+    private static func book(id: Int, order: Int? = nil, author: String = "Имя Фамилия", title: String? = nil)
+        -> Book
+    {
         Book(
             id: id,
-            title: "Зимпель \(id)",
-            authorLine: "Имя Фамилия",
+            title: title ?? "Зимпель \(id)",
+            authorLine: author,
             coverURL: nil,
             annotation: nil,
             seriesTitle: "Зимпель",

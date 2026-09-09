@@ -57,7 +57,7 @@ Model` and a `struct Component: View`, split across `<Screen>.Model.swift` and
 ```
 App/          entry point, RootScreen (signed-in vs signed-out), AppRoute
 Components/   CoverImage, BookRow, BookBadges, BookFormatting, DebugReport
-Screens/      Login, Library, Search, Top, Work, Reader, Profile, DesignSystem (Debug)
+Screens/      Login, Library, Series, Search, Top, Work, Reader, Litres, Profile, DesignSystem (Debug)
 Services/     SessionStore, CatalogFeed, ChapterUpdateService, BackgroundRefresh,
               ReaderSettings, ReaderFaceNames, BookInbox, BookImporting, Renderers
 ```

@@ -17,6 +17,9 @@ struct CoverImage: View {
     var width: CGFloat = Design.Size.cover
     /// How far into the book the reader is, drawn as a ring on the cover itself.
     var progress: Double?
+    /// A height to fill, where a shelf needs every book standing the same height whatever shape its
+    /// artwork is. The picture is cut at the edges rather than sitting in a letterboxed slot.
+    var height: CGFloat?
     /// Which shelf the book came off, marked on the cover. Nothing marks nothing.
     var origin: CoverOrigin?
     /// True where the author is still writing it, which the cover says rather than the row: it is a
@@ -33,17 +36,21 @@ struct CoverImage: View {
     var body: some View {
         Group {
             if let cover {
-                // Fitted, not filled: the service's covers are not all the same shape, and filling a
-                // box of one shape with an image of another cuts the edges off.
+                // Fitted where it stands alone, since the service's covers are not all one shape and
+                // filling a box of one shape with a picture of another cuts its edges off. Filled
+                // where a height was asked for, because a shelf of ragged heights reads worse than a
+                // cover missing a few millimetres down its side.
                 Image(uiImage: cover)
-                    .resizable().scaledToFit()
+                    .resizable()
+                    .aspectRatio(contentMode: height == nil ? .fit : .fill)
                     .transition(.opacity)
             } else {
                 placeholder
-                    .frame(height: width * 1.5)
+                    .frame(height: height ?? width * 1.5)
             }
         }
-        .frame(width: width)
+        .frame(width: width, height: height)
+        .clipped()
         .clipShape(.rect(cornerRadius: Design.Radius.cover(width: width)))
         .overlay {
             RoundedRectangle(cornerRadius: Design.Radius.cover(width: width))
@@ -70,7 +77,11 @@ struct CoverImage: View {
         .accessibilityHidden(true)
         .task(id: url) {
             guard let url else { return image = nil }
-            guard cover == nil, let loaded = await CoverCache.shared.image(for: url) else { return }
+
+            // The shared cache is emptied when the app goes to the background, so what it holds is
+            // taken as this view's own rather than read through it each time it draws.
+            if let held = CoverImages.image(for: url) { return image = held }
+            guard let loaded = await CoverCache.shared.image(for: url) else { return }
 
             CoverImages.remember(loaded, for: url)
             withAnimation(.easeOut(duration: 0.15)) { image = loaded }

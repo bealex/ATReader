@@ -114,6 +114,34 @@ public struct Book: Codable, Identifiable, Hashable, Sendable {
     /// what they already own is worse than saying nothing.
     public var needsBuying: Bool { status == .sales && isPurchased == false }
 
+    /// The same book under another name.
+    ///
+    /// For two copies of one book whose libraries titled it differently: the copy that is kept is
+    /// chosen on other grounds, and can be the one whose title says the less of the two.
+    public func titled(_ title: String) -> Self {
+        Self(
+            id: id,
+            title: title,
+            authorLine: authorLine,
+            coverURL: coverURL,
+            annotation: annotation,
+            seriesTitle: seriesTitle,
+            seriesOrder: seriesOrder,
+            textLength: textLength,
+            likeCount: likeCount,
+            isFinished: isFinished,
+            status: status,
+            isPurchased: isPurchased,
+            adultOnly: adultOnly,
+            lastUpdateTime: lastUpdateTime,
+            readingProgress: readingProgress,
+            hasStartedReading: hasStartedReading,
+            lastReadTime: lastReadTime,
+            lastChapterId: lastChapterId,
+            libraryState: libraryState
+        )
+    }
+
     /// Fills whatever this copy doesn't know from an older one.
     ///
     /// The shelf and a book's own details each carry what the other leaves out: the library has no

@@ -37,6 +37,14 @@ enum LibraryScreen {
         @State
         private var reordering: Model.Group?
 
+        /// Where a cover stands, so the reader opens into the book from its own artwork.
+        @Namespace
+        private var zoom
+
+        /// What the shelf has to lay books out in, measured once rather than guessed at.
+        @State
+        private var shelfWidth: CGFloat = 0
+
         var body: some View {
             NavigationStack(path: $path) {
                 Group {
@@ -48,7 +56,16 @@ enum LibraryScreen {
                 }
                 // The shelf carries its own heading, so the bar above it would only repeat the word.
                 .toolbar(.hidden, for: .navigationBar)
-                .navigationDestination(for: AppRoute.self) { AppRouteDestination(route: $0) }
+                .navigationDestination(for: AppRoute.self) { route in
+                    // A book grows out of the cover that was tapped and settles back into it on the
+                    // way out. Only from the shelf, which is the only place holding the artwork.
+                    if case let .reader(reader) = route {
+                        AppRouteDestination(route: route)
+                            .navigationTransition(.zoom(sourceID: reader.workId, in: zoom))
+                    } else {
+                        AppRouteDestination(route: route)
+                    }
+                }
             }
             .onAppear {
                 if model == nil { model = Model(session: session) }
@@ -74,12 +91,6 @@ enum LibraryScreen {
             @Bindable var model = model
 
             ScrollView { shelf(model) }
-                .onScrollPhaseChange { _, phase in
-                    // A drag means the reader has moved on, which is when an opened run folds back.
-                    guard phase == .interacting else { return }
-
-                    withAnimation { model.closeRuns() }
-                }
                 .background(Design.Surface.screen)
                 .safeAreaInset(edge: .bottom) {
                     if model.isSelecting { selectionBar(model) }
@@ -125,11 +136,21 @@ enum LibraryScreen {
                         if group.series != nil {
                             seriesCard(model, group: group)
                         } else if let work = group.works.first {
-                            // A book standing on its own has no series to be numbered within.
-                            card { bookRow(model, work: work, number: nil, title: work.title) }
+                            // A book standing on its own has no series to be numbered within, and says
+                            // for itself which one it came from.
+                            card {
+                                bookRow(model, work: work, number: nil, title: work.title, showsSeries: true)
+                            }
                         }
                     }
                 }
+            }
+            // Measured before the padding goes on, so what is read is the width the cards actually
+            // get. Read afterwards, it hands the padding back and lays every cover out too wide.
+            .onGeometryChange(for: CGFloat.self) {
+                $0.size.width
+            } action: {
+                shelfWidth = $0
             }
             .padding(.horizontal, Design.Space.extraLarge)
             .padding(.bottom, Design.Space.huge)
@@ -273,22 +294,45 @@ enum LibraryScreen {
         /// A series is one card holding its books, so a run of them reads as a set rather than as
         /// separate books that happen to sit together.
         private func seriesCard(_ model: Model, group: Model.Group) -> some View {
-            card {
-                VStack(alignment: .leading, spacing: 0) {
+            let series = group.series ?? ""
+
+            return card {
+                VStack(alignment: .leading, spacing: Design.Space.medium) {
                     seriesHeader(model, group: group)
 
-                    ForEach(Array(model.shelfRows(of: group).enumerated()), id: \.element.id) { index, line in
-                        if index > 0 {
-                            Divider().padding(.leading, Design.Space.large)
-                        }
+                    SeriesGrid(
+                        slots: model.slots(of: group),
+                        coverWidth: coverWidth,
+                        // Picking books out shows every one of them: a spine is not something to aim
+                        // at, and the books being picked are as likely to be read as not.
+                        showsEveryCover: model.isSelecting || model.showsEveryCover(series),
+                        zoom: zoom,
+                        isPicked: model.isSelecting ? { model.selection.contains($0.id) } : nil,
+                        onToggle: { switchMode(model, series: series) },
+                        onOpen: { work in
+                            guard !model.isSelecting else { return model.toggle(work) }
 
-                        switch line {
-                            case let .row(row): seriesRow(model, row: row)
-                            case let .folded(folded): runRow(model, folded: folded)
-                        }
-                    }
+                            open(work)
+                        },
+                        actions: { work in bookActions(model, work: work) }
+                    )
+                    .padding(.horizontal, Design.Space.large)
+                    .padding(.bottom, Design.Space.large)
                 }
             }
+        }
+
+        /// How wide a cover stands on this screen. One width for the whole library: the size wanted
+        /// decides how many fit in a row, and what is there is shared out between that many.
+        private var coverWidth: CGFloat {
+            Design.Size.coverWidth(across: shelfWidth - Design.Space.large * 2, spacing: Shelf.gap)
+        }
+
+        /// Swapping between covers and spines, which is one movement rather than a redraw.
+        private func switchMode(_ model: Model, series: String) {
+            guard !model.isSelecting else { return }
+
+            withAnimation(.snappy) { model.toggleCovers(of: series) }
         }
 
         private func seriesHeader(_ model: Model, group: Model.Group) -> some View {
@@ -297,56 +341,47 @@ enum LibraryScreen {
                     tick(Set(group.works.map(\.id)).isSubset(of: model.selection))
                 }
 
-                Image(systemName: "books.vertical.fill")
-                    .font(Design.Style.caption)
-                    .foregroundStyle(.tint)
-                    .accessibilityHidden(true)
+                VStack(alignment: .leading, spacing: Design.Space.extraSmall) {
+                    Text(group.series ?? "")
+                        .font(Design.Style.heading)
+                        .lineLimit(2)
 
-                Text(group.series ?? "")
-                    .font(Design.Style.heading)
-                    .lineLimit(2)
+                    // Only where the books agree on one. Two names under one heading would be a claim
+                    // about the series that none of its books makes.
+                    if let author = group.author {
+                        Text(author)
+                            .font(Design.Style.label)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    }
+                }
 
-                Spacer(minLength: 8)
-
-                Text("\(group.works.count)")
-                    .font(Design.Style.caption.monospacedDigit())
-                    .foregroundStyle(.secondary)
-
-                // A button rather than a long press alone: a series has to say that its order is the
-                // reader's to set, and a context menu says nothing until it is found.
-                if !model.isSelecting { seriesMenu(model, group: group) }
+                Spacer(minLength: Design.Space.medium)
             }
             .padding(.horizontal, Design.Space.large)
-            .padding(.top, Design.Space.large)
-            .padding(.bottom, Design.Space.medium)
+            .padding(.top, Design.Space.medium)
             .contentShape(.rect)
             .onTapGesture {
-                guard model.isSelecting else { return }
+                guard !model.isSelecting else { return model.toggle(group: group) }
 
-                model.toggle(group: group)
+                switchMode(model, series: group.series ?? "")
             }
             .contextMenu { seriesActions(model, group: group) }
             .accessibilityElement(children: .contain)
-        }
-
-        private func seriesMenu(_ model: Model, group: Model.Group) -> some View {
-            Menu {
-                seriesActions(model, group: group)
-            } label: {
-                Image(systemName: "ellipsis.circle")
-                    .foregroundStyle(.secondary)
-                    .barGlyph()
-                    .contentShape(.rect)
-            }
-            .accessibilityIdentifier("series.menu")
-            .accessibilityLabel("Series actions")
-            .accessibilityHint("Reorders the books in this series, or breaks it up")
+            .accessibilityAddTraits(.isButton)
+            .accessibilityHint("Switches between every cover and the books left to read")
         }
 
         @ViewBuilder
         private func seriesActions(_ model: Model, group: Model.Group) -> some View {
             // Offered for every series, not only the ones the reader put together. Ordering a series
             // the service named makes it theirs, which is the answer they wanted anyway.
+            Button {
+                path.append(.series(name: group.series ?? ""))
+            } label: {
+                Label("Series details", systemImage: "list.bullet.rectangle")
+            }
+
             Button {
                 reordering = group
             } label: {
@@ -369,46 +404,24 @@ enum LibraryScreen {
                 .background(Design.Surface.card, in: .rect(cornerRadius: Design.Radius.large))
         }
 
-        /// One book on the shelf. The cover opens it; everything else opens its page.
-        ///
-        /// Two tap targets rather than a button and a link, since the row is the larger of the two and
-        /// the cover sits inside it: a gesture on the cover is the inner one, and the inner one wins.
-        /// A volume between two the reader holds that is not on the shelf. Not a book, so not a row
-        /// anything happens on: it is here to show the run is broken.
-        private func missingRow(_ number: Int) -> some View {
-            RowStack(spacing: Design.Space.medium) {
-                // The read row's tick, kept as space rather than drawn, so the numbers line up down
-                // the card however wide that glyph turns out to be.
-                LineGlyph(systemImage: "checkmark.circle.fill")
-                    .font(Design.Style.caption)
-                    .hidden()
-
-                RowStack {
-                    SeriesNumber(number: number)
-
-                    Text("Not in your library")
-                        .font(Design.Style.label)
-                        .foregroundStyle(.tertiary)
-                        .lineLimit(1)
-                }
-
-                Spacer(minLength: Design.Space.medium)
-            }
-            .padding(.horizontal, Design.Space.large)
-            .padding(.vertical, Design.Space.medium)
-            .foregroundStyle(.tertiary)
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel("Book \(number), not in your library")
-        }
-
-        private func bookRow(_ model: Model, work: Book, number: Int?, title: String) -> some View {
+        /// A book as a line of the shelf. Inside a series card the heading already names the series,
+        /// so only a book standing on its own repeats it.
+        private func bookRow(
+            _ model: Model,
+            work: Book,
+            number: Int?,
+            title: String,
+            showsSeries: Bool = false,
+            seriesAuthor: String? = nil
+        ) -> some View {
             HStack(spacing: Design.Space.medium) {
                 if model.isSelecting { tick(model.selection.contains(work.id)) }
 
                 VStack(alignment: .leading, spacing: Design.Space.small) {
                     BookRow(
                         work: work,
-                        showsSeries: false,
+                        showsSeries: showsSeries,
+                        showsAuthor: seriesAuthor == nil || seriesAuthor != work.authorLine,
                         number: number,
                         shortTitle: title,
                         newChapters: model.newChapters(for: work.id),
@@ -421,124 +434,14 @@ enum LibraryScreen {
                     }
                 }
             }
-            .padding(Design.Space.large)
+            .padding(.horizontal, Design.Space.large)
+            .padding(.vertical, Design.Space.medium)
             .contentShape(.rect)
             .onTapGesture { choose(model, work: work) }
             .accessibilityElement(children: .combine)
             .accessibilityAddTraits(.isButton)
             .accessibilityAction(named: "Read") { open(work) }
             .contextMenu { bookActions(model, work: work) }
-        }
-
-        /// A book in a series the reader has finished with, set as one line.
-        ///
-        /// A long series is read in order, so the ones behind the reader only have to stay findable.
-        /// Given a cover and three lines each they push the book actually being read off the screen.
-        private func finishedRow(_ model: Model, work: Book, number: Int?, title: String) -> some View {
-            RowStack(spacing: Design.Space.medium) {
-                if model.isSelecting { tick(model.selection.contains(work.id)) }
-
-                LineGlyph(systemImage: "checkmark.circle.fill")
-                    .font(Design.Style.caption)
-                    .foregroundStyle(.tint)
-
-                RowStack {
-                    if let number { SeriesNumber(number: number) }
-
-                    Text(title)
-                        .font(Design.Style.label)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                }
-
-                Spacer(minLength: Design.Space.medium)
-            }
-            .padding(.horizontal, Design.Space.large)
-            .padding(.vertical, Design.Space.medium)
-            .contentShape(.rect)
-            .onTapGesture { choose(model, work: work) }
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel("\(work.title), read")
-            .accessibilityAddTraits(.isButton)
-            .accessibilityAction(named: "Read") { open(work) }
-            .contextMenu { bookActions(model, work: work) }
-        }
-
-        @ViewBuilder
-        private func seriesRow(_ model: Model, row: Model.SeriesRow) -> some View {
-            switch row {
-                case let .book(work, number, title):
-                    if model.isBehindTheReader(work) {
-                        finishedRow(model, work: work, number: number, title: title)
-                    } else {
-                        bookRow(model, work: work, number: number, title: title)
-                    }
-                case let .missing(number):
-                    missingRow(number)
-            }
-        }
-
-        /// A run of lines folded into the volumes it covers: books read, or volumes not held.
-        ///
-        /// Four titles behind the reader are four lines that say the same thing, so the line that
-        /// stands for them says only which volumes they are. Tapping opens the run, and scrolling the
-        /// shelf folds it back.
-        private func runRow(_ model: Model, folded: Model.FoldedRun) -> some View {
-            let isRead = folded.kind == .read
-
-            return RowStack(spacing: Design.Space.medium) {
-                // The gap run keeps the tick's width as space, so numbers line up down the whole card.
-                LineGlyph(systemImage: "checkmark.circle.fill")
-                    .font(Design.Style.caption)
-                    .foregroundStyle(.tint)
-                    .opacity(isRead ? 1 : 0)
-
-                RowStack {
-                    SeriesNumber(number: folded.numbers.lowerBound)
-
-                    Text(verbatim: "…")
-                        .font(Design.Style.label)
-                        .foregroundStyle(.tertiary)
-                        .accessibilityHidden(true)
-
-                    SeriesNumber(number: folded.numbers.upperBound)
-
-                    if !isRead {
-                        Text("Not in your library")
-                            .font(Design.Style.label)
-                            .foregroundStyle(.tertiary)
-                            .lineLimit(1)
-                    }
-                }
-
-                Spacer(minLength: Design.Space.medium)
-
-                Image(systemName: "chevron.down")
-                    .font(Design.Style.micro)
-                    .foregroundStyle(.tertiary)
-                    .accessibilityHidden(true)
-            }
-            .padding(.horizontal, Design.Space.large)
-            .padding(.vertical, Design.Space.medium)
-            .foregroundStyle(isRead ? AnyShapeStyle(.primary) : AnyShapeStyle(.tertiary))
-            .contentShape(.rect)
-            .onTapGesture {
-                withAnimation { model.open(folded) }
-            }
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel(runLabel(folded))
-            .accessibilityAddTraits(.isButton)
-            .accessibilityHint(isRead ? "Shows the books you have read" : "Shows which volumes are missing")
-        }
-
-        private func runLabel(_ folded: Model.FoldedRun) -> String {
-            let first = folded.numbers.lowerBound
-            let last = folded.numbers.upperBound
-
-            return switch folded.kind {
-                case .read: String(localized: "Books \(first) to \(last), read")
-                case .missing: String(localized: "Volumes \(first) to \(last), not in your library")
-            }
         }
 
         /// What a tap on the body of a row does: pick the book while selecting, else open its page.
@@ -555,10 +458,9 @@ enum LibraryScreen {
         }
 
         private func tick(_ isOn: Bool) -> some View {
-            Image(systemName: isOn ? "checkmark.circle.fill" : "circle")
+            LineGlyph(systemImage: isOn ? "checkmark.circle.fill" : "circle")
                 .font(Design.Control.barGlyph)
                 .foregroundStyle(isOn ? AnyShapeStyle(.tint) : AnyShapeStyle(.tertiary))
-                .accessibilityHidden(true)
         }
 
         /// A book being put through the typesetter says so. It is readable while this runs.
@@ -573,6 +475,14 @@ enum LibraryScreen {
 
         @ViewBuilder
         private func bookActions(_ model: Model, work: Book) -> some View {
+            // The way to the book's own page. A tap on a cover opens the book itself, so without this
+            // there is nothing left that reaches what the book is.
+            Button {
+                path.append(.work(id: work.id, title: work.title))
+            } label: {
+                Label("Book details", systemImage: "info.circle")
+            }
+
             Button {
                 Task { await model.markAsRead(work) }
             } label: {
@@ -599,7 +509,7 @@ enum LibraryScreen {
                             : "Nothing matched your search."
                     )
                 )
-                .padding(.top, 40)
+                .padding(.top, Design.Space.section)
             }
         }
     }
@@ -693,6 +603,8 @@ struct AppRouteDestination: View {
                 WorkScreen.Component(workId: id, title: title)
             case let .reader(reader):
                 ReaderScreen.Component(workId: reader.workId, title: reader.title, initialChapterId: reader.chapterId)
+            case let .series(name):
+                SeriesScreen.Component(series: name)
         }
     }
 }
