@@ -17,9 +17,6 @@ struct CoverImage: View {
     var width: CGFloat = Design.Size.cover
     /// How far into the book the reader is, drawn as a ring on the cover itself.
     var progress: Double?
-    /// A height to fill, where a shelf needs every book standing the same height whatever shape its
-    /// artwork is. The picture is cut at the edges rather than sitting in a letterboxed slot.
-    var height: CGFloat?
     /// Which shelf the book came off, marked on the cover. Nothing marks nothing.
     var origin: CoverOrigin?
     /// True where the author is still writing it, which the cover says rather than the row: it is a
@@ -36,21 +33,17 @@ struct CoverImage: View {
     var body: some View {
         Group {
             if let cover {
-                // Fitted where it stands alone, since the service's covers are not all one shape and
-                // filling a box of one shape with a picture of another cuts its edges off. Filled
-                // where a height was asked for, because a shelf of ragged heights reads worse than a
-                // cover missing a few millimetres down its side.
+                // Fitted, not filled: the service's covers are not all the same shape, and filling a
+                // box of one shape with an image of another cuts the edges off.
                 Image(uiImage: cover)
-                    .resizable()
-                    .aspectRatio(contentMode: height == nil ? .fit : .fill)
+                    .resizable().scaledToFit()
                     .transition(.opacity)
             } else {
                 placeholder
-                    .frame(height: height ?? width * 1.5)
+                    .frame(height: Design.Size.coverHeight(width: width))
             }
         }
-        .frame(width: width, height: height)
-        .clipped()
+        .frame(width: width)
         .clipShape(.rect(cornerRadius: Design.Radius.cover(width: width)))
         .overlay {
             RoundedRectangle(cornerRadius: Design.Radius.cover(width: width))
@@ -75,6 +68,9 @@ struct CoverImage: View {
             }
         }
         .accessibilityHidden(true)
+        // What shape this cover turned out to be, for a shelf that has to give every book on it the
+        // same slot. Nothing is reported until the picture is here to be measured.
+        .preference(key: CoverShape.self, value: cover.map { $0.size.height / $0.size.width } ?? 0)
         .task(id: url) {
             guard let url else { return image = nil }
 
@@ -139,6 +135,19 @@ struct SourceMark: View {
 struct OngoingMark: View {
     var body: some View {
         CircleMark(systemImage: "pencil")
+    }
+}
+
+/// The tallest cover among however many are reporting.
+///
+/// A shelf gives every book the same slot, and that slot has to be as tall as the tallest picture on it
+/// or that one alone would be shrunk to fit. Covers say what shape they are as they load, and whatever
+/// is showing them keeps the largest.
+struct CoverShape: PreferenceKey {
+    static let defaultValue: CGFloat = 0
+
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = max(value, nextValue())
     }
 }
 

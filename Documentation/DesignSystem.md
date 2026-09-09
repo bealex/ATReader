@@ -36,6 +36,8 @@ apply `Design` to the page.
 | `LineGlyph` | A symbol set as text, so a row's baseline runs through it. |
 | `Style.spine` | What is printed on a book's spine: under the smallest role, and narrowed. |
 | `Size.coverWidth(across:ideal:spacing:)` | The width that fits a whole number of covers into a row. |
+| `Size.coverHeight(width:ratio:)` | How tall a slot a cover needs, in whole points. |
+| `Size.listCover` | A cover in a list row, where it says which book the row is about. |
 
 ## The five colours
 

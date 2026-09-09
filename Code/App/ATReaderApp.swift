@@ -4,6 +4,7 @@
 //
 
 import BookRenderer
+import BookStorage
 import SwiftUI
 
 @main
@@ -54,6 +55,16 @@ struct ATReaderApp: App {
                 // Where each book came from is read once, and again whenever the shelf changes: a
                 // book only arrives from somewhere by coming through the inbox.
                 .task(id: inbox.importedAt) { await origins.refresh() }
+                // What shape every cover is, read back once so a shelf stands its books at the right
+                // height in the first frame rather than shuffling them as the pictures arrive.
+                .task { await CoverShapes.load() }
+                // A book whose text the device already holds under another number goes, with its
+                // file: two services handing over one book left two of everything behind.
+                .task {
+                    guard await BookInstaller.removeDuplicates() > 0 else { return }
+
+                    inbox.libraryChanged()
+                }
                 // A book handed over by another app. The library screen may not exist yet, so the
                 // reading-in happens away from it and the shelf picks the book up afterwards.
                 .onOpenURL { url in

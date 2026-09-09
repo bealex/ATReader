@@ -17,6 +17,10 @@ struct BookRow: View {
     let work: Book
     var showsProgress = true
     /// Off where the list already groups by series, so the row doesn't repeat its own heading.
+    /// How wide the cover stands. A list of rows has its own size for one; the shelf works out a
+    /// width that fills its rows exactly, and a book standing alone there matches the books in a
+    /// series beside it.
+    var coverWidth = Design.Size.rowCover
     var showsSeries = true
     /// Off inside a series card whose heading already names the author, so the row doesn't say it
     /// twice. A book by someone else in the same series says so for itself.
@@ -86,7 +90,7 @@ struct BookRow: View {
     private var picture: some View {
         CoverImage(
             url: work.coverURL,
-            width: Design.Size.rowCover,
+            width: coverWidth,
             progress: showsProgress ? work.readingProgress : nil,
             origin: origins.origin(of: work.id),
             isOngoing: work.isOngoing

@@ -358,6 +358,17 @@
         }
       }
     },
+    "Authors": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Авторы"
+          }
+        }
+      }
+    },
     "Avenir Next": {
       "extractionState": "manual",
       "shouldTranslate": false
@@ -722,6 +733,17 @@
         }
       }
     },
+    "Combine authors": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Объединить авторов"
+          }
+        }
+      }
+    },
     "Combine into a series": {
       "extractionState": "manual",
       "localizations": {
@@ -729,6 +751,28 @@
           "stringUnit": {
             "state": "translated",
             "value": "Объединить в серию"
+          }
+        }
+      }
+    },
+    "Combine series": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Объединить серии"
+          }
+        }
+      }
+    },
+    "Combine with another series": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Объединить с другой серией"
           }
         }
       }
@@ -986,6 +1030,17 @@
         }
       }
     },
+    "Each run keeps the order it stands in, and they follow one another as picked.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Каждый ряд сохраняет свой порядок, а идут они друг за другом в порядке выбора."
+          }
+        }
+      }
+    },
     "English": {
       "extractionState": "manual",
       "localizations": {
@@ -1221,9 +1276,31 @@
         }
       }
     },
+    "Held under": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Под названием"
+          }
+        }
+      }
+    },
     "Hoefler Text": {
       "extractionState": "manual",
       "shouldTranslate": false
+    },
+    "Holds two series, or two spellings of a name, together": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Объединяет две серии или два написания имени"
+          }
+        }
+      }
     },
     "How many people liked a book, on its row and its page.": {
       "extractionState": "manual",
@@ -1540,6 +1617,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Средний"
+          }
+        }
+      }
+    },
+    "Name": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Название"
           }
         }
       }
@@ -2279,6 +2367,17 @@
         }
       }
     },
+    "Series": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Серии"
+          }
+        }
+      }
+    },
     "Series actions": {
       "extractionState": "manual",
       "localizations": {
@@ -2308,6 +2407,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Название серии"
+          }
+        }
+      }
+    },
+    "Series or author": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Серия или автор"
           }
         }
       }

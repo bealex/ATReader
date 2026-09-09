@@ -20,7 +20,7 @@ struct SeriesOrderTests {
     private typealias Model = LibraryScreen.Model
 
     @Test
-    func aSeriesTheReaderAssemblesCountsFromOne() async {
+    func filingASeriesSaysNothingAboutItsOrder() async {
         let database = FileManager.default.temporaryDirectory
             .appendingPathComponent("series-\(UUID().uuidString).sqlite")
         let store = SQLiteBookStore(fileURL: database)
@@ -34,7 +34,31 @@ struct SeriesOrderTests {
 
         let filed = await store.books().filter { $0.series == "Зимпель" }
 
-        #expect(filed.compactMap(\.seriesOrder).sorted() == [ 1, 2, 3 ])
+        // Which books belong together, and nothing else. Holding two runs together is not an
+        // arrangement, and a place written for each of them would stand in front of what the books
+        // state about themselves.
+        #expect(filed.count == 3)
+        #expect(filed.allSatisfy { $0.shelfOrder == nil })
+        #expect(filed.allSatisfy { $0.seriesOrder == nil })
+    }
+
+    /// Dragging books into an order writes it, counting from one, which is where a series starts.
+    @Test
+    func arrangingASeriesCountsFromOne() async {
+        let database = FileManager.default.temporaryDirectory
+            .appendingPathComponent("arranged-\(UUID().uuidString).sqlite")
+        let store = SQLiteBookStore(fileURL: database)
+
+        defer { try? FileManager.default.removeItem(at: database) }
+
+        await store.store(books: [ Self.book(id: 1), Self.book(id: 2), Self.book(id: 3) ])
+        await store.store(series: "Зимпель", workIds: [ 1, 2, 3 ])
+        await store.store(order: [ 3, 1, 2 ], series: "Зимпель")
+
+        let filed = await store.books().filter { $0.series == "Зимпель" }
+
+        #expect(filed.compactMap(\.shelfOrder).sorted() == [ 1, 2, 3 ])
+        #expect(filed.first { $0.id == 3 }?.shelfOrder == 1)
     }
 
     /// A stated nought is absence written as a figure, so it settles nothing about the volumes.
@@ -94,15 +118,16 @@ struct SeriesOrderTests {
         return model
     }
 
-    /// A series the reader put together is numbered from the bottom, where a series starts, and keeps
-    /// the order they arranged. The figure filed for each book is its place in that list, not a volume
-    /// it claims, so drawing it as one turns their first pick into volume one at the top of the card.
+    /// A series the reader put together out of books that state no volume is numbered from the bottom,
+    /// where a series starts, and keeps the order they arranged. What is filed for each book is its
+    /// place in that list, and a place drawn as a volume makes their first pick volume one.
     @Test
-    func aSeriesTheReaderAssembledIsNumberedFromTheBottom() {
+    func aSeriesOfUnnumberedBooksIsNumberedFromTheBottom() {
+        // Titles that carry no figure, so nothing but the reader's order can number these.
         let works = [
-            Self.book(id: 1, order: 1),
-            Self.book(id: 2, order: 2),
-            Self.book(id: 3, order: 3),
+            Self.book(id: 1, title: "Первая", place: 1),
+            Self.book(id: 2, title: "Вторая", place: 2),
+            Self.book(id: 3, title: "Третья", place: 3),
         ]
         let group = Model.Group(
             id: "series:Зимпель",
@@ -113,6 +138,25 @@ struct SeriesOrderTests {
         )
 
         #expect(group.rows.map(\.number) == [ 3, 2, 1 ])
+    }
+
+    /// Where the books do state their volumes, those are what the card draws, arranged or not. A book
+    /// knows which volume it is; where the reader put it says only where they want it.
+    @Test
+    func anArrangedSeriesStillDrawsTheVolumesItsBooksState() {
+        let works = [
+            Self.book(id: 1, order: 7, place: 1),
+            Self.book(id: 2, order: 8, place: 2),
+        ]
+        let group = Model.Group(
+            id: "series:Зимпель",
+            series: "Зимпель",
+            works: works,
+            updated: .now,
+            isCustom: true
+        )
+
+        #expect(group.rows.map(\.number).sorted() == [ 7, 8 ])
     }
 
     /// A co-author joining a long series partway through leaves the books disagreeing about who wrote
@@ -166,9 +210,42 @@ struct SeriesOrderTests {
         #expect(rows.contains { if case .missing(2) = $0 { true } else { false } })
     }
 
-    private static func book(id: Int, order: Int? = nil, author: String = "Имя Фамилия", title: String? = nil)
-        -> Book
-    {
+    /// Two parts of one volume share its number and belong side by side. Asking that every stated
+    /// volume be different throws the whole numbering away for the one thing it cannot express.
+    @Test
+    func twoPartsOfOneVolumeStandTogether() {
+        let works = [
+            Self.book(id: 1, order: 4, title: "Хаген. Нокаут 1"),
+            Self.book(id: 2, order: 2, title: "Герой"),
+            Self.book(id: 3, order: 4, title: "Хаген. Нокаут 2"),
+            Self.book(id: 4, order: 1, title: "Рестарт"),
+        ]
+        let group = Model.Group(
+            id: "series:Зимпель",
+            series: "Зимпель",
+            works: Model.ordered(works, arrangedByHand: true),
+            updated: .now,
+            isCustom: true
+        )
+
+        // Volume three is nowhere in the fixture, so the shelf says so between four and two.
+        #expect(group.rows.map(\.number) == [ 4, 4, 3, 2, 1 ])
+        #expect(group.rows.compactMap(Self.title) == [ "Хаген. Нокаут 2", "Хаген. Нокаут 1", "Герой", "Рестарт" ])
+    }
+
+    private static func title(_ row: Model.SeriesRow) -> String? {
+        guard case let .book(_, _, title) = row else { return nil }
+
+        return title
+    }
+
+    private static func book(
+        id: Int,
+        order: Int? = nil,
+        author: String = "Имя Фамилия",
+        title: String? = nil,
+        place: Int? = nil
+    ) -> Book {
         Book(
             id: id,
             title: title ?? "Зимпель \(id)",
@@ -177,6 +254,7 @@ struct SeriesOrderTests {
             annotation: nil,
             seriesTitle: "Зимпель",
             seriesOrder: order,
+            shelfOrder: place,
             textLength: 1000,
             likeCount: nil,
             isFinished: true,

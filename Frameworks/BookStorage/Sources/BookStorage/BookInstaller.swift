@@ -221,6 +221,46 @@ public enum BookInstaller {
     }
 
     /// Takes an imported book off the device, text and all.
+    /// Drops every copy of a book whose very text the device already holds under another number.
+    ///
+    /// Two services hand over the same book and each arrives as a book of its own with a file of its
+    /// own. The shelf shows one of them and pairs the other away, which leaves the second file sitting
+    /// on the device, and in every backup taken of it, costing what it costs and saying nothing.
+    ///
+    /// The copy the reader has got further into is the one that stays, since the other has nothing to
+    /// offer that it does not: the words are identical, so what is worth keeping is the place in them.
+    @discardableResult
+    public static func removeDuplicates(store: SQLiteBookStore = .shared) async -> Int {
+        var kept: [String: (id: Int, read: Double)] = [:]
+        var doomed: [Int] = []
+
+        for record in await store.localBooks() {
+            guard let hash = record.contentHash else { continue }
+
+            let read = await store.book(id: record.workId)?.summary.readingProgress ?? 0
+
+            guard
+                let rival = kept[hash]
+            else {
+                kept[hash] = (record.workId, read)
+                continue
+            }
+
+            if read > rival.read {
+                kept[hash] = (record.workId, read)
+                doomed.append(rival.id)
+            } else {
+                doomed.append(record.workId)
+            }
+        }
+
+        for workId in doomed { await remove(workId: workId, store: store) }
+
+        if !doomed.isEmpty { logger.info("dropped \(doomed.count) duplicate books") }
+
+        return doomed.count
+    }
+
     public static func remove(workId: Int, store: SQLiteBookStore = .shared) async {
         await store.removeBook(id: workId)
         try? FileManager.default.removeItem(at: LocalBookFiles.coverURL(workId: workId))

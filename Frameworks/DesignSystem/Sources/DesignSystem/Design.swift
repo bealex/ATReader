@@ -15,8 +15,9 @@ public enum Design {
     public enum Space {
         public static let unit: CGFloat = 3
 
-        /// An optical correction rather than a gap: what a glyph needs to read as level with the type
-        /// beside it. Never a space between two things.
+        /// The smallest step on the lattice. What a glyph needs to read as level with the type beside
+        /// it, and the tightest gap there is, for the one place where the ordinary one crowds out what
+        /// it is meant to be separating.
         public static let nudge = unit / 3
         public static let extraSmall = unit
         public static let small = unit * 2
@@ -33,8 +34,8 @@ public enum Design {
         public static let large = Space.unit * 6
         public static let extraLarge = Space.unit * 9
         /// A book block is square-cut. What rounds a spine is the light falling across it, not its
-        /// corners, so this is barely a radius at all.
-        public static let spine = Space.unit
+        /// corners, so this is barely a radius at all: enough to take the point off, and no more.
+        public static let spine = Space.unit / 3
 
         /// A cover rounds in proportion to its own width, so it reads the same at any size.
         public static func cover(width: CGFloat) -> CGFloat { width * 0.08 }
@@ -54,6 +55,9 @@ public enum Design {
         /// The smallest thing a finger should have to find.
         public static let touch = Space.unit * 15
         public static let avatar = Space.unit * 18
+        /// A cover in a list row, where it is a reminder of which book this is rather than the
+        /// subject of the row.
+        public static let listCover = Space.unit * 13
         public static let rowCover = Space.unit * 22
         public static let cover = Space.unit * 24
         public static let coverLarge = Space.unit * 40
@@ -93,8 +97,13 @@ public enum Design {
             return (available - spacing * (count - 1)) / count
         }
 
-        /// A cover stands half again as tall as it is wide, which is the slot a shelf keeps for one.
-        public static func coverHeight(width: CGFloat) -> CGFloat { width * 1.5 }
+        /// How tall a slot a cover of this width needs. Half again as tall as it is wide unless the
+        /// books themselves say otherwise: a shelf measures its own tallest and gives that to all.
+        public static func coverHeight(width: CGFloat, ratio: CGFloat = 1.5) -> CGFloat {
+            // Whole points. A shelf works its heights out from the shape of each cover, and a book
+            // standing a third of a point above its neighbour draws a soft edge along the top of it.
+            (width * max(ratio, 1)).rounded()
+        }
     }
 
     /// The five colours that mean something. Nothing outside this list carries a fact.
@@ -142,9 +151,10 @@ public enum Design {
         public static let label = Font.subheadline
         public static let caption = Font.caption
         public static let micro = Font.caption2
-        /// What is printed on a book's spine: a point under the smallest role and narrowed, because
-        /// the width of a spine belongs to the book and the writing lives in what is left of it.
-        public static let spine = Font.system(size: 9, weight: .medium).width(.condensed)
+        /// What is printed on a book's spine: a point under the smallest role and as narrow as the
+        /// face goes, because the width of a spine belongs to the book and the writing lives in what
+        /// is left of it. Narrow beats rounded where a face offers only one of the two.
+        public static let spine = Font.system(size: 9, weight: .medium).width(.compressed)
     }
 
     /// What a control is set in.

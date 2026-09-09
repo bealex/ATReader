@@ -59,7 +59,10 @@ extension Book {
             coverURL: work.coverURL,
             annotation: nil,
             seriesTitle: work.seriesTitle,
-            seriesOrder: work.seriesOrder,
+            // The service numbers a series from zero: the book its own title calls the first is filed
+            // as nought. Everything else counts from one, and a series holding a copy from each source
+            // came out claiming every volume twice with its last one missing.
+            seriesOrder: work.seriesOrder.map { $0 + 1 },
             textLength: work.textLength,
             likeCount: work.likeCount,
             isFinished: work.isFinished,

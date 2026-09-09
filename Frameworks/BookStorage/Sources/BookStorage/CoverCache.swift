@@ -263,5 +263,42 @@ public enum CoverImages {
 
     public static func image(for url: URL) -> UIImage? { images.object(forKey: url as NSURL) }
 
-    public static func remember(_ image: UIImage, for url: URL) { images.setObject(image, forKey: url as NSURL) }
+    public static func remember(_ image: UIImage, for url: URL) {
+        images.setObject(image, forKey: url as NSURL)
+        CoverShapes.remember(image, for: url)
+    }
+}
+
+/// What shape each cover turned out to be, kept across launches.
+///
+/// A shelf has to know how tall a slot to give its books before it has their pictures, or it lays them
+/// out at a guess and shuffles them the moment the pictures arrive. A cover's shape is one number and
+/// it never changes, so it is worth writing down.
+@MainActor
+public enum CoverShapes {
+    /// Held here as well as in the store, because a shelf asks about every book on it while it is
+    /// laying them out, and the store answers across an actor hop it cannot wait for.
+    private static var shapes: [String: Double] = [:]
+
+    /// How many times taller than wide this cover is, where it has been seen before.
+    public static func aspect(for url: URL) -> CGFloat? {
+        shapes[url.absoluteString].map { CGFloat($0) }
+    }
+
+    /// Reads back what earlier runs measured. Once, as the app comes up.
+    public static func load(from store: SQLiteBookStore = .shared) async {
+        shapes = await store.coverShapes()
+    }
+
+    static func remember(_ image: UIImage, for url: URL) {
+        guard image.size.width > 0 else { return }
+
+        let aspect = Double(image.size.height / image.size.width)
+        let address = url.absoluteString
+
+        guard shapes[address] != aspect else { return }
+
+        shapes[address] = aspect
+        Task { await SQLiteBookStore.shared.store(coverShape: aspect, url: address) }
+    }
 }

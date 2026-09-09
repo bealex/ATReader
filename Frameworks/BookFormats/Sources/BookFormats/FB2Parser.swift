@@ -194,7 +194,7 @@ public enum FB2Parser {
                 case "document-info": region = .documentInfo
                 case "binary": startBinary(attributes)
                 case "author" where region == .titleInfo: authorParts = [:]
-                case "sequence" where region == .titleInfo: readSequence(attributes)
+                case "sequence": readSequence(attributes)
                 case "image" where path.contains("coverpage"): coverId = Self.reference(in: attributes)
                 default: return false
             }
@@ -333,12 +333,25 @@ public enum FB2Parser {
         }
 
         private func readSequence(_ attributes: [String: String]) {
-            // The first sequence named wins. A file often repeats it under `publish-info`, and a book
-            // belongs to one series here.
-            guard series == nil, let name = attributes["name"]?.trimmed.nilWhenEmpty else { return }
+            guard let name = attributes["name"]?.trimmed.nilWhenEmpty else { return }
+            // The first sequence named wins the series, since a book belongs to one. The number is
+            // taken from whichever copy of that sequence carries one: a file often repeats it under
+            // `publish-info`, and sometimes only the repeat states the volume.
+            guard
+                series == nil
+            else {
+                if seriesOrder == nil, name == series { seriesOrder = Self.volume(in: attributes) }
+
+                return
+            }
 
             series = name
-            seriesOrder = attributes["number"].flatMap { Int($0.trimmed) }
+            seriesOrder = Self.volume(in: attributes)
+        }
+
+        /// The volume a sequence states, where it states one.
+        private static func volume(in attributes: [String: String]) -> Int? {
+            attributes["number"].flatMap { Int($0.trimmed) }
         }
 
         private func endAuthor() {

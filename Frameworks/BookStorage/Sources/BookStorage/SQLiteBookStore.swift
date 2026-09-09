@@ -116,7 +116,12 @@ public actor SQLiteBookStore {
 
         var result = summary
         result.seriesTitle = own.series
-        result.seriesOrder = own.order
+
+        guard let order = own.order else { return result }
+
+        // The place the reader gave it, kept beside the volume the book states rather than on top of
+        // it: a book filed by hand still knows which volume of its own series it is.
+        result.shelfOrder = order
         return result
     }
 
@@ -255,7 +260,10 @@ public actor SQLiteBookStore {
     /// A book's place in a series the reader put together.
     public struct CustomSeries: Sendable, Equatable {
         public let series: String
-        public let order: Int
+        /// Where the reader dragged this book, and nothing at all until they drag one. Filing books
+        /// as a series says which books belong together and nothing about their order: what order
+        /// they stand in is the books' own business until the reader says otherwise.
+        public let order: Int?
     }
 
     /// Every book the reader has filed by hand.
@@ -272,7 +280,7 @@ public actor SQLiteBookStore {
         while statement.step() {
             guard let series = statement.string(1) else { continue }
 
-            result[statement.integer(0)] = CustomSeries(series: series, order: statement.integer(2))
+            result[statement.integer(0)] = CustomSeries(series: series, order: statement.number(2).map(Int.init))
         }
 
         return result
@@ -288,12 +296,33 @@ public actor SQLiteBookStore {
         transaction {
             guard let statement = Statement(open(), query) else { return }
 
+            for workId in workIds {
+                statement.reset()
+                statement.bind(1, workId)
+                statement.bind(2, series)
+                // No order. Which books belong together is one thing to say; which order they stand
+                // in is another, and the books state that themselves until the reader disagrees.
+                statement.bind(3, nil as Int?)
+                statement.execute()
+            }
+        }
+    }
+
+    /// Writes the order the reader put a series into, which is theirs and beats what its books
+    /// state about themselves. Only a reader dragging books about says this.
+    public func store(order workIds: [Int], series: String) {
+        let query = """
+            INSERT INTO book_series (work_id, series, sort_order) VALUES (?, ?, ?)
+            ON CONFLICT(work_id) DO UPDATE SET series = excluded.series, sort_order = excluded.sort_order
+            """
+
+        transaction {
+            guard let statement = Statement(open(), query) else { return }
+
             for (index, workId) in workIds.enumerated() {
                 statement.reset()
                 statement.bind(1, workId)
                 statement.bind(2, series)
-                // A series counts from one. This is read back as the book's volume and drawn as one,
-                // so a place counted from zero puts a book nought on every shelf.
                 statement.bind(3, index + 1)
                 statement.execute()
             }
@@ -857,11 +886,14 @@ public actor SQLiteBookStore {
         createLocalBookTable()
         createContentTable()
         createPlacementTable()
+        createCoverShapeTable()
+        createAuthorAliasTable()
         addCompletionColumns()
         addProvenanceColumns()
         repairProgress()
         markServiceBooksRead()
         countSeriesFromOne()
+        forgetArrangedOrders()
     }
 
     /// Adds the columns that say where a book came from, for a store made before it could tell.
@@ -948,6 +980,77 @@ public actor SQLiteBookStore {
             )
             """
         )
+    }
+
+    /// What shape each cover turned out to be, so a shelf can stand its books at the right height
+    /// before it has their pictures. Keyed by the address the picture came from, since a cover is
+    /// shared by every copy of a book that names it.
+    private func createCoverShapeTable() {
+        execute("CREATE TABLE IF NOT EXISTS cover_shape (url TEXT PRIMARY KEY, aspect REAL NOT NULL)")
+    }
+
+    /// The names one writer goes by, and the one the reader picked to hold them under.
+    ///
+    /// Two services spell a name two ways, with a patronymic and without, and nothing in either of
+    /// them says the two are one person. Only the reader knows, so what they say is kept.
+    private func createAuthorAliasTable() {
+        execute("CREATE TABLE IF NOT EXISTS author_alias (name TEXT PRIMARY KEY, canonical TEXT NOT NULL)")
+    }
+
+    /// Every name held under another, read in one go: the shelf files each book by its author
+    /// while it is laying the library out.
+    public func authorAliases() -> [String: String] {
+        guard let statement = Statement(open(), "SELECT name, canonical FROM author_alias") else { return [:] }
+
+        var found: [String: String] = [:]
+
+        while statement.step() { found[statement.string(0) ?? ""] = statement.string(1) ?? "" }
+
+        return found
+    }
+
+    /// Holds several spellings of one name under the one the reader picked.
+    public func store(aliases: [String], canonical: String) {
+        let query = """
+            INSERT INTO author_alias (name, canonical) VALUES (?, ?)
+            ON CONFLICT(name) DO UPDATE SET canonical = excluded.canonical
+            """
+
+        transaction {
+            guard let statement = Statement(open(), query) else { return }
+
+            for name in aliases {
+                statement.reset()
+                statement.bind(1, name)
+                statement.bind(2, canonical)
+                statement.execute()
+            }
+        }
+    }
+
+    /// Every cover shape known, read in one go: a shelf asks about all of its books at once and
+    /// needs the answer before it draws.
+    public func coverShapes() -> [String: Double] {
+        guard let statement = Statement(open(), "SELECT url, aspect FROM cover_shape") else { return [:] }
+
+        var found: [String: Double] = [:]
+
+        while statement.step() { found[statement.string(0) ?? ""] = statement.number(1) ?? 0 }
+
+        return found
+    }
+
+    public func store(coverShape aspect: Double, url: String) {
+        let query = """
+            INSERT INTO cover_shape (url, aspect) VALUES (?, ?)
+            ON CONFLICT(url) DO UPDATE SET aspect = excluded.aspect
+            """
+
+        guard let statement = Statement(open(), query) else { return }
+
+        statement.bind(1, url)
+        statement.bind(2, aspect)
+        statement.execute()
     }
 
     private func createPlacementTable() {
@@ -1105,6 +1208,26 @@ public actor SQLiteBookStore {
             """
         )
         execute("PRAGMA user_version = 3")
+    }
+
+    /// Lets a series stand in the order its own books state, and forgets every order filed before.
+    ///
+    /// Filing books as a series used to write a place for each of them, so merging two runs looked
+    /// like an arrangement the reader had made and stood in front of what the books themselves say.
+    /// An order is now written only where one was actually chosen, and the column has to admit that
+    /// nothing was: the table is rebuilt to allow it, which clears what was filed under the old rule.
+    private func forgetArrangedOrders() {
+        guard userVersion() < 4 else { return }
+
+        execute(
+            "CREATE TABLE IF NOT EXISTS book_series_kept (work_id INTEGER PRIMARY KEY, series TEXT NOT NULL, sort_order INTEGER)"
+        )
+        execute(
+            "INSERT OR REPLACE INTO book_series_kept (work_id, series, sort_order) SELECT work_id, series, NULL FROM book_series"
+        )
+        execute("DROP TABLE book_series")
+        execute("ALTER TABLE book_series_kept RENAME TO book_series")
+        execute("PRAGMA user_version = 4")
     }
 
     private func userVersion() -> Int {

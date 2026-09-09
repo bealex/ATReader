@@ -75,12 +75,10 @@ public enum LibraryArchive {
         try files.createDirectory(at: home(in: folder), withIntermediateDirectories: true)
         try await store.copy(to: database(in: folder))
 
-        // Everything an imported book brought with it: its own file, its cover, its pictures.
-        try? files.removeItem(at: books(in: folder))
-
-        if files.fileExists(atPath: LocalBookFiles.directory.path) {
-            try files.copyItem(at: LocalBookFiles.directory, to: books(in: folder))
-        }
+        // Everything an imported book brought with it: its own file, its cover, its pictures. Brought
+        // into step rather than thrown away and written again: the whole of it runs to hundreds of
+        // megabytes, and a backup that empties itself before it fills is no backup while it does.
+        try sync(LocalBookFiles.directory, to: books(in: folder))
 
         let manifest = Manifest(bytes: size(of: home(in: folder)))
 
@@ -132,6 +130,48 @@ public enum LibraryArchive {
 
     /// How much a folder holds, walked rather than asked for: a directory reports its own size and not
     /// what is under it.
+    /// Brings a folder into step with another: what is gone here goes there, and what has changed is
+    /// written over.
+    ///
+    /// A file counts as unchanged where its size and its date both match, which is what every tool
+    /// that syncs folders takes as the answer. Reading a gigabyte to prove a gigabyte has not changed
+    /// costs more than the copying it saves.
+    private static func sync(_ source: URL, to destination: URL) throws {
+        let files = FileManager.default
+
+        try files.createDirectory(at: destination, withIntermediateDirectories: true)
+
+        let here = Set((try? files.contentsOfDirectory(atPath: source.path)) ?? [])
+        let there = Set((try? files.contentsOfDirectory(atPath: destination.path)) ?? [])
+
+        // Gone from the device, so gone from the backup. A copy that keeps everything it has ever
+        // seen is a copy of nothing in particular.
+        for name in there.subtracting(here) {
+            try? files.removeItem(at: destination.appendingPathComponent(name))
+        }
+
+        for name in here {
+            let from = source.appendingPathComponent(name)
+            let onto = destination.appendingPathComponent(name)
+
+            guard stamp(of: from) != stamp(of: onto) else { continue }
+
+            try? files.removeItem(at: onto)
+            try files.copyItem(at: from, to: onto)
+        }
+    }
+
+    /// What says a file is the one already there: how big it is, and when it was last written.
+    private static func stamp(of url: URL) -> [Int]? {
+        guard
+            let values = try? url.resourceValues(forKeys: [ .fileSizeKey, .contentModificationDateKey ]),
+            let size = values.fileSize,
+            let changed = values.contentModificationDate
+        else { return nil }
+
+        return [ size, Int(changed.timeIntervalSince1970) ]
+    }
+
     private static func size(of folder: URL) -> Int64 {
         guard
             let walk = FileManager.default.enumerator(at: folder, includingPropertiesForKeys: [ .fileSizeKey ])

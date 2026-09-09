@@ -37,18 +37,30 @@ struct BookSpine: View {
     /// How light a spine may get, and how dark.
     ///
     /// The colour under it is somebody else's artwork: a pale cover washes out to nothing on a dark
-    /// shelf, and a dark one swallows the writing on a light shelf. So the colour is held to one side
-    /// of a line rather than scaled towards it, which keeps the hue and loses only the extremes.
-    private var limit: Color { Color(white: isDark ? 0.45 : 0.72) }
+    /// shelf, and a near-black one swallows the writing on a light shelf. The line is drawn per
+    /// channel, which is also how a colour is drained of itself: a deep red held to a floor of three
+    /// quarters comes out the same grey as a deep blue, since each of its channels is raised to the
+    /// same figure. So on a light shelf the floor sits low enough to catch only what is nearly black,
+    /// and the lifting is done by brightness, which moves a colour without flattening it.
+    private var limit: Color { Color(white: isDark ? 0.45 : 0.35) }
 
     /// Grey on a dark shelf, near-black on a light one. Writing printed onto a binding is never the
     /// brightest thing on it.
     private var ink: Color { isDark ? .white.opacity(0.58) : .black.opacity(0.8) }
 
-    private var wash: Color { isDark ? .black.opacity(0.15) : .white.opacity(0.15) }
+    private var wash: Color { isDark ? .black.opacity(0.15) : .white.opacity(0.06) }
 
-    /// The shadow a raised letter casts, below it, and the light caught along its top edge. Together
-    /// they are what makes the writing sit proud of the spine rather than lie printed flat on it.
+    /// How thick the line at the head is drawn.
+    ///
+    /// A hairline is half a point, which lands on a pixel and a half: where it falls at the very top
+    /// of the spine it covers more of that pixel than the same line does at the foot, and reads as the
+    /// thicker of the two. On a dark shelf it is a pale paper edge and can carry the weight; on a
+    /// light one it is the same black as the foot, and has to be drawn thinner to look the same.
+    private var headline: CGFloat { isDark ? Design.Stroke.hairline : Design.Stroke.hairline / 2 }
+
+    /// The shadow inside a letter pressed into the spine, along its top edge, and the light caught on
+    /// the lower lip of the impression. Together they sink the writing into the binding rather than
+    /// standing it on top: type on a spine is stamped, and a stamp goes in.
     private var relief: Color { isDark ? .black.opacity(0.6) : .black.opacity(0.3) }
 
     private var highlight: Color { isDark ? .white.opacity(0.3) : .white.opacity(0.85) }
@@ -89,8 +101,8 @@ struct BookSpine: View {
                     .resizable()
                     .scaledToFill()
                     .blur(radius: Design.Size.spineBlur)
-                    .saturation(1.35)
-                    .brightness(isDark ? -0.18 : 0.08)
+                    .saturation(isDark ? 1.35 : 1.7)
+                    .brightness(isDark ? -0.18 : 0.14)
                     // A ceiling on a dark shelf and a floor on a light one, taken per channel so a
                     // colour keeps its hue and gives up only what stood past the line.
                     .overlay(Rectangle().fill(limit).blendMode(isDark ? .darken : .lighten))
@@ -104,21 +116,7 @@ struct BookSpine: View {
         .overlay(curve)
     }
 
-    /// What makes it read as a rounded spine rather than a coloured strip: both edges fall away into
-    /// shadow and the middle catches the light.
-    private var curve: some View {
-        LinearGradient(
-            stops: [
-                .init(color: .black.opacity(0.38), location: 0),
-                .init(color: .clear, location: 0.28),
-                .init(color: .white.opacity(0.13), location: 0.46),
-                .init(color: .clear, location: 0.68),
-                .init(color: .black.opacity(0.38), location: 1),
-            ],
-            startPoint: .leading,
-            endPoint: .trailing
-        )
-    }
+    private var curve: some View { SpineCurve() }
 
     /// How a bound book is put together, which is what the eye reads as a spine rather than a bar: a
     /// groove where each cover hinges on, a pale head where the paper shows, and a dark foot.
@@ -131,10 +129,13 @@ struct BookSpine: View {
             }
             .padding(.horizontal, Design.Space.extraSmall)
 
+            // Head and foot. On a dark shelf they are a pale paper edge over a dark one; on a light
+            // shelf both go dark, since a pale spine swallows a pale line and each edge has to sit
+            // against its own ground.
             VStack(spacing: 0) {
                 Rectangle()
-                    .fill(.white.opacity(0.3))
-                    .frame(height: Design.Stroke.hairline)
+                    .fill(isDark ? .white.opacity(0.3) : .black.opacity(0.4))
+                    .frame(height: headline)
 
                 Spacer(minLength: 0)
 
@@ -154,11 +155,7 @@ struct BookSpine: View {
     /// Set along the spine, read from the foot upwards, with the volume nearest the bottom edge.
     private var writing: some View {
         HStack(spacing: Design.Space.small) {
-            if let number {
-                Text(number, format: .number)
-                    .font(Design.Style.spine.monospacedDigit())
-                    .opacity(0.75)
-            }
+            if let number { SpinePlate(number: number) }
 
             // Narrow and small, the way a spine is set: the width belongs to the book, and what is
             // printed on it has to live in whatever is left.
@@ -166,17 +163,25 @@ struct BookSpine: View {
                 .font(Design.Style.spine)
                 .lineLimit(1)
                 .truncationMode(.tail)
+                // Half a point to the left of the plate below it, once the spine is stood on end.
+                // The writing is laid out sideways and then turned, and a turn of a quarter takes
+                // what is written here as up onto the screen as left.
+                .offset(y: -Design.Stroke.hairline)
 
             Spacer(minLength: 0)
         }
         .foregroundStyle(ink)
-        // Stamped rather than printed: light along the top of each letter and its shadow below.
+        // Pressed in rather than raised: the shadow falls along the top of each letter, where the
+        // light cannot reach into the impression, and the lit edge sits below it.
         //
         // Both offsets are given in the writing's own space, which the spine then turns on its side,
         // so what is written here as sideways lands as up and down once it is stood on end.
-        .shadow(color: relief, radius: 0, x: -Design.Stroke.hairline)
-        .shadow(color: highlight, radius: 0, x: Design.Stroke.hairline)
-        .padding(.horizontal, Design.Space.medium)
+        .shadow(color: relief, radius: 0, x: Design.Stroke.hairline)
+        .shadow(color: highlight, radius: 0, x: -Design.Stroke.hairline)
+        // The foot keeps its margin, since the volume sits against the bottom edge of the spine. The
+        // head gives most of its own back: what is there is a truncated title wanting the room.
+        .padding(.leading, Design.Space.medium)
+        .padding(.trailing, Design.Space.nudge)
         .frame(width: height, height: width)
         .rotationEffect(.degrees(-90))
     }
@@ -202,6 +207,87 @@ struct BookSpine: View {
     private static let longBook: Double = 1_400_000
 }
 
+/// The light falling across a spine: both edges turn away from it, the middle catches it, and the
+/// very edge of the board is dark.
+///
+/// Its own view because a volume the reader doesn't hold is shaded like the books it stands between.
+/// A gap in a run reads as a gap in a shelf rather than as a hole in the card.
+struct SpineCurve: View {
+    @Environment(\.colorScheme)
+    private var scheme
+
+    /// How dark the very edge goes, and the shading just inside it.
+    ///
+    /// The two scale together, and the edge is always the darker of them: light the edge alone and the
+    /// darkest part of a spine ends up a twentieth of the way in, which is a ridge rather than a
+    /// rounded board and reads as flat. Lighter on a light shelf, where an edge as black as the dark
+    /// shelf's cuts the spine out of the page.
+    private var edge: Color { .black.opacity(scheme == .dark ? 0.85 : 0.3) }
+
+    private var shade: Color { .black.opacity(scheme == .dark ? 0.38 : 0.12) }
+
+    /// The light caught along the middle of the board, and what the writing sits on.
+    ///
+    /// A dark title down the middle of a coloured spine has only the colour to stand against, and a
+    /// cover's own colour is not chosen for the purpose. A white band there is both at once: the light
+    /// a rounded board catches, and the paper a dark line needs under it.
+    private var sheen: Color { .white.opacity(scheme == .dark ? 0.13 : 0.32) }
+
+    /// Where the lit middle of the board begins and ends.
+    ///
+    /// Wider on a light shelf, where that band is also the paper the writing sits on: a narrow one
+    /// leaves the ends of a long title out on the cover's own colour.
+    private var litBand: (from: CGFloat, to: CGFloat) { scheme == .dark ? (0.32, 0.66) : (0.22, 0.78) }
+
+    /// Where the shading at each edge has faded out altogether.
+    private var clearOf: (from: CGFloat, to: CGFloat) { scheme == .dark ? (0.14, 0.86) : (0.1, 0.9) }
+
+    var body: some View {
+        LinearGradient(
+            stops: [
+                // The very edge of a spine turns away from the light altogether. A hard line rather
+                // than a fade, and thin: it is the last two hundredths of the width on either side.
+                .init(color: edge, location: 0),
+                .init(color: edge, location: 0.02),
+                .init(color: shade, location: 0.05),
+                .init(color: .clear, location: clearOf.from),
+                .init(color: sheen, location: litBand.from),
+                .init(color: sheen, location: litBand.to),
+                .init(color: .clear, location: clearOf.to),
+                .init(color: shade, location: 0.95),
+                .init(color: edge, location: 0.98),
+                .init(color: edge, location: 1),
+            ],
+            startPoint: .leading,
+            endPoint: .trailing
+        )
+    }
+}
+
+/// The volume, on a little plate at the foot of a spine, the way a numbered set carries its number:
+/// set into the binding rather than printed along with the title.
+struct SpinePlate: View {
+    let number: Int
+
+    @Environment(\.colorScheme)
+    private var scheme
+
+    var body: some View {
+        Text(number, format: .number)
+            .font(Design.Style.spine.monospacedDigit())
+            .padding(.horizontal, Design.Space.extraSmall)
+            .padding(.vertical, Design.Space.nudge)
+            .background(
+                RoundedRectangle(cornerRadius: Design.Radius.spine)
+                    .fill(scheme == .dark ? .black.opacity(0.38) : .white.opacity(0.28))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: Design.Radius.spine)
+                    .strokeBorder(.black.opacity(0.3), lineWidth: Design.Stroke.hairline)
+            )
+    }
+}
+
 /// A volume between two the reader holds that they don't. Drawn in the same shape as whatever the
 /// shelf is showing, so a gap keeps its place in the run rather than being listed elsewhere.
 struct MissingSlot: View {
@@ -213,18 +299,40 @@ struct MissingSlot: View {
         ZStack {
             RoundedRectangle(cornerRadius: Design.Radius.spine)
                 .fill(Design.Surface.fill)
+                .opacity(Self.faded)
+
+            // Half the light the books beside it catch, and its own alpha rather than the slot's: a
+            // fade laid over the whole thing took the shading down to a quarter and flattened it.
+            SpineCurve()
+                .opacity(Self.faded)
 
             RoundedRectangle(cornerRadius: Design.Radius.spine)
                 .strokeBorder(Design.Surface.edge, lineWidth: Design.Stroke.hairline)
+                .opacity(Self.faded)
 
-            Text(number, format: .number)
-                .font(Design.Style.caption.monospacedDigit())
-                .foregroundStyle(.tertiary)
-                .rotationEffect(.degrees(width > Design.Size.spine ? 0 : -90))
+            // Set the way a book that is here carries its own volume: on its plate at the foot of the
+            // spine, so a gap in a run reads as one of the run rather than as a note beside it.
+            if width > Design.Size.spine {
+                SpinePlate(number: number)
+                    .opacity(Self.faded)
+            } else {
+                HStack(spacing: 0) {
+                    SpinePlate(number: number)
+
+                    Spacer(minLength: 0)
+                }
+                .padding(.leading, Design.Space.medium)
+                .frame(width: height, height: width)
+                .rotationEffect(.degrees(-90))
+                .opacity(Self.faded)
+            }
         }
         .frame(width: width, height: height)
-        .opacity(0.5)
+        .clipShape(.rect(cornerRadius: Design.Radius.spine))
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Volume \(number), not in your library")
     }
+
+    /// How much of a book a gap is: half there, and half of everything it is made of.
+    private static let faded: Double = 0.5
 }

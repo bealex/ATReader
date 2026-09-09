@@ -20,6 +20,12 @@ public struct Book: Codable, Identifiable, Hashable, Sendable {
     /// series of their making, which outlives every refresh because it is kept in a table of its own.
     public var seriesTitle: String?
     public var seriesOrder: Int?
+    /// Where the reader put this book in a series they arranged themselves.
+    ///
+    /// Kept apart from ``seriesOrder``, which is the volume the book states. Writing a place into that
+    /// destroys what the book says about itself, and the two answer different questions: one is where
+    /// the reader wants it, the other is which volume it is.
+    public var shelfOrder: Int?
 
     public let textLength: Int?
     public let likeCount: Int?
@@ -46,6 +52,7 @@ public struct Book: Codable, Identifiable, Hashable, Sendable {
         annotation: String?,
         seriesTitle: String? = nil,
         seriesOrder: Int? = nil,
+        shelfOrder: Int? = nil,
         textLength: Int? = nil,
         likeCount: Int? = nil,
         isFinished: Bool? = nil,
@@ -66,6 +73,7 @@ public struct Book: Codable, Identifiable, Hashable, Sendable {
         self.annotation = annotation
         self.seriesTitle = seriesTitle
         self.seriesOrder = seriesOrder
+        self.shelfOrder = shelfOrder
         self.textLength = textLength
         self.likeCount = likeCount
         self.isFinished = isFinished
@@ -127,6 +135,7 @@ public struct Book: Codable, Identifiable, Hashable, Sendable {
             annotation: annotation,
             seriesTitle: seriesTitle,
             seriesOrder: seriesOrder,
+            shelfOrder: shelfOrder,
             textLength: textLength,
             likeCount: likeCount,
             isFinished: isFinished,
@@ -160,6 +169,7 @@ public struct Book: Codable, Identifiable, Hashable, Sendable {
             annotation: annotation ?? previous.annotation,
             seriesTitle: seriesTitle ?? previous.seriesTitle,
             seriesOrder: seriesOrder ?? previous.seriesOrder,
+            shelfOrder: shelfOrder ?? previous.shelfOrder,
             textLength: textLength ?? previous.textLength,
             likeCount: likeCount ?? previous.likeCount,
             isFinished: isFinished ?? previous.isFinished,

@@ -5,6 +5,14 @@
 
 import Foundation
 
+/// Which of the two things the reader is holding together.
+enum MergeKind: String, Identifiable {
+    case series
+    case authors
+
+    var id: String { rawValue }
+}
+
 /// The screens any list can push. Each tab owns its own stack of these.
 enum AppRoute: Hashable {
     case work(id: Int, title: String)

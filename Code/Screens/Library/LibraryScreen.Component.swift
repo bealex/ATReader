@@ -37,6 +37,10 @@ enum LibraryScreen {
         @State
         private var reordering: Model.Group?
 
+        /// What the reader is holding together, while they are doing it.
+        @State
+        private var merging: MergeKind?
+
         /// Where a cover stands, so the reader opens into the book from its own artwork.
         @Namespace
         private var zoom
@@ -122,6 +126,20 @@ enum LibraryScreen {
                 .modifier(
                     SeriesEditing(model: model, reordering: $reordering, isNaming: $isNamingSeries, name: $seriesName)
                 )
+                .sheet(item: $merging) { kind in
+                    switch kind {
+                        case .series:
+                            MergeSheet(title: "Combine series", choices: Self.runs(of: model)) { picked, name in
+                                let runs = model.allSeries.filter { picked.contains($0.id) }
+
+                                Task { await model.merge(runs, named: name) }
+                            }
+                        case .authors:
+                            MergeSheet(title: "Combine authors", choices: Self.writers(of: model)) { picked, name in
+                                Task { await model.mergeAuthors(picked, as: name) }
+                            }
+                    }
+                }
         }
 
         private func shelf(_ model: Model) -> some View {
@@ -129,20 +147,10 @@ enum LibraryScreen {
                 heading(model)
                 search(model)
 
-                if model.groups.isEmpty {
+                if model.shelves.isEmpty {
                     empty(model)
                 } else {
-                    ForEach(model.groups) { group in
-                        if group.series != nil {
-                            seriesCard(model, group: group)
-                        } else if let work = group.works.first {
-                            // A book standing on its own has no series to be numbered within, and says
-                            // for itself which one it came from.
-                            card {
-                                bookRow(model, work: work, number: nil, title: work.title, showsSeries: true)
-                            }
-                        }
-                    }
+                    ForEach(model.shelves) { shelf in authorCard(model, shelf: shelf) }
                 }
             }
             // Measured before the padding goes on, so what is read is the width the cards actually
@@ -171,12 +179,48 @@ enum LibraryScreen {
 
                 Spacer()
 
+                mergeButton
                 selectButton(model)
                 addButton(model)
                 filterMenu(model)
             }
             .padding(.top, Design.Space.medium)
             .accessibilityElement(children: .contain)
+        }
+
+        /// Holding two of something together, which only the reader can say to do.
+        private var mergeButton: some View {
+            Menu {
+                Button {
+                    merging = .series
+                } label: {
+                    Label("Combine series", systemImage: "books.vertical")
+                }
+
+                Button {
+                    merging = .authors
+                } label: {
+                    Label("Combine authors", systemImage: "person.2")
+                }
+            } label: {
+                Image(systemName: "arrow.triangle.merge")
+                    .barGlyph()
+                    .contentShape(.rect)
+            }
+            .accessibilityIdentifier("library.merge")
+            .accessibilityLabel("Combine")
+            .accessibilityHint("Holds two series, or two spellings of a name, together")
+        }
+
+        /// The library's series, as things that can be held together.
+        private static func runs(of model: Model) -> [MergeChoice] {
+            model.allSeries.map {
+                MergeChoice(id: $0.id, title: $0.series ?? "", detail: $0.author ?? "", count: $0.works.count)
+            }
+        }
+
+        private static func writers(of model: Model) -> [MergeChoice] {
+            model.authors.map { MergeChoice(id: $0.name, title: $0.name, detail: "", count: $0.count) }
         }
 
         private func selectButton(_ model: Model) -> some View {
@@ -293,28 +337,37 @@ enum LibraryScreen {
 
         /// A series is one card holding its books, so a run of them reads as a set rather than as
         /// separate books that happen to sit together.
-        private func seriesCard(_ model: Model, group: Model.Group) -> some View {
-            let series = group.series ?? ""
-
-            return card {
+        /// Everything of one author's: their series, held together by a line apiece, and then the
+        /// books of theirs that belong to no series.
+        private func authorCard(_ model: Model, shelf: Model.AuthorShelf) -> some View {
+            card {
                 VStack(alignment: .leading, spacing: Design.Space.medium) {
-                    seriesHeader(model, group: group)
+                    authorHeader(model, shelf: shelf)
 
-                    SeriesGrid(
-                        slots: model.slots(of: group),
+                    AuthorShelfView(
+                        runs: shelf.runs.map {
+                            ShelfRun(id: $0.id, title: $0.series ?? "", slots: model.slots(of: $0))
+                        },
+                        alone: shelf.alone.flatMap { model.slots(of: $0) },
                         coverWidth: coverWidth,
+                        available: shelfWidth - Design.Space.large * 2,
                         // Picking books out shows every one of them: a spine is not something to aim
                         // at, and the books being picked are as likely to be read as not.
-                        showsEveryCover: model.isSelecting || model.showsEveryCover(series),
+                        showsEveryCover: model.isSelecting || model.showsEveryCover(shelf.id),
                         zoom: zoom,
                         isPicked: model.isSelecting ? { model.selection.contains($0.id) } : nil,
-                        onToggle: { switchMode(model, series: series) },
+                        onToggle: { switchMode(model, series: shelf.id) },
                         onOpen: { work in
                             guard !model.isSelecting else { return model.toggle(work) }
 
                             open(work)
                         },
-                        actions: { work in bookActions(model, work: work) }
+                        actions: { work in bookActions(model, work: work) },
+                        runActions: { series in
+                            if let group = shelf.runs.first(where: { $0.id == series.id }) {
+                                seriesActions(model, group: group)
+                            }
+                        }
                     )
                     .padding(.horizontal, Design.Space.large)
                     .padding(.bottom, Design.Space.large)
@@ -325,7 +378,7 @@ enum LibraryScreen {
         /// How wide a cover stands on this screen. One width for the whole library: the size wanted
         /// decides how many fit in a row, and what is there is shared out between that many.
         private var coverWidth: CGFloat {
-            Design.Size.coverWidth(across: shelfWidth - Design.Space.large * 2, spacing: Shelf.gap)
+            Design.Size.coverWidth(across: shelfWidth - Design.Space.large * 2, spacing: Shelf.gutter)
         }
 
         /// Swapping between covers and spines, which is one movement rather than a redraw.
@@ -335,41 +388,54 @@ enum LibraryScreen {
             withAnimation(.snappy) { model.toggleCovers(of: series) }
         }
 
-        private func seriesHeader(_ model: Model, group: Model.Group) -> some View {
+        private func authorHeader(_ model: Model, shelf: Model.AuthorShelf) -> some View {
             HStack(spacing: Design.Space.medium) {
                 if model.isSelecting {
-                    tick(Set(group.works.map(\.id)).isSubset(of: model.selection))
+                    tick(Set(shelf.works.map(\.id)).isSubset(of: model.selection))
                 }
 
-                VStack(alignment: .leading, spacing: Design.Space.extraSmall) {
-                    Text(group.series ?? "")
-                        .font(Design.Style.heading)
-                        .lineLimit(2)
+                Text(shelf.name)
+                    .font(Design.Style.heading)
+                    .lineLimit(2)
 
-                    // Only where the books agree on one. Two names under one heading would be a claim
-                    // about the series that none of its books makes.
-                    if let author = group.author {
-                        Text(author)
-                            .font(Design.Style.label)
-                            .foregroundStyle(.secondary)
-                            .lineLimit(1)
-                    }
-                }
-
-                Spacer(minLength: Design.Space.medium)
+                Spacer(minLength: Shelf.gutter)
             }
             .padding(.horizontal, Design.Space.large)
             .padding(.top, Design.Space.medium)
             .contentShape(.rect)
             .onTapGesture {
-                guard !model.isSelecting else { return model.toggle(group: group) }
+                guard !model.isSelecting else { return shelf.works.forEach(model.toggle) }
 
-                switchMode(model, series: group.series ?? "")
+                switchMode(model, series: shelf.id)
             }
-            .contextMenu { seriesActions(model, group: group) }
+            .contextMenu { authorActions(model, shelf: shelf) }
             .accessibilityElement(children: .contain)
             .accessibilityAddTraits(.isButton)
             .accessibilityHint("Switches between every cover and the books left to read")
+        }
+
+        /// Everything of one author's, reachable from their name: each series with what can be done to
+        /// it, and the books of theirs that stand in none.
+        ///
+        /// The card itself shows artwork, which says nothing about which series a book is in or what
+        /// order the reader put them in. A bracket carries its own series' actions, but a bracket can
+        /// be a few points wide, and one that had to be found before a series could be reordered is
+        /// a control the reader has to hunt for.
+        @ViewBuilder
+        private func authorActions(_ model: Model, shelf: Model.AuthorShelf) -> some View {
+            ForEach(shelf.runs) { group in
+                Menu(group.series ?? "") { seriesActions(model, group: group) }
+            }
+
+            if !shelf.alone.isEmpty {
+                Menu("Books") {
+                    ForEach(shelf.alone) { group in
+                        if let work = group.works.first {
+                            Button(work.title) { path.append(.work(id: work.id, title: work.title)) }
+                        }
+                    }
+                }
+            }
         }
 
         @ViewBuilder
@@ -412,7 +478,8 @@ enum LibraryScreen {
             number: Int?,
             title: String,
             showsSeries: Bool = false,
-            seriesAuthor: String? = nil
+            seriesAuthor: String? = nil,
+            coverWidth: CGFloat = Design.Size.rowCover
         ) -> some View {
             HStack(spacing: Design.Space.medium) {
                 if model.isSelecting { tick(model.selection.contains(work.id)) }
@@ -420,6 +487,7 @@ enum LibraryScreen {
                 VStack(alignment: .leading, spacing: Design.Space.small) {
                     BookRow(
                         work: work,
+                        coverWidth: coverWidth,
                         showsSeries: showsSeries,
                         showsAuthor: seriesAuthor == nil || seriesAuthor != work.authorLine,
                         number: number,
