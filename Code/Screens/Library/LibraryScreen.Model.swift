@@ -72,7 +72,10 @@ extension LibraryScreen {
             private var stated: [SeriesRow]? {
                 guard series != nil, works.count > 1 else { return nil }
 
-                let numbers = works.compactMap(\.seriesOrder)
+                // A volume is counted from one, so nought is absence written as a figure rather than a
+                // place in the series. Taken as one, it draws a book nought and moves every volume
+                // after it down by one.
+                let numbers = works.compactMap(\.seriesOrder).filter { $0 > 0 }
 
                 guard numbers.count == works.count, Set(numbers).count == numbers.count else { return nil }
 

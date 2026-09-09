@@ -292,7 +292,9 @@ public actor SQLiteBookStore {
                 statement.reset()
                 statement.bind(1, workId)
                 statement.bind(2, series)
-                statement.bind(3, index)
+                // A series counts from one. This is read back as the book's volume and drawn as one,
+                // so a place counted from zero puts a book nought on every shelf.
+                statement.bind(3, index + 1)
                 statement.execute()
             }
         }
@@ -859,6 +861,7 @@ public actor SQLiteBookStore {
         addProvenanceColumns()
         repairProgress()
         markServiceBooksRead()
+        countSeriesFromOne()
     }
 
     /// Adds the columns that say where a book came from, for a store made before it could tell.
@@ -1085,6 +1088,23 @@ public actor SQLiteBookStore {
             """
         )
         execute("PRAGMA user_version = 2")
+    }
+
+    /// Renumbers a series the reader put together by hand, which was filed counting from zero.
+    ///
+    /// The place a book was given is what the shelf draws as its volume, so every series assembled
+    /// before this opened with a book nought. Only the series that start at zero move, and each
+    /// moves whole, so the order the reader chose is the order they keep.
+    private func countSeriesFromOne() {
+        guard userVersion() < 3 else { return }
+
+        execute(
+            """
+            UPDATE book_series SET sort_order = sort_order + 1
+            WHERE series IN (SELECT series FROM book_series GROUP BY series HAVING MIN(sort_order) = 0)
+            """
+        )
+        execute("PRAGMA user_version = 3")
     }
 
     private func userVersion() -> Int {
