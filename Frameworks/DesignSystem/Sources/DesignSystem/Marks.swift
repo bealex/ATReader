@@ -126,6 +126,24 @@ public struct CircleMark: View {
     }
 }
 
+/// One glyph, set on the line the way a letter is.
+///
+/// An `Image` carries no baseline, so a symbol dropped into a row is lined up by its bottom edge and
+/// sits below the type beside it. Set as text, the glyph is on the line the row is on, and takes its
+/// size from whatever font the row is using.
+public struct LineGlyph: View {
+    public let systemImage: String
+
+    public init(systemImage: String) {
+        self.systemImage = systemImage
+    }
+
+    public var body: some View {
+        Text(Image(systemName: systemImage))
+            .accessibilityHidden(true)
+    }
+}
+
 /// One fact, as a tinted pill: a glyph and a short phrase.
 public struct Pill: View {
     /// A pill with no title is its glyph alone.

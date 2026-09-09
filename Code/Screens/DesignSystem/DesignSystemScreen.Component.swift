@@ -341,9 +341,35 @@ enum DesignSystemScreen {
                             ProgressMark(progress: 0.99, isComplete: false, ground: .artwork)
                             ProgressMark(progress: 1, isComplete: true, ground: .artwork)
                             ProgressMark(progress: 0.47, isComplete: false)
-                            FileMark()
+                            SourceMark(origin: .service)
+                            SourceMark(origin: .litres)
+                            SourceMark(origin: .file)
+                            OngoingMark()
                             LibraryMark(inLibrary: true)
                             LibraryMark(inLibrary: false)
+                        }
+                    }
+
+                    // A glyph is not text, and a row aligned on the baseline lines an image up by
+                    // its bottom edge. The first line here is what that looks like; the second is the
+                    // same glyph set as one, which is what belongs in a row.
+                    specimen("Baseline: a glyph sits on the line only when it is set as one") {
+                        VStack(alignment: .leading, spacing: Design.Space.large) {
+                            RowStack {
+                                Image(systemName: "checkmark.circle.fill")
+                                    .font(Design.Style.caption)
+                                SeriesNumber(number: 3)
+                                Text(verbatim: "Image, off the line")
+                                    .font(Design.Style.label)
+                            }
+
+                            RowStack {
+                                LineGlyph(systemImage: "checkmark.circle.fill")
+                                    .font(Design.Style.caption)
+                                SeriesNumber(number: 3)
+                                Text(verbatim: "LineGlyph, on it")
+                                    .font(Design.Style.label)
+                            }
                         }
                     }
 
@@ -436,7 +462,14 @@ enum DesignSystemScreen {
 
                     specimen("Cover, with nothing loaded") {
                         HStack(alignment: .top, spacing: Design.Space.medium) {
-                            CoverImage(url: nil, width: Design.Size.rowCover, progress: 0.47, isLocal: true)
+                            CoverImage(
+                                url: nil,
+                                width: Design.Size.rowCover,
+                                progress: 0.47,
+                                origin: .litres,
+                                isOngoing: true
+                            )
+                            CoverImage(url: nil, width: Design.Size.rowCover, origin: .service)
                             CoverImage(url: nil, width: Design.Size.rowCover)
                         }
                     }

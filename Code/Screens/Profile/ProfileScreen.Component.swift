@@ -19,11 +19,24 @@ enum ProfileScreen {
         @State
         private var isConfirmingSignOut = false
 
+        @Environment(ShelfSettings.self)
+        private var shelf
+
         @State
         private var isConfirmingClear = false
 
         @State
         private var cacheSize: Int64 = 0
+
+        /// The setting is a class the view only reads from here, so the toggle is handed a binding
+        /// into it rather than the view being rebuilt around one.
+        private var shelfBinding: Binding<Bool> {
+            Binding {
+                shelf.showsLikes
+            } set: {
+                shelf.showsLikes = $0
+            }
+        }
 
         /// What the device is holding, which changes whenever books arrive or are cleared out.
         private func refreshStats() async {
@@ -44,6 +57,18 @@ enum ProfileScreen {
                             Label("Reader appearance", systemImage: "textformat.size")
                         }
                         .accessibilityHint("Font and page settings for reading")
+                    }
+
+                    Section {
+                        Toggle(isOn: shelfBinding) {
+                            Label("Show likes", systemImage: "heart")
+                        }
+                        .accessibilityIdentifier("profile.showsLikes")
+                        .accessibilityHint("Shows how many readers liked each book")
+                    } header: {
+                        Text("Shelf")
+                    } footer: {
+                        Text("How many people liked a book, on its row and its page.")
                     }
 
                     Section {

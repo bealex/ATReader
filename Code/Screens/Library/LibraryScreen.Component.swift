@@ -284,7 +284,7 @@ enum LibraryScreen {
 
                         switch line {
                             case let .row(row): seriesRow(model, row: row)
-                            case let .read(folded): readRunRow(model, folded: folded)
+                            case let .folded(folded): runRow(model, folded: folded)
                         }
                     }
                 }
@@ -379,10 +379,9 @@ enum LibraryScreen {
             RowStack(spacing: Design.Space.medium) {
                 // The read row's tick, kept as space rather than drawn, so the numbers line up down
                 // the card however wide that glyph turns out to be.
-                Image(systemName: "checkmark.circle.fill")
+                LineGlyph(systemImage: "checkmark.circle.fill")
                     .font(Design.Style.caption)
                     .hidden()
-                    .accessibilityHidden(true)
 
                 RowStack {
                     SeriesNumber(number: number)
@@ -439,10 +438,9 @@ enum LibraryScreen {
             RowStack(spacing: Design.Space.medium) {
                 if model.isSelecting { tick(model.selection.contains(work.id)) }
 
-                Image(systemName: "checkmark.circle.fill")
+                LineGlyph(systemImage: "checkmark.circle.fill")
                     .font(Design.Style.caption)
                     .foregroundStyle(.tint)
-                    .accessibilityHidden(true)
 
                 RowStack {
                     if let number { SeriesNumber(number: number) }
@@ -480,17 +478,20 @@ enum LibraryScreen {
             }
         }
 
-        /// A run of books the reader is done with, folded into the volumes it covers.
+        /// A run of lines folded into the volumes it covers: books read, or volumes not held.
         ///
         /// Four titles behind the reader are four lines that say the same thing, so the line that
         /// stands for them says only which volumes they are. Tapping opens the run, and scrolling the
         /// shelf folds it back.
-        private func readRunRow(_ model: Model, folded: Model.ReadRun) -> some View {
-            RowStack(spacing: Design.Space.medium) {
-                Image(systemName: "checkmark.circle.fill")
+        private func runRow(_ model: Model, folded: Model.FoldedRun) -> some View {
+            let isRead = folded.kind == .read
+
+            return RowStack(spacing: Design.Space.medium) {
+                // The gap run keeps the tick's width as space, so numbers line up down the whole card.
+                LineGlyph(systemImage: "checkmark.circle.fill")
                     .font(Design.Style.caption)
                     .foregroundStyle(.tint)
-                    .accessibilityHidden(true)
+                    .opacity(isRead ? 1 : 0)
 
                 RowStack {
                     SeriesNumber(number: folded.numbers.lowerBound)
@@ -501,6 +502,13 @@ enum LibraryScreen {
                         .accessibilityHidden(true)
 
                     SeriesNumber(number: folded.numbers.upperBound)
+
+                    if !isRead {
+                        Text("Not in your library")
+                            .font(Design.Style.label)
+                            .foregroundStyle(.tertiary)
+                            .lineLimit(1)
+                    }
                 }
 
                 Spacer(minLength: Design.Space.medium)
@@ -512,14 +520,25 @@ enum LibraryScreen {
             }
             .padding(.horizontal, Design.Space.large)
             .padding(.vertical, Design.Space.medium)
+            .foregroundStyle(isRead ? AnyShapeStyle(.primary) : AnyShapeStyle(.tertiary))
             .contentShape(.rect)
             .onTapGesture {
                 withAnimation { model.open(folded) }
             }
             .accessibilityElement(children: .ignore)
-            .accessibilityLabel("Books \(folded.numbers.lowerBound) to \(folded.numbers.upperBound), read")
+            .accessibilityLabel(runLabel(folded))
             .accessibilityAddTraits(.isButton)
-            .accessibilityHint("Shows the books you have read")
+            .accessibilityHint(isRead ? "Shows the books you have read" : "Shows which volumes are missing")
+        }
+
+        private func runLabel(_ folded: Model.FoldedRun) -> String {
+            let first = folded.numbers.lowerBound
+            let last = folded.numbers.upperBound
+
+            return switch folded.kind {
+                case .read: String(localized: "Books \(first) to \(last), read")
+                case .missing: String(localized: "Volumes \(first) to \(last), not in your library")
+            }
         }
 
         /// What a tap on the body of a row does: pick the book while selecting, else open its page.

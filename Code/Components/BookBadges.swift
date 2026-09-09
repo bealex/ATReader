@@ -12,6 +12,9 @@ import SwiftUI
 /// How far the reader has got is not among them: the ring on the cover says that already, and saying it
 /// twice on one row reads as two different facts.
 struct BookBadges: View {
+    @Environment(ShelfSettings.self)
+    private var settings
+
     let work: Book
     /// Whether the reader's own standing in the book counts, which decides between Finished and Ongoing.
     var showsProgress = false
@@ -33,7 +36,7 @@ struct BookBadges: View {
                 )
             }
 
-            if let likes = BookFormatting.likes(work.likeCount) {
+            if settings.showsLikes, let likes = BookFormatting.likes(work.likeCount) {
                 Pill(title: likes, systemImage: "heart.fill", label: likes)
             }
 
@@ -43,17 +46,14 @@ struct BookBadges: View {
         }
     }
 
-    /// Where the book stands, which is the first thing a row says about it. A book its author has
-    /// finished says nothing here: that is the ordinary case, and a pill for it would sit on every row.
-    /// Being caught up is the ring's business.
+    /// Where the reader stands in the book. A book its author has finished says nothing here: that is
+    /// the ordinary case, and a pill for it would sit on every row. Being caught up is the ring's
+    /// business, and one still being written is marked on its own cover.
     @ViewBuilder
     private var state: some View {
         if showsProgress, work.isFinishedReading {
             let title = String(localized: "Finished")
             Pill(title: title, systemImage: "checkmark.circle.fill", tint: Design.Palette.positive, label: title)
-        } else if work.isOngoing {
-            let title = String(localized: "Ongoing")
-            Pill(title: title, systemImage: "pencil", label: title)
         }
     }
 }

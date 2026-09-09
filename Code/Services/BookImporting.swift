@@ -39,7 +39,9 @@ enum BookImporting {
     static func reimport(workId: Int, store: SQLiteBookStore = .shared) async throws -> Book {
         guard let data = LocalBookFiles.keptFile(workId: workId) else { throw FB2Error.unreadable }
 
-        return try await install(data, store: store)
+        // The text is already on the device by definition, so the check that stops a book arriving
+        // twice would stop this book being read again at all.
+        return try await install(data, store: store, deduplicating: false)
     }
 
     /// Reads bytes into a book without putting it anywhere.
@@ -61,8 +63,20 @@ enum BookImporting {
         await BookInstaller.install(read.book, source: read.source, origin: origin, store: store)
     }
 
-    private static func install(_ data: Data, store: SQLiteBookStore) async throws -> Book {
+    private static func install(
+        _ data: Data,
+        store: SQLiteBookStore,
+        deduplicating: Bool = true
+    ) async throws -> Book {
         let read = try await read(data)
+
+        // The same text already here, whatever file carried it in or which service it came from: one
+        // book, rather than two rows of one book standing next to each other on the shelf.
+        if deduplicating,
+                let held = await store.localBook(contentHash: BookInstaller.hash(read.source)),
+                let already = await store.book(id: held.workId) {
+            return already.summary
+        }
 
         // `data` is the file as it was picked, which is the archive where the book came in one. Kept
         // so a book bought from a service and also carried in by hand is recognised as the one book

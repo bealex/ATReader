@@ -316,6 +316,11 @@ public actor SQLiteBookStore {
         localBook(where: "fingerprint = ?") { $0.bind(1, fingerprint) }
     }
 
+    /// Where one book on the shelf came from, for the screen that shows it.
+    public func localBook(workId: Int) -> LocalBookRecord? {
+        localBook(where: "work_id = ?") { $0.bind(1, workId) }
+    }
+
     /// The book already here whose own text is this one, whatever it arrived in or where it came from.
     public func localBook(contentHash: String) -> LocalBookRecord? {
         localBook(where: "content_hash = ?") { $0.bind(1, contentHash) }

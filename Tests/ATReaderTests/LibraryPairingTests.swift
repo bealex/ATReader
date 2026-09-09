@@ -50,6 +50,43 @@ struct LibraryPairingTests {
         )
     }
 
+    /// Two copies whose text hashes alike are one book, whatever either is called and whichever shelf
+    /// each came off. Nothing else can say so: the two files carry different names and different
+    /// volume numbers, which is exactly what stops the title comparison from pairing them.
+    @Test
+    func twoCopiesOfOneTextAreOneBook() {
+        let held = [
+            Self.book(id: -1, title: "Зимпель-ноль", order: 1, read: 0.2, started: true),
+            Self.book(id: -2, title: "Зимпель-ноль (Зимпель-1)", order: 2, read: 0.9, started: true),
+        ]
+        let shelf = Model.oneOfEach(held, sameText: [ -1: "abc", -2: "abc" ])
+
+        #expect(shelf.count == 1)
+        // The copy the reader has got further into, since the words are the same either way.
+        #expect(shelf.first?.id == -2)
+    }
+
+    /// Different text is different books, however alike the two hashes' owners look otherwise.
+    @Test
+    func copiesOfDifferentTextStayTwoBooks() {
+        let held = [
+            Self.book(id: -1, title: "Зимпель-ноль", order: 1),
+            Self.book(id: -2, title: "Ворбат-один", order: 2),
+        ]
+
+        #expect(Model.oneOfEach(held, sameText: [ -1: "abc", -2: "def" ]).count == 2)
+    }
+
+    /// A book the service holds has no text on the device, so it pairs on its name as it always did.
+    @Test
+    func aTextlessCopyStillPairsByName() {
+        let held = [ Self.book(id: 7, read: 0.5, started: true), Self.book(id: -1, read: 1) ]
+        let shelf = Model.oneOfEach(held, sameText: [ -1: "abc" ])
+
+        #expect(shelf.count == 1)
+        #expect(shelf.first?.id == 7)
+    }
+
     @Test
     func abookHeldOnceIsLeftAlone() {
         let only = [ Self.book(id: 1), Self.book(id: -1, title: "Другая книга") ]

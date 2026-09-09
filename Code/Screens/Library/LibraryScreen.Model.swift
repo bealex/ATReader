@@ -95,8 +95,18 @@ extension LibraryScreen {
             }
         }
 
-        /// A run of books the reader is done with, drawn as one line until it is opened.
-        struct ReadRun: Identifiable {
+        /// What a folded run is made of. Both kinds are lines the reader scrolls past to reach the book
+        /// they are actually in, and both fold into the volumes they cover.
+        enum FoldedKind {
+            /// Books already read.
+            case read
+            /// Volumes between two books the reader holds that they don't.
+            case missing
+        }
+
+        /// A run of lines saying the same thing, drawn as one until it is opened.
+        struct FoldedRun: Identifiable {
+            let kind: FoldedKind
             let rows: [SeriesRow]
             /// The volumes it covers, which is the whole of what the folded line says. A run whose
             /// books carry no numbers has nothing to fold into, so it stays as it is.
@@ -104,11 +114,12 @@ extension LibraryScreen {
 
             var id: String { "run:\(rows.first?.id ?? "")" }
 
-            init?(_ rows: [SeriesRow]) {
+            init?(_ rows: [SeriesRow], kind: FoldedKind) {
                 let numbers = rows.compactMap { row -> Int? in
-                    guard case let .book(_, number, _) = row else { return nil }
-
-                    return number
+                    switch row {
+                        case let .book(_, number, _): number
+                        case let .missing(number): number
+                    }
                 }
 
                 guard
@@ -117,6 +128,7 @@ extension LibraryScreen {
                     let last = numbers.max()
                 else { return nil }
 
+                self.kind = kind
                 self.rows = rows
                 self.numbers = first ... last
             }
@@ -125,12 +137,12 @@ extension LibraryScreen {
         /// A line of a series card as it is drawn: a row of its own, or a run folded into one.
         enum ShelfRow: Identifiable {
             case row(SeriesRow)
-            case read(ReadRun)
+            case folded(FoldedRun)
 
             var id: String {
                 switch self {
                     case let .row(row): row.id
-                    case let .read(folded): folded.id
+                    case let .folded(folded): folded.id
                 }
             }
         }
@@ -250,18 +262,31 @@ extension LibraryScreen {
         var visibleWorks: [Book] { groups.flatMap(\.works) }
 
         /// The shelf's own books: one copy of each, whichever of them is the better one to hold.
-        var library: [Book] { Self.oneOfEach(works) }
+        var library: [Book] { Self.oneOfEach(works, sameText: sameText) }
+
+        /// Every local book's own text, hashed, so two copies of one book are one book on the shelf.
+        private(set) var sameText: [Int: String] = [:]
 
         /// The books the local title and author search leaves, before the filter has had its say.
         private var searchedWorks: [Book] {
-            let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-
-            guard !query.isEmpty else { return library }
+            guard let query else { return library }
 
             return library.filter {
                 $0.title.lowercased().contains(query) || $0.authorLine.lowercased().contains(query)
             }
         }
+
+        /// What is being looked for, where anything is.
+        private var query: String? {
+            let asked = searchText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+
+            return asked.isEmpty ? nil : asked
+        }
+
+        /// A search stands the filter aside: a reader looking for a book by name is looking for it
+        /// wherever it is, and a shelf answering "nothing found" because the book was finished would
+        /// be wrong rather than filtered.
+        private var searchFilter: Filter { query == nil ? filter : .everything }
 
         /// Books in a series stand together under its name, latest first; a book in no series stands
         /// alone. Whatever was last read or last gained a chapter comes first.
@@ -272,7 +297,7 @@ extension LibraryScreen {
             let series = Dictionary(grouping: searched.filter { $0.series != nil }) { $0.series ?? "" }
 
             let grouped = series.compactMap { title, works -> Group? in
-                guard filter.includes(works) else { return nil }
+                guard searchFilter.includes(works) else { return nil }
 
                 // A series the reader assembled keeps the order they put it in; one the service named
                 // leads with its newest book, which is the one still gaining chapters.
@@ -291,7 +316,7 @@ extension LibraryScreen {
                     numbering: made ? nil : SeriesNumbering.read(ordered)
                 )
             }
-            let alone = searched.filter { $0.series == nil && filter.includes([ $0 ]) }.map { work in
+            let alone = searched.filter { $0.series == nil && searchFilter.includes([ $0 ]) }.map { work in
                 Group(id: "work:\(work.id)", series: nil, works: [ work ], updated: Self.updated(work))
             }
 
@@ -347,7 +372,45 @@ extension LibraryScreen {
         /// A book bought on one service and owned on the other is one book on the shelf. Which copy is
         /// shown is decided per book rather than once for the whole library, because the right answer
         /// changes with where the reader has got to.
-        static func oneOfEach(_ works: [Book]) -> [Book] {
+        static func oneOfEach(_ works: [Book], sameText: [Int: String] = [:]) -> [Book] {
+            byTitle(sameBooks(works, sameText: sameText))
+        }
+
+        /// Copies whose text is the very same text, folded into one.
+        ///
+        /// A book carried in by hand and the same book brought across from a service are two files
+        /// with one text between them, and no comparing of titles is needed to say so: they hash
+        /// alike. This runs first, since a book itself says more than what it was named.
+        private static func sameBooks(_ works: [Book], sameText: [Int: String]) -> [Book] {
+            var chosen: [String: Book] = [:]
+            var order: [String] = []
+
+            for work in works {
+                // A book with no text on the device stands for itself: the service holds it, and two
+                // of those are told apart by name like everything else.
+                let key = sameText[work.id].map { "text:\($0)" } ?? "work:\(work.id)"
+
+                guard
+                    let rival = chosen[key]
+                else {
+                    chosen[key] = work
+                    order.append(key)
+                    continue
+                }
+
+                chosen[key] = furtherRead(rival, over: work)
+            }
+
+            return order.compactMap { chosen[$0] }
+        }
+
+        /// Of two copies of one text, the one the reader has got further into. Nothing else tells them
+        /// apart: the words are identical, so what is worth keeping is the place in them.
+        private static func furtherRead(_ left: Book, over right: Book) -> Book {
+            (right.readingProgress ?? 0) > (left.readingProgress ?? 0) ? right : left
+        }
+
+        private static func byTitle(_ works: [Book]) -> [Book] {
             var chosen: [String: Book] = [:]
             var order: [String] = []
 
@@ -458,7 +521,7 @@ extension LibraryScreen {
         /// The folded runs the reader has opened. Scrolling the shelf closes them again.
         private(set) var openRuns: Set<String> = []
 
-        func open(_ folded: ReadRun) { openRuns.insert(folded.id) }
+        func open(_ folded: FoldedRun) { openRuns.insert(folded.id) }
 
         func closeRuns() {
             guard !openRuns.isEmpty else { return }
@@ -474,7 +537,8 @@ extension LibraryScreen {
             work.isFinishedReading && newChapters(for: work.id) == 0
         }
 
-        /// The card's lines, with each long run of books already read folded into one.
+        /// The card's lines, with each long run of books already read, or of volumes the reader
+        /// doesn't hold, folded into one.
         ///
         /// Picking books out leaves every row showing, since a folded run hides books the reader is
         /// reaching for.
@@ -482,36 +546,55 @@ extension LibraryScreen {
             guard !isSelecting else { return group.rows.map(ShelfRow.row) }
 
             var shelf: [ShelfRow] = []
-            var behind: [SeriesRow] = []
+            var gathering: [SeriesRow] = []
+            var running: FoldedKind?
 
             func fold() {
-                defer { behind = [] }
+                let gathered = gathering
+                let kind = running
+
+                gathering = []
+                running = nil
 
                 guard
-                    behind.count > Self.longestOpenRun,
-                    let folded = ReadRun(behind),
+                    gathered.count > Self.longestOpenRun,
+                    let kind,
+                    let folded = FoldedRun(gathered, kind: kind),
                     !openRuns.contains(folded.id)
-                else { return shelf.append(contentsOf: behind.map(ShelfRow.row)) }
+                else { return shelf.append(contentsOf: gathered.map(ShelfRow.row)) }
 
-                shelf.append(.read(folded))
+                shelf.append(.folded(folded))
             }
 
             for row in group.rows {
                 guard
-                    case let .book(work, _, _) = row,
-                    isBehindTheReader(work)
+                    let kind = foldable(row)
                 else {
                     fold()
                     shelf.append(.row(row))
                     continue
                 }
 
-                behind.append(row)
+                // A run is one thing throughout: read books and gaps that meet each other are two
+                // runs, not one line claiming to be both.
+                if kind != running { fold() }
+
+                running = kind
+                gathering.append(row)
             }
 
             fold()
 
             return shelf
+        }
+
+        /// Which kind of run this line can join, where it can join one. A book the reader is in stands
+        /// on its own however many of its neighbours fold.
+        private func foldable(_ row: SeriesRow) -> FoldedKind? {
+            switch row {
+                case let .book(work, _, _): isBehindTheReader(work) ? .read : nil
+                case .missing: .missing
+            }
         }
 
         // MARK: - Series the reader puts together
@@ -641,6 +724,8 @@ extension LibraryScreen {
         func refreshFromStore() async {
             let stored = await store.books()
 
+            await readTextHashes()
+
             guard !stored.isEmpty else { return }
 
             apply(entries: stored)
@@ -691,9 +776,23 @@ extension LibraryScreen {
         private func showStoredLibrary() async {
             let stored = await store.books()
 
+            await readTextHashes()
+
             guard !stored.isEmpty, works.isEmpty else { return }
 
             apply(entries: stored)
+        }
+
+        /// What each local book's text hashes to, which is what says two rows are one book.
+        private func readTextHashes() async {
+            let held = await store.localBooks()
+            let hashes = held.reduce(into: [Int: String]()) { found, record in
+                guard let hash = record.contentHash else { return }
+
+                found[record.workId] = hash
+            }
+
+            if sameText != hashes { sameText = hashes }
         }
 
         /// Looks for chapters published since the device last looked.
@@ -759,6 +858,8 @@ extension LibraryScreen {
                 // Read back rather than painting what arrived: the service carries no progress this
                 // device made, so its copy would undo a book marked read the moment it landed.
                 let merged = await store.books()
+
+                await readTextHashes()
                 apply(entries: merged.isEmpty ? entries : merged)
                 isOffline = false
                 hasLoaded = true

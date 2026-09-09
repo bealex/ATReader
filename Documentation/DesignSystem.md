@@ -33,6 +33,7 @@ apply `Design` to the page.
 | `CalloutMotion` | How an aside comes and goes. |
 | `callout(over:item:ground:)` | Hangs an aside over something in a view's own space. |
 | `sitsOnTheLine()` | What a boxed label wears so its ground sits on the line rather than under it. |
+| `LineGlyph` | A symbol set as text, so a row's baseline runs through it. |
 
 ## The five colours
 
@@ -79,9 +80,16 @@ drawn through its text hangs the ground below the line by whatever padding sits 
 `SeriesNumber` wear `sitsOnTheLine()`, which takes that padding back out of the baseline they offer the
 row and puts the box itself on the line. Any new boxed label wears it too.
 
-The catalogue's **Baseline** specimen is where this is checked: a badge beside each of the text roles,
-the shelf's folded run, and one row carrying a glyph, a badge, words and a pill together. If anything in
-those rows sits low or floats, the rule has been broken somewhere.
+A glyph needs the same care for the opposite reason. An `Image` carries no baseline at all, so a symbol
+dropped into a row is lined up by its bottom edge and sits below the words beside it. `LineGlyph` sets
+the symbol as text, which puts it on the line and takes its size from the row's own font. A symbol
+standing next to type is a `LineGlyph`; one standing alone, or inside a mark of its own, stays an
+`Image`.
+
+The catalogue's two **Baseline** specimens are where this is checked: a badge beside each of the text
+roles, the shelf's folded run, one row carrying a glyph, a badge, words and a pill together, and a row
+setting the same glyph both ways so the difference is visible. If anything in those rows sits low or
+floats, the rule has been broken somewhere.
 
 ## Asides
 

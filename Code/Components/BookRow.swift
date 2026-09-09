@@ -11,6 +11,9 @@ import SwiftUI
 
 /// A book as it appears in every list: cover, title, author and the reader's own position.
 struct BookRow: View {
+    @Environment(BookOrigins.self)
+    private var origins
+
     let work: Book
     var showsProgress = true
     /// Off where the list already groups by series, so the row doesn't repeat its own heading.
@@ -80,7 +83,8 @@ struct BookRow: View {
             url: work.coverURL,
             width: Design.Size.rowCover,
             progress: showsProgress ? work.readingProgress : nil,
-            isLocal: BookNumbering.isLocal(work.id)
+            origin: origins.origin(of: work.id),
+            isOngoing: work.isOngoing
         )
         .overlay(alignment: .topTrailing) {
             if newChapters > 0 {

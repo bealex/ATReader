@@ -222,6 +222,17 @@
       "extractionState": "manual",
       "shouldTranslate": false
     },
+    "A file on this device": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Файл на этом устройстве"
+          }
+        }
+      }
+    },
     "ATReader": {
       "extractionState": "manual",
       "shouldTranslate": false
@@ -266,6 +277,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Добавить в библиотеку"
+          }
+        }
+      }
+    },
+    "Added %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Добавлена %@"
           }
         }
       }
@@ -527,6 +549,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Отмена"
+          }
+        }
+      }
+    },
+    "Changed there %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Изменена там %@"
           }
         }
       }
@@ -1137,6 +1170,17 @@
       "extractionState": "manual",
       "shouldTranslate": false
     },
+    "How many people liked a book, on its row and its page.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сколько людей оценило книгу, в списке и на её странице."
+          }
+        }
+      }
+    },
     "In your library": {
       "extractionState": "manual",
       "localizations": {
@@ -1276,6 +1320,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Межстрочный интервал"
+          }
+        }
+      }
+    },
+    "Litres": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ЛитРес"
           }
         }
       }
@@ -2246,6 +2301,17 @@
         }
       }
     },
+    "Shelf": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Полка"
+          }
+        }
+      }
+    },
     "Show": {
       "extractionState": "manual",
       "localizations": {
@@ -2253,6 +2319,28 @@
           "stringUnit": {
             "state": "translated",
             "value": "Показывать"
+          }
+        }
+      }
+    },
+    "Show likes": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Показывать лайки"
+          }
+        }
+      }
+    },
+    "Shows how many readers liked each book": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Показывает, сколько читателей оценило книгу"
           }
         }
       }
@@ -2275,6 +2363,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Показывает список глав"
+          }
+        }
+      }
+    },
+    "Shows which volumes are missing": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Показывает, каких томов не хватает"
           }
         }
       }
@@ -2730,6 +2829,17 @@
         }
       }
     },
+    "Volumes %lld to %lld, not in your library": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Тома с %1$lld по %2$lld, не в вашей библиотеке"
+          }
+        }
+      }
+    },
     "Weight": {
       "extractionState": "manual",
       "localizations": {
@@ -2748,6 +2858,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Что почитать?"
+          }
+        }
+      }
+    },
+    "Where it came from": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Откуда книга"
           }
         }
       }

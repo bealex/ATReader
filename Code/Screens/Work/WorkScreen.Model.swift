@@ -31,6 +31,10 @@ extension WorkScreen {
         private(set) var errorMessage: String?
         private(set) var isInLibrary = false
 
+        /// Where the copy on this device came from, for a book that came from anywhere but the
+        /// service. Nothing for a service book, which is itself the answer.
+        private(set) var provenance: LocalBookRecord?
+
         /// Where this device left off, which is what says how much of each chapter has been read.
         private(set) var position: ReadingPosition?
         private(set) var isUpdatingLibrary = false
@@ -152,9 +156,11 @@ extension WorkScreen {
             let stored = await store.book(id: workId)
             let storedChapters = await store.chapters(workId: workId)
             let storedPosition = await store.position(workId: workId)
+            let record = await store.localBook(workId: workId)
 
             if position != storedPosition { position = storedPosition }
             if chapters != storedChapters { chapters = storedChapters }
+            if provenance != record { provenance = record }
 
             guard let stored else { return }
 
@@ -164,6 +170,13 @@ extension WorkScreen {
             if tags != stored.tags { tags = stored.tags }
 
             isInLibrary = (stored.summary.libraryState ?? .none) != .none
+        }
+
+        /// Which shelf this copy came off, for the mark on its cover.
+        var origin: CoverOrigin {
+            guard isLocal else { return .service }
+
+            return provenance?.source == .litres ? .litres : .file
         }
 
         /// True for a book that came from a file. The service has nothing to say about one.

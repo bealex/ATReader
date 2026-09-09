@@ -17,8 +17,11 @@ struct CoverImage: View {
     var width: CGFloat = Design.Size.cover
     /// How far into the book the reader is, drawn as a ring on the cover itself.
     var progress: Double?
-    /// True where the book came from a file rather than the service, which the cover says quietly.
-    var isLocal = false
+    /// Which shelf the book came off, marked on the cover. Nothing marks nothing.
+    var origin: CoverOrigin?
+    /// True where the author is still writing it, which the cover says rather than the row: it is a
+    /// fact about the book, and the badges below are about the reader's standing in it.
+    var isOngoing = false
 
     @State
     private var image: UIImage?
@@ -53,8 +56,14 @@ struct CoverImage: View {
             }
         }
         .overlay(alignment: .topLeading) {
-            if isLocal {
-                FileMark()
+            if let origin {
+                SourceMark(origin: origin)
+                    .padding(Design.Space.extraSmall)
+            }
+        }
+        .overlay(alignment: .bottomLeading) {
+            if isOngoing {
+                OngoingMark()
                     .padding(Design.Space.extraSmall)
             }
         }
@@ -81,9 +90,44 @@ struct CoverImage: View {
 }
 
 /// A book that came from a file rather than from the service.
-struct FileMark: View {
+/// Which shelf a book came off.
+enum CoverOrigin: Equatable {
+    /// The service the app signs in to.
+    case service
+    case litres
+    /// Picked out of the files on the device by the reader.
+    case file
+
+    var systemImage: String {
+        switch self {
+            case .service: "cloud.fill"
+            case .litres: "bag.fill"
+            case .file: "doc.text.fill"
+        }
+    }
+
+    var name: String {
+        switch self {
+            case .service: "author.today"
+            case .litres: String(localized: "Litres")
+            case .file: String(localized: "A file on this device")
+        }
+    }
+}
+
+/// Where a book came from, as a mark on its cover.
+struct SourceMark: View {
+    let origin: CoverOrigin
+
     var body: some View {
-        CircleMark(systemImage: "doc.text.fill")
+        CircleMark(systemImage: origin.systemImage)
+    }
+}
+
+/// A book its author is still writing, as a mark on its cover.
+struct OngoingMark: View {
+    var body: some View {
+        CircleMark(systemImage: "pencil")
     }
 }
 

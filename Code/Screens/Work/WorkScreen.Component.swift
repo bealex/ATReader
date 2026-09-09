@@ -87,6 +87,8 @@ enum WorkScreen {
                     section("Tags") { tagCloud(model.tags) }
                 }
 
+                section("Where it came from") { origin(model) }
+
                 if !model.chapters.isEmpty {
                     contentsSection(model)
                 }
@@ -110,7 +112,8 @@ enum WorkScreen {
                     url: work.coverURL,
                     width: Design.Size.coverLarge,
                     progress: work.readingProgress,
-                    isLocal: model.isLocal
+                    origin: model.origin,
+                    isOngoing: work.isOngoing
                 )
                 .overlay(alignment: .topTrailing) {
                     // A book from a file is on no service shelf, so it carries no shelf mark.
@@ -243,6 +246,31 @@ enum WorkScreen {
             } message: {
                 Text("Its text is on this device only. You would need the file again to read it.")
             }
+        }
+
+        /// Which shelf this copy came off, and when it arrived.
+        ///
+        /// A book off a file or bought elsewhere is on no service shelf, so the device's own record is
+        /// the only thing that can say where it came from.
+        private func origin(_ model: Model) -> some View {
+            VStack(alignment: .leading, spacing: Design.Space.small) {
+                Label(model.origin.name, systemImage: model.origin.systemImage)
+                    .font(Design.Style.item)
+
+                if let record = model.provenance {
+                    Text("Added \(record.importedAt.formatted(date: .abbreviated, time: .omitted))")
+                        .font(Design.Style.caption)
+                        .foregroundStyle(.secondary)
+
+                    if let updated = record.sourceUpdatedAt, record.source.isService {
+                        Text("Changed there \(updated.formatted(date: .abbreviated, time: .omitted))")
+                            .font(Design.Style.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .accessibilityElement(children: .combine)
         }
 
         private func tagCloud(_ tags: [String]) -> some View {

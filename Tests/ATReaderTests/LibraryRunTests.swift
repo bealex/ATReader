@@ -65,9 +65,9 @@ struct LibraryRunTests {
             LibraryScreen.Model.SeriesRow.book(Self.book(number: $0, isRead: true), number: nil, title: "Книга")
         }
 
-        #expect(LibraryScreen.Model.ReadRun(unnumbered) == nil)
-        #expect(LibraryScreen.Model.ReadRun([ .missing(2) ]) == nil)
-        #expect(LibraryScreen.Model.ReadRun([]) == nil)
+        #expect(LibraryScreen.Model.FoldedRun(unnumbered, kind: .read) == nil)
+        #expect(LibraryScreen.Model.FoldedRun([], kind: .missing) == nil)
+        #expect(LibraryScreen.Model.FoldedRun([], kind: .read) == nil)
     }
 
     @Test
@@ -99,6 +99,35 @@ struct LibraryRunTests {
         #expect(model.shelfRows(of: group).count == 5)
     }
 
+    /// Volumes the reader doesn't hold fold the same way the ones they have read do: four lines
+    /// saying "not here" push the book they are actually reading off the screen.
+    @Test
+    func aLongRunOfMissingVolumesFoldsIntoOneLine() {
+        let rows = Self.model().shelfRows(of: Self.group(held: [ 1, 6 ]))
+
+        #expect(rows.count == 3)
+        #expect(rows.compactMap { Self.folded($0)?.numbers } == [ 2 ... 5 ])
+    }
+
+    /// Three gaps are already short enough to read past, like three read books.
+    @Test
+    func threeMissingVolumesStayThreeLines() {
+        let rows = Self.model().shelfRows(of: Self.group(held: [ 1, 5 ]))
+
+        #expect(rows.count == 5)
+        #expect(rows.allSatisfy { Self.folded($0) == nil })
+    }
+
+    /// A run is one thing throughout: read books and gaps that meet fold into two lines, not one
+    /// claiming to be both.
+    @Test
+    func readBooksAndGapsFoldSeparately() {
+        let rows = Self.model().shelfRows(of: Self.group(held: [ 1, 2, 3, 4, 10 ], read: [ 1, 2, 3, 4 ]))
+
+        #expect(rows.compactMap { Self.folded($0)?.kind } == [ .read, .missing ])
+        #expect(rows.count == 3)
+    }
+
     // MARK: - A shelf to file
 
     private static func model() -> LibraryScreen.Model {
@@ -121,12 +150,25 @@ struct LibraryRunTests {
         )
     }
 
+    /// One series holding only the volumes named, so the rest of the run is a gap.
+    private static func group(held: [Int], read: Set<Int> = []) -> LibraryScreen.Model.Group {
+        let works = held.map { book(number: $0, isRead: read.contains($0)) }
+
+        return .init(
+            id: "series:Эмбер",
+            series: "Эмбер",
+            works: works,
+            updated: .now,
+            numbering: SeriesNumbering.read(works)
+        )
+    }
+
     private static func shelf(read: [Bool]) -> [LibraryScreen.Model.ShelfRow] {
         model().shelfRows(of: group(read: read))
     }
 
-    private static func folded(_ row: LibraryScreen.Model.ShelfRow?) -> LibraryScreen.Model.ReadRun? {
-        guard case let .read(folded) = row else { return nil }
+    private static func folded(_ row: LibraryScreen.Model.ShelfRow?) -> LibraryScreen.Model.FoldedRun? {
+        guard case let .folded(folded) = row else { return nil }
 
         return folded
     }

@@ -29,6 +29,12 @@ struct ATReaderApp: App {
     @State
     private var backup = LibraryBackup()
 
+    @State
+    private var shelf = ShelfSettings()
+
+    @State
+    private var origins = BookOrigins()
+
     /// Hands the typesetter the picture shelf before anything asks it to set a page.
     init() {
         Renderers.connect()
@@ -42,7 +48,12 @@ struct ATReaderApp: App {
                 .environment(inbox)
                 .environment(litres)
                 .environment(backup)
+                .environment(shelf)
+                .environment(origins)
                 .environment(\.pagePictures, CoverPictures())
+                // Where each book came from is read once, and again whenever the shelf changes: a
+                // book only arrives from somewhere by coming through the inbox.
+                .task(id: inbox.importedAt) { await origins.refresh() }
                 // A book handed over by another app. The library screen may not exist yet, so the
                 // reading-in happens away from it and the shelf picks the book up afterwards.
                 .onOpenURL { url in
