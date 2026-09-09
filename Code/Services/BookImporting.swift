@@ -42,10 +42,35 @@ enum BookImporting {
         return try await install(data, store: store)
     }
 
-    private static func install(_ data: Data, store: SQLiteBookStore) async throws -> Book {
+    /// Reads bytes into a book without putting it anywhere.
+    ///
+    /// Apart from installing, so a caller that has to decide something about a book before keeping it
+    /// can look at it first: whether it is already here under another name, say.
+    static func read(_ data: Data) async throws -> ReadBook {
         guard let format = formats.first(where: { $0.canRead(data) }) else { throw FB2Error.notABook }
 
-        let read = try await format.read(data)
-        return await BookInstaller.install(read.book, source: read.source, store: store)
+        return try await format.read(data)
+    }
+
+    @discardableResult
+    static func install(
+        _ read: ReadBook,
+        origin: BookOrigin,
+        store: SQLiteBookStore = .shared
+    ) async -> Book {
+        await BookInstaller.install(read.book, source: read.source, origin: origin, store: store)
+    }
+
+    private static func install(_ data: Data, store: SQLiteBookStore) async throws -> Book {
+        let read = try await read(data)
+
+        // `data` is the file as it was picked, which is the archive where the book came in one. Kept
+        // so a book bought from a service and also carried in by hand is recognised as the one book
+        // it is, whichever of the two arrived first.
+        return await install(
+            read,
+            origin: BookOrigin(source: .file, archive: data == read.source ? nil : data),
+            store: store
+        )
     }
 }

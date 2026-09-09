@@ -3,7 +3,7 @@
 An iOS reader client for [author.today](https://author.today): sign in, read your library, search the
 catalogue, follow the charts.
 
-Seven modules. Six packages under `Frameworks/` hold everything that isn't a screen, and `Code/` holds
+Eight modules. Seven packages under `Frameworks/` hold everything that isn't a screen, and `Code/` holds
 the screens, the session and the wiring between them.
 
 ```
@@ -14,6 +14,7 @@ BookStorage        one SQLite file, covers, keychain.   → BookKit
 BookRenderer       typography, pagination, the page.    → BookKit
 AuthorTodayBooks   the service's shapes as one Book.    → BookKit, AuthorToday
 AuthorToday        HTTP, models, decryption.
+Litres             signing in, the reader's own shelf, downloads. Foundation only.
 Code/              screens, session, sweep, composition.
 ```
 

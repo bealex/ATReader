@@ -4,6 +4,7 @@
 //
 
 import BookKit
+import CryptoKit
 import Foundation
 import OSLog
 
@@ -11,6 +12,39 @@ import OSLog
 ///
 /// Knows nothing about any file format. Whoever hands it a ``ParsedBook`` has already decided what
 /// could read one.
+/// Where a book being installed came from, and what it arrived in.
+///
+/// A book picked off the device needs none of this and takes the default. A book fetched from a service
+/// carries the service's own name for it, so the next synchronisation knows it is already here, and the
+/// date the service last changed it, so it knows whether this copy is behind.
+public struct BookOrigin: Sendable {
+    public var source: BookSource
+    /// What the source calls it. A Litres art id; nothing for a book off a file.
+    public var sourceId: String?
+    /// When the source last changed it.
+    public var updatedAt: Date?
+    /// The container the book arrived in, where it arrived in one. Hashed so the same download is
+    /// recognised without being read again.
+    public var archive: Data?
+    /// What to file the book under, where the source names it better than the file can. A service's own
+    /// id is steadier than a title and an author, which two editions of one book may share.
+    public var fingerprint: String?
+
+    public init(
+        source: BookSource = .file,
+        sourceId: String? = nil,
+        updatedAt: Date? = nil,
+        archive: Data? = nil,
+        fingerprint: String? = nil
+    ) {
+        self.source = source
+        self.sourceId = sourceId
+        self.updatedAt = updatedAt
+        self.archive = archive
+        self.fingerprint = fingerprint
+    }
+}
+
 public enum BookInstaller {
     private static let logger = Logger(subsystem: "com.lonelybytes.atreader", category: "install")
 
@@ -22,9 +56,11 @@ public enum BookInstaller {
     public static func install(
         _ book: ParsedBook,
         source: Data,
+        origin: BookOrigin = BookOrigin(),
         store: SQLiteBookStore = .shared
     ) async -> Book {
-        let workId = await store.localBookId(fingerprint: book.fingerprint)
+        let fingerprint = origin.fingerprint ?? book.fingerprint
+        let workId = await store.localBookId(fingerprint: fingerprint)
 
         keep(source, workId: workId)
         let cover = write(cover: book.cover, workId: workId)
@@ -51,8 +87,25 @@ public enum BookInstaller {
             )
         }
 
+        await store.store(provenance: LocalBookRecord(
+            workId: workId,
+            fingerprint: fingerprint,
+            source: origin.source,
+            sourceId: origin.sourceId,
+            sourceUpdatedAt: origin.updatedAt,
+            // The book's own text rather than what carried it, so the same book in a different wrapper
+            // is still the same book.
+            contentHash: hash(source),
+            archiveHash: origin.archive.map(hash)
+        ))
+
         logger.info("installed \(book.sections.count) chapters as work \(workId)")
         return summary
+    }
+
+    /// What a run of bytes is called when the question is only whether two of them are the same.
+    public static func hash(_ data: Data) -> String {
+        SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
     }
 
     /// Keeps the book's own text so it can be read again without the reader finding the file.

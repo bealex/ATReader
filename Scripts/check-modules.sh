@@ -32,13 +32,19 @@ forbid() {
 }
 
 forbid SwiftUI "nothing that models a book or talks to a service draws one" \
-  AuthorToday BookKit BookFormats BookStorage AuthorTodayBooks
+  AuthorToday Litres BookKit BookFormats BookStorage AuthorTodayBooks
 
 forbid DesignSystem "the reader page is set by whoever is reading, not by the app's design system" \
   BookRenderer
 
 forbid AuthorToday "only AuthorTodayBooks meets the service" \
   BookKit DesignSystem BookFormats BookStorage BookRenderer
+
+forbid Litres "a service is met by the app, not by anything that models a book" \
+  AuthorToday BookKit DesignSystem BookFormats BookStorage BookRenderer AuthorTodayBooks
+
+forbid BookKit "a service package knows nothing about this app's books" \
+  Litres
 
 forbid BookKit "the design system knows nothing about books" \
   DesignSystem

@@ -100,6 +100,70 @@ public struct ChapterContent: Codable, Sendable {
     public var imageSources: [String] { paragraphs.compactMap(\.imageSource) }
 }
 
+/// Where a book on the device came from.
+///
+/// A library with two ways in needs to say which one a book came by: a book the reader picked is theirs
+/// to keep however the service feels about it, and a book from a service can be fetched again.
+public enum BookSource: String, Sendable, Codable, CaseIterable {
+    /// Picked out of the files on the device by the reader.
+    case file
+    case litres
+
+    public var isService: Bool { self != .file }
+}
+
+/// What the device knows about a book it holds: where it came from, when, and what it was.
+///
+/// The two hashes are what stop the same book arriving twice. They answer different questions: the
+/// archive says "this very download", and the content says "this book, whatever it arrived in", so a
+/// book bought once and picked up again as a file is recognised as the one already here.
+public struct LocalBookRecord: Sendable, Equatable {
+    public let workId: Int
+    /// What the book is filed under, which is what gives it its number.
+    public let fingerprint: String
+    public let importedAt: Date
+    public let source: BookSource
+    /// What the source calls it. A Litres art id; nothing for a book off a file.
+    public let sourceId: String?
+    /// When the source last changed it, which is what says the copy here is behind.
+    public let sourceUpdatedAt: Date?
+    /// The book's own text, hashed: the FB2 itself, not whatever carried it.
+    public let contentHash: String?
+    /// The container as it arrived, hashed. Nothing where the book arrived as plain text.
+    public let archiveHash: String?
+
+    public init(
+        workId: Int,
+        fingerprint: String,
+        importedAt: Date = .now,
+        source: BookSource = .file,
+        sourceId: String? = nil,
+        sourceUpdatedAt: Date? = nil,
+        contentHash: String? = nil,
+        archiveHash: String? = nil
+    ) {
+        self.workId = workId
+        self.fingerprint = fingerprint
+        self.importedAt = importedAt
+        self.source = source
+        self.sourceId = sourceId
+        self.sourceUpdatedAt = sourceUpdatedAt
+        self.contentHash = contentHash
+        self.archiveHash = archiveHash
+    }
+
+    /// True where the source has moved on since this copy was taken.
+    ///
+    /// A source that says nothing about when it last changed cannot be behind: without a date there is
+    /// nothing to compare, and fetching every book again on every run is worse than missing an edit.
+    public func isBehind(_ updated: Date?) -> Bool {
+        guard let updated else { return false }
+        guard let sourceUpdatedAt else { return true }
+
+        return updated > sourceUpdatedAt
+    }
+}
+
 /// A chapter's text after the typesetter has been through it, and the hashes that say whether it is
 /// still the text the reader was given.
 public struct PreparedChapter: Sendable {

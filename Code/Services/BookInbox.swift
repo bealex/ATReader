@@ -30,6 +30,12 @@ final class BookInbox {
 
     private(set) var errorMessage: String?
 
+    /// Says the shelf has changed, for a part of the app that changed it without coming through here.
+    ///
+    /// A synchronisation writes straight to the store, and a screen showing the shelf has no other way
+    /// to learn that its books have moved under it.
+    func libraryChanged() { importedAt = .now }
+
     private let store: SQLiteBookStore
     private let processor: BookProcessor
 

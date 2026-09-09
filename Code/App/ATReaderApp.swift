@@ -23,6 +23,12 @@ struct ATReaderApp: App {
     @Environment(\.scenePhase)
     private var scenePhase
 
+    @State
+    private var litres = LitresStore()
+
+    @State
+    private var backup = LibraryBackup()
+
     /// Hands the typesetter the picture shelf before anything asks it to set a page.
     init() {
         Renderers.connect()
@@ -34,6 +40,8 @@ struct ATReaderApp: App {
                 .environment(session)
                 .environment(settings)
                 .environment(inbox)
+                .environment(litres)
+                .environment(backup)
                 .environment(\.pagePictures, CoverPictures())
                 // A book handed over by another app. The library screen may not exist yet, so the
                 // reading-in happens away from it and the shelf picks the book up afterwards.

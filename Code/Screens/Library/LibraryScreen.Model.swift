@@ -29,6 +29,10 @@ extension LibraryScreen {
 
             /// The rows to draw, in order: the books held, and the volumes nothing accounts for.
             var rows: [SeriesRow] {
+                // A number the file states beats one read off a title. The publisher wrote the first;
+                // the second is inference, however good, and inference is what gets a volume wrong.
+                if let stated { return stated }
+
                 guard
                     let numbering
                 else {
@@ -57,6 +61,35 @@ extension LibraryScreen {
                 let descending = order.count > 1 && (order.first ?? 0) > (order.last ?? 0)
 
                 return (held + missing).sorted { left, right in
+                    descending ? left.number > right.number : left.number < right.number
+                }
+            }
+
+            /// A series whose books each state their own place, as rows.
+            ///
+            /// Nothing where any book is silent about it, or where two claim the same volume: a series
+            /// half-numbered by its files is worse than one numbered from its titles throughout.
+            private var stated: [SeriesRow]? {
+                guard series != nil, works.count > 1 else { return nil }
+
+                let numbers = works.compactMap(\.seriesOrder)
+
+                guard numbers.count == works.count, Set(numbers).count == numbers.count else { return nil }
+
+                // The titles still come from the numbering, which is what takes the series' own repeated
+                // words off them. Only the figure is the file's.
+                let shortened = numbering?.books.reduce(into: [Int: String]()) { $0[$1.book.id] = $1.title } ?? [:]
+                let held = works.map { SeriesRow.book($0, number: $0.seriesOrder, title: shortened[$0.id] ?? $0.title) }
+
+                guard let first = numbers.min(), let last = numbers.max(), last > first else { return held }
+
+                let gaps = (first ... last).filter { !numbers.contains($0) }
+
+                guard !gaps.isEmpty else { return held }
+
+                let descending = (numbers.first ?? 0) > (numbers.last ?? 0)
+
+                return (held + gaps.map(SeriesRow.missing)).sorted { left, right in
                     descending ? left.number > right.number : left.number < right.number
                 }
             }
@@ -216,13 +249,16 @@ extension LibraryScreen {
         /// Every book on screen, the ones a kept series carries along with it included.
         var visibleWorks: [Book] { groups.flatMap(\.works) }
 
+        /// The shelf's own books: one copy of each, whichever of them is the better one to hold.
+        var library: [Book] { Self.oneOfEach(works) }
+
         /// The books the local title and author search leaves, before the filter has had its say.
         private var searchedWorks: [Book] {
             let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
 
-            guard !query.isEmpty else { return works }
+            guard !query.isEmpty else { return library }
 
-            return works.filter {
+            return library.filter {
                 $0.title.lowercased().contains(query) || $0.authorLine.lowercased().contains(query)
             }
         }
@@ -301,7 +337,109 @@ extension LibraryScreen {
         func count(for filter: Filter) -> Int? {
             guard !works.isEmpty else { return nil }
 
-            return works.count(where: filter.includes)
+            return library.count(where: filter.includes)
+        }
+
+        // MARK: - The same book, held twice
+
+        /// One copy of each book, where the reader owns some of them in both libraries.
+        ///
+        /// A book bought on one service and owned on the other is one book on the shelf. Which copy is
+        /// shown is decided per book rather than once for the whole library, because the right answer
+        /// changes with where the reader has got to.
+        static func oneOfEach(_ works: [Book]) -> [Book] {
+            var chosen: [String: Book] = [:]
+            var order: [String] = []
+
+            for work in works {
+                var name = title(of: work)
+
+                // Alike in name and each stating a different volume: two books that only look like
+                // one, which is what a series annotation in a title becomes once it is taken off.
+                if let rival = chosen[name], areDifferentVolumes(rival, work) {
+                    name += "#\(work.seriesOrder ?? 0)"
+                }
+
+                guard
+                    let rival = chosen[name]
+                else {
+                    chosen[name] = work
+                    order.append(name)
+                    continue
+                }
+
+                chosen[name] = preferred(rival, over: work)
+            }
+
+            return order.compactMap { chosen[$0] }
+        }
+
+        /// Which of two copies of one book the shelf holds.
+        ///
+        /// A book being read stays with the service, because the service is where the reader's place
+        /// is and a file knows nothing about how far they got. A book finished is better held as a
+        /// file, which no service can withdraw and no network is needed to open.
+        private static func preferred(_ left: Book, over right: Book) -> Book {
+            let leftIsFile = BookNumbering.isLocal(left.id)
+
+            // Two of a kind. Nothing to choose between them, so the one already held stands.
+            guard leftIsFile != BookNumbering.isLocal(right.id) else { return left }
+
+            let file = leftIsFile ? left : right
+            let service = leftIsFile ? right : left
+
+            return isBeingRead(service) ? service : file
+        }
+
+        /// Started and not finished, which is the one state where where-you-got-to is worth more than
+        /// owning the words.
+        private static func isBeingRead(_ work: Book) -> Bool {
+            work.hasStartedReading && !work.isReadToTheEnd
+        }
+
+        /// Two copies that each state a volume, and state different ones, are two books.
+        ///
+        /// Only where both say so. One that states nothing is no evidence at all, and guessing there
+        /// would split a book away from its own other copy.
+        private static func areDifferentVolumes(_ left: Book, _ right: Book) -> Bool {
+            guard let mine = left.seriesOrder, let theirs = right.seriesOrder else { return false }
+
+            return mine != theirs
+        }
+
+        /// What makes two books the same book across two libraries: the title and the author, with
+        /// case, punctuation and the odd stray mark taken out of the comparison.
+        private static func title(of work: Book) -> String {
+            "\(plain(withoutAside(work.title)))|\(plain(work.authorLine))"
+        }
+
+        /// A title with the aside at the end of it taken off.
+        ///
+        /// One library writes the series into the name where the other leaves it out, so a book and
+        /// the same book followed by its series in brackets are one book under two spellings. What
+        /// that aside sometimes carries instead is the volume, which is why a stated volume is looked
+        /// at before two books alike in name are treated as one.
+        private static func withoutAside(_ title: String) -> String {
+            let trimmed = title.trimmingCharacters(in: .whitespaces)
+
+            guard trimmed.hasSuffix(")"), let opening = trimmed.lastIndex(of: "(") else { return title }
+
+            let kept = trimmed[..<opening].trimmingCharacters(in: .whitespaces)
+
+            // A title that is nothing but its aside keeps it: there would be nothing left to match on.
+            return kept.isEmpty ? title : kept
+        }
+
+        private static func plain(_ text: String) -> String {
+            var letters: [Character] = []
+
+            for scalar in text.lowercased().unicodeScalars {
+                guard scalar.properties.generalCategory != .format else { continue }
+
+                letters.append(CharacterSet.alphanumerics.contains(scalar) ? Character(scalar) : " ")
+            }
+
+            return String(letters).split(separator: " ").joined(separator: " ")
         }
 
         /// Mirrored out of user defaults, which nothing observes, so the badges redraw when a sweep

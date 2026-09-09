@@ -115,6 +115,39 @@
       "extractionState": "manual",
       "shouldTranslate": false
     },
+    "%lld added": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "добавлено: %lld"
+          }
+        }
+      }
+    },
+    "%lld already here": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "уже на устройстве: %lld"
+          }
+        }
+      }
+    },
+    "%lld failed": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "не удалось: %lld"
+          }
+        }
+      }
+    },
     "%lld new chapters": {
       "extractionState": "manual",
       "localizations": {
@@ -122,6 +155,28 @@
           "stringUnit": {
             "state": "translated",
             "value": "новых глав: %lld"
+          }
+        }
+      }
+    },
+    "%lld not readable": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "нечитаемых: %lld"
+          }
+        }
+      }
+    },
+    "%lld of %lld": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$lld из %2$lld"
           }
         }
       }
@@ -144,6 +199,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Выбрано: %lld"
+          }
+        }
+      }
+    },
+    "%lld updated": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "обновлено: %lld"
           }
         }
       }
@@ -285,6 +351,39 @@
         }
       }
     },
+    "Back up now": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Создать копию"
+          }
+        }
+      }
+    },
+    "Backed up %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Скопировано: %@"
+          }
+        }
+      }
+    },
+    "Backup": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Резервная копия"
+          }
+        }
+      }
+    },
     "Baskerville": {
       "extractionState": "manual",
       "shouldTranslate": false
@@ -377,6 +476,17 @@
         }
       }
     },
+    "Books you imported live only on this device. A folder in iCloud Drive keeps a copy.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Загруженные вами книги есть только на этом устройстве. Папка в iCloud Drive хранит их копию."
+          }
+        }
+      }
+    },
     "Break up this series": {
       "extractionState": "manual",
       "localizations": {
@@ -384,6 +494,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Разделить серию"
+          }
+        }
+      }
+    },
+    "Bring my books across": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Перенести мои книги"
           }
         }
       }
@@ -432,9 +553,42 @@
         }
       }
     },
+    "Chapters saved for reading offline are removed and downloaded again when you next open them. Books you imported are kept.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Главы, сохранённые для чтения офлайн, будут удалены и загрузятся снова при следующем открытии. Импортированные книги останутся."
+          }
+        }
+      }
+    },
     "Charter": {
       "extractionState": "manual",
       "shouldTranslate": false
+    },
+    "Check the connection": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Проверить соединение"
+          }
+        }
+      }
+    },
+    "Choose a folder": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Выбрать папку"
+          }
+        }
+      }
     },
     "Choose what to show": {
       "extractionState": "manual",
@@ -454,6 +608,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Удалить загрузки"
+          }
+        }
+      }
+    },
+    "Clear downloads?": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Очистить загрузки?"
           }
         }
       }
@@ -799,6 +964,17 @@
         }
       }
     },
+    "Everything on this device is replaced by what the folder holds. Anything added since that backup is lost.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Всё на этом устройстве будет заменено содержимым папки. Добавленное после этой копии пропадёт."
+          }
+        }
+      }
+    },
     "Everywhere": {
       "extractionState": "manual",
       "localizations": {
@@ -839,6 +1015,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Прочитано"
+          }
+        }
+      }
+    },
+    "Folder": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Папка"
           }
         }
       }
@@ -894,6 +1081,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Настройки шрифта, полей и фона"
+          }
+        }
+      }
+    },
+    "Forget this folder": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Забыть папку"
           }
         }
       }
@@ -994,6 +1192,17 @@
         }
       }
     },
+    "Last backed up": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Последняя копия"
+          }
+        }
+      }
+    },
     "Last checked for updates": {
       "extractionState": "manual",
       "localizations": {
@@ -1067,6 +1276,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Межстрочный интервал"
+          }
+        }
+      }
+    },
+    "Litres answered with a challenge rather than an answer.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Литрес ответил проверкой вместо ответа."
           }
         }
       }
@@ -1240,6 +1460,17 @@
         }
       }
     },
+    "No FB2 to download.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Нет файла FB2 для загрузки."
+          }
+        }
+      }
+    },
     "No chapters available to read.": {
       "extractionState": "manual",
       "localizations": {
@@ -1269,6 +1500,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Нет в вашей библиотеке"
+          }
+        }
+      }
+    },
+    "Not signed in yet": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Вход ещё не выполнен"
           }
         }
       }
@@ -1368,6 +1610,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Открывает читалку"
+          }
+        }
+      }
+    },
+    "Other libraries": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Другие библиотеки"
           }
         }
       }
@@ -1607,6 +1860,17 @@
         }
       }
     },
+    "Reading your library…": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Читаем вашу библиотеку…"
+          }
+        }
+      }
+    },
     "Reads an FB2 file into your library": {
       "extractionState": "manual",
       "localizations": {
@@ -1713,6 +1977,39 @@
           "stringUnit": {
             "state": "translated",
             "value": "Меняет порядок книг в серии или разделяет её"
+          }
+        }
+      }
+    },
+    "Restore from this folder": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Восстановить из папки"
+          }
+        }
+      }
+    },
+    "Restore from this folder?": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Восстановить из этой папки?"
+          }
+        }
+      }
+    },
+    "Restored the backup from %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Восстановлено из копии от %@"
           }
         }
       }
@@ -1938,6 +2235,17 @@
         }
       }
     },
+    "Share the report": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Поделиться отчётом"
+          }
+        }
+      }
+    },
     "Show": {
       "extractionState": "manual",
       "localizations": {
@@ -1982,6 +2290,28 @@
         }
       }
     },
+    "Sign in to Litres": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Войти в Литрес"
+          }
+        }
+      }
+    },
+    "Sign in to Litres to bring the books you own there onto this device.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Войдите в Литрес, чтобы перенести купленные там книги на это устройство."
+          }
+        }
+      }
+    },
     "Sign out": {
       "extractionState": "manual",
       "localizations": {
@@ -2015,6 +2345,17 @@
         }
       }
     },
+    "Signed in": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Вход выполнен"
+          }
+        }
+      }
+    },
     "Signed in as %@": {
       "extractionState": "manual",
       "localizations": {
@@ -2022,6 +2363,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Вы вошли как %@"
+          }
+        }
+      }
+    },
+    "Signed in as %lld": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Вход выполнен, читатель %lld"
           }
         }
       }
@@ -2180,6 +2532,28 @@
         }
       }
     },
+    "That folder could not be remembered.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Не удалось запомнить эту папку."
+          }
+        }
+      }
+    },
+    "That folder is no longer reachable. Choose it again.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Папка больше недоступна. Выберите её снова."
+          }
+        }
+      }
+    },
     "The books you picked are shown together under this name.": {
       "extractionState": "manual",
       "localizations": {
@@ -2187,6 +2561,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Выбранные книги будут показаны вместе под этим названием."
+          }
+        }
+      }
+    },
+    "The session ran out. Sign in again.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сессия истекла. Войдите заново."
           }
         }
       }
@@ -2367,6 +2752,39 @@
         }
       }
     },
+    "Working…": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Выполняется…"
+          }
+        }
+      }
+    },
+    "Yes, clear them": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Да, очистить"
+          }
+        }
+      }
+    },
+    "Yes, restore": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Да, восстановить"
+          }
+        }
+      }
+    },
     "Yes, sign out": {
       "extractionState": "manual",
       "localizations": {
@@ -2374,6 +2792,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Выйти"
+          }
+        }
+      }
+    },
+    "Your books come across once. Litres isn't watched afterwards, and the session ends when they arrive.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Книги переносятся один раз. Литрес потом не отслеживается, а сессия заканчивается вместе с переносом."
           }
         }
       }

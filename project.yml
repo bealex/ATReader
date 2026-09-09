@@ -28,6 +28,8 @@ packages:
     path: Frameworks/BookRenderer
   AuthorTodayBooks:
     path: Frameworks/AuthorTodayBooks
+  Litres:
+    path: Frameworks/Litres
 
 targets:
   ATReader:
@@ -69,6 +71,8 @@ targets:
         product: BookRenderer
       - package: AuthorTodayBooks
         product: AuthorTodayBooks
+      - package: Litres
+        product: Litres
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.lonelybytes.atreader

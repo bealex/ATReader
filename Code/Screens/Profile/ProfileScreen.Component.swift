@@ -20,7 +20,15 @@ enum ProfileScreen {
         private var isConfirmingSignOut = false
 
         @State
+        private var isConfirmingClear = false
+
+        @State
         private var cacheSize: Int64 = 0
+
+        /// What the device is holding, which changes whenever books arrive or are cleared out.
+        private func refreshStats() async {
+            cacheSize = await SQLiteBookStore.shared.downloadSize() + CoverCache.shared.diskUsage()
+        }
 
         var body: some View {
             NavigationStack {
@@ -46,13 +54,10 @@ enum ProfileScreen {
                         }
                         .accessibilityLabel("Downloaded books take up \(Int(cacheSize)) bytes")
 
-                        Button("Clear downloads", systemImage: "trash") {
-                            Task {
-                                await SQLiteBookStore.shared.clearDownloads()
-                                await CoverCache.shared.clear()
-                                cacheSize = 0
-                            }
+                        Button("Clear downloads", systemImage: "trash", role: .destructive) {
+                            isConfirmingClear = true
                         }
+                        .accessibilityIdentifier("profile.clearDownloads")
                         .accessibilityHint("Removes chapters stored for offline reading")
 
                         if let checked = UpdateBadge.lastCheckedAt {
@@ -69,6 +74,10 @@ enum ProfileScreen {
                         Text("Books you are reading are checked daily; new chapters download and badge the icon.")
                     }
 
+                    LitresSection { Task { await refreshStats() } }
+
+                    BackupSection()
+
                     Section {
                         Button(role: .destructive) {
                             isConfirmingSignOut = true
@@ -83,9 +92,29 @@ enum ProfileScreen {
                 }
                 .navigationTitle("Profile")
                 .task {
-                    cacheSize = await SQLiteBookStore.shared.downloadSize() + CoverCache.shared.diskUsage()
+                    await refreshStats()
                     await UpdateBadge.requestBadgePermission()
                 }
+                .confirmationDialog(
+                    "Clear downloads?",
+                    isPresented: $isConfirmingClear,
+                    titleVisibility: .visible,
+                    actions: {
+                        Button("Yes, clear them", role: .destructive) {
+                            Task {
+                                await SQLiteBookStore.shared.clearDownloads()
+                                await CoverCache.shared.clear()
+                                await refreshStats()
+                            }
+                        }
+                        Button("Cancel", role: .cancel, action: {})
+                    },
+                    message: {
+                        Text(
+                            "Chapters saved for reading offline are removed and downloaded again when you next open them. Books you imported are kept."
+                        )
+                    }
+                )
                 .confirmationDialog(
                     "Sign out?",
                     isPresented: $isConfirmingSignOut,

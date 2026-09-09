@@ -1,6 +1,6 @@
 # Architecture
 
-Seven modules, and every edge points one way.
+Eight modules, and every edge points one way.
 
 ```
                         DesignSystem            BookKit
@@ -11,7 +11,7 @@ Seven modules, and every edge points one way.
                              |      ↑              ↑              ↑
                              └──────┴──────┬───────┴──────────────┘
                                            |
-                                        Code/  ← AuthorTodayBooks → AuthorToday
+                            Litres →     Code/  ← AuthorTodayBooks → AuthorToday
 ```
 
 `BookKit` is where the others meet: what a book, a chapter and a paragraph are, and the protocols that
@@ -24,7 +24,8 @@ or so lines that hand one module to another.
 
 Three rules the compiler cannot state are checked by `Scripts/check-modules.sh` instead: nothing that
 models a book or talks to a service may draw one, only `AuthorTodayBooks` may meet `AuthorToday`, and
-`BookRenderer` may never see `DesignSystem`. The reader page is set by whoever is reading, and a
+`BookRenderer` may never see `DesignSystem`. `Litres` sits outside all of it on Foundation alone: it
+fetches files and knows nothing about what a book is, so `Code/` is where a download becomes one. The reader page is set by whoever is reading, and a
 system imposed on it would be a system imposed on someone else's book.
 
 ## The package

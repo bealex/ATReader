@@ -307,6 +307,83 @@ public actor SQLiteBookStore {
 
     // MARK: - Books this device owns
 
+    // MARK: - What the device holds, and where it came from
+
+    private static let provenanceColumns =
+        "work_id, fingerprint, imported_at, source, source_id, source_updated_at, content_hash, archive_hash"
+
+    public func localBook(fingerprint: String) -> LocalBookRecord? {
+        localBook(where: "fingerprint = ?") { $0.bind(1, fingerprint) }
+    }
+
+    /// The book already here whose own text is this one, whatever it arrived in or where it came from.
+    public func localBook(contentHash: String) -> LocalBookRecord? {
+        localBook(where: "content_hash = ?") { $0.bind(1, contentHash) }
+    }
+
+    /// The book already here that came from this place in a service.
+    public func localBook(source: BookSource, sourceId: String) -> LocalBookRecord? {
+        localBook(where: "source = ? AND source_id = ?") {
+            _ = $0.bind(1, source.rawValue)
+            $0.bind(2, sourceId)
+        }
+    }
+
+    /// Every book the device holds, so a synchronisation can tell at a glance what it already has.
+    public func localBooks() -> [LocalBookRecord] {
+        guard let statement = Statement(open(), "SELECT \(Self.provenanceColumns) FROM local_book") else { return [] }
+
+        var found: [LocalBookRecord] = []
+
+        while statement.step() { found.append(Self.record(statement)) }
+
+        return found
+    }
+
+    /// Writes down where a book came from and what it was when it arrived.
+    public func store(provenance: LocalBookRecord) {
+        let query = """
+            UPDATE local_book
+            SET source = ?, source_id = ?, source_updated_at = ?, content_hash = ?, archive_hash = ?
+            WHERE work_id = ?
+            """
+
+        guard let statement = Statement(open(), query) else { return }
+
+        _ = statement.bind(1, provenance.source.rawValue)
+        _ = statement.bind(2, provenance.sourceId)
+        _ = statement.bind(3, provenance.sourceUpdatedAt?.timeIntervalSince1970)
+        _ = statement.bind(4, provenance.contentHash)
+        _ = statement.bind(5, provenance.archiveHash)
+        _ = statement.bind(6, provenance.workId)
+        statement.execute()
+    }
+
+    private func localBook(where clause: String, bind: (Statement) -> Void) -> LocalBookRecord? {
+        guard
+            let statement = Statement(open(), "SELECT \(Self.provenanceColumns) FROM local_book WHERE \(clause)")
+        else { return nil }
+
+        bind(statement)
+
+        guard statement.step() else { return nil }
+
+        return Self.record(statement)
+    }
+
+    private static func record(_ statement: Statement) -> LocalBookRecord {
+        LocalBookRecord(
+            workId: statement.integer(0),
+            fingerprint: statement.string(1) ?? "",
+            importedAt: statement.date(2) ?? .distantPast,
+            source: statement.string(3).flatMap(BookSource.init) ?? .file,
+            sourceId: statement.string(4),
+            sourceUpdatedAt: statement.date(5),
+            contentHash: statement.string(6),
+            archiveHash: statement.string(7)
+        )
+    }
+
     /// The id a book imported from a file goes under, allocated once per file and kept.
     ///
     /// Service works count up from one, so local books count down from minus one and the two can never
@@ -674,6 +751,46 @@ public actor SQLiteBookStore {
         recomputeProgress(workId: position.workId)
     }
 
+    // MARK: - Copying the whole thing
+
+    /// Writes a clean copy of the store to a file of its own.
+    ///
+    /// `VACUUM INTO` rather than copying the file: the database is open while this runs, and a copy
+    /// taken with the file system behind SQLite's back can catch it mid-write and carry a journal it
+    /// no longer has. What comes out is one tidy file with nothing alongside it.
+    public func copy(to url: URL) throws {
+        // The statement refuses to write over anything, so whatever stood there goes first.
+        try? FileManager.default.removeItem(at: url)
+
+        guard let database = open() else { throw ArchiveError.unreadable }
+
+        let quoted = url.path.replacingOccurrences(of: "'", with: "''")
+        var message: UnsafeMutablePointer<CChar>?
+
+        guard
+            sqlite3_exec(database, "VACUUM INTO '\(quoted)'", nil, nil, &message) == SQLITE_OK
+        else {
+            let reason = message.map { String(cString: $0) } ?? "unknown"
+
+            sqlite3_free(message)
+            throw ArchiveError.copyFailed(reason)
+        }
+    }
+
+    /// Where the store keeps itself, for whatever has to put a different file there.
+    public var path: String { fileURL.path }
+
+    /// Lets go of the file, so something else can put a different one in its place.
+    ///
+    /// The next question asked of the store opens it again, which is what makes a restore a matter of
+    /// swapping a file rather than of restarting the app.
+    public func close() {
+        guard let database else { return }
+
+        sqlite3_close(database)
+        self.database = nil
+    }
+
     // MARK: - Housekeeping
 
     /// Chapter bodies only. Book lists, contents and reading positions stay, since they cost almost
@@ -734,7 +851,26 @@ public actor SQLiteBookStore {
         createContentTable()
         createPlacementTable()
         addCompletionColumns()
+        addProvenanceColumns()
         repairProgress()
+        markServiceBooksRead()
+    }
+
+    /// Adds the columns that say where a book came from, for a store made before it could tell.
+    ///
+    /// Everything already here was picked out by the reader, since that was the only way in when it
+    /// arrived, and it carries no hashes: they are worked out when a book is read, and nothing is going
+    /// to read these again to fill them in.
+    private func addProvenanceColumns() {
+        guard !columns(of: "local_book").contains("source") else { return }
+
+        execute("ALTER TABLE local_book ADD COLUMN source TEXT NOT NULL DEFAULT 'file'")
+        execute("ALTER TABLE local_book ADD COLUMN source_id TEXT")
+        execute("ALTER TABLE local_book ADD COLUMN source_updated_at REAL")
+        execute("ALTER TABLE local_book ADD COLUMN content_hash TEXT")
+        execute("ALTER TABLE local_book ADD COLUMN archive_hash TEXT")
+        execute("CREATE INDEX IF NOT EXISTS local_book_by_content ON local_book (content_hash)")
+        execute("CREATE INDEX IF NOT EXISTS local_book_by_source ON local_book (source, source_id)")
     }
 
     /// Adds the columns that date a book's writing, for a store made before they existed.
@@ -766,8 +902,10 @@ public actor SQLiteBookStore {
         execute("UPDATE work SET is_finished = 1, finished_when_added = 1 WHERE id IN (\(ids))")
     }
 
-    private func workColumns() -> Set<String> {
-        guard let statement = Statement(open(), "PRAGMA table_info(work)") else { return [] }
+    private func workColumns() -> Set<String> { columns(of: "work") }
+
+    private func columns(of table: String) -> Set<String> {
+        guard let statement = Statement(open(), "PRAGMA table_info(\(table))") else { return [] }
 
         var names: Set<String> = []
 
@@ -924,6 +1062,24 @@ public actor SQLiteBookStore {
         }
 
         execute("PRAGMA user_version = 1")
+    }
+
+    /// Marks every book brought across from Litres as read, once.
+    ///
+    /// A book bought and brought across is one the reader has already been through, and the app only
+    /// started saying so once it had already carried a library over. Runs after `repairProgress`,
+    /// which clears every fraction before working it out again from where the reader stopped: the
+    /// other way round and this would be undone the moment it was done.
+    private func markServiceBooksRead() {
+        guard userVersion() < 2 else { return }
+
+        execute(
+            """
+            UPDATE work SET reading_progress = 1
+            WHERE id IN (SELECT work_id FROM local_book WHERE source = 'litres')
+            """
+        )
+        execute("PRAGMA user_version = 2")
     }
 
     private func userVersion() -> Int {
