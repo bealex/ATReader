@@ -98,25 +98,30 @@ Style is enforced by `Scripts/check.sh` (`--fix` to apply).
 Signing is manual everywhere; nothing is automatic. Simulator builds need no setup, because Xcode signs
 those ad-hoc regardless of the configured identity.
 
-To build for a device, fill in your own team and profile:
+To build for a device, fill in your own team and profile in `.env`:
 
 ```sh
-cp Local.xcconfig.example Local.xcconfig
-# then set DEVELOPMENT_TEAM and AT_PROVISIONING_PROFILE_DEV
+cp .env.example .env
+# then set AT_DEVELOPMENT_TEAM and AT_PROVISIONING_PROFILE_DEV
 ```
 
-`ATReader.xcconfig` is committed and defaults both to empty, so a fresh clone builds for the Simulator
-with no local setup. It optionally includes `Local.xcconfig`, which is gitignored and carries the real
-values. Neither the team ID nor the profile name is committed.
+`.env` carries every local value this project needs, the service constants included, and is gitignored.
+`Scripts/gen-signing.sh` turns the two signing ones into `Local.xcconfig` before each build, which it
+must do there rather than in a build phase: a project-level xcconfig is read before any phase runs.
+
+`ATReader.xcconfig` is committed, defaults both to empty and includes `Local.xcconfig` if it is there,
+so a fresh clone builds for the Simulator with no local setup. Neither the team ID nor the profile name
+is committed, and neither is the file they are written to.
 
 | Configuration | Identity | Profile |
 | --- | --- | --- |
 | Debug | `Apple Development` (`iPhone Developer` on device) | `$(AT_PROVISIONING_PROFILE_DEV)` |
-| Release | none | none |
+| Release | `Apple Development` (`iPhone Developer` on device) | `$(AT_PROVISIONING_PROFILE_DEV)` |
 
-Only a development profile exists so far. Release deliberately carries neither identity nor profile, so
-it fails loudly rather than quietly signing a distribution build with a development one. Add a second
-variable to `Local.xcconfig` and wire it into `project.yml` when a distribution profile exists.
+No distribution profile exists yet, so Release signs with the development one. That is what puts an
+optimised build on a device, and it is not what a build for anyone else should be signed with: add a
+third variable to `.env`, write it out of `gen-signing.sh`, and point Release at it in `project.yml`
+before shipping anything.
 
 ## The AuthorToday package
 

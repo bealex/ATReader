@@ -89,17 +89,18 @@ targets:
         SWIFT_EMIT_LOC_STRINGS: "YES"
         LOCALIZATION_PREFERS_STRING_CATALOGS: "YES"
       configs:
-        # Only a development profile exists so far. Release deliberately carries none: it must be
-        # filled in when a distribution profile is created, rather than silently signing with the
-        # development one.
+        # No distribution profile exists yet, so Release signs with the development one, which is what
+        # puts an optimised build on a device. Point it at a distribution profile when there is one.
         Debug:
           CODE_SIGN_IDENTITY: "Apple Development"
           "CODE_SIGN_IDENTITY[sdk=iphoneos*]": "iPhone Developer"
           PROVISIONING_PROFILE_SPECIFIER: "$(AT_PROVISIONING_PROFILE_DEV)"
           "PROVISIONING_PROFILE_SPECIFIER[sdk=iphoneos*]": "$(AT_PROVISIONING_PROFILE_DEV)"
         Release:
-          CODE_SIGN_IDENTITY: ""
-          PROVISIONING_PROFILE_SPECIFIER: ""
+          CODE_SIGN_IDENTITY: "Apple Development"
+          "CODE_SIGN_IDENTITY[sdk=iphoneos*]": "iPhone Developer"
+          PROVISIONING_PROFILE_SPECIFIER: "$(AT_PROVISIONING_PROFILE_DEV)"
+          "PROVISIONING_PROFILE_SPECIFIER[sdk=iphoneos*]": "$(AT_PROVISIONING_PROFILE_DEV)"
     info:
       path: Code/Info.plist
       properties:

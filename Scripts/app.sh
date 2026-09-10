@@ -15,16 +15,16 @@
 # Target:    -s, --simulator (default)      -d, --device
 # Config:    --debug (default)              --release
 # Selector:  --sim NAME, --sim-id UDID, --device-id UDID
-# Also:      -O, --optimized (compile Debug with the optimiser on, which is how an optimised build gets
-#            onto a device), -v, --verbose (stream the log too), -h, --help
+# Also:      -O, --optimized (compile Debug with the optimiser on, for an optimised build that keeps
+#            everything else about Debug), -v, --verbose (stream the log too), -h, --help
 #
 # Test options, all of which are xcodebuild's and so imply the app UI tests:
 #   --only SPEC     Run one target, suite or case, as ATReaderUITests/CatalogUITests. Repeatable.
 #   --build-only    Build the tests without running them.
 #   --no-build      Run tests already built by --build-only, reusing that build.
 #
-# Release carries no provisioning profile in the spec, on purpose, so it builds for a device but cannot
-# install there. Use `--optimized` for a build that runs at speed on hardware.
+# Release signs with the development profile, there being no distribution one yet, so it installs on a
+# device. `--optimized` compiles Debug at speed instead, keeping the Debug configuration otherwise.
 #
 # Copyright © 2026 Alexander Babaev. MIT licence — see LICENSE.
 set -uo pipefail
@@ -44,9 +44,9 @@ SIM_ID=""
 DEVICE_ID=""
 TESTS="all"
 TEST_ACTION="test"
-# Optimisation asked for on top of the configuration, which is how an optimised build reaches a device:
-# Release is unsigned in the spec by design, and its signing cannot be supplied on the command line
-# because xcodebuild would hand it to the package target as well, which rejects a profile outright.
+# Optimisation asked for on top of the configuration, for an optimised build that is otherwise Debug.
+# Signing cannot be supplied on the command line at all, because xcodebuild would hand it to the
+# package target as well, which rejects a profile outright.
 SIGNING=()
 ONLY=()
 VERBOSE=0
@@ -242,7 +242,17 @@ resolve_device() {
 # which is the difference this looks for. Editing a file must not regenerate: that rewrites the project
 # and costs a full rebuild.
 ensure_project() {
-  local changed=""
+  local changed="" signing=""
+
+  # Before xcodebuild rather than as a build phase: a project-level xcconfig is read when build
+  # settings are evaluated, which is before any phase of the build runs.
+  if ! signing="$("$REPO/Scripts/gen-signing.sh")"; then
+    printf '%s❌ %s%s\n' "$RED" "$signing" "$RST" >&2
+    return 1
+  fi
+  case "$signing" in
+    *unconfigured*) printf '%s  %s%s\n' "$DIM" "$signing" "$RST" >&2 ;;
+  esac
 
   if [ -d "$PROJECT" ]; then
     changed="$(find "$REPO/Code" "$REPO/Tests" -type d -newer "$PROJECT" -print -quit 2>/dev/null)"
