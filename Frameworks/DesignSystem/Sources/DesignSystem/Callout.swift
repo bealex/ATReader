@@ -250,19 +250,8 @@ public enum CalloutMotion {
     public static var showing: Animation { .bouncy(duration: showingSeconds, extraBounce: 0.15) }
     public static var hiding: Animation { .smooth(duration: hidingSeconds) }
 
-    public static var showingSeconds: Double { 0.24 * scale }
-    public static var hidingSeconds: Double { 0.18 * scale }
-
-    /// How far the timings are stretched, which is one outside a test.
-    ///
-    /// A screenshot takes longer to make than either of these runs for, so a test photographing one
-    /// catches nothing but the end of it. `-at-motion-scale 12` slows the whole thing down until it
-    /// can be photographed, without changing what is being watched.
-    private static var scale: Double {
-        let asked = UserDefaults.standard.double(forKey: "at-motion-scale")
-
-        return asked > 0 ? asked : 1
-    }
+    public static var showingSeconds: Double { 0.24 * MotionScale.factor }
+    public static var hidingSeconds: Double { 0.18 * MotionScale.factor }
 }
 
 /// Holds an aside on screen for as long as it is coming or going, and drives both with a number.

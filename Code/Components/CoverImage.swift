@@ -44,9 +44,10 @@ struct CoverImage: View {
             }
         }
         .frame(width: width)
-        .clipShape(.rect(cornerRadius: Design.Radius.cover(width: width)))
+        .overlay(CoverHinge())
+        .clipShape(.rect(cornerRadius: Design.Radius.cover))
         .overlay {
-            RoundedRectangle(cornerRadius: Design.Radius.cover(width: width))
+            RoundedRectangle(cornerRadius: Design.Radius.cover)
                 .strokeBorder(Design.Surface.edge, lineWidth: Design.Stroke.hairline)
         }
         .overlay(alignment: .bottomTrailing) {

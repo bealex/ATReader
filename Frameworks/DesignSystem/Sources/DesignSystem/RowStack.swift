@@ -31,6 +31,9 @@ extension View {
     /// the ground below the line by whatever padding sits under it. Taking that padding out of the
     /// baseline the row is offered puts the box itself on the line, which is where the eye reads it.
     public func sitsOnTheLine() -> some View {
-        alignmentGuide(.firstTextBaseline) { $0[.firstTextBaseline] + Design.Space.extraSmall }
+        // The whole of it, which is what puts the bottom of the ground on the line. Lifting the label's
+        // own baseline by the padding leaves the box hanging by its descender, since a baseline carries
+        // the descender below it and a box carries nothing.
+        alignmentGuide(.firstTextBaseline) { $0.height }
     }
 }

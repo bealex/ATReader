@@ -137,6 +137,17 @@ licensing rather than secrecy. An unconfigured build must keep working for every
 
 ## Things that will bite you
 
+- **The library's books are drawn, not composed.** The shelf is a `UICollectionView` whose cells draw
+  their own books: `ShelfLayout` says where each stands, `SpinePrint` prints a spine into a picture and
+  `Hinge` turns it. A book that lands in a different row when a run refolds has to keep its own view or
+  it cannot turn, which is the whole reason it isn't SwiftUI. Menus are `Deed` values so the shelf and
+  the rows set out the same one, and the zoom into a book needs the stand-in described in
+  `Documentation/Architecture.md`.
+- **A collection view will not carry a card from one height to another.** Whichever way the change is
+  made, a compositional layout recomputes and lands every card in one frame. The card owns its height,
+  the layout is told it as `.absolute`, and the turn's clock invalidates the layout each frame. Asking
+  the cell instead, through self-sizing, crashes: the answer comes from a running clock, so it differs
+  every time the layout asks, and the collection view recurses until it trips its own assertion.
 - **A model a view holds compares every field.** SwiftUI decides whether to redraw a row by comparing
   the values its view stores, so an id-only `==` on `WorkSummary` or `WorkMetaInfo` tells it a book is
   unchanged when its progress, badges and dates have all moved, and the row keeps yesterday's copy for

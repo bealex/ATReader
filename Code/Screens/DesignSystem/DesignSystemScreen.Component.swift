@@ -83,13 +83,15 @@ enum DesignSystemScreen {
                 .accessibilityIdentifier("catalog.callout.presented")
         }
 
-        /// The two halves of the catalogue: what the app is built from, and what a page is set in.
+        /// The three parts of the catalogue: what the app is built from, how it moves, and what a page
+        /// is set in.
         ///
         /// Apart because they answer to different rules. Everything in the app is on the lattice and
         /// takes one of the nine text roles; the reader's page is set in the face, the size and the
         /// colours whoever is reading chose, and none of that is `Design`'s to name.
         enum Segment: String, CaseIterable, Identifiable {
             case interface
+            case motion
             case reader
 
             var id: String { rawValue }
@@ -97,6 +99,7 @@ enum DesignSystemScreen {
             var title: String {
                 switch self {
                     case .interface: "UI"
+                    case .motion: "Motion"
                     case .reader: "Reader"
                 }
             }
@@ -116,6 +119,8 @@ enum DesignSystemScreen {
                             palette
                             type
                             components
+                        case .motion:
+                            motionSpecimens
                         case .reader:
                             readerSpecimens
                     }

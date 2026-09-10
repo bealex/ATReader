@@ -37,8 +37,13 @@ public enum Design {
         /// corners, so this is barely a radius at all: enough to take the point off, and no more.
         public static let spine = Space.unit / 3
 
-        /// A cover rounds in proportion to its own width, so it reads the same at any size.
-        public static func cover(width: CGFloat) -> CGFloat { width * 0.08 }
+        /// A printed cover is cut square along the edge it is bound on, so that corner is the same
+        /// barely-there radius a spine takes.
+        public static let cover = spine
+
+        /// The outer corners of a cover, away from the binding. A book is rounded where it is handled
+        /// and square where it is held together.
+        public static let foreEdge = Space.unit * 2
     }
 
     public enum Stroke {
@@ -124,10 +129,19 @@ public enum Design {
     }
 
     public enum Surface {
-        public static let screen = Color(.systemGroupedBackground)
-        public static let card = Color(.secondarySystemGroupedBackground)
-        /// An inert shape: an unselected chip, a tag, a cover with no artwork yet.
-        public static let fill = Color(.secondarySystemFill)
+        // The three the system names, which it names differently on each platform. The package builds
+        // for the Mac so its own logic can be tested there; nothing of the app is drawn on one.
+        #if canImport(UIKit)
+            public static let screen = Color(.systemGroupedBackground)
+            public static let card = Color(.secondarySystemGroupedBackground)
+            /// An inert shape: an unselected chip, a tag, a cover with no artwork yet.
+            public static let fill = Color(.secondarySystemFill)
+        #else
+            public static let screen = Color(nsColor: .windowBackgroundColor)
+            public static let card = Color(nsColor: .controlBackgroundColor)
+            /// An inert shape: an unselected chip, a tag, a cover with no artwork yet.
+            public static let fill = Color(nsColor: .quaternarySystemFill)
+        #endif
 
         public static let edge = Color.primary.opacity(Palette.veil)
 
@@ -154,7 +168,10 @@ public enum Design {
         /// What is printed on a book's spine: a point under the smallest role and as narrow as the
         /// face goes, because the width of a spine belongs to the book and the writing lives in what
         /// is left of it. Narrow beats rounded where a face offers only one of the two.
-        public static let spine = Font.system(size: 9, weight: .medium).width(.compressed)
+        public static let spine = Font.system(size: spineSize, weight: .medium).width(.compressed)
+
+        /// The same figure again, for the spine that is printed into a picture rather than laid out.
+        public static let spineSize: CGFloat = 9
     }
 
     /// What a control is set in.
@@ -165,9 +182,13 @@ public enum Design {
     /// they still follow Dynamic Type.
     public enum Control {
         /// A full-width action, prominent or not.
-        public static let action = Font.system(size: 18, weight: .medium)
+        public static let action = Font.system(size: actionSize, weight: .medium)
         /// An icon-only button in a bar.
-        public static let barGlyph = Font.system(size: 20, weight: .regular)
+        public static let barGlyph = Font.system(size: barGlyphSize, weight: .regular)
+
+        /// The same two figures, for the glyphs a shelf draws rather than lays out.
+        public static let actionSize: CGFloat = 18
+        public static let barGlyphSize: CGFloat = 20
     }
 
     /// A cast shadow, at one of two depths.

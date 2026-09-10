@@ -3,31 +3,34 @@
 //  Licensed under the MIT License. See LICENSE in the repository root.
 //
 
-import SwiftUI
-import UIKit
+#if canImport(UIKit)
 
-/// A file on its way to the share sheet, identified by where it is.
-public struct SharedFile: Identifiable {
-    public let url: URL
+    import SwiftUI
+    import UIKit
 
-    public init(url: URL) {
-        self.url = url
+    /// A file on its way to the share sheet, identified by where it is.
+    public struct SharedFile: Identifiable {
+        public let url: URL
+
+        public init(url: URL) {
+            self.url = url
+        }
+
+        public var id: String { url.path }
     }
 
-    public var id: String { url.path }
-}
+    /// The system's own share sheet.
+    public struct ShareSheet: UIViewControllerRepresentable {
+        public let url: URL
 
-/// The system's own share sheet.
-public struct ShareSheet: UIViewControllerRepresentable {
-    public let url: URL
+        public init(url: URL) {
+            self.url = url
+        }
 
-    public init(url: URL) {
-        self.url = url
+        public func makeUIViewController(context: Context) -> UIActivityViewController {
+            UIActivityViewController(activityItems: [ url ], applicationActivities: nil)
+        }
+
+        public func updateUIViewController(_ controller: UIActivityViewController, context: Context) {}
     }
-
-    public func makeUIViewController(context: Context) -> UIActivityViewController {
-        UIActivityViewController(activityItems: [ url ], applicationActivities: nil)
-    }
-
-    public func updateUIViewController(_ controller: UIActivityViewController, context: Context) {}
-}
+#endif

@@ -16,7 +16,7 @@ apply `Design` to the page.
 | Group | Holds |
 | --- | --- |
 | `Space` | Seven steps from 3 to 36, all multiples of `unit`. |
-| `Radius` | Three fixed, plus `cover(width:)` for a cover that rounds in proportion to itself. |
+| `Radius` | Three fixed, plus the barely-there `spine` and `cover`, which are cut nearly square. |
 | `Stroke` | The hairline and the ring. |
 | `Size` | Eight fixed dimensions, from an 18pt mark to a 120pt cover. |
 | `Palette` | The five meanings, and the one opacity every tinted ground and edge is drawn at. |
@@ -31,9 +31,14 @@ apply `Design` to the page.
 | `CalloutShape` | The card and its pointer as one path. |
 | `CalloutPlacement` | Which side of a thing an aside takes, and where it slides to. |
 | `CalloutMotion` | How an aside comes and goes. |
+| `Hinge` | Two panels hinged along one edge at one moment of their turn: a book taken down off a shelf. |
+| `FoldMotion` | How long a fold takes to turn. |
+| `ShelfLayout` | Where a shelf's books stand once broken into rows, and where each run's bracket goes. |
 | `callout(over:item:ground:)` | Hangs an aside over something in a view's own space. |
 | `sitsOnTheLine()` | What a boxed label wears so its ground sits on the line rather than under it. |
 | `LineGlyph` | A symbol set as text, so a row's baseline runs through it. |
+| `Board` | How a bound board takes the light at its edge and along its crease, in points. |
+| `CoverHinge` | The few points of a cover nearest its binding, where the board bends. |
 | `Style.spine` | What is printed on a book's spine: under the smallest role, and narrowed. |
 | `Size.coverWidth(across:ideal:spacing:)` | The width that fits a whole number of covers into a row. |
 | `Size.coverHeight(width:ratio:)` | How tall a slot a cover needs, in whole points. |
@@ -139,22 +144,62 @@ one otherwise catches only the end of it. `CalloutMotionUITests` measures the fr
 is reading, and an aside carrying the book's own words belongs on the book's own ground: the page's
 colour with a little of the colour on it mixed in, lighter than a dark page and darker than a light one.
 
-## Motion isn't in it
+## The fold
 
-The reader's seven timings are tuned to the gestures that use them, and a page turn at the wrong
-duration is worse than a page turn off the lattice.
+`Hinge` is two panels hinged along one edge, turning together, which is what a book does when it's taken
+down: the spine swings away about its own outer edge, and the cover folded in behind it comes round. It
+answers the questions about one moment of that turn, so a shelf can lay out the books beside one before
+anything is drawn: what the pair covers straight across, how square each panel stands to the light, and
+where each one projects to.
+
+A value rather than a view, because whoever draws it works every frame out from the turn itself: halfway
+between two projections is not the projection of half a turn. `ShelfView` runs one clock for a whole
+card, and on every tick it sets each book's turn and each book's frame from it. That is what makes a
+turn interruptible, and it means a layout in the middle of one puts the books where the turn has got to
+rather than where it is going. Twice before, a layout pass ended the turn it was called in the middle of.
+
+Both panels are placed in one space and projected one at a time. A rotation nested inside another is
+flattened between the two and the joint comes apart. The eye stands in front of the hinge, so a panel
+turning away from it leaves the screen edge-on rather than showing its back.
+
+**A panel exactly flat to the eye is never drawn.** Its projection collapses onto a line, and a
+transform that flattens what it is given is dropped rather than applied, so the cover arrives full size
+beside the spine. Every panel is held a twentieth of a point off flat for that reason, which leaves
+under half a pixel of sliver at any size a book is drawn. `FoldMotionUITests` measures the painted
+screen, since nothing else catches it.
+
+**A turned layer is clipped to whole pixels unless it is told otherwise.** Without
+`allowsEdgeAntialiasing` both panels come out with a stepped edge, and at the hinge each rounds the
+boundary pixel its own way and neither covers it, which draws the joint as a hair of nothing. Even with
+it, two abutting edges composite to about three quarters and still read as a line, so the edge reaches a
+little past the hinge under the face. That overrun is divided by how square the edge stands, since a
+length laid along a board nearly edge-on covers almost no screen, and the spine end of the turn is where
+the joint would otherwise be widest open.
+
+## Motion
+
+Two timings belong to the app rather than to the page, and both are named in the package:
+`CalloutMotion` for an aside and `FoldMotion` for a book turning off its edge. `-at-motion-scale`
+stretches both.
+
+The reader's seven timings stay with the reader. They're tuned to the gestures that use them, and a
+page turn at the wrong duration is worse than a page turn off the lattice.
 
 ## The catalogue
 
 `DesignSystemScreen` draws every token and every component from the tokens themselves, in Debug builds
-only. It has two halves. **UI** is everything the app is built from, all of it on the lattice and in the
-nine text roles. **Reader** is the page: Russian and English each justified and ragged, three sizes, the
-paint under picked words, and an aside. Nothing in that half is on the lattice or in a text role,
-because a page belongs to whoever is reading it, and every specimen there is set by the book's own
-typesetter so what is shown is what a page does. It lives in the app rather than the package, so it can show the book-shaped pieces beside the
-generic ones. A catalogue on the device is the only honest specimen: it picks up the real face, the reader's
-Dynamic Type setting, the system's light or dark and the materials, none of which a drawing of the app
-can.
+only. It has three parts. **UI** is everything the app is built from, all of it on the lattice and in
+the nine text roles. **Motion** is what only exists while it's running: a book turning between its edge
+and its face, held still across the turn and under a slider, a whole author's card, and an aside coming
+and going. Its books are the library's own views rather than drawings of them, so a specimen that looks
+right is the shelf looking right. **Reader**
+is the page: Russian and English each justified and ragged, three sizes, the paint under picked words,
+and an aside. Nothing in that part is on the lattice or in a text role, because a page belongs to
+whoever is reading it, and every specimen there is set by the book's own typesetter, so what is shown is
+what a page does. It lives in the app rather than the package, so it can show the book-shaped pieces
+beside the generic ones. A catalogue on the device is the only honest specimen: it picks up the real
+face, the reader's Dynamic Type setting, the system's light or dark and the materials, none of which a
+drawing of the app can.
 
 Two ways in:
 

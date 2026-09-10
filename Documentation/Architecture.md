@@ -157,6 +157,58 @@ The plus button reads an FB2 file into the library. See [LocalBooks.md](LocalBoo
 How far the reader has got is a ring on the cover, always 30pt across whatever the cover's size, with
 a tick in place of the figure once the book has been read to its end.
 
+### How the shelf is drawn
+
+The library is a `UICollectionView` and everything on it is drawn by hand. `LibraryList` holds the
+collection view with a section per author, `AuthorCardView` is the cell, and inside it a `ShelfView`
+stands books where `ShelfLayout` puts them. The heading and the search field are `LibraryHeaderView` and
+`LibrarySearchView`; the only SwiftUI left is the screen around the list, which owns the navigation, the
+sheets, the alert and the selection bar.
+
+Two things needed it. A book that lands in a different row when a run refolds is the same book, and only
+a layout owning every book on the card can say so: as separate SwiftUI rows it was one book leaving and
+a different one arriving, which could be carried across but never turned. And a spine is a blurred,
+resaturated copy of its own cover, which as a live filter costs a filter per book. `SpinePrint` draws
+each one once into a picture and keeps it, so the turn moves a bitmap.
+
+A card knows its own height and the layout is told it. Asking the cell instead, through self-sizing, is
+a crash: the card answers from the turn's clock, that disagrees with the layout, the layout invalidates
+and asks again, and the clock has moved by then. It never settles, and the collection view trips over
+itself a dozen passes down. Heights are `.absolute`, `AuthorCardView.height(across:)` interpolates
+between where the card was and where it is going, and the turn's clock invalidates the layout each frame.
+
+Nothing is built until the cover shapes are read back. A book whose shape nobody has measured is taken
+for the commonest one, so a shelf laid out before that read lands stands every book at the wrong height
+and shuffles the lot when it arrives.
+
+The one thing lost at the boundary is the zoom into a book, which grows out of a SwiftUI view and there
+is no SwiftUI view of a book any more. The shelf reports where the tapped cover stands, the screen lays
+an empty stand-in over that place carrying the transition source, and pushes a tick later, since a zoom
+looks for its source as the destination arrives.
+
+Menus are described once, as `Deed` values, because the shelf sets them out in UIKit and the rows still
+set them out in SwiftUI. Written twice they would drift, and the reader would find a different menu
+depending on which of the two they pressed.
+
+### What a book is made of
+
+A spine is printed rather than composed: `SpinePrint` fills the box with the cover, blurs it, and draws
+the shading, the head and foot lines and the writing into one picture, keyed by everything that changes
+how it comes out.
+
+**The treatment follows the book, not the room.** The blurred cover is measured before anything is done
+to it, and a dark book takes the dark treatment, white writing and a dark plate, whatever mode the
+device is in: what the writing has to stand against is the picture under it, and a shelf holds both kinds
+of book at once. Only a book whose cover has not arrived falls back to the shelf's own scheme.
+
+A cover is a board: square along the edge it is bound on, rounded at the two corners that are handled,
+and creased where it meets the spine. `Board.crease(_:)` holds that crease in points, and both the
+cover's own gradient and a missing volume's face read from it.
+
+A volume the reader doesn't hold is drawn as the book that isn't there would be: a spine's shape and
+shading on the edge, a cover's on the face, both at half strength. It turns with its run rather than
+sitting still while the books either side of it move.
+
 ### The book page
 
 The chapter list is a checklist. The device keeps one reading position per book, so the rest is

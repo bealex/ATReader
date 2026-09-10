@@ -1,0 +1,360 @@
+//
+//  Copyright © 2026 Alexander Babaev.
+//  Licensed under the MIT License. See LICENSE in the repository root.
+//
+
+import BookKit
+import DesignSystem
+import SwiftUI
+import UIKit
+
+/// The library, as one collection view: its heading, its search field, and a card for each author.
+///
+/// A card's height is worked out from the books on it before the card is built, so the list never has to
+/// ask a cell how big it is, and cells are reused, so a library of five hundred books costs whatever is
+/// on screen. The chrome above the cards is still SwiftUI, hosted in cells of its own: it is a heading
+/// and a text field, and neither is worth drawing by hand.
+struct LibraryList: UIViewControllerRepresentable {
+    /// What the list holds besides the cards.
+    struct Chrome {
+        let heading: LibraryHeaderView.Contents
+        let search: String
+        let onSearch: @MainActor (String) -> Void
+        /// What to say where there is nothing to show. Nothing while the library is still loading.
+        let empty: Empty?
+
+        /// The shelf with nothing on it, and why.
+        struct Empty {
+            let title: String
+            let message: String
+            let systemImage: String
+        }
+    }
+
+    let cards: [AuthorCardView.Contents]
+    let chrome: Chrome
+    let onOpen: (Book, CGRect) -> Void
+    /// A tap on the author's name, which turns their shelf round or picks every book of theirs out.
+    let onName: (String) -> Void
+    /// A tap on a book standing on its edge, which turns the shelf it is on.
+    let onTurn: (String) -> Void
+    let bookMenu: (Book) -> UIMenu?
+    let runMenu: (String) -> UIMenu?
+    let authorMenu: (String) -> UIMenu?
+    let onRefresh: () async -> Void
+
+    func makeCoordinator() -> Coordinator { Coordinator(self) }
+
+    func makeUIViewController(context: Context) -> UICollectionViewController {
+        context.coordinator.make()
+    }
+
+    func updateUIViewController(_ controller: UICollectionViewController, context: Context) {
+        context.coordinator.show(self)
+    }
+
+    /// What the list is made of, in the order it stands in.
+    enum Section: Hashable {
+        case heading
+        case search
+        case empty
+        case author(String)
+    }
+
+    @MainActor
+    final class Coordinator: NSObject, UICollectionViewDelegate {
+        private var list: LibraryList
+        private var controller: UICollectionViewController?
+        private var source: UICollectionViewDiffableDataSource<Section, Section>?
+        /// What each card was last shown, so a card that only turned is turned rather than rebuilt.
+        private var shown: [String: Bool] = [:]
+        /// The card in the middle of a turn, and the two heights it is travelling between.
+        private var carrying: Carrying?
+
+        /// A card on its way from one height to another. It holds the card itself rather than looking
+        /// it up: the height is asked for in the middle of a layout, and a collection view hands out no
+        /// cells while it is laying out.
+        private struct Carrying {
+            let id: String
+            let from: CGFloat
+            let to: CGFloat
+            weak var card: AuthorCardView?
+
+            var reached: CGFloat { card?.reached ?? 1 }
+        }
+
+        init(_ list: LibraryList) {
+            self.list = list
+        }
+
+        func make() -> UICollectionViewController {
+            let controller = UICollectionViewController(collectionViewLayout: layout())
+
+            controller.collectionView.backgroundColor = UIColor(Design.Surface.screen)
+            controller.collectionView.delegate = self
+            controller.collectionView.accessibilityIdentifier = "library.list"
+            controller.collectionView.refreshControl = UIRefreshControl(
+                frame: .zero,
+                primaryAction: UIAction { [weak self] _ in self?.refresh() }
+            )
+            source = make(controller.collectionView)
+            self.controller = controller
+
+            apply(animated: false)
+
+            return controller
+        }
+
+        func show(_ list: LibraryList) {
+            let turned = self.list.cards.count == list.cards.count
+            self.list = list
+
+            apply(animated: false)
+
+            guard let source else { return }
+
+            for card in list.cards {
+                guard let index = source.indexPath(for: .author(card.id)) else { continue }
+                guard let cell = controller?.collectionView.cellForItem(at: index) as? AuthorCardCell else { continue }
+
+                let was = shown[card.id]
+
+                shown[card.id] = card.shelf.showsEveryCover
+                dress(cell, with: card)
+
+                // Only a card whose books have turned is animated. Everything else is a redraw, and a
+                // redraw that springs would move every book on screen whenever one cover loaded.
+                if turned, let was, was != card.shelf.showsEveryCover {
+                    turn(cell, to: card)
+                } else {
+                    cell.card.show(card)
+                }
+            }
+        }
+
+        /// Carries one card to the height its books are turning towards, and everything below it along
+        /// with it, on the turn's own clock.
+        ///
+        /// The height is asked for again on every frame of the turn rather than animated. A collection
+        /// view will not carry a compositional layout from one set of heights to another: whichever way
+        /// the change is made it recomputes them and puts every card where it is going in one frame.
+        private func turn(_ cell: AuthorCardCell, to card: AuthorCardView.Contents) {
+            let across = (controller?.collectionView.bounds.width ?? 0) - Design.Space.extraLarge * 2
+
+            carrying = Carrying(
+                id: card.id,
+                from: height(of: card.id, across: across) ?? 0,
+                to: AuthorCardView.height(card, across: across),
+                card: cell.card
+            )
+            cell.card.onFrame = { [weak self] in
+                guard let self else { return }
+
+                controller?.collectionView.collectionViewLayout.invalidateLayout()
+
+                if cell.card.reached >= 1 { carrying = nil }
+            }
+            cell.card.turn(to: card, animated: true)
+        }
+
+        /// What a card stands at across the width it is given, which is its own height except while it
+        /// is turning, when it is somewhere between the two.
+        private func height(of id: String, across: CGFloat) -> CGFloat? {
+            guard let card = list.cards.first(where: { $0.id == id }) else { return nil }
+
+            let settled = AuthorCardView.height(card, across: across)
+
+            guard let carrying, carrying.id == id else { return settled }
+
+            return carrying.from + (carrying.to - carrying.from) * carrying.reached
+        }
+
+        private func refresh() {
+            Task {
+                await list.onRefresh()
+                controller?.collectionView.refreshControl?.endRefreshing()
+            }
+        }
+
+        // MARK: - What stands where
+
+        private func layout() -> UICollectionViewLayout {
+            UICollectionViewCompositionalLayout { [weak self] index, environment in
+                self?.section(index, across: environment.container.effectiveContentSize.width)
+                    ?? Self.section(height: .estimated(Design.Size.touch))
+            }
+        }
+
+        private func section(_ index: Int, across available: CGFloat) -> NSCollectionLayoutSection {
+            guard
+                let section = source?.sectionIdentifier(for: index)
+            else { return Self.section(height: .estimated(Design.Size.touch)) }
+
+            switch section {
+                case .heading:
+                    return Self.section(height: .absolute(LibraryHeaderView.height))
+                case .search:
+                    return Self.section(height: .absolute(LibrarySearchView.height))
+                case .empty:
+                    return Self.section(height: .estimated(Design.Size.avatar * 4))
+                case let .author(id):
+                    let across = available - Design.Space.extraLarge * 2
+
+                    guard
+                        let deep = height(of: id, across: across)
+                    else { return Self.section(height: .estimated(Design.Size.touch)) }
+
+                    // Given rather than measured. A cell that answers with its own height sends the
+                    // layout round again to ask, and a height that is moving never gives the same
+                    // answer twice: the collection view goes round until it trips over itself.
+                    return Self.section(height: .absolute(max(1, deep)))
+            }
+        }
+
+        private static func section(height: NSCollectionLayoutDimension) -> NSCollectionLayoutSection {
+            let size = NSCollectionLayoutSize(widthDimension: .fractionalWidth(1), heightDimension: height)
+            let group = NSCollectionLayoutGroup.horizontal(
+                layoutSize: size,
+                subitems: [ NSCollectionLayoutItem(layoutSize: size) ]
+            )
+            let section = NSCollectionLayoutSection(group: group)
+
+            section.contentInsets = NSDirectionalEdgeInsets(
+                top: 0,
+                leading: Design.Space.extraLarge,
+                bottom: Design.Space.large,
+                trailing: Design.Space.extraLarge
+            )
+
+            return section
+        }
+
+        // MARK: - What is in it
+
+        private func make(_ view: UICollectionView) -> UICollectionViewDiffableDataSource<Section, Section> {
+            let heading = UICollectionView.CellRegistration<HeadingCell, Section> { [weak self] cell, _, _ in
+                guard let self else { return }
+
+                cell.heading.show(list.chrome.heading)
+            }
+
+            let search = UICollectionView.CellRegistration<SearchCell, Section> { [weak self] cell, _, _ in
+                guard let self else { return }
+
+                cell.search.show(list.chrome.search, onSearch: list.chrome.onSearch)
+            }
+
+            let nothing = UICollectionView.CellRegistration<UICollectionViewCell, Section> { [weak self] cell, _, _ in
+                guard let empty = self?.list.chrome.empty else { return cell.contentConfiguration = nil }
+
+                var shown = UIContentUnavailableConfiguration.empty()
+
+                shown.image = UIImage(systemName: empty.systemImage)
+                shown.text = empty.title
+                shown.secondaryText = empty.message
+                cell.contentConfiguration = shown
+            }
+
+            let card = UICollectionView.CellRegistration<AuthorCardCell, String> { [weak self] cell, _, id in
+                guard let self, let contents = list.cards.first(where: { $0.id == id }) else { return }
+
+                dress(cell, with: contents)
+                cell.card.show(contents)
+                shown[id] = contents.shelf.showsEveryCover
+            }
+
+            return UICollectionViewDiffableDataSource(collectionView: view) { view, index, section in
+                switch section {
+                    case let .author(id):
+                        view.dequeueConfiguredReusableCell(using: card, for: index, item: id)
+                    case .heading:
+                        view.dequeueConfiguredReusableCell(using: heading, for: index, item: section)
+                    case .search:
+                        view.dequeueConfiguredReusableCell(using: search, for: index, item: section)
+                    case .empty:
+                        view.dequeueConfiguredReusableCell(using: nothing, for: index, item: section)
+                }
+            }
+        }
+
+        /// Everything a card does when it is touched, which the cell forgets whenever it is reused.
+        private func dress(_ cell: AuthorCardCell, with contents: AuthorCardView.Contents) {
+            cell.card.onName = { [weak self] in self?.list.onName(contents.id) }
+            cell.card.nameMenu = { [weak self] in self?.list.authorMenu(contents.id) }
+            cell.card.shelf.onToggle = { [weak self] in self?.list.onTurn(contents.id) }
+            cell.card.shelf.onOpen = { [weak self] work, face in self?.list.onOpen(work, face) }
+            cell.card.shelf.bookMenu = { [weak self] work in self?.list.bookMenu(work) }
+            cell.card.shelf.runMenu = { [weak self] run in self?.list.runMenu(run) }
+        }
+
+        private func apply(animated: Bool) {
+            guard let source else { return }
+
+            var snapshot = NSDiffableDataSourceSnapshot<Section, Section>()
+
+            snapshot.appendSections([ .heading, .search ])
+            snapshot.appendItems([ .heading ], toSection: .heading)
+            snapshot.appendItems([ .search ], toSection: .search)
+
+            if list.cards.isEmpty {
+                snapshot.appendSections([ .empty ])
+                snapshot.appendItems([ .empty ], toSection: .empty)
+            } else {
+                for card in list.cards {
+                    snapshot.appendSections([ .author(card.id) ])
+                    snapshot.appendItems([ .author(card.id) ], toSection: .author(card.id))
+                }
+            }
+
+            source.apply(snapshot, animatingDifferences: animated)
+        }
+    }
+}
+
+/// The shelf's heading, in a cell of its own.
+final class HeadingCell: UICollectionViewCell {
+    let heading = LibraryHeaderView()
+
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+
+        heading.frame = contentView.bounds
+        heading.autoresizingMask = [ .flexibleWidth, .flexibleHeight ]
+        contentView.addSubview(heading)
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+}
+
+/// The shelf's search field, in a cell of its own.
+final class SearchCell: UICollectionViewCell {
+    let search = LibrarySearchView()
+
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+
+        search.frame = contentView.bounds
+        search.autoresizingMask = [ .flexibleWidth, .flexibleHeight ]
+        contentView.addSubview(search)
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+}
+
+/// One author's card, in a cell that can be handed to the next author when this one scrolls away.
+final class AuthorCardCell: UICollectionViewCell {
+    let card = AuthorCardView()
+
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+
+        card.frame = contentView.bounds
+        card.autoresizingMask = [ .flexibleWidth, .flexibleHeight ]
+        contentView.addSubview(card)
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+}

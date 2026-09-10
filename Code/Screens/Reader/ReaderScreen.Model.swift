@@ -94,9 +94,8 @@ extension ReaderScreen {
         /// Where every chapter of this book begins, for the style and page size now in force.
         @ObservationIgnored
         private var pagination: BookPagination?
-        /// Where each chapter starts in the book, and how long the book runs, kept between passes.
-        private var bookFirstPages: [Int: Int] = [:]
-        private var bookPageCount: Int?
+        /// Where each chapter starts in the book and how long the book runs, kept between passes.
+        private var paging = BookPaging.nothing
 
         @ObservationIgnored
         private var paginating: Task<Void, Never>?
@@ -357,26 +356,18 @@ extension ReaderScreen {
         func caption(at index: Int, expanded: Bool) -> String? {
             switch page(at: index) {
                 case .title:
-                    guard let layout else { return nil }
-
-                    return caption(
-                        chapterId: layout.chapterId,
-                        number: 1,
-                        total: layout.pageCount + 1,
-                        expanded: expanded
-                    )
+                    // The title page stands in front of everything, so it is page one whatever follows.
+                    return caption(page: 1, of: paging.length, expanded: expanded)
                 case let .text(pieces):
                     // A shared page names the chapter that starts on it: that is the news.
-                    guard let piece = pieces.last else { return nil }
+                    guard
+                        let piece = pieces.last,
+                        let page = paging.page(of: piece.layout.chapterId, within: piece.page + 1)
+                    else { return nil }
 
-                    let extra = position(of: piece.layout.chapterId) == 0 ? 1 : 0
+                    let whole = paging.length(with: piece.layout.chapterId, measuring: piece.layout.pageCount)
 
-                    return caption(
-                        chapterId: piece.layout.chapterId,
-                        number: piece.page + 1 + extra,
-                        total: piece.layout.pageCount + extra,
-                        expanded: expanded
-                    )
+                    return caption(page: page, of: whole, expanded: expanded)
                 case .blank:
                     return nil
             }
@@ -386,49 +377,27 @@ extension ReaderScreen {
         ///
         /// A page turn is the only thing on screen with the controls away, so the footer is the figure
         /// and nothing else. Bringing the controls up is the moment the rest is worth the room.
-        private func caption(chapterId: Int, number: Int, total: Int, expanded: Bool) -> String? {
-            guard
-                let page = bookPage(chapterId: chapterId, within: number),
-                let count = bookPageCount,
-                count > 0
-            else { return nil }
+        private func caption(page: Int, of whole: Int, expanded: Bool) -> String? {
+            guard whole > 0 else { return nil }
 
             return expanded
-                ? String(localized: "page \(page) of \(count)")
+                ? String(localized: "page \(page) of \(max(page, whole))")
                 : page.formatted(.number)
-        }
-
-        /// Where a page falls in the whole book rather than in its chapter.
-        ///
-        /// The title page stands in front of everything, so every chapter's own paging is one further
-        /// in than the paginator counted it. `within` is already one-based and already carries that
-        /// page for the first chapter, which is why it is not added twice.
-        private func bookPage(chapterId: Int, within number: Int) -> Int? {
-            guard let first = bookFirstPages[chapterId] else { return nil }
-
-            let isFirstChapter = position(of: chapterId) == 0
-
-            return first + number - (isFirstChapter ? 1 : 0)
         }
 
         /// Where every measured chapter begins, and how long the book is, both counted once per pass
         /// rather than on every page drawn.
         private func refreshBookPaging() {
-            guard
-                let pagination
-            else {
-                bookFirstPages = [:]
-                bookPageCount = nil
-                return
-            }
+            guard let pagination else { return paging = .nothing }
 
-            // The title page in front of the first chapter.
-            bookFirstPages = pagination.firstPages(of: readableChapters).mapValues { $0 + 1 }
-            bookPageCount = pagination.pageCount(of: readableChapters) + 1
-        }
-
-        private func position(of chapterId: Int) -> Int? {
-            readableChapters.firstIndex { $0.id == chapterId }
+            // The title page in front of the first chapter, which every figure counts from.
+            paging = BookPaging(
+                firstPages: pagination.firstPages(of: readableChapters).mapValues { $0 + 1 },
+                chapterPages: readableChapters.reduce(into: [:]) { pages, chapter in
+                    pages[chapter.id] = pagination.placement(of: chapter.id)?.pageCount
+                },
+                length: pagination.pageCount(of: readableChapters) + 1
+            )
         }
 
         // MARK: - Layout

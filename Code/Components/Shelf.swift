@@ -16,6 +16,33 @@ enum Shelf {
 
     /// What a book is taken to look like before anything has seen its cover.
     static let unknownShape: CGFloat = 1.5
+
+    /// How thick a book stands: its own length, between a floor that leaves room for the writing and a
+    /// ceiling that stops one long book crowding out the covers beside it.
+    ///
+    /// A shelf of one width says every book is the same size, which no shelf of real books is.
+    static func spineWidth(of work: Book, cover: CGFloat = Design.Size.gridCover) -> CGFloat {
+        let thinnest = max(Design.Size.spine, cover * 0.2)
+        let thickest = cover * 0.32
+
+        guard let length = work.textLength, length > 0 else { return (thinnest + thickest) / 2 }
+
+        let share = min(1, max(0, (Double(length) - shortBook) / (longBook - shortBook)))
+
+        return thinnest + (thickest - thinnest) * share
+    }
+
+    /// The lengths a spine is measured between. Below the first every book is as thin as the writing
+    /// allows; above the second, as thick as the shelf allows.
+    private static let shortBook: Double = 250_000
+    private static let longBook: Double = 1_400_000
+}
+
+/// One of an author's series, as the shelf needs it.
+struct ShelfRun: Identifiable {
+    let id: String
+    let title: String
+    let slots: [SeriesSlot]
 }
 
 /// One place in a series: a book the reader holds, or a volume they don't.
