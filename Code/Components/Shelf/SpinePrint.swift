@@ -15,7 +15,9 @@ import UIKit
 /// Everything on a spine is settled before it is drawn: the title, the volume, and a cover thrown out of
 /// focus. Printing it means a shelf of five hundred books carries five hundred bitmaps instead of five
 /// hundred live blurs, and the turn moves a picture rather than a filter.
-@MainActor
+///
+/// The drawing takes no isolation of its own, so `SpinePress` can run it ahead of the reader. Only the
+/// cache and what it remembers belong to the main actor.
 enum SpinePrint {
     /// What a spine is asked for, and everything that changes how it comes out.
     struct Order: Hashable {
@@ -29,56 +31,112 @@ enum SpinePrint {
         let hasArtwork: Bool
     }
 
-    private static let prints = NSCache<NSString, UIImage>()
+    /// A spine off the press: the picture, and which way the book's own colour turned out to run.
+    struct Impression {
+        let image: UIImage
+        let isDark: Bool
+    }
+
+    /// How many spines are kept, and how much memory they may take between them.
+    static let keptCount = 10_000
+    static let keptBytes = 100 * 1024 * 1024
+
+    @MainActor
+    private static let prints: NSCache<NSString, UIImage> = {
+        let cache = NSCache<NSString, UIImage>()
+
+        cache.countLimit = keptCount
+        cache.totalCostLimit = keptBytes
+
+        return cache
+    }()
 
     /// Which way each book's own colour ran, once its spine has been printed, so a cover can set its
     /// own plate in what the spine was set in.
+    @MainActor
     private static var darkness: [Int: Bool] = [:]
 
+    @MainActor
     static func isDark(of id: Int) -> Bool? { darkness[id] }
 
+    @MainActor
     static func image(of work: Book, number: Int?, title: String, size: CGSize, isDark: Bool) -> UIImage? {
         guard size.width > 0, size.height > 0 else { return nil }
 
+        func order(hasArtwork: Bool) -> Order {
+            Order(id: work.id, number: number, title: title, size: size, isDark: isDark, hasArtwork: hasArtwork)
+        }
+
+        // A spine already printed on its own artwork stands whatever is in memory now: a cover dropped
+        // to make room for another doesn't make the spine printed on it wrong.
+        if let held = held(order(hasArtwork: true)) { return held }
+
         let artwork = work.coverURL.flatMap(CoverImages.image(for:))
-        let order = Order(
-            id: work.id,
-            number: number,
-            title: title,
-            size: size,
-            isDark: isDark,
-            hasArtwork: artwork != nil
-        )
-        let key = "\(order.hashValue)" as NSString
+        let wanted = order(hasArtwork: artwork != nil)
 
-        if let held = prints.object(forKey: key) { return held }
+        if let held = held(wanted) { return held }
 
-        let printed = draw(order, artwork: artwork)
-
-        prints.setObject(printed, forKey: key)
-
-        return printed
+        return keep(draw(wanted, artwork: artwork, density: density, context: context), for: wanted)
     }
 
+    /// Whether this spine has been printed already, so a press working ahead of the reader can pass
+    /// over it without drawing.
+    @MainActor
+    static func has(_ order: Order) -> Bool { held(order) != nil }
+
+    /// Files a spine, whoever printed it.
+    @discardableResult
+    @MainActor
+    static func keep(_ impression: Impression, for order: Order) -> UIImage {
+        darkness[order.id] = impression.isDark
+        prints.setObject(impression.image, forKey: key(order), cost: bytes(of: impression.image))
+
+        return impression.image
+    }
+
+    @MainActor
     static func forget() { prints.removeAllObjects() }
 
-    private static func draw(_ order: Order, artwork: UIImage?) -> UIImage {
+    /// How many pixels a point is here, which a press off the main actor is told rather than asks.
+    @MainActor
+    static var density: CGFloat { UIScreen.main.scale }
+
+    @MainActor
+    private static func held(_ order: Order) -> UIImage? { prints.object(forKey: key(order)) }
+
+    private static func key(_ order: Order) -> NSString { "\(order.hashValue)" as NSString }
+
+    private static func bytes(of image: UIImage) -> Int {
+        Int(image.size.width * image.scale * image.size.height * image.scale) * 4
+    }
+
+    static func draw(_ order: Order, artwork: UIImage?, density: CGFloat, context: CIContext) -> Impression {
         let bounds = CGRect(origin: .zero, size: order.size)
-        let (ground, colours) = ground(artwork, in: bounds, shelfIsDark: order.isDark)
+        let (ground, colours) = ground(
+            artwork,
+            in: bounds,
+            shelfIsDark: order.isDark,
+            density: density,
+            context: context
+        )
+        // Given rather than taken from the screen, which off the main actor is nobody's to read.
+        let format = UIGraphicsImageRendererFormat()
 
-        darkness[order.id] = colours.isDark
+        format.scale = density
 
-        return UIGraphicsImageRenderer(size: order.size).image { context in
-            let cg = context.cgContext
+        let image = UIGraphicsImageRenderer(size: order.size, format: format).image { drawn in
+            let cg = drawn.cgContext
 
             UIBezierPath(roundedRect: bounds, cornerRadius: Design.Radius.spine).addClip()
             ground.draw(in: bounds)
             colours.wash.setFill()
             cg.fill(bounds)
             curve(in: bounds, colours: colours, context: cg)
-            binding(in: bounds, colours: colours, context: cg)
+            binding(in: bounds, colours: colours, density: density, context: cg)
             writing(order, in: bounds, colours: colours, context: cg)
         }
+
+        return Impression(image: image, isDark: colours.isDark)
     }
 
     // MARK: - The cover, out of focus
@@ -96,26 +154,31 @@ enum SpinePrint {
     private static func ground(
         _ artwork: UIImage?,
         in bounds: CGRect,
-        shelfIsDark: Bool
+        shelfIsDark: Bool,
+        density: CGFloat,
+        context: CIContext
     ) -> (UIImage, SpineInk) {
         guard
             let artwork,
             let source = CIImage(image: artwork)
         else {
             let colours = SpineInk(isDark: shelfIsDark)
-            let flat = UIGraphicsImageRenderer(size: bounds.size).image { context in
+            let format = UIGraphicsImageRendererFormat()
+
+            format.scale = density
+
+            let flat = UIGraphicsImageRenderer(size: bounds.size, format: format).image { drawn in
                 colours.bare.setFill()
-                context.cgContext.fill(bounds)
+                drawn.cgContext.fill(bounds)
             }
 
             return (flat, colours)
         }
 
-        let density = UIScreen.main.scale
         let across = CGRect(origin: .zero, size: CGSize(width: bounds.width * density, height: bounds.height * density))
         let filled = fill(source, of: across.size)
         let blurred = filled.applyingGaussianBlur(sigma: Design.Size.spineBlur * density)
-        let colours = SpineInk(isDark: isDark(blurred, in: across))
+        let colours = SpineInk(isDark: isDark(blurred, in: across, context: context))
         let controls = CIFilter.colorControls()
         controls.inputImage = blurred
         controls.saturation = Float(colours.saturation)
@@ -130,7 +193,7 @@ enum SpinePrint {
 
         guard
             let output = blend.outputImage,
-            let made = Self.context.createCGImage(output, from: across)
+            let made = context.createCGImage(output, from: across)
         else { return (UIImage(), colours) }
 
         return (UIImage(cgImage: made, scale: density, orientation: .up), colours)
@@ -140,7 +203,7 @@ enum SpinePrint {
     ///
     /// Measured on the blurred cover before anything is done to it, since what the treatment is chosen
     /// for is the picture, and the treatment is what would otherwise decide the answer.
-    private static func isDark(_ ground: CIImage, in across: CGRect) -> Bool {
+    private static func isDark(_ ground: CIImage, in across: CGRect, context: CIContext) -> Bool {
         let average = CIFilter.areaAverage()
         average.inputImage = ground
         average.extent = across
@@ -189,13 +252,18 @@ enum SpinePrint {
 
     /// Worked in the colours the rest of the app is drawn in. Left to itself CoreImage works in linear
     /// light, where the same saturation and the same blend come out somewhere else entirely.
-    private static let context: CIContext = {
+    static func makeContext() -> CIContext {
         guard
             let sRGB = CGColorSpace(name: CGColorSpace.sRGB)
         else { return CIContext(options: [ .useSoftwareRenderer: false ]) }
 
         return CIContext(options: [ .useSoftwareRenderer: false, .workingColorSpace: sRGB ])
-    }()
+    }
+
+    /// The shelf's own, for a spine printed the moment it is asked for. A press keeps one of its own,
+    /// since a context belongs to whoever draws with it.
+    @MainActor
+    private static let context = makeContext()
 
     // MARK: - The board
 
@@ -225,10 +293,10 @@ enum SpinePrint {
 
     /// How a bound book is put together, which is what the eye reads as a spine rather than a bar: a
     /// pale head where the paper shows, and a dark foot.
-    private static func binding(in bounds: CGRect, colours: SpineInk, context: CGContext) {
+    private static func binding(in bounds: CGRect, colours: SpineInk, density: CGFloat, context: CGContext) {
         // A line the device can draw, rather than a length that lands across two pixels: half of one
         // and half of the next is half the line, twice as wide and too faint to read as an edge.
-        let pixel = 1 / UIScreen.main.scale
+        let pixel = 1 / density
 
         colours.head.setFill()
         context.fill(CGRect(x: bounds.minX, y: bounds.minY, width: bounds.width, height: pixel))
@@ -272,6 +340,7 @@ enum SpinePrint {
     }
 
     /// The volume on its plate as a picture of its own, so a cover carries the same one its spine does.
+    @MainActor
     static func plate(_ number: Int, isDark: Bool) -> UIImage {
         let key = "plate|\(number)|\(isDark)" as NSString
 
@@ -289,7 +358,7 @@ enum SpinePrint {
             )
         }
 
-        prints.setObject(drawn, forKey: key)
+        prints.setObject(drawn, forKey: key, cost: bytes(of: drawn))
 
         return drawn
     }
@@ -388,7 +457,12 @@ struct SpineInk {
 
     var wash: UIColor { isDark ? .black.withAlphaComponent(0.15) : .white.withAlphaComponent(0.06) }
 
-    var bare: UIColor { UIColor(Design.Surface.fill) }
+    /// Settled against this spine's own scheme rather than the room's, since a press prints where
+    /// there is no room to read.
+    var bare: UIColor {
+        UIColor(Design.Surface.fill)
+            .resolvedColor(with: UITraitCollection(userInterfaceStyle: isDark ? .dark : .light))
+    }
 
     var head: UIColor { isDark ? .white.withAlphaComponent(0.3) : .black.withAlphaComponent(0.4) }
 

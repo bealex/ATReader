@@ -62,7 +62,7 @@ struct LibraryList: UIViewControllerRepresentable {
     }
 
     @MainActor
-    final class Coordinator: NSObject, UICollectionViewDelegate {
+    final class Coordinator: NSObject, UICollectionViewDelegate, UICollectionViewDataSourcePrefetching {
         private var list: LibraryList
         private var controller: UICollectionViewController?
         private var source: UICollectionViewDiffableDataSource<Section, Section>?
@@ -92,6 +92,7 @@ struct LibraryList: UIViewControllerRepresentable {
 
             controller.collectionView.backgroundColor = UIColor(Design.Surface.screen)
             controller.collectionView.delegate = self
+            controller.collectionView.prefetchDataSource = self
             controller.collectionView.accessibilityIdentifier = "library.list"
             controller.collectionView.refreshControl = UIRefreshControl(
                 frame: .zero,
@@ -101,6 +102,7 @@ struct LibraryList: UIViewControllerRepresentable {
             self.controller = controller
 
             apply(animated: false)
+            press()
 
             return controller
         }
@@ -110,6 +112,7 @@ struct LibraryList: UIViewControllerRepresentable {
             self.list = list
 
             apply(animated: false)
+            press()
 
             guard let source else { return }
 
@@ -173,6 +176,31 @@ struct LibraryList: UIViewControllerRepresentable {
             Task {
                 await list.onRefresh()
                 controller?.collectionView.refreshControl?.endRefreshing()
+            }
+        }
+
+        // MARK: - Ahead of the reader
+
+        /// Prints the whole library's spines before it is scrolled, so a card coming into view blits
+        /// pictures rather than running a blur for every book on it.
+        private func press() {
+            guard let collection = controller?.collectionView else { return }
+
+            SpinePress.press(
+                list.cards.flatMap { ShelfView.spines(in: $0.shelf) },
+                isDark: collection.traitCollection.userInterfaceStyle == .dark
+            )
+        }
+
+        func collectionView(_ collectionView: UICollectionView, prefetchItemsAt indexPaths: [IndexPath]) {
+            SpinePress.warm(cards(at: indexPaths).flatMap { ShelfView.covers(in: $0.shelf) })
+        }
+
+        private func cards(at paths: [IndexPath]) -> [AuthorCardView.Contents] {
+            paths.compactMap { path in
+                guard case let .author(id) = source?.sectionIdentifier(for: path.section) else { return nil }
+
+                return list.cards.first { $0.id == id }
             }
         }
 

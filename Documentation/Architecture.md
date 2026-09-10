@@ -201,6 +201,17 @@ to it, and a dark book takes the dark treatment, white writing and a dark plate,
 device is in: what the writing has to stand against is the picture under it, and a shelf holds both kinds
 of book at once. Only a book whose cover has not arrived falls back to the shelf's own scheme.
 
+The whole library's spines are printed before it is scrolled. `SpinePress` walks the cards in the order
+they stand, pulls each book's cover off the disk and hands the order to a press of its own: an actor
+holding a CoreImage context nobody else draws with, at utility priority, away from the main actor.
+Nothing in the drawing belongs to the main thread, so it takes the screen's density and that context as
+arguments rather than reading either from wherever it runs. The cache holds ten thousand spines or a
+hundred megabytes of them, whichever binds first.
+
+A spine printed on its own artwork is handed back whatever is in memory now. Covers are dropped long
+before spines are, and one dropped to make room for another doesn't make the spine printed on it
+wrong.
+
 A cover is a board: square along the edge it is bound on, rounded at the two corners that are handled,
 and creased where it meets the spine. `Board.crease(_:)` holds that crease in points, and both the
 cover's own gradient and a missing volume's face read from it.
@@ -259,9 +270,14 @@ decodes one. Concurrent requests for the same URL share one download. `CoverImag
 appears, and the library warms the whole shelf in the background once it has loaded, so covers are
 there before the row is.
 
+`held(for:)` answers from memory or the disk and never goes out for a cover, which is what anything
+working ahead of a list wants. `SpinePress` reads through it as it prints, and the library's collection
+view prefetches with it for the cards about to appear.
+
 Decoded covers are kept on the main actor as well, so a view rebuilt under a new identity draws its
 cover in its first frame. A page turn does exactly that to the reader's title page, and going back
-through the actor made the cover blink each time.
+through the actor made the cover blink each time. It is bounded by cost as well as by count, since
+warming a whole library would otherwise fill it with full-size bitmaps.
 
 `CoverURL` is the other half. The service returns two different shapes for `coverUrl`: `work/details`
 and the library give a full `https://cm.author.today/…` URL, while the catalogue gives a bare path like

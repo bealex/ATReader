@@ -63,13 +63,7 @@ public actor CoverCache {
     public func image(for url: URL) async -> UIImage? {
         let key = Self.fileKey(for: url)
 
-        if let cached = memory.object(forKey: key as NSString) { return cached }
-
-        if let stored = await Self.decode(fileURL(key)) {
-            remember(stored, key: key)
-            touch(fileURL(key))
-            return stored
-        }
+        if let held = await held(for: url) { return held }
 
         if let existing = loading[url] { return await existing.value }
 
@@ -88,6 +82,22 @@ public actor CoverCache {
 
         await sweepIfDue()
         return image
+    }
+
+    /// The cover this device already has, from memory or from its own disk, without going out for it.
+    ///
+    /// What something working ahead of a list wants: a cover that would have to be fetched is left to
+    /// whoever is showing it.
+    public func held(for url: URL) async -> UIImage? {
+        let key = Self.fileKey(for: url)
+
+        if let cached = memory.object(forKey: key as NSString) { return cached }
+        guard let stored = await Self.decode(fileURL(key)) else { return nil }
+
+        remember(stored, key: key)
+        touch(fileURL(key))
+
+        return stored
     }
 
     /// Warms the covers a list is about to show. Failures are silent — this is only ever an optimisation.
@@ -258,13 +268,18 @@ public enum CoverImages {
     private static let images: NSCache<NSURL, UIImage> = {
         let cache = NSCache<NSURL, UIImage>()
         cache.countLimit = 300
+        // Four bytes a pixel. Bounded as well as counted, since something warming a whole library's
+        // covers would otherwise hold three hundred decoded bitmaps at once.
+        cache.totalCostLimit = 64 * 1024 * 1024
         return cache
     }()
 
     public static func image(for url: URL) -> UIImage? { images.object(forKey: url as NSURL) }
 
     public static func remember(_ image: UIImage, for url: URL) {
-        images.setObject(image, forKey: url as NSURL)
+        let cost = Int(image.size.width * image.scale * image.size.height * image.scale) * 4
+
+        images.setObject(image, forKey: url as NSURL, cost: cost)
         CoverShapes.remember(image, for: url)
     }
 }

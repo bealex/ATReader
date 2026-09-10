@@ -176,6 +176,38 @@ final class ShelfView: UIView {
         layout(contents, places: places(contents), across: available).height
     }
 
+    /// Every spine this shelf will ask for, at the size it will ask for it.
+    ///
+    /// Every book on it, not only the ones standing on edge: a card turned round wants all of its
+    /// spines at once, and how thick a book is doesn't depend on which way round it stands.
+    static func spines(in contents: Contents) -> [SpinePress.Wanted] {
+        let slot = slotHeight(contents)
+
+        return places(contents).compactMap { place in
+            guard case let .book(work, number, title, _) = place.slot else { return nil }
+
+            return SpinePress.Wanted(
+                id: work.id,
+                coverURL: work.coverURL,
+                number: number,
+                title: title,
+                size: CGSize(
+                    width: edgeWidth(of: place.slot, in: contents),
+                    height: standing(place.slot, in: contents, slot: slot)
+                )
+            )
+        }
+    }
+
+    /// Every cover this shelf will show, for whoever pulls them off the disk before it does.
+    static func covers(in contents: Contents) -> [URL] {
+        places(contents).compactMap { place in
+            guard case let .book(work, _, _, _) = place.slot else { return nil }
+
+            return work.coverURL
+        }
+    }
+
     // MARK: - What stands where
 
     private static func layout(_ contents: Contents, places: [Place], across available: CGFloat) -> ShelfLayout {
