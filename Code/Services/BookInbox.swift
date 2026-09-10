@@ -28,6 +28,10 @@ final class BookInbox {
     /// Moves every time a book lands, so a screen showing the shelf knows to read it again.
     private(set) var importedAt: Date?
 
+    /// The last book read in, so a shelf that wasn't the one to ask for it can still follow it
+    /// through the typesetter rather than only redrawing once.
+    private(set) var lastAccepted: Int?
+
     private(set) var errorMessage: String?
 
     /// Says the shelf has changed, for a part of the app that changed it without coming through here.
@@ -83,6 +87,7 @@ final class BookInbox {
         do {
             let work = try await BookImporting.import(from: url, store: store)
             await processor.start(workId: work.id, chapters: store.chapters(workId: work.id))
+            lastAccepted = work.id
             importedAt = .now
             return work
         } catch {

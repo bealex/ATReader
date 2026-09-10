@@ -21,6 +21,9 @@ enum SeriesScreen {
         @State
         private var isConfirmingUngroup = false
 
+        @Environment(Navigator.self)
+        private var navigator
+
         @Environment(\.dismiss)
         private var dismiss
 
@@ -109,7 +112,9 @@ enum SeriesScreen {
         private func books(_ model: Model) -> some View {
             Section {
                 ForEach(model.books) { work in
-                    NavigationLink(value: AppRoute.work(id: work.id, title: work.title)) {
+                    Button {
+                        navigator.push(.work(id: work.id, title: work.title))
+                    } label: {
                         // A stack rather than a row: a cover has no baseline to sit on, and lining one
                         // up by its bottom edge against words leaves it hanging below them.
                         HStack(spacing: Design.Space.medium) {

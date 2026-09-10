@@ -89,39 +89,4 @@ enum RootScreen {
             )
         }
     }
-
-    struct MainTabs: View {
-        var body: some View {
-            TabView {
-                Tab("Library", systemImage: "books.vertical.fill") {
-                    LibraryScreen.Component()
-                }
-                // The search role is what puts search on the tab bar itself rather than in a bar above
-                // each screen, which is why the library no longer carries one.
-                Tab("Search", systemImage: "magnifyingglass", role: .search) {
-                    SearchScreen.Component()
-                }
-                Tab("Top", systemImage: "chart.bar.fill") {
-                    TopScreen.Component()
-                }
-                Tab("Profile", systemImage: "person.crop.circle") {
-                    ProfileScreen.Component()
-                }
-
-                #if DEBUG
-                    // The token catalogue, drawn by the app from the tokens themselves. Its label is
-                    // verbatim because a token name isn't translated.
-                    Tab {
-                        NavigationStack { DesignSystemScreen.Component() }
-                    } label: {
-                        Label {
-                            Text(verbatim: "Design")
-                        } icon: {
-                            Image(systemName: "ruler")
-                        }
-                    }
-                #endif
-            }
-        }
-    }
 }

@@ -3,6 +3,7 @@
 //  Licensed under the MIT License. See LICENSE in the repository root.
 //
 
+import BookKit
 import BookStorage
 import UIKit
 
@@ -48,6 +49,29 @@ enum SpinePress {
         warming = Task(priority: .utility) {
             for url in urls where !Task.isCancelled { _ = await cover(at: url) }
         }
+    }
+
+    /// Prints one spine the run hasn't reached, for a shelf that needs it now. Filed like any other,
+    /// so the book beside it on the next card finds it already printed.
+    static func printed(of work: Book, number: Int?, title: String, size: CGSize, isDark: Bool) async -> UIImage? {
+        guard size.width > 0, size.height > 0 else { return nil }
+
+        let artwork = await cover(at: work.coverURL)
+        let order = SpinePrint.Order(
+            id: work.id,
+            number: number,
+            title: title,
+            size: size,
+            isDark: isDark,
+            hasArtwork: artwork != nil
+        )
+
+        if let held = SpinePrint.held(order) { return held }
+
+        return SpinePrint.keep(
+            await Press.shared.pull(order, artwork: artwork, density: SpinePrint.density),
+            for: order
+        )
     }
 
     private static var running: Task<Void, Never>?

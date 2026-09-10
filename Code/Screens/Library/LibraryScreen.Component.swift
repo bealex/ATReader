@@ -22,17 +22,8 @@ enum LibraryScreen {
         @State
         private var model: Model?
 
-        @State
-        private var path: [AppRoute] = []
-
-        @State
-        private var isPickingFile = false
-
-        @State
-        private var isNamingSeries = false
-
-        @State
-        private var seriesName = ""
+        @Environment(Navigator.self)
+        private var navigator
 
         @State
         private var reordering: Model.Group?
@@ -40,26 +31,6 @@ enum LibraryScreen {
         /// What the reader is holding together, while they are doing it.
         @State
         private var merging: MergeKind?
-
-        /// Where a cover stands, so the reader opens into the book from its own artwork.
-        @Namespace
-        private var zoom
-
-        /// The book being opened and where its cover stands, held only while the reader is going into
-        /// it. The shelf draws its own books, so the transition is given a stand-in at that place: a
-        /// zoom grows out of a SwiftUI view, and there is no SwiftUI view of a book any more.
-        @State
-        private var opening: Opening?
-
-        /// The place a book is being opened from.
-        private struct Opening: Equatable {
-            let id: Int
-            let face: CGRect
-        }
-
-        /// Where the list stands, so a place on the screen can be given to the stand-in as a place in it.
-        @State
-        private var listFrame: CGRect = .zero
 
         /// What the list has to lay cards out in, measured once rather than guessed at.
         @State
@@ -73,25 +44,11 @@ enum LibraryScreen {
         private var origins
 
         var body: some View {
-            NavigationStack(path: $path) {
-                Group {
-                    if let model {
-                        content(model)
-                    } else {
-                        Color.clear
-                    }
-                }
-                // The shelf carries its own heading, so the bar above it would only repeat the word.
-                .toolbar(.hidden, for: .navigationBar)
-                .navigationDestination(for: AppRoute.self) { route in
-                    // A book grows out of the cover that was tapped and settles back into it on the
-                    // way out. Only from the shelf, which is the only place holding the artwork.
-                    if case let .reader(reader) = route {
-                        AppRouteDestination(route: route)
-                            .navigationTransition(.zoom(sourceID: reader.workId, in: zoom))
-                    } else {
-                        AppRouteDestination(route: route)
-                    }
+            Group {
+                if let model {
+                    content(model)
+                } else {
+                    Color.clear
                 }
             }
             .onAppear {
@@ -101,16 +58,17 @@ enum LibraryScreen {
                 await model?.loadIfNeeded()
             }
             .onChange(of: inbox.importedAt) { _, _ in
-                // A book handed over by another app lands in the store rather than in this screen.
-                Task { await model?.refreshFromStore() }
+                // A book picked in the profile, or handed over by another app, lands in the store
+                // rather than in this screen.
+                Task {
+                    guard let workId = inbox.lastAccepted else { return await model?.refreshFromStore() }
+
+                    await model?.adoptImported(workId: workId)
+                }
             }
-            .onChange(of: path) { _, current in
+            .onChange(of: navigator.returnedAt) { _, _ in
                 // Reading fills the rings, and only the store knows it. Coming back off a book redraws
                 // the list from there rather than leaving yesterday's covers up.
-                guard current.isEmpty else { return }
-
-                opening = nil
-
                 Task { await model?.refreshFromStore() }
             }
         }
@@ -121,20 +79,9 @@ enum LibraryScreen {
 
             shelf(model)
                 .background(Design.Surface.screen)
-                .safeAreaInset(edge: .bottom) {
-                    if model.isSelecting { selectionBar(model) }
-                }
-                .fileImporter(
-                    isPresented: $isPickingFile,
-                    allowedContentTypes: LocalBookFiles.fileTypes,
-                    allowsMultipleSelection: true
-                ) { result in
-                    guard case let .success(urls) = result else { return }
-
-                    Task {
-                        for url in urls { await model.importBook(from: url) }
-                    }
-                }
+                .navigationTitle(Text("Library"))
+                .navigationSubtitle(Text(model.filter.title))
+                .toolbar { bar(model) }
                 .overlay {
                     if model.isLoading && model.works.isEmpty {
                         LoadingOverlay(title: "Loading your library…", label: "Loading your library")
@@ -147,7 +94,7 @@ enum LibraryScreen {
                     message: { Text(model.errorMessage ?? "") }
                 )
                 .modifier(
-                    SeriesEditing(model: model, reordering: $reordering, isNaming: $isNamingSeries, name: $seriesName)
+                    SeriesEditing(model: model, reordering: $reordering)
                 )
                 .sheet(item: $merging) { kind in
                     switch kind {
@@ -186,25 +133,10 @@ enum LibraryScreen {
 
                 shapesKnown = true
             }
-            .onGeometryChange(for: CGRect.self) {
-                $0.frame(in: .global)
+            .onGeometryChange(for: CGFloat.self) {
+                $0.size.width
             } action: {
-                listWidth = $0.width
-                listFrame = $0
-            }
-            // The stand-in a zoom grows out of, laid over the cover that was tapped and holding still
-            // until the reader comes back off the book.
-            .overlay(alignment: .topLeading) {
-                if let opening {
-                    Color.clear
-                        .frame(width: opening.face.width, height: opening.face.height)
-                        .offset(
-                            x: opening.face.minX - listFrame.minX,
-                            y: opening.face.minY - listFrame.minY
-                        )
-                        .matchedTransitionSource(id: opening.id, in: zoom)
-                        .allowsHitTesting(false)
-                }
+                listWidth = $0
             }
         }
 
@@ -212,21 +144,11 @@ enum LibraryScreen {
             LibraryList(
                 cards: cards(model),
                 chrome: LibraryList.Chrome(
-                    heading: LibraryHeaderView.Contents(
-                        title: String(localized: "Library"),
-                        showing: model.filter.title,
-                        isSelecting: model.isSelecting,
-                        isImporting: model.isImporting,
-                        merge: mergeDeeds(),
-                        filters: filterDeeds(model),
-                        onSelect: { model.isSelecting.toggle() },
-                        onAdd: { isPickingFile = true }
-                    ),
                     search: model.searchText,
                     onSearch: { model.searchText = $0 },
                     empty: emptyShelf(model)
                 ),
-                onOpen: { work, face in open(model, work: work, from: face) },
+                onOpen: { work, face in open(work, from: face) },
                 onName: { author in chose(model, author: author) },
                 onTurn: { author in switchMode(model, series: author) },
                 bookMenu: { bookDeeds(model, work: $0).offered },
@@ -242,6 +164,28 @@ enum LibraryScreen {
             )
         }
 
+        /// What the bar over the shelf offers: holding two things together, and what to show.
+        @ToolbarContentBuilder
+        private func bar(_ model: Model) -> some ToolbarContent {
+            ToolbarItemGroup(placement: .topBarTrailing) {
+                Menu {
+                    DeedMenu(deeds: mergeDeeds())
+                } label: {
+                    Label("Combine", systemImage: "arrow.triangle.merge")
+                }
+                .accessibilityIdentifier("library.merge")
+                .accessibilityHint("Holds two series, or two spellings of a name, together")
+
+                Menu {
+                    DeedMenu(deeds: filterDeeds(model))
+                } label: {
+                    Label("Choose what to show", systemImage: "line.3.horizontal.decrease.circle")
+                }
+                .accessibilityIdentifier("library.filter")
+                .accessibilityHint("Filters your library")
+            }
+        }
+
         /// Everything the list draws, worked out from the model rather than by the cards themselves.
         private func cards(_ model: Model) -> [AuthorCardView.Contents] {
             model.shelves.map { shelf in
@@ -254,24 +198,16 @@ enum LibraryScreen {
                         },
                         alone: shelf.alone.flatMap { model.slots(of: $0) },
                         coverWidth: coverWidth,
-                        // Picking books out shows every one of them: a spine is not something to aim
-                        // at, and the books being picked are as likely to be read as not.
-                        showsEveryCover: model.isSelecting || model.showsEveryCover(shelf.id),
-                        isPicked: model.isSelecting ? { model.selection.contains($0.id) } : nil,
+                        showsEveryCover: model.showsEveryCover(shelf.id),
                         origin: { origins.origin(of: $0) }
-                    ),
-                    isPicked: model.isSelecting
-                        ? Set(shelf.works.map(\.id)).isSubset(of: model.selection)
-                        : nil
+                    )
                 )
             }
         }
 
-        /// What a tap on an author's name does: pick every book of theirs while selecting, else turn
-        /// their shelf round.
+        /// What a tap on an author's name does, which is turn their shelf round.
         private func chose(_ model: Model, author: String) {
-            guard let shelf = model.shelves.first(where: { $0.id == author }) else { return }
-            guard !model.isSelecting else { return shelf.works.forEach(model.toggle) }
+            guard model.shelves.contains(where: { $0.id == author }) else { return }
 
             switchMode(model, series: author)
         }
@@ -310,36 +246,6 @@ enum LibraryScreen {
             model.authors.map { MergeChoice(id: $0.name, title: $0.name, detail: "", count: $0.count) }
         }
 
-        /// What the shelf offers while books are being picked out.
-        private func selectionBar(_ model: Model) -> some View {
-            HStack {
-                Text("\(model.selection.count) selected")
-                    .font(Design.Style.label)
-                    .foregroundStyle(.secondary)
-
-                Spacer()
-
-                Button("Combine into a series") {
-                    seriesName = Self.suggestedName(model)
-                    isNamingSeries = true
-                }
-                .buttonStyle(.borderedProminent)
-                .disabled(model.selection.count < 2)
-                .accessibilityIdentifier("library.combine")
-            }
-            .padding(.horizontal, Design.Space.extraLarge)
-            .padding(.vertical, Design.Space.large)
-            .background(.bar)
-        }
-
-        /// A series already among the picked books names the new one, since combining usually means
-        /// adding a book to a series that already exists.
-        private static func suggestedName(_ model: Model) -> String {
-            model.groups
-                .first { $0.series != nil && $0.works.contains { model.selection.contains($0.id) } }?
-                .series ?? ""
-        }
-
         private func title(_ filter: Model.Filter, count: Int?) -> String {
             guard let count else { return filter.title }
 
@@ -358,8 +264,6 @@ enum LibraryScreen {
 
         /// Turning a run between its spines and its covers, which every book does on its own hinge.
         private func switchMode(_ model: Model, series: String) {
-            guard !model.isSelecting else { return }
-
             withAnimation(FoldMotion.turning) { model.toggleCovers(of: series) }
         }
 
@@ -373,7 +277,7 @@ enum LibraryScreen {
         private func authorDeeds(_ model: Model, shelf: Model.AuthorShelf) -> [Deed] {
             let runs = shelf.runs.map { group in Deed.menu(group.series ?? "", seriesDeeds(model, group: group)) }
             let alone = shelf.alone.compactMap(\.works.first).map { work in
-                Deed.act(work.title, systemImage: "book") { path.append(.work(id: work.id, title: work.title)) }
+                Deed.act(work.title, systemImage: "book") { navigator.push(.work(id: work.id, title: work.title)) }
             }
 
             return alone.isEmpty ? runs : runs + [ .menu(String(localized: "Books"), alone) ]
@@ -384,7 +288,7 @@ enum LibraryScreen {
             // the service named makes it theirs, which is the answer they wanted anyway.
             var deeds: [Deed] = [
                 .act(String(localized: "Series details"), systemImage: "list.bullet.rectangle") {
-                    path.append(.series(name: group.series ?? ""))
+                    navigator.push(.series(name: group.series ?? ""))
                 },
                 .act(String(localized: "Reorder books"), systemImage: "arrow.up.arrow.down") {
                     reordering = group
@@ -405,20 +309,9 @@ enum LibraryScreen {
             return deeds
         }
 
-        private func open(_ work: Book) {
-            path.append(.reader(.init(workId: work.id, title: work.title)))
-        }
-
-        /// Opening a book off the shelf, which it grows out of.
-        ///
-        /// The stand-in is put in place first and the book pushed a tick later, since a zoom looks for
-        /// its source as the destination arrives and one placed in the same breath is not there yet.
-        private func open(_ model: Model, work: Book, from face: CGRect) {
-            guard !model.isSelecting else { return model.toggle(work) }
-
-            opening = Opening(id: work.id, face: face)
-
-            Task { @MainActor in open(work) }
+        /// Opening a book off the shelf, which it grows out of: the very board its artwork is on.
+        private func open(_ work: Book, from face: UIView) {
+            navigator.push(.reader(.init(workId: work.id, title: work.title)), from: face)
         }
 
         private func bookDeeds(_ model: Model, work: Book) -> [Deed] {
@@ -426,7 +319,7 @@ enum LibraryScreen {
                 // The way to the book's own page. A tap on a cover opens the book itself, so without
                 // this there is nothing left that reaches what the book is.
                 .act(String(localized: "Book details"), systemImage: "info.circle") {
-                    path.append(.work(id: work.id, title: work.title))
+                    navigator.push(.work(id: work.id, title: work.title))
                 },
                 .act(
                     String(localized: "Mark as read"),
@@ -471,10 +364,6 @@ private struct SeriesEditing: ViewModifier {
 
     @Binding
     var reordering: LibraryScreen.Model.Group?
-    @Binding
-    var isNaming: Bool
-    @Binding
-    var name: String
 
     func body(content: Content) -> some View {
         content
@@ -482,15 +371,6 @@ private struct SeriesEditing: ViewModifier {
                 SeriesOrder(group: group) { ids in
                     Task { await model.reorder(series: group.series ?? "", workIds: ids) }
                 }
-            }
-            .alert("Name this series", isPresented: $isNaming) {
-                TextField("Series name", text: $name)
-                Button("Combine") {
-                    Task { await model.combineSelection(named: name) }
-                }
-                Button("Cancel", role: .cancel) {}
-            } message: {
-                Text("The books you picked are shown together under this name.")
             }
     }
 }

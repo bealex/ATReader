@@ -65,9 +65,12 @@ struct SpinePressTests {
             for: order
         )
 
+        let standing = SpinePrint.standing(of: work, number: 1, title: "Title", size: Self.size, isDark: false)
+
         #expect(SpinePrint.has(order))
         // The book has no artwork in hand, and the spine printed on it still stands.
-        #expect(SpinePrint.image(of: work, number: 1, title: "Title", size: Self.size, isDark: false) === filed)
+        #expect(standing.image === filed)
+        #expect(standing.isWanted)
         #expect(SpinePrint.isDark(of: work.id) == true)
     }
 

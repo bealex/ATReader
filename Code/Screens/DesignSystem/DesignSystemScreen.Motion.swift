@@ -179,21 +179,7 @@ private struct DrawnLibrary: View {
     var body: some View {
         LibraryList(
             cards: Specimen.shelves.map { Specimen.card($0, showsEveryCover: open.contains($0)) },
-            chrome: LibraryList.Chrome(
-                heading: LibraryHeaderView.Contents(
-                    title: "Library",
-                    showing: "Reading",
-                    isSelecting: false,
-                    isImporting: false,
-                    merge: [],
-                    filters: [],
-                    onSelect: {},
-                    onAdd: {}
-                ),
-                search: "",
-                onSearch: { _ in },
-                empty: nil
-            ),
+            chrome: LibraryList.Chrome(search: "", onSearch: { _ in }, empty: nil),
             onOpen: { _, _ in },
             onName: { turn($0) },
             onTurn: { turn($0) },
@@ -292,10 +278,8 @@ private enum Specimen {
                 alone: [ .book(volume(5, length: 500_000), number: nil, title: "On Its Own", isRead: true) ],
                 coverWidth: Design.Size.gridCover,
                 showsEveryCover: showsEveryCover,
-                isPicked: nil,
                 origin: { _ in .service }
-            ),
-            isPicked: nil
+            )
         )
     }
 

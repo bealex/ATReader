@@ -40,7 +40,6 @@ struct ShelfTurnTests {
             alone: [],
             coverWidth: Design.Size.gridCover,
             showsEveryCover: showsEveryCover,
-            isPicked: nil,
             origin: { _ in nil }
         )
     }
@@ -99,8 +98,7 @@ struct ShelfTurnTests {
         let shelved = AuthorCardView.Contents(
             id: "author",
             name: "Author",
-            shelf: contents(showsEveryCover: false),
-            isPicked: nil
+            shelf: contents(showsEveryCover: false)
         )
 
         // Never given a size: this is what the list asks a card the first time it lays one out, and a
@@ -117,14 +115,12 @@ struct ShelfTurnTests {
         let shelved = AuthorCardView.Contents(
             id: "author",
             name: "Author",
-            shelf: contents(showsEveryCover: false),
-            isPicked: nil
+            shelf: contents(showsEveryCover: false)
         )
         let taken = AuthorCardView.Contents(
             id: "author",
             name: "Author",
-            shelf: contents(showsEveryCover: true),
-            isPicked: nil
+            shelf: contents(showsEveryCover: true)
         )
 
         card.frame = CGRect(x: 0, y: 0, width: across, height: AuthorCardView.height(shelved, across: across))

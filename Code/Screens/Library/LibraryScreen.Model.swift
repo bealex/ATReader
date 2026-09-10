@@ -260,15 +260,6 @@ extension LibraryScreen {
         var filter: Filter = .reading
         var searchText = ""
 
-        /// True while the shelf is picking books out rather than opening them.
-        var isSelecting = false {
-            didSet {
-                if !isSelecting { selection = [] }
-            }
-        }
-
-        var selection: Set<Int> = []
-
         /// The names of the series the reader put together, which are kept in the order they chose
         /// rather than newest first.
         private(set) var madeSeries: Set<String> = []
@@ -915,26 +906,6 @@ extension LibraryScreen {
 
         // MARK: - Series the reader puts together
 
-        /// Files the books picked out as one series, in the order they were listed.
-        ///
-        /// A series already selected brings its books with it, so combining two series and a loose book
-        /// gives one series of everything rather than a series holding a series.
-        func combineSelection(named series: String) async {
-            let name = series.trimmingCharacters(in: .whitespacesAndNewlines)
-
-            guard !name.isEmpty, selection.count > 1 else { return }
-
-            await store.store(series: name, workIds: ordered(selection))
-            isSelecting = false
-            await refreshFromStore()
-        }
-
-        /// The picked books in the order the shelf is showing them, so combining keeps what the reader
-        /// can see rather than the order a set happens to iterate in.
-        private func ordered(_ ids: Set<Int>) -> [Int] {
-            groups.flatMap(\.works).map(\.id).filter(ids.contains)
-        }
-
         func reorder(series: String, workIds: [Int]) async {
             await store.store(order: workIds, series: series)
             await refreshFromStore()
@@ -948,41 +919,7 @@ extension LibraryScreen {
             await refreshFromStore()
         }
 
-        func toggle(_ work: Book) {
-            if selection.contains(work.id) {
-                selection.remove(work.id)
-            } else {
-                selection.insert(work.id)
-            }
-        }
-
-        /// Picking a series picks every book in it, since a series is what the shelf shows as one thing.
-        func toggle(group: Group) {
-            let ids = Set(group.works.map(\.id))
-
-            if ids.isSubset(of: selection) {
-                selection.subtract(ids)
-            } else {
-                selection.formUnion(ids)
-            }
-        }
-
         // MARK: - Books from files
-
-        /// Reads a picked file into the library and starts preparing it.
-        ///
-        /// The book is on the shelf and readable the moment its text is stored. Putting it through the
-        /// typesetter happens behind that, so a long book doesn't hold the picker open.
-        func importBook(from url: URL) async {
-            guard
-                let work = await BookInbox.shared.accept(url)
-            else {
-                errorMessage = BookInbox.shared.errorMessage
-                return
-            }
-
-            await adoptImported(workId: work.id)
-        }
 
         /// Draws a newly arrived book on the shelf and follows it while it is prepared. Also the way a
         /// book opened from another app reaches the list.

@@ -16,6 +16,12 @@ enum ProfileScreen {
         @Environment(ReaderSettings.self)
         private var settings
 
+        @Environment(BookInbox.self)
+        private var inbox
+
+        @State
+        private var isPickingFile = false
+
         @State
         private var isConfirmingSignOut = false
 
@@ -97,6 +103,30 @@ enum ProfileScreen {
                     } footer: {
                         // Kept to one literal — splitting it would stop it being a localizable key.
                         Text("Books you are reading are checked daily; new chapters download and badge the icon.")
+                    }
+
+                    Section {
+                        Button {
+                            isPickingFile = true
+                        } label: {
+                            Label("Add a book from a file", systemImage: "plus")
+                        }
+                        .disabled(inbox.isImporting)
+                        .accessibilityIdentifier("profile.add")
+                        .accessibilityHint("Reads an FB2 file into your library")
+                        .fileImporter(
+                            isPresented: $isPickingFile,
+                            allowedContentTypes: LocalBookFiles.fileTypes,
+                            allowsMultipleSelection: true
+                        ) { result in
+                            guard case let .success(urls) = result else { return }
+
+                            Task { await inbox.accept(urls) }
+                        }
+                    } header: {
+                        Text("Your own books")
+                    } footer: {
+                        Text("An FB2 file is read onto the shelf and kept on this device alone.")
                     }
 
                     LitresSection { Task { await refreshStats() } }

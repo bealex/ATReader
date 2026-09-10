@@ -22,8 +22,6 @@ final class ShelfView: UIView {
         let coverWidth: CGFloat
         /// True while every book stands as a cover, false while the ones read stand as spines.
         let showsEveryCover: Bool
-        /// Whether a book is picked out, while the shelf is picking books. Nothing while it isn't.
-        let isPicked: ((Book) -> Bool)?
         /// Where a book came from, which the shelf is told rather than working out.
         let origin: (Int) -> CoverOrigin?
     }
@@ -39,8 +37,8 @@ final class ShelfView: UIView {
     var onToggle: (() -> Void)?
     /// Called on every frame of a turn, for whatever has to follow the shelf as it changes height.
     var onFrame: (() -> Void)?
-    /// A book being opened, and where its face stands on the screen as it is.
-    var onOpen: ((Book, CGRect) -> Void)?
+    /// A book being opened, and the face it grows out of.
+    var onOpen: ((Book, UIView) -> Void)?
     var bookMenu: ((Book) -> UIMenu?)?
     var runMenu: ((String) -> UIMenu?)?
 
@@ -54,6 +52,9 @@ final class ShelfView: UIView {
     private var turning: Turning?
     private var link: CADisplayLink?
     private var brackets: [String: BracketView] = [:]
+    /// Books taken off the shelf, kept to stand the next ones in. A card is handed to another author
+    /// whole, and building a book costs more than dressing one again.
+    private var spare: [BookView] = []
 
     /// How far round each book on the shelf stands, which is what a turn moves.
     var turns: [String: CGFloat] { books.mapValues(\.turned) }
@@ -295,11 +296,20 @@ final class ShelfView: UIView {
 
     private func discard<View: UIView>(_ views: inout [String: View], keeping wanted: Set<String>) {
         for (id, view) in views where !wanted.contains(id) {
-            (view as? BookView)?.stopLoading()
             view.removeFromSuperview()
             views[id] = nil
+
+            guard let book = view as? BookView else { continue }
+
+            book.stopLoading()
+
+            if spare.count < Self.spares { spare.append(book) }
         }
     }
+
+    /// How many books to keep back. More than any one card stands, since a card is emptied before the
+    /// next is filled.
+    private static let spares = 64
 
     /// A view for one place on the shelf, whichever kind of place it is.
     private func make(_ place: Place, in contents: Contents) {
@@ -309,13 +319,16 @@ final class ShelfView: UIView {
         if let held = books[place.id] {
             view = held
         } else {
-            view = BookView()
-            view.onTap = { [weak self] in self?.tapped(at: place) }
-            view.menu = { [weak self] in self?.menu(at: place) }
+            view = spare.popLast() ?? BookView()
             books[place.id] = view
             addSubview(view)
             isNew = true
         }
+
+        // Told again every time rather than only when the view is made: a place holds the book as it
+        // was, so a view keeping its first closures opens and offers yesterday's copy of it.
+        view.onTap = { [weak self] in self?.tapped(at: place) }
+        view.menu = { [weak self] in self?.menu(at: place) }
 
         let slot = Self.slotHeight(contents)
 
@@ -341,8 +354,7 @@ final class ShelfView: UIView {
                         progress: work.readingProgress,
                         isComplete: (work.readingProgress ?? 0) >= Book.readThreshold,
                         origin: contents.origin(work.id),
-                        isOngoing: work.isOngoing,
-                        isPicked: contents.isPicked.map { $0(work) }
+                        isOngoing: work.isOngoing
                     )
                 )
             case let .missing(number):
@@ -369,8 +381,9 @@ final class ShelfView: UIView {
             onToggle?()
             return
         }
+        guard let standing = books[place.id] else { return }
 
-        onOpen?(work, books[place.id]?.faceOnScreen ?? .zero)
+        onOpen?(work, standing.face)
     }
 
     private func menu(at place: Place) -> UIMenu? {

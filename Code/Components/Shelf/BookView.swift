@@ -38,19 +38,22 @@ final class BookView: UIView {
     private let facePanel = UIView()
     private let spine = UIImageView()
     private let cover = CoverView()
-    private let edgeGap = GapView()
-    private let faceGap = GapView()
+    private let edgeGap = GapView(frame: .zero)
+    private let faceGap = GapView(frame: .zero)
     private let edgeShade = UIView()
     private let faceShade = UIView()
 
     private var contents: Contents?
     private var held: CGFloat = 0
+    private var printing: Task<Void, Never>?
+    /// Which book the spine now hanging is of, so a view given a different one clears it first.
+    private var shown: Int?
 
     var onTap: (() -> Void)?
     var menu: (() -> UIMenu?)?
 
-    /// Where this book's face stands on the screen, for a transition that grows out of its artwork.
-    var faceOnScreen: CGRect { facePanel.convert(facePanel.bounds, to: nil) }
+    /// The board this book's artwork is on, which a zoom into it grows out of.
+    var face: UIView { facePanel }
 
     override init(frame: CGRect) {
         super.init(frame: frame)
@@ -138,7 +141,11 @@ final class BookView: UIView {
         SpinePrint.isDark(of: work.id) ?? (traitCollection.userInterfaceStyle == .dark)
     }
 
-    func stopLoading() { cover.stopLoading() }
+    func stopLoading() {
+        cover.stopLoading()
+        printing?.cancel()
+        printing = nil
+    }
 
     /// Turns the book, either at once or over the time a hinge takes.
     /// How far round this book has turned, which whatever is animating it sets every frame.
@@ -204,7 +211,8 @@ final class BookView: UIView {
         CATransaction.commit()
     }
 
-    /// The spine is a picture, so it is printed again whenever what it is a picture of changes.
+    /// The spine is a picture, so it is hung again whenever what it is a picture of changes, and asked
+    /// of the press when the one wanted has not been printed yet.
     private func reprint() {
         guard
             let contents,
@@ -213,13 +221,27 @@ final class BookView: UIView {
             contents.standing > 0
         else { return }
 
-        spine.image = SpinePrint.image(
-            of: work,
-            number: number,
-            title: title,
-            size: CGSize(width: contents.edge, height: contents.standing),
-            isDark: traitCollection.userInterfaceStyle == .dark
-        )
+        let size = CGSize(width: contents.edge, height: contents.standing)
+        let isDark = traitCollection.userInterfaceStyle == .dark
+        let standing = SpinePrint.standing(of: work, number: number, title: title, size: size, isDark: isDark)
+
+        printing?.cancel()
+        printing = nil
+
+        // Whatever is filed, but never the book that stood here before this one.
+        if standing.image != nil || shown != work.id { spine.image = standing.image }
+
+        shown = work.id
+
+        guard !standing.isWanted else { return }
+
+        printing = Task { [weak self] in
+            let pulled = await SpinePress.printed(of: work, number: number, title: title, size: size, isDark: isDark)
+
+            guard let pulled, !Task.isCancelled else { return }
+
+            self?.spine.image = pulled
+        }
     }
 
     /// What a reader who cannot see the shelf is told, which is what this place is showing: a book

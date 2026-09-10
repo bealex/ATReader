@@ -17,7 +17,6 @@ import UIKit
 struct LibraryList: UIViewControllerRepresentable {
     /// What the list holds besides the cards.
     struct Chrome {
-        let heading: LibraryHeaderView.Contents
         let search: String
         let onSearch: @MainActor (String) -> Void
         /// What to say where there is nothing to show. Nothing while the library is still loading.
@@ -33,7 +32,7 @@ struct LibraryList: UIViewControllerRepresentable {
 
     let cards: [AuthorCardView.Contents]
     let chrome: Chrome
-    let onOpen: (Book, CGRect) -> Void
+    let onOpen: (Book, UIView) -> Void
     /// A tap on the author's name, which turns their shelf round or picks every book of theirs out.
     let onName: (String) -> Void
     /// A tap on a book standing on its edge, which turns the shelf it is on.
@@ -55,7 +54,6 @@ struct LibraryList: UIViewControllerRepresentable {
 
     /// What the list is made of, in the order it stands in.
     enum Section: Hashable {
-        case heading
         case search
         case empty
         case author(String)
@@ -109,6 +107,11 @@ struct LibraryList: UIViewControllerRepresentable {
 
         func show(_ list: LibraryList) {
             let turned = self.list.cards.count == list.cards.count
+            // How tall each card stands now, read before the new contents replace the old: a card
+            // carried to another height has to set out from the one it actually has, and asking
+            // afterwards asks about the height it is going to.
+            let standing = heights(across: cardWidth)
+
             self.list = list
 
             apply(animated: false)
@@ -128,7 +131,7 @@ struct LibraryList: UIViewControllerRepresentable {
                 // Only a card whose books have turned is animated. Everything else is a redraw, and a
                 // redraw that springs would move every book on screen whenever one cover loaded.
                 if turned, let was, was != card.shelf.showsEveryCover {
-                    turn(cell, to: card)
+                    turn(cell, to: card, from: standing[card.id])
                 } else {
                     cell.card.show(card)
                 }
@@ -141,12 +144,12 @@ struct LibraryList: UIViewControllerRepresentable {
         /// The height is asked for again on every frame of the turn rather than animated. A collection
         /// view will not carry a compositional layout from one set of heights to another: whichever way
         /// the change is made it recomputes them and puts every card where it is going in one frame.
-        private func turn(_ cell: AuthorCardCell, to card: AuthorCardView.Contents) {
-            let across = (controller?.collectionView.bounds.width ?? 0) - Design.Space.extraLarge * 2
+        private func turn(_ cell: AuthorCardCell, to card: AuthorCardView.Contents, from standing: CGFloat?) {
+            let across = cardWidth
 
             carrying = Carrying(
                 id: card.id,
-                from: height(of: card.id, across: across) ?? 0,
+                from: standing ?? height(of: card.id, across: across) ?? 0,
                 to: AuthorCardView.height(card, across: across),
                 card: cell.card
             )
@@ -158,6 +161,18 @@ struct LibraryList: UIViewControllerRepresentable {
                 if cell.card.reached >= 1 { carrying = nil }
             }
             cell.card.turn(to: card, animated: true)
+        }
+
+        /// The width a card is laid out across, which is the list's own less the insets either side.
+        private var cardWidth: CGFloat {
+            (controller?.collectionView.bounds.width ?? 0) - Design.Space.extraLarge * 2
+        }
+
+        /// What every card on the list stands at, for whoever needs them before they change.
+        private func heights(across: CGFloat) -> [String: CGFloat] {
+            list.cards.reduce(into: [:]) { heights, card in
+                heights[card.id] = height(of: card.id, across: across)
+            }
         }
 
         /// What a card stands at across the width it is given, which is its own height except while it
@@ -219,8 +234,6 @@ struct LibraryList: UIViewControllerRepresentable {
             else { return Self.section(height: .estimated(Design.Size.touch)) }
 
             switch section {
-                case .heading:
-                    return Self.section(height: .absolute(LibraryHeaderView.height))
                 case .search:
                     return Self.section(height: .absolute(LibrarySearchView.height))
                 case .empty:
@@ -260,12 +273,6 @@ struct LibraryList: UIViewControllerRepresentable {
         // MARK: - What is in it
 
         private func make(_ view: UICollectionView) -> UICollectionViewDiffableDataSource<Section, Section> {
-            let heading = UICollectionView.CellRegistration<HeadingCell, Section> { [weak self] cell, _, _ in
-                guard let self else { return }
-
-                cell.heading.show(list.chrome.heading)
-            }
-
             let search = UICollectionView.CellRegistration<SearchCell, Section> { [weak self] cell, _, _ in
                 guard let self else { return }
 
@@ -295,8 +302,6 @@ struct LibraryList: UIViewControllerRepresentable {
                 switch section {
                     case let .author(id):
                         view.dequeueConfiguredReusableCell(using: card, for: index, item: id)
-                    case .heading:
-                        view.dequeueConfiguredReusableCell(using: heading, for: index, item: section)
                     case .search:
                         view.dequeueConfiguredReusableCell(using: search, for: index, item: section)
                     case .empty:
@@ -320,8 +325,7 @@ struct LibraryList: UIViewControllerRepresentable {
 
             var snapshot = NSDiffableDataSourceSnapshot<Section, Section>()
 
-            snapshot.appendSections([ .heading, .search ])
-            snapshot.appendItems([ .heading ], toSection: .heading)
+            snapshot.appendSections([ .search ])
             snapshot.appendItems([ .search ], toSection: .search)
 
             if list.cards.isEmpty {
@@ -337,22 +341,6 @@ struct LibraryList: UIViewControllerRepresentable {
             source.apply(snapshot, animatingDifferences: animated)
         }
     }
-}
-
-/// The shelf's heading, in a cell of its own.
-final class HeadingCell: UICollectionViewCell {
-    let heading = LibraryHeaderView()
-
-    override init(frame: CGRect) {
-        super.init(frame: frame)
-
-        heading.frame = contentView.bounds
-        heading.autoresizingMask = [ .flexibleWidth, .flexibleHeight ]
-        contentView.addSubview(heading)
-    }
-
-    @available(*, unavailable)
-    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 }
 
 /// The shelf's search field, in a cell of its own.

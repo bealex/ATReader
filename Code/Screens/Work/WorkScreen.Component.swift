@@ -19,6 +19,9 @@ enum WorkScreen {
         @Environment(SessionStore.self)
         private var session
 
+        @Environment(Navigator.self)
+        private var navigator
+
         @Environment(\.dismiss)
         private var dismiss
 
@@ -170,9 +173,9 @@ enum WorkScreen {
         @ViewBuilder
         private func actions(_ model: Model, summary: Book) -> some View {
             if let chapterId = model.resumeChapterId {
-                NavigationLink(
-                    value: AppRoute.reader(.init(workId: model.workId, title: summary.title, chapterId: chapterId))
-                ) {
+                Button {
+                    navigator.push(.reader(.init(workId: model.workId, title: summary.title, chapterId: chapterId)))
+                } label: {
                     Label(summary.hasStartedReading ? "Continue reading" : "Read", systemImage: "book.fill")
                         .actionLabel()
                 }
@@ -305,9 +308,9 @@ enum WorkScreen {
         @ViewBuilder
         private func chapterRow(_ model: Model, chapter: BookChapter) -> some View {
             if chapter.isReadable, let summary = model.summary {
-                NavigationLink(
-                    value: AppRoute.reader(.init(workId: model.workId, title: summary.title, chapterId: chapter.id))
-                ) {
+                Button {
+                    navigator.push(.reader(.init(workId: model.workId, title: summary.title, chapterId: chapter.id)))
+                } label: {
                     chapterLabel(chapter, marker: nil, state: model.state(of: chapter))
                 }
                 .buttonStyle(.plain)

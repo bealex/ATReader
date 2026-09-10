@@ -336,6 +336,17 @@
         }
       }
     },
+    "An FB2 file is read onto the shelf and kept on this device alone.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Файл FB2 попадает на полку и хранится только на этом устройстве."
+          }
+        }
+      }
+    },
     "Appearance": {
       "extractionState": "manual",
       "localizations": {
@@ -3177,6 +3188,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Книги переносятся один раз. Литрес потом не отслеживается, а сессия заканчивается вместе с переносом."
+          }
+        }
+      }
+    },
+    "Your own books": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ваши книги"
           }
         }
       }

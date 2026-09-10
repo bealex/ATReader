@@ -59,9 +59,19 @@ enum SpinePrint {
     @MainActor
     static func isDark(of id: Int) -> Bool? { darkness[id] }
 
+    /// The best spine already filed for this book, and whether it is the one this book should have.
+    ///
+    /// Nothing is drawn here. A shelf hangs what it is given and asks the press for the rest, since a
+    /// spine drawn while the shelf is moving is drawn in the middle of a frame.
     @MainActor
-    static func image(of work: Book, number: Int?, title: String, size: CGSize, isDark: Bool) -> UIImage? {
-        guard size.width > 0, size.height > 0 else { return nil }
+    static func standing(
+        of work: Book,
+        number: Int?,
+        title: String,
+        size: CGSize,
+        isDark: Bool
+    ) -> (image: UIImage?, isWanted: Bool) {
+        guard size.width > 0, size.height > 0 else { return (nil, true) }
 
         func order(hasArtwork: Bool) -> Order {
             Order(id: work.id, number: number, title: title, size: size, isDark: isDark, hasArtwork: hasArtwork)
@@ -69,14 +79,14 @@ enum SpinePrint {
 
         // A spine already printed on its own artwork stands whatever is in memory now: a cover dropped
         // to make room for another doesn't make the spine printed on it wrong.
-        if let held = held(order(hasArtwork: true)) { return held }
+        if let held = held(order(hasArtwork: true)) { return (held, true) }
 
-        let artwork = work.coverURL.flatMap(CoverImages.image(for:))
-        let wanted = order(hasArtwork: artwork != nil)
+        let hasArtwork = work.coverURL.flatMap(CoverImages.image(for:)) != nil
+        let bare = held(order(hasArtwork: false))
 
-        if let held = held(wanted) { return held }
-
-        return keep(draw(wanted, artwork: artwork, density: density, context: context), for: wanted)
+        // With no artwork in hand there is nothing better to print than the bare one, so it stands as
+        // the spine rather than as a stand-in for one still coming.
+        return (bare, !hasArtwork && bare != nil)
     }
 
     /// Whether this spine has been printed already, so a press working ahead of the reader can pass
@@ -102,7 +112,7 @@ enum SpinePrint {
     static var density: CGFloat { UIScreen.main.scale }
 
     @MainActor
-    private static func held(_ order: Order) -> UIImage? { prints.object(forKey: key(order)) }
+    static func held(_ order: Order) -> UIImage? { prints.object(forKey: key(order)) }
 
     private static func key(_ order: Order) -> NSString { "\(order.hashValue)" as NSString }
 
@@ -259,11 +269,6 @@ enum SpinePrint {
 
         return CIContext(options: [ .useSoftwareRenderer: false, .workingColorSpace: sRGB ])
     }
-
-    /// The shelf's own, for a spine printed the moment it is asked for. A press keeps one of its own,
-    /// since a context belongs to whoever draws with it.
-    @MainActor
-    private static let context = makeContext()
 
     // MARK: - The board
 

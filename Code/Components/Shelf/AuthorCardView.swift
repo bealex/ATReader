@@ -19,8 +19,6 @@ final class AuthorCardView: UIView {
         let id: String
         let name: String
         let shelf: ShelfView.Contents
-        /// Whether every book of theirs is picked out, while the shelf is picking books.
-        let isPicked: Bool?
     }
 
     let shelf = ShelfView()
@@ -56,7 +54,6 @@ final class AuthorCardView: UIView {
 
     private let header = UIView()
     private let name = UILabel()
-    private let tick = UIImageView()
     private var contents: Contents?
 
     override init(frame: CGRect) {
@@ -71,7 +68,6 @@ final class AuthorCardView: UIView {
         name.numberOfLines = 2
         name.adjustsFontForContentSizeCategory = true
 
-        header.addSubview(tick)
         header.addSubview(name)
         header.isAccessibilityElement = true
         header.accessibilityTraits = .button
@@ -90,7 +86,6 @@ final class AuthorCardView: UIView {
 
         name.text = contents.name
         header.accessibilityLabel = contents.name
-        paint()
         shelf.show(contents.shelf)
         setNeedsLayout()
     }
@@ -100,7 +95,6 @@ final class AuthorCardView: UIView {
         self.contents = contents
 
         name.text = contents.name
-        paint()
         shelf.turn(to: contents.shelf, animated: animated)
         setNeedsLayout()
     }
@@ -113,11 +107,7 @@ final class AuthorCardView: UIView {
         let deep = Self.headerHeight(contents, across: across)
 
         header.frame = CGRect(x: inset, y: Design.Space.medium, width: across, height: deep)
-
-        let glyph = tick.isHidden ? 0 : Design.Control.barGlyphSize + Design.Space.medium
-
-        tick.frame = CGRect(x: 0, y: 0, width: Design.Control.barGlyphSize, height: deep)
-        name.frame = CGRect(x: glyph, y: 0, width: across - glyph - Shelf.gutter, height: deep)
+        name.frame = CGRect(x: 0, y: 0, width: across - Shelf.gutter, height: deep)
         shelf.frame = CGRect(
             x: inset,
             y: header.frame.maxY + Design.Space.medium,
@@ -141,27 +131,14 @@ final class AuthorCardView: UIView {
         guard let contents else { return 0 }
 
         let font = UIFont.preferredFont(forTextStyle: .headline)
-        let glyph = contents.isPicked == nil ? 0 : Design.Control.barGlyphSize + Design.Space.medium
         let box = (contents.name as NSString).boundingRect(
-            with: CGSize(width: width - glyph - Shelf.gutter, height: .greatestFiniteMagnitude),
+            with: CGSize(width: width - Shelf.gutter, height: .greatestFiniteMagnitude),
             options: [ .usesLineFragmentOrigin, .usesFontLeading ],
             attributes: [ .font: font ],
             context: nil
         )
 
         return min(box.height, font.lineHeight * 2).rounded(.up)
-    }
-
-    private func paint() {
-        guard let picked = contents?.isPicked else { return tick.isHidden = true }
-
-        tick.isHidden = false
-        tick.image = UIImage(
-            systemName: picked ? "checkmark.circle.fill" : "circle",
-            withConfiguration: UIImage.SymbolConfiguration(pointSize: Design.Control.barGlyphSize)
-        )
-        tick.tintColor = picked ? .tintColor : .tertiaryLabel
-        tick.contentMode = .center
     }
 
     @objc

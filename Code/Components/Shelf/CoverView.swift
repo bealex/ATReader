@@ -17,8 +17,6 @@ final class CoverView: UIView {
         var isComplete = false
         var origin: CoverOrigin?
         var isOngoing = false
-        /// Whether the book is picked out, while the shelf is picking books. Nothing while it isn't.
-        var isPicked: Bool?
         /// Which volume of its series this is, carried on the face as well as on the spine so the
         /// figure stays put as the book turns rather than going out with the spine.
         var volume: Int?
@@ -43,7 +41,6 @@ final class CoverView: UIView {
     private let progress = UIImageView()
     private let source = UIImageView()
     private let ongoing = UIImageView()
-    private let tick = UIImageView()
     private let volume = UIImageView()
 
     private var marks = Marks()
@@ -62,7 +59,7 @@ final class CoverView: UIView {
         placeholder.contentMode = .center
         placeholder.image = UIImage(systemName: "book.closed")
 
-        for view in [ artwork, placeholder, progress, source, ongoing, tick, volume ] { addSubview(view) }
+        for view in [ artwork, placeholder, progress, source, ongoing, volume ] { addSubview(view) }
 
         // A layer of its own rather than this view's border, which draws over every sublayer it has:
         // the hinge is the board bending, and a hairline of the card's own colour laid over it is the
@@ -142,8 +139,6 @@ final class CoverView: UIView {
         progress.frame = CGRect(x: bounds.maxX - inset - mark, y: bounds.maxY - inset - mark, width: mark, height: mark)
         source.frame = CGRect(x: inset, y: inset, width: mark, height: mark)
         ongoing.frame = CGRect(x: inset, y: bounds.maxY - inset - mark, width: mark, height: mark)
-        tick.sizeToFit()
-        tick.frame.origin = CGPoint(x: bounds.maxX - inset - tick.frame.width, y: inset)
 
         // Along the foot, in the middle: the corners are spoken for, and a volume standing under the
         // artwork reads as part of the book rather than as another mark laid on it.
@@ -239,17 +234,6 @@ final class CoverView: UIView {
             volume.isHidden = false
         } else {
             volume.isHidden = true
-        }
-
-        if let picked = marks.isPicked {
-            tick.image = UIImage(
-                systemName: picked ? "checkmark.circle.fill" : "circle",
-                withConfiguration: UIImage.SymbolConfiguration(pointSize: Design.Control.barGlyphSize)
-            )
-            tick.tintColor = picked ? .tintColor : .tertiaryLabel
-            tick.isHidden = false
-        } else {
-            tick.isHidden = true
         }
     }
 }

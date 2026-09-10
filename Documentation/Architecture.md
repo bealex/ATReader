@@ -69,9 +69,19 @@ handed a store and a picture shelf. None of those can see what they need from in
 
 ### Routing
 
-Each tab owns a `NavigationStack` over a shared `AppRoute` enum, and every stack resolves routes
-through one `AppRouteDestination` view. A book opened from search, from the charts or from the library
-therefore lands on the same screen with the same behaviour, without the tabs sharing navigation state.
+The tabs and the stacks under them are UIKit. `MainTabs` builds a `UITabBarController`, and each tab
+that opens a book is a `UINavigationController` with its screen at the root; the profile pushes nothing
+full-height and keeps a stack of its own. A `Navigator` per tab pushes an `AppRoute`, and one
+`AppRouteDestination` view resolves it, so a book opened from search, from the charts or from the
+library lands on the same screen with the same behaviour.
+
+Two things only UIKit can say. The bar slides out of the way as a list is pulled up when UIKit is
+tracking that list itself, which under a `TabView` holding a collection view went in one step and came
+back in another. And a pushed screen takes the tab bar with it, which is `hidesBottomBarWhenPushed`
+and has no equivalent from outside a `TabView`.
+
+A hosting controller built inside a representable inherits no environment, so `AppDressing` carries
+what the app hands its screens and hands it to each of them again, every push included.
 
 ### Session
 
@@ -118,9 +128,9 @@ The library state the service keeps is left doing the one job it does honestly: 
 library at all. The book page adds or removes it, a long press in the list removes it, and nothing else
 writes it.
 
-The shelf carries no navigation bar. It has room to name itself, and search belongs to the tab bar,
-where the search tab takes the search role. The library keeps a field of its own, because filtering it
-by title isn't the same question as searching the catalogue.
+The shelf's name and the two menus that act on the whole of it are the navigation bar's. Search
+belongs to the tab bar, where the search tab takes the search role, so the library keeps a field of its
+own: filtering it by title isn't the same question as searching the catalogue.
 
 Books in a series stand together in one card, latest book first, so a set reads as a set; a book in no
 series is a card of its own. A series can carry more than one author, so the author belongs to the row
@@ -161,9 +171,8 @@ a tick in place of the figure once the book has been read to its end.
 
 The library is a `UICollectionView` and everything on it is drawn by hand. `LibraryList` holds the
 collection view with a section per author, `AuthorCardView` is the cell, and inside it a `ShelfView`
-stands books where `ShelfLayout` puts them. The heading and the search field are `LibraryHeaderView` and
-`LibrarySearchView`; the only SwiftUI left is the screen around the list, which owns the navigation, the
-sheets, the alert and the selection bar.
+stands books where `ShelfLayout` puts them. The search field is `LibrarySearchView`; the SwiftUI left
+around the list owns the sheets and the alert.
 
 Two things needed it. A book that lands in a different row when a run refolds is the same book, and only
 a layout owning every book on the card can say so: as separate SwiftUI rows it was one book leaving and
@@ -181,10 +190,8 @@ Nothing is built until the cover shapes are read back. A book whose shape nobody
 for the commonest one, so a shelf laid out before that read lands stands every book at the wrong height
 and shuffles the lot when it arrives.
 
-The one thing lost at the boundary is the zoom into a book, which grows out of a SwiftUI view and there
-is no SwiftUI view of a book any more. The shelf reports where the tapped cover stands, the screen lays
-an empty stand-in over that place carrying the transition source, and pushes a tick later, since a zoom
-looks for its source as the destination arrives.
+A book is zoomed into out of the very board its artwork is on. The shelf hands that view over and
+`Navigator` gives it to the pushed screen as its `preferredTransition`, so nothing stands in for it.
 
 Menus are described once, as `Deed` values, because the shelf sets them out in UIKit and the rows still
 set them out in SwiftUI. Written twice they would drift, and the reader would find a different menu
