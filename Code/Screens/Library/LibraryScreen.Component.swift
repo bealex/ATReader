@@ -13,77 +13,28 @@ import SwiftUI
 
 enum LibraryScreen {
     struct Component: View {
-        @Environment(SessionStore.self)
-        private var session
+        /// Shared with the search tab, which shows the same shelves narrowed to what was typed.
+        let model: Model
 
         @Environment(BookInbox.self)
         private var inbox
 
-        @State
-        private var model: Model?
-
         @Environment(Navigator.self)
         private var navigator
-
-        @State
-        private var reordering: Model.Group?
 
         /// What the reader is holding together, while they are doing it.
         @State
         private var merging: MergeKind?
 
-        /// What the list has to lay cards out in, measured once rather than guessed at.
-        @State
-        private var listWidth: CGFloat = 0
-
-        /// Whether the shapes earlier runs measured have been read back yet.
-        @State
-        private var shapesKnown = false
-
-        @Environment(BookOrigins.self)
-        private var origins
-
         var body: some View {
-            Group {
-                if let model {
-                    content(model)
-                } else {
-                    Color.clear
-                }
-            }
-            .onAppear {
-                if model == nil { model = Model(session: session) }
-            }
-            .task {
-                await model?.loadIfNeeded()
-            }
-            .onChange(of: inbox.importedAt) { _, _ in
-                // A book picked in the profile, or handed over by another app, lands in the store
-                // rather than in this screen.
-                Task {
-                    guard let workId = inbox.lastAccepted else { return await model?.refreshFromStore() }
-
-                    await model?.adoptImported(workId: workId)
-                }
-            }
-            .onChange(of: navigator.returnedAt) { _, _ in
-                // Reading fills the rings, and only the store knows it. Coming back off a book redraws
-                // the list from there rather than leaving yesterday's covers up.
-                Task { await model?.refreshFromStore() }
-            }
-        }
-
-        @ViewBuilder
-        private func content(_ model: Model) -> some View {
-            @Bindable var model = model
-
-            shelf(model)
+            Shelves(model: model, search: nil, empty: emptyShelf)
                 .background(Design.Surface.screen)
                 .navigationTitle(Text("Library"))
                 .navigationSubtitle(Text(model.filter.title))
-                .toolbar { bar(model) }
+                .toolbar { bar }
                 .overlay {
-                    if model.isLoading && model.works.isEmpty {
+                    // The shelf first, so a full one never waits on whether the library is loading.
+                    if model.works.isEmpty && model.isLoading {
                         LoadingOverlay(title: "Loading your library…", label: "Loading your library")
                     }
                 }
@@ -92,9 +43,6 @@ enum LibraryScreen {
                     isPresented: .init(get: { model.errorMessage != nil }, set: { _ in model.dismissError() }),
                     actions: { Button("OK", role: .cancel, action: {}) },
                     message: { Text(model.errorMessage ?? "") }
-                )
-                .modifier(
-                    SeriesEditing(model: model, reordering: $reordering)
                 )
                 .sheet(item: $merging) { kind in
                     switch kind {
@@ -110,63 +58,26 @@ enum LibraryScreen {
                             }
                     }
                 }
-        }
+                .task { await model.loadIfNeeded() }
+                .onChange(of: inbox.importedAt) { _, _ in
+                    // A book picked in the profile, or handed over by another app, lands in the store
+                    // rather than in this screen.
+                    Task {
+                        guard let workId = inbox.lastAccepted else { return await model.refreshFromStore() }
 
-        /// The library itself: a collection view holding a card for each author.
-        ///
-        /// Nothing is built until the width is known, since every card's height is worked out from the
-        /// books on it and a card laid out against nothing would have to be laid out again.
-        @ViewBuilder
-        private func shelf(_ model: Model) -> some View {
-            ZStack {
-                if listWidth > 0, shapesKnown { list(model) }
-            }
-            // Filling what it is given rather than what it holds: nothing is built until the width is
-            // known, and a stack holding nothing has no width to know.
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            // What shape every cover is, read back before a card is built rather than while it is on
-            // screen. A book whose shape nobody has measured is taken for the commonest one, so a shelf
-            // laid out before they arrive stands every book at the wrong height and shuffles them all
-            // when they land.
-            .task {
-                await CoverShapes.load()
-
-                shapesKnown = true
-            }
-            .onGeometryChange(for: CGFloat.self) {
-                $0.size.width
-            } action: {
-                listWidth = $0
-            }
-        }
-
-        private func list(_ model: Model) -> some View {
-            LibraryList(
-                cards: cards(model),
-                chrome: LibraryList.Chrome(
-                    search: model.searchText,
-                    onSearch: { model.searchText = $0 },
-                    empty: emptyShelf(model)
-                ),
-                onOpen: { work, face in open(work, from: face) },
-                onName: { author in chose(model, author: author) },
-                onTurn: { author in switchMode(model, series: author) },
-                bookMenu: { bookDeeds(model, work: $0).offered },
-                runMenu: { run in
-                    model.shelves.flatMap(\.runs).first { $0.id == run }
-                        .map { seriesDeeds(model, group: $0).offered } ?? nil
-                },
-                authorMenu: { author in
-                    model.shelves.first { $0.id == author }
-                        .map { authorDeeds(model, shelf: $0).offered } ?? nil
-                },
-                onRefresh: { await model.reload() }
-            )
+                        await model.adoptImported(workId: workId)
+                    }
+                }
+                .onChange(of: navigator.returnedAt) { _, _ in
+                    // Reading fills the rings, and only the store knows it. Coming back off a book redraws
+                    // the list from there rather than leaving yesterday's covers up.
+                    Task { await model.refreshFromStore() }
+                }
         }
 
         /// What the bar over the shelf offers: holding two things together, and what to show.
         @ToolbarContentBuilder
-        private func bar(_ model: Model) -> some ToolbarContent {
+        private var bar: some ToolbarContent {
             ToolbarItemGroup(placement: .topBarTrailing) {
                 Menu {
                     DeedMenu(deeds: mergeDeeds())
@@ -177,39 +88,13 @@ enum LibraryScreen {
                 .accessibilityHint("Holds two series, or two spellings of a name, together")
 
                 Menu {
-                    DeedMenu(deeds: filterDeeds(model))
+                    DeedMenu(deeds: filterDeeds())
                 } label: {
                     Label("Choose what to show", systemImage: "line.3.horizontal.decrease.circle")
                 }
                 .accessibilityIdentifier("library.filter")
                 .accessibilityHint("Filters your library")
             }
-        }
-
-        /// Everything the list draws, worked out from the model rather than by the cards themselves.
-        private func cards(_ model: Model) -> [AuthorCardView.Contents] {
-            model.shelves.map { shelf in
-                AuthorCardView.Contents(
-                    id: shelf.id,
-                    name: shelf.name,
-                    shelf: ShelfView.Contents(
-                        runs: shelf.runs.map {
-                            ShelfRun(id: $0.id, title: $0.series ?? "", slots: model.slots(of: $0))
-                        },
-                        alone: shelf.alone.flatMap { model.slots(of: $0) },
-                        coverWidth: coverWidth,
-                        showsEveryCover: model.showsEveryCover(shelf.id),
-                        origin: { origins.origin(of: $0) }
-                    )
-                )
-            }
-        }
-
-        /// What a tap on an author's name does, which is turn their shelf round.
-        private func chose(_ model: Model, author: String) {
-            guard model.shelves.contains(where: { $0.id == author }) else { return }
-
-            switchMode(model, series: author)
         }
 
         // MARK: - The shelf's own heading
@@ -223,7 +108,7 @@ enum LibraryScreen {
         }
 
         /// Which books to show, with the one in force ticked.
-        private func filterDeeds(_ model: Model) -> [Deed] {
+        private func filterDeeds() -> [Deed] {
             Model.Filter.allCases.map { filter in
                 .act(
                     title(filter, count: model.count(for: filter)),
@@ -252,6 +137,125 @@ enum LibraryScreen {
             return "\(filter.title) (\(count))"
         }
 
+        /// What to say where there is nothing to show, and why there isn't.
+        private var emptyShelf: LibraryList.Chrome.Empty {
+            LibraryList.Chrome.Empty(
+                title: String(localized: "Nothing here yet"),
+                message: String(
+                    localized:
+                        "Add books to your library on author.today, or bring an FB2 file in with the plus button."
+                ),
+                systemImage: "books.vertical"
+            )
+        }
+    }
+
+    /// The library as a collection view holding a card for each author, with everything a book, a run and
+    /// a name offer. The library tab shows it whole, and the search tab narrowed to what was typed.
+    struct Shelves: View {
+        let model: Model
+        /// The books a search keeps, or `nil` for the whole shelf under its filter.
+        let search: ((Book) -> Bool)?
+        /// What to say where the shelf comes out empty, once the library has loaded.
+        let empty: LibraryList.Chrome.Empty?
+
+        @Environment(Navigator.self)
+        private var navigator
+
+        @Environment(BookOrigins.self)
+        private var origins
+
+        @State
+        private var reordering: Model.Group?
+
+        /// What the list has to lay cards out in, measured once rather than guessed at.
+        @State
+        private var listWidth: CGFloat = 0
+
+        /// Whether the shapes earlier runs measured have been read back yet.
+        @State
+        private var shapesKnown = false
+
+        /// Nothing is built until the width is known, since every card's height is worked out from the
+        /// books on it and a card laid out against nothing would have to be laid out again.
+        var body: some View {
+            ZStack {
+                if listWidth > 0, shapesKnown { list }
+            }
+            // Filling what it is given rather than what it holds: nothing is built until the width is
+            // known, and a stack holding nothing has no width to know.
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            // Under both bars, which then change the collection view's insets rather than its frame: a
+            // frame moved by the large title as it grows under a pull shakes the list.
+            .ignoresSafeArea(.container, edges: .vertical)
+            // What shape every cover is, read back before a card is built rather than while it is on
+            // screen. A book whose shape nobody has measured is taken for the commonest one, so a shelf
+            // laid out before they arrive stands every book at the wrong height and shuffles them all
+            // when they land.
+            .task {
+                await CoverShapes.load()
+
+                shapesKnown = true
+            }
+            .onGeometryChange(for: CGFloat.self) {
+                $0.size.width
+            } action: {
+                listWidth = $0
+            }
+            .modifier(SeriesEditing(model: model, reordering: $reordering))
+        }
+
+        private var shelves: [Model.AuthorShelf] { model.shelves(matching: search) }
+
+        private var list: some View {
+            let cards = cards
+
+            // The cards first, so a full shelf never waits on whether the library is loading.
+            return LibraryList(
+                cards: cards,
+                chrome: LibraryList.Chrome(empty: cards.isEmpty && !model.isLoading ? empty : nil),
+                onOpen: { work, face in open(work, from: face) },
+                onName: { author in chose(author: author) },
+                onTurn: { author in switchMode(series: author) },
+                bookMenu: { bookDeeds(work: $0).offered },
+                runMenu: { run in
+                    shelves.flatMap(\.runs).first { $0.id == run }
+                        .map { seriesDeeds(group: $0).offered } ?? nil
+                },
+                authorMenu: { author in
+                    shelves.first { $0.id == author }
+                        .map { authorDeeds(shelf: $0).offered } ?? nil
+                },
+                onRefresh: { await model.reload() }
+            )
+        }
+
+        /// Everything the list draws, worked out from the model rather than by the cards themselves.
+        private var cards: [AuthorCardView.Contents] {
+            shelves.map { shelf in
+                AuthorCardView.Contents(
+                    id: shelf.id,
+                    name: shelf.name,
+                    shelf: ShelfView.Contents(
+                        runs: shelf.runs.map {
+                            ShelfRun(id: $0.id, title: $0.series ?? "", slots: model.slots(of: $0))
+                        },
+                        alone: shelf.alone.flatMap { model.slots(of: $0) },
+                        coverWidth: coverWidth,
+                        showsEveryCover: model.showsEveryCover(shelf.id),
+                        origin: { origins.origin(of: $0) }
+                    )
+                )
+            }
+        }
+
+        /// What a tap on an author's name does, which is turn their shelf round.
+        private func chose(author: String) {
+            guard shelves.contains(where: { $0.id == author }) else { return }
+
+            switchMode(series: author)
+        }
+
         // MARK: - Cards
 
         /// How wide a cover stands on this screen. One width for the whole library: the size wanted
@@ -263,7 +267,7 @@ enum LibraryScreen {
         }
 
         /// Turning a run between its spines and its covers, which every book does on its own hinge.
-        private func switchMode(_ model: Model, series: String) {
+        private func switchMode(series: String) {
             withAnimation(FoldMotion.turning) { model.toggleCovers(of: series) }
         }
 
@@ -274,8 +278,8 @@ enum LibraryScreen {
         /// order the reader put them in. A bracket carries its own series' actions, but a bracket can
         /// be a few points wide, and one that had to be found before a series could be reordered is
         /// a control the reader has to hunt for.
-        private func authorDeeds(_ model: Model, shelf: Model.AuthorShelf) -> [Deed] {
-            let runs = shelf.runs.map { group in Deed.menu(group.series ?? "", seriesDeeds(model, group: group)) }
+        private func authorDeeds(shelf: Model.AuthorShelf) -> [Deed] {
+            let runs = shelf.runs.map { group in Deed.menu(group.series ?? "", seriesDeeds(group: group)) }
             let alone = shelf.alone.compactMap(\.works.first).map { work in
                 Deed.act(work.title, systemImage: "book") { navigator.push(.work(id: work.id, title: work.title)) }
             }
@@ -283,7 +287,7 @@ enum LibraryScreen {
             return alone.isEmpty ? runs : runs + [ .menu(String(localized: "Books"), alone) ]
         }
 
-        private func seriesDeeds(_ model: Model, group: Model.Group) -> [Deed] {
+        private func seriesDeeds(group: Model.Group) -> [Deed] {
             // Offered for every series, not only the ones the reader put together. Ordering a series
             // the service named makes it theirs, which is the answer they wanted anyway.
             var deeds: [Deed] = [
@@ -314,7 +318,7 @@ enum LibraryScreen {
             navigator.push(.reader(.init(workId: work.id, title: work.title)), from: face)
         }
 
-        private func bookDeeds(_ model: Model, work: Book) -> [Deed] {
+        private func bookDeeds(work: Book) -> [Deed] {
             [
                 // The way to the book's own page. A tap on a cover opens the book itself, so without
                 // this there is nothing left that reaches what the book is.
@@ -338,22 +342,6 @@ enum LibraryScreen {
                     Task { await model.remove(work) }
                 },
             ]
-        }
-
-        /// What to say where there is nothing to show, and why there isn't.
-        private func emptyShelf(_ model: Model) -> LibraryList.Chrome.Empty? {
-            guard !model.isLoading else { return nil }
-
-            return LibraryList.Chrome.Empty(
-                title: String(localized: "Nothing here yet"),
-                message: model.searchText.isEmpty
-                    ? String(
-                        localized:
-                            "Add books to your library on author.today, or bring an FB2 file in with the plus button."
-                    )
-                    : String(localized: "Nothing matched your search."),
-                systemImage: "books.vertical"
-            )
         }
     }
 }
@@ -435,6 +423,8 @@ struct AppRouteDestination: View {
                 ReaderScreen.Component(workId: reader.workId, title: reader.title, initialChapterId: reader.chapterId)
             case let .series(name):
                 SeriesScreen.Component(series: name)
+            case .readerAppearance:
+                ReaderScreen.Appearance()
         }
     }
 }

@@ -8,17 +8,14 @@ import DesignSystem
 import SwiftUI
 import UIKit
 
-/// The library, as one collection view: its heading, its search field, and a card for each author.
+/// The library, as one collection view with a card for each author.
 ///
 /// A card's height is worked out from the books on it before the card is built, so the list never has to
 /// ask a cell how big it is, and cells are reused, so a library of five hundred books costs whatever is
-/// on screen. The chrome above the cards is still SwiftUI, hosted in cells of its own: it is a heading
-/// and a text field, and neither is worth drawing by hand.
+/// on screen.
 struct LibraryList: UIViewControllerRepresentable {
     /// What the list holds besides the cards.
     struct Chrome {
-        let search: String
-        let onSearch: @MainActor (String) -> Void
         /// What to say where there is nothing to show. Nothing while the library is still loading.
         let empty: Empty?
 
@@ -54,7 +51,6 @@ struct LibraryList: UIViewControllerRepresentable {
 
     /// What the list is made of, in the order it stands in.
     enum Section: Hashable {
-        case search
         case empty
         case author(String)
     }
@@ -68,6 +64,8 @@ struct LibraryList: UIViewControllerRepresentable {
         private var shown: [String: Bool] = [:]
         /// The card in the middle of a turn, and the two heights it is travelling between.
         private var carrying: Carrying?
+        /// A refresh that finished while the finger was still pulling, left to end once it lets go.
+        private var endsRefreshingOnRelease = false
 
         /// A card on its way from one height to another. It holds the card itself rather than looking
         /// it up: the height is asked for in the middle of a layout, and a collection view hands out no
@@ -92,6 +90,7 @@ struct LibraryList: UIViewControllerRepresentable {
             controller.collectionView.delegate = self
             controller.collectionView.prefetchDataSource = self
             controller.collectionView.accessibilityIdentifier = "library.list"
+            controller.collectionView.keyboardDismissMode = .interactive
             controller.collectionView.refreshControl = UIRefreshControl(
                 frame: .zero,
                 primaryAction: UIAction { [weak self] _ in self?.refresh() }
@@ -190,8 +189,26 @@ struct LibraryList: UIViewControllerRepresentable {
         private func refresh() {
             Task {
                 await list.onRefresh()
-                controller?.collectionView.refreshControl?.endRefreshing()
+                endRefreshing()
             }
+        }
+
+        /// Puts the spinner away, but never under a finger: ending a refresh mid-pull jumps the list.
+        private func endRefreshing() {
+            guard let collection = controller?.collectionView else { return }
+
+            if collection.isDragging {
+                endsRefreshingOnRelease = true
+            } else {
+                collection.refreshControl?.endRefreshing()
+            }
+        }
+
+        func scrollViewDidEndDragging(_ scrollView: UIScrollView, willDecelerate decelerate: Bool) {
+            guard endsRefreshingOnRelease else { return }
+
+            endsRefreshingOnRelease = false
+            scrollView.refreshControl?.endRefreshing()
         }
 
         // MARK: - Ahead of the reader
@@ -234,8 +251,6 @@ struct LibraryList: UIViewControllerRepresentable {
             else { return Self.section(height: .estimated(Design.Size.touch)) }
 
             switch section {
-                case .search:
-                    return Self.section(height: .absolute(LibrarySearchView.height))
                 case .empty:
                     return Self.section(height: .estimated(Design.Size.avatar * 4))
                 case let .author(id):
@@ -273,12 +288,6 @@ struct LibraryList: UIViewControllerRepresentable {
         // MARK: - What is in it
 
         private func make(_ view: UICollectionView) -> UICollectionViewDiffableDataSource<Section, Section> {
-            let search = UICollectionView.CellRegistration<SearchCell, Section> { [weak self] cell, _, _ in
-                guard let self else { return }
-
-                cell.search.show(list.chrome.search, onSearch: list.chrome.onSearch)
-            }
-
             let nothing = UICollectionView.CellRegistration<UICollectionViewCell, Section> { [weak self] cell, _, _ in
                 guard let empty = self?.list.chrome.empty else { return cell.contentConfiguration = nil }
 
@@ -302,8 +311,6 @@ struct LibraryList: UIViewControllerRepresentable {
                 switch section {
                     case let .author(id):
                         view.dequeueConfiguredReusableCell(using: card, for: index, item: id)
-                    case .search:
-                        view.dequeueConfiguredReusableCell(using: search, for: index, item: section)
                     case .empty:
                         view.dequeueConfiguredReusableCell(using: nothing, for: index, item: section)
                 }
@@ -325,9 +332,6 @@ struct LibraryList: UIViewControllerRepresentable {
 
             var snapshot = NSDiffableDataSourceSnapshot<Section, Section>()
 
-            snapshot.appendSections([ .search ])
-            snapshot.appendItems([ .search ], toSection: .search)
-
             if list.cards.isEmpty {
                 snapshot.appendSections([ .empty ])
                 snapshot.appendItems([ .empty ], toSection: .empty)
@@ -341,22 +345,6 @@ struct LibraryList: UIViewControllerRepresentable {
             source.apply(snapshot, animatingDifferences: animated)
         }
     }
-}
-
-/// The shelf's search field, in a cell of its own.
-final class SearchCell: UICollectionViewCell {
-    let search = LibrarySearchView()
-
-    override init(frame: CGRect) {
-        super.init(frame: frame)
-
-        search.frame = contentView.bounds
-        search.autoresizingMask = [ .flexibleWidth, .flexibleHeight ]
-        contentView.addSubview(search)
-    }
-
-    @available(*, unavailable)
-    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 }
 
 /// One author's card, in a cell that can be handed to the next author when this one scrolls away.

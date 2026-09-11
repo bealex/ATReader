@@ -23,7 +23,10 @@ extension DesignSystemScreen.Component {
                     + "The hinge is the spine's outer edge, and the cover is folded in behind it."
             ) {
                 VStack(alignment: .leading, spacing: Design.Space.extraLarge) {
-                    specimen("Turning, \(Self.seconds(FoldMotion.turningSeconds))") {
+                    specimen(
+                        "Turning, \(Self.seconds(FoldMotion.turningSeconds)) on the shelf, "
+                            + "\(Self.seconds(TurningBook.watching)) here"
+                    ) {
                         TurningBook()
                     }
 
@@ -68,6 +71,9 @@ extension DesignSystemScreen.Component {
 
 /// A book turning between its edge and its face, with the turn under the reader's own finger.
 private struct TurningBook: View {
+    /// Four times the shelf's own turn, so every step of it can be watched.
+    static var watching: Double { FoldMotion.turningSeconds * 4 }
+
     @State
     private var turned: CGFloat = 0
 
@@ -75,7 +81,7 @@ private struct TurningBook: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: Design.Space.large) {
-            DrawnBook(turned: turned, width: width)
+            TurnedBook(turned: turned, width: width)
                 .frame(height: Design.Size.coverHeight(width: width), alignment: .bottom)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .accessibilityIdentifier("catalog.fold.book")
@@ -87,7 +93,7 @@ private struct TurningBook: View {
     private var controls: some View {
         HStack(spacing: Design.Space.large) {
             Button {
-                withAnimation(FoldMotion.turning) { turned = turned > 0.5 ? 0 : 1 }
+                withAnimation(.smooth(duration: Self.watching)) { turned = turned > 0.5 ? 0 : 1 }
             } label: {
                 Text(verbatim: turned > 0.5 ? "Shelve" : "Take down")
                     .frame(width: Design.Size.avatar * 2)
@@ -100,6 +106,22 @@ private struct TurningBook: View {
                 .accessibilityIdentifier("catalog.fold.turned")
         }
     }
+}
+
+/// The book as it turns: every step of an animation handed to the book in turn.
+///
+/// A view of its own, because SwiftUI steps an animation through a view's body but hands a UIKit view
+/// only the value it ends on.
+private struct TurnedBook: View, Animatable {
+    var turned: CGFloat
+    let width: CGFloat
+
+    nonisolated var animatableData: CGFloat {
+        get { turned }
+        set { turned = newValue }
+    }
+
+    var body: some View { DrawnBook(turned: turned, width: width) }
 }
 
 /// One moment of the turn, drawn by the library's own book rather than by a stand-in for it.
@@ -179,7 +201,7 @@ private struct DrawnLibrary: View {
     var body: some View {
         LibraryList(
             cards: Specimen.shelves.map { Specimen.card($0, showsEveryCover: open.contains($0)) },
-            chrome: LibraryList.Chrome(search: "", onSearch: { _ in }, empty: nil),
+            chrome: LibraryList.Chrome(empty: nil),
             onOpen: { _, _ in },
             onName: { turn($0) },
             onTurn: { turn($0) },
@@ -306,12 +328,16 @@ private struct AsideSpecimen: View {
     @State
     private var note: Note?
 
+    /// A whole aside's depth above the button at the foot of the panel.
+    private static let depth = Design.Size.calloutDepth + Design.Size.touch
+
+    /// Just above that button, so the aside opens upwards into the room there.
     private var point: CGRect {
-        CGRect(origin: CGPoint(x: Design.Size.callout / 2, y: Design.Size.calloutDepth / 2), size: .zero)
+        CGRect(origin: CGPoint(x: Design.Size.callout / 2, y: Self.depth - Design.Size.touch), size: .zero)
     }
 
     var body: some View {
-        ZStack {
+        ZStack(alignment: .bottom) {
             Design.Surface.fill
 
             Button {
@@ -322,9 +348,10 @@ private struct AsideSpecimen: View {
                 Text(verbatim: note == nil ? "Show" : "Hide")
             }
             .buttonStyle(.bordered)
+            .padding(.bottom, Design.Space.large)
             .accessibilityIdentifier("catalog.motion.aside")
         }
-        .frame(width: Design.Size.callout, height: Design.Size.calloutDepth)
+        .frame(width: Design.Size.callout, height: Self.depth)
         .callout(over: point, item: $note, ground: Self.ground) { _ in
             Callout(text: Self.prose, onClose: { note = nil })
                 .accessibilityIdentifier("catalog.motion.aside.presented")

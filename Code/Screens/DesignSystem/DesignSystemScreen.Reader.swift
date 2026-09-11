@@ -55,13 +55,7 @@ extension DesignSystemScreen.Component {
 
             card("Picked out", "What the reader has drawn a finger across, painted under the words.") {
                 specimen("Selection") {
-                    ZStack(alignment: .leading) {
-                        RoundedRectangle(cornerRadius: Design.Radius.small)
-                            .fill(Design.Surface.picked(.primary))
-                            .frame(width: Design.Size.callout / 2, height: Design.Space.section)
-
-                        ReaderSpecimen(text: Self.russian, style: Self.style(justified: true))
-                    }
+                    ReaderSpecimen(text: Self.russian, style: Self.style(justified: true), pick: Self.pick)
                 }
             }
 
@@ -93,6 +87,10 @@ extension DesignSystemScreen.Component {
 
     private static let sizes: [Double] = [ 15, 19, 24 ]
 
+    /// A finger drawn from partway along the second line to partway along the third, the way a reader
+    /// picks out a phrase that runs over a line end.
+    private static let pick = BookTextPick(fromLine: 1, fromAcross: 0.55, toLine: 2, toAcross: 0.35)
+
     /// Written for the catalogue. Nothing a book ever said goes in this repository.
     private static let russian = """
         Дом стоял на краю деревни, и дорога от него уходила прямо в лес. Утром там было тихо, только \
@@ -118,6 +116,7 @@ extension DesignSystemScreen.Component {
 private struct ReaderSpecimen: View {
     let text: String
     let style: ChapterTextStyle
+    var pick: BookTextPick?
 
     @State
     private var width: CGFloat = 0
@@ -125,7 +124,11 @@ private struct ReaderSpecimen: View {
     var body: some View {
         Group {
             if width > 0 {
-                BookTextView(text: text, style: style, width: width)
+                // Painted the way the reader paints a pick, under the words rather than over them.
+                BookTextView(text: text, style: style, width: width, pick: pick) { _ in
+                    RoundedRectangle(cornerRadius: Design.Radius.small)
+                        .fill(Design.Surface.picked(.primary))
+                }
             } else {
                 Color.clear.frame(height: style.fontSize * 3)
             }

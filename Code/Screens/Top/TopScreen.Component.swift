@@ -50,6 +50,7 @@ enum TopScreen {
                                 trailing: Design.Space.extraLarge
                             )
                         )
+                        .listRowBackground(Color.clear)
                 }
 
                 ForEach(Array(model.feed.works.enumerated()), id: \.element.id) { position, work in
@@ -62,6 +63,7 @@ enum TopScreen {
                     .buttonStyle(.plain)
                     .accessibilityAddTraits(.isButton)
                     .listRowSeparator(.hidden)
+                    .listRowBackground(Color.clear)
                     .task { await model.feed.loadMoreIfNeeded(currentItem: work) }
                 }
 
@@ -69,10 +71,12 @@ enum TopScreen {
                     ProgressView()
                         .frame(maxWidth: .infinity)
                         .listRowSeparator(.hidden)
+                        .listRowBackground(Color.clear)
                         .accessibilityLabel("Loading more")
                 }
             }
             .listStyle(.plain)
+            .listOnScreen()
             .accessibilityIdentifier("top.list")
             .refreshable { await model.reload() }
             .overlay {

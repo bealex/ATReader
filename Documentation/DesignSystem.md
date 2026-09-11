@@ -27,6 +27,7 @@ apply `Design` to the page.
 | `actionLabel()` | The shape of a full-width action, so two on one screen agree on height. |
 | `barGlyph()` | An icon-only button in a bar: its type, and a hit area a finger can find. |
 | `RowStack` | Items side by side, all on one baseline. |
+| `DisclosureLabel` | A row that opens another screen through a button, with the chevron a `NavigationLink` would draw. |
 | `Callout` | A short aside: set to a width, scrolling once it outgrows its depth. |
 | `CalloutShape` | The card and its pointer as one path. |
 | `CalloutPlacement` | Which side of a thing an aside takes, and where it slides to. |
@@ -189,12 +190,12 @@ page turn at the wrong duration is worse than a page turn off the lattice.
 
 `DesignSystemScreen` draws every token and every component from the tokens themselves, in Debug builds
 only. It has three parts. **UI** is everything the app is built from, all of it on the lattice and in
-the nine text roles. **Motion** is what only exists while it's running: a book turning between its edge
-and its face, held still across the turn and under a slider, a whole author's card, and an aside coming
-and going. Its books are the library's own views rather than drawings of them, so a specimen that looks
-right is the shelf looking right. **Reader**
-is the page: Russian and English each justified and ragged, three sizes, the paint under picked words,
-and an aside. Nothing in that part is on the lattice or in a text role, because a page belongs to
+the text roles, each with the size and weight UIKit gives it at the reader's Dynamic Type setting.
+**Motion** is what only exists while it's running: a book turning between its edge and its face at a
+quarter of the shelf's speed, held still across the turn and under a slider, a whole author's card, and
+an aside coming and going. Its books are the library's own views rather than drawings of them, so a
+specimen that looks right is the shelf looking right. **Reader** is the page: Russian and English each
+justified and ragged, three sizes, words picked out the way a finger picks them, and an aside. Nothing in that part is on the lattice or in a text role, because a page belongs to
 whoever is reading it, and every specimen there is set by the book's own typesetter, so what is shown is
 what a page does. It lives in the app rather than the package, so it can show the book-shaped pieces
 beside the generic ones. A catalogue on the device is the only honest specimen: it picks up the real
@@ -203,7 +204,7 @@ drawing of the app can.
 
 Two ways in:
 
-- Profile has a **Design System** row in Debug builds.
+- Debug builds have a **Design** tab.
 - `-at-design-system YES` opens it straight from launch without signing in, since the design system has
   nothing to do with having an account.
 
@@ -221,7 +222,7 @@ splits along that line:
 
 | | Lives in | Examples |
 | --- | --- | --- |
-| Knows no domain | `DesignSystem` | `Pill`, `ProgressMark`, `CircleMark`, `FilterChip`, `RowStack`, `FlowLayout`, `LoadingOverlay`, `ExpandableText`, `ShareSheet` |
+| Knows no domain | `DesignSystem` | `Pill`, `ProgressMark`, `CircleMark`, `FilterChip`, `RowStack`, `DisclosureLabel`, `FlowLayout`, `LoadingOverlay`, `ExpandableText`, `ShareSheet` |
 | Knows what a book is | `Code/Components` | `BookRow`, `WorkBadges`, `CoverImage`, `FileMark`, `LibraryMark` |
 
 The second kind is built from the first and never redraws a shape the first already has. `FileMark` is

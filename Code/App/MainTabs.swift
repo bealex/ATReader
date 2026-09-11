@@ -12,8 +12,8 @@ import UIKit
 /// as a list scrolls when UIKit is tracking that list itself. Under a `TabView` holding a collection
 /// view it went in one step and came back in another.
 ///
-/// Each tab that opens a book is a navigation controller, since a pushed screen takes the tab bar with
-/// it and only a stack can say so. The profile pushes nothing full-height and keeps its own.
+/// Each tab is a navigation controller, since a pushed screen takes the tab bar with it and only a
+/// stack can say so.
 struct MainTabs: View {
     @Environment(SessionStore.self)
     private var session
@@ -56,13 +56,21 @@ private struct Tabs: UIViewControllerRepresentable {
     /// One navigator per stack, held here so the tabs are built once and keep them.
     @MainActor
     final class Coordinator {
+        /// The reader's shelves, which the library tab shows whole and the search tab narrowed.
+        let shelves: LibraryScreen.Model
         let library = Navigator()
         let search = Navigator()
         let top = Navigator()
+        let profile = Navigator()
+        let design = Navigator()
         var delegates: [NavigatorDelegate] = []
+
+        init(shelves: LibraryScreen.Model) {
+            self.shelves = shelves
+        }
     }
 
-    func makeCoordinator() -> Coordinator { Coordinator() }
+    func makeCoordinator() -> Coordinator { Coordinator(shelves: LibraryScreen.Model(session: dressing.session)) }
 
     func makeUIViewController(context: Context) -> UITabBarController {
         let tabs = UITabBarController(tabs: everyTab(context.coordinator))
@@ -83,12 +91,20 @@ private struct Tabs: UIViewControllerRepresentable {
                 image: UIImage(systemName: "books.vertical.fill"),
                 identifier: "library"
             ) { _ in
-                stack(LibraryScreen.Component(), navigator: coordinator.library, in: coordinator)
+                stack(
+                    LibraryScreen.Component(model: coordinator.shelves),
+                    navigator: coordinator.library,
+                    in: coordinator
+                )
             },
             // The search role is what puts search on the bar itself rather than in a field above each
             // screen, which is why the library keeps a field of its own instead.
             UISearchTab { _ in
-                stack(SearchScreen.Component(), navigator: coordinator.search, in: coordinator)
+                stack(
+                    SearchScreen.Component(library: coordinator.shelves),
+                    navigator: coordinator.search,
+                    in: coordinator
+                )
             },
             UITab(
                 title: String(localized: "Top"),
@@ -101,21 +117,23 @@ private struct Tabs: UIViewControllerRepresentable {
                 title: String(localized: "Profile"),
                 image: UIImage(systemName: "person.crop.circle"),
                 identifier: "profile"
-            ) { _ in hosted(ProfileScreen.Component(), navigator: nil) },
+            ) { _ in
+                stack(ProfileScreen.Component(), navigator: coordinator.profile, in: coordinator)
+            },
         ]
 
         #if DEBUG
             // The token catalogue, drawn by the app from the tokens themselves. Its title is verbatim
             // because a token name isn't translated.
             tabs.append(UITab(title: "Design", image: UIImage(systemName: "ruler"), identifier: "design") { _ in
-                hosted(NavigationStack { DesignSystemScreen.Component() }, navigator: nil)
+                stack(DesignSystemScreen.Component(), navigator: coordinator.design, in: coordinator)
             })
         #endif
 
         return tabs
     }
 
-    /// A tab that opens books: its screen at the root of a stack of its own.
+    /// A tab's screen at the root of a stack of its own.
     private func stack(_ screen: some View, navigator: Navigator, in coordinator: Coordinator) -> UIViewController {
         let controller = UINavigationController(rootViewController: hosted(screen, navigator: navigator))
         let delegate = NavigatorDelegate(navigator)
@@ -128,9 +146,7 @@ private struct Tabs: UIViewControllerRepresentable {
         return controller
     }
 
-    private func hosted(_ screen: some View, navigator: Navigator?) -> UIViewController {
-        guard let navigator else { return UIHostingController(rootView: dressing.dress(screen)) }
-
-        return UIHostingController(rootView: dressing.dress(screen.environment(navigator)))
+    private func hosted(_ screen: some View, navigator: Navigator) -> UIViewController {
+        UIHostingController(rootView: dressing.dress(screen.environment(navigator)))
     }
 }

@@ -31,10 +31,19 @@ final class CatalogUITests: XCTestCase {
         app.launch()
     }
 
-    func testSearchFindsBooksByText() {
+    /// The search tab, set to ask the catalogue rather than the reader's own shelves.
+    private func searchTheCatalogue() -> XCUIElement {
         app.tabBars.buttons["Search"].tap()
 
-        let field = app.searchFields.firstMatch
+        let catalogue = app.buttons["Author.Today"]
+        XCTAssertTrue(catalogue.waitForExistence(timeout: 10), "no way to search the catalogue")
+        catalogue.tap()
+
+        return app.searchFields.firstMatch
+    }
+
+    func testSearchFindsBooksByText() {
+        let field = searchTheCatalogue()
         XCTAssertTrue(field.waitForExistence(timeout: 10), "search field never appeared")
         field.tap()
         field.typeText("магия\n")
@@ -49,9 +58,7 @@ final class CatalogUITests: XCTestCase {
     }
 
     func testSearchByAuthorScopeNarrowsResults() {
-        app.tabBars.buttons["Search"].tap()
-
-        let field = app.searchFields.firstMatch
+        let field = searchTheCatalogue()
         XCTAssertTrue(field.waitForExistence(timeout: 10))
         field.tap()
         field.typeText("Круз\n")

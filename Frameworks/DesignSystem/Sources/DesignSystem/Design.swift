@@ -132,8 +132,16 @@ public enum Design {
         // The three the system names, which it names differently on each platform. The package builds
         // for the Mac so its own logic can be tested there; nothing of the app is drawn on one.
         #if canImport(UIKit)
-            public static let screen = Color(.systemGroupedBackground)
-            public static let card = Color(.secondarySystemGroupedBackground)
+            public static let screen = Color(uiColor: UIColor { traits in
+                traits.userInterfaceStyle == .dark
+                    ? UIColor.systemGroupedBackground.resolvedColor(with: traits)
+                    : LightSurfaceTrial.current.screen
+            })
+            public static let card = Color(uiColor: UIColor { traits in
+                traits.userInterfaceStyle == .dark
+                    ? UIColor.secondarySystemGroupedBackground.resolvedColor(with: traits)
+                    : LightSurfaceTrial.current.card
+            })
             /// An inert shape: an unselected chip, a tag, a cover with no artwork yet.
             public static let fill = Color(.secondarySystemFill)
         #else
@@ -237,5 +245,12 @@ extension View {
 
     public func shade(_ shade: Design.Shade) -> some View {
         shadow(color: shade.color, radius: shade.radius, x: shade.x, y: shade.y)
+    }
+}
+
+extension View {
+    /// A list set on the app's own screen colour rather than the system's, which is white in light mode.
+    public func listOnScreen() -> some View {
+        scrollContentBackground(.hidden).background(Design.Surface.screen)
     }
 }

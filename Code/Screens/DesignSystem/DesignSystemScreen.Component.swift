@@ -108,6 +108,9 @@ enum DesignSystemScreen {
         @State
         private var segment: Segment = .interface
 
+        @Environment(\.dynamicTypeSize)
+        private var dynamicTypeSize
+
         var body: some View {
             ScrollView {
                 VStack(alignment: .leading, spacing: Design.Space.extraLarge) {
@@ -246,14 +249,21 @@ enum DesignSystemScreen {
         private var type: some View {
             card("Type", "Nine roles, each one system text style, so every one of them follows Dynamic Type.") {
                 VStack(alignment: .leading, spacing: Design.Space.medium) {
-                    ForEach(Self.styles, id: \.0) { name, font in
+                    ForEach(Self.styles, id: \.name) { role in
                         VStack(alignment: .leading, spacing: Design.Space.extraSmall) {
-                            Text(verbatim: name)
-                                .font(Design.Style.caption)
-                                .foregroundStyle(.secondary)
+                            HStack(alignment: .firstTextBaseline) {
+                                Text(verbatim: role.name)
+
+                                Spacer()
+
+                                Text(verbatim: Self.measured(role, at: dynamicTypeSize))
+                                    .monospacedDigit()
+                            }
+                            .font(Design.Style.caption)
+                            .foregroundStyle(.secondary)
 
                             Text(verbatim: "Read the page")
-                                .font(font)
+                                .font(role.font)
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
                     }
@@ -336,7 +346,9 @@ enum DesignSystemScreen {
                     }
 
                     specimen("Mark") {
-                        HStack(spacing: Design.Space.extraLarge) {
+                        // Wrapped rather than one row: a row of every mark runs wider than a phone, and
+                        // the whole catalogue then stands wider than the screen and loses both edges.
+                        FlowLayout(spacing: Design.Space.extraLarge, lineSpacing: Design.Space.large) {
                             // The two pairs worth telling apart: nothing read from barely read,
                             // and nearly finished from finished.
                             ProgressMark(progress: 0, isComplete: false, ground: .artwork)
@@ -456,6 +468,16 @@ enum DesignSystemScreen {
 
                     specimen("Expandable text") {
                         ExpandableText(Self.placeholderProse, lineLimit: 2)
+                    }
+
+                    specimen("Disclosure row") {
+                        DisclosureLabel {
+                            Label {
+                                Text(verbatim: "Opens a screen")
+                            } icon: {
+                                Image(systemName: "textformat.size")
+                            }
+                        }
                     }
 
                     specimen("Loading card") {
@@ -619,14 +641,48 @@ enum DesignSystemScreen {
             ("fill", Design.Surface.fill),
         ]
 
-        private static let styles: [(String, Font)] = [
-            ("screenTitle", Design.Style.screenTitle),
-            ("title", Design.Style.title),
-            ("heading", Design.Style.heading),
-            ("item", Design.Style.item),
-            ("label", Design.Style.label),
-            ("caption", Design.Style.caption),
-            ("micro", Design.Style.micro),
+        /// A text role, and the system style and weight it is built from, which is where its size is read.
+        private struct Role {
+            let name: String
+            let font: Font
+            let textStyle: UIFont.TextStyle
+            let isBold: Bool
+        }
+
+        private static let styles = [
+            Role(name: "screenTitle", font: Design.Style.screenTitle, textStyle: .largeTitle, isBold: true),
+            Role(name: "title", font: Design.Style.title, textStyle: .title3, isBold: true),
+            Role(name: "heading", font: Design.Style.heading, textStyle: .headline, isBold: false),
+            Role(name: "item", font: Design.Style.item, textStyle: .callout, isBold: false),
+            Role(name: "label", font: Design.Style.label, textStyle: .subheadline, isBold: false),
+            Role(name: "caption", font: Design.Style.caption, textStyle: .caption1, isBold: false),
+            Role(name: "micro", font: Design.Style.micro, textStyle: .caption2, isBold: false),
         ]
+
+        /// A role's size and weight at the reader's Dynamic Type setting, read off the font UIKit gives
+        /// that style rather than written down beside it.
+        private static func measured(_ role: Role, at size: DynamicTypeSize) -> String {
+            let traits = UITraitCollection(preferredContentSizeCategory: UIContentSizeCategory(size))
+            var font = UIFont.preferredFont(forTextStyle: role.textStyle, compatibleWith: traits)
+
+            if role.isBold, let bold = font.fontDescriptor.withSymbolicTraits(.traitBold) {
+                font = UIFont(descriptor: bold, size: font.pointSize)
+            }
+
+            let traitsOfFont = font.fontDescriptor.object(forKey: .traits) as? [UIFontDescriptor.TraitKey: Any]
+            let weight = (traitsOfFont?[.weight] as? CGFloat) ?? 0
+            let points = Double(font.pointSize).formatted(.number.precision(.fractionLength(0 ... 1)))
+
+            return "\(points) pt, \(weightName(weight))"
+        }
+
+        private static func weightName(_ weight: CGFloat) -> String {
+            let names: [(UIFont.Weight, String)] = [
+                (.ultraLight, "ultralight"), (.thin, "thin"), (.light, "light"), (.regular, "regular"),
+                (.medium, "medium"), (.semibold, "semibold"), (.bold, "bold"), (.heavy, "heavy"), (.black, "black"),
+            ]
+
+            return names.min { abs($0.0.rawValue - weight) < abs($1.0.rawValue - weight) }?.1 ?? "regular"
+        }
     }
 }

@@ -34,13 +34,13 @@ final class FoldMotionUITests: XCTestCase {
         XCTAssertLessThan(shelved, Self.spine, "a book on its edge painted more than a spine's worth")
 
         turn.tap()
-        Thread.sleep(forTimeInterval: 2)
+        Thread.sleep(forTimeInterval: 3)
 
         let taken = try painted(inside: field)
         XCTAssertGreaterThan(taken, Self.cover, "a book taken down painted less than a cover's worth")
 
         turn.tap()
-        Thread.sleep(forTimeInterval: 2)
+        Thread.sleep(forTimeInterval: 3)
 
         XCTAssertLessThan(try painted(inside: field), Self.spine, "the book never went back on its edge")
     }

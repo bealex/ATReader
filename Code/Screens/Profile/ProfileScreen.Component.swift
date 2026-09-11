@@ -28,6 +28,9 @@ enum ProfileScreen {
         @Environment(ShelfSettings.self)
         private var shelf
 
+        @Environment(Navigator.self)
+        private var navigator
+
         @State
         private var isConfirmingClear = false
 
@@ -50,18 +53,19 @@ enum ProfileScreen {
         }
 
         var body: some View {
-            NavigationStack {
-                List {
+            List {
+                Group {
                     if let user = session.user {
                         Section { profileRow(user) }
                     }
 
                     Section("Reading") {
-                        NavigationLink {
-                            ReaderScreen.SettingsSheet()
+                        Button {
+                            navigator.push(.readerAppearance)
                         } label: {
-                            Label("Reader appearance", systemImage: "textformat.size")
+                            DisclosureLabel { Label("Reader appearance", systemImage: "textformat.size") }
                         }
+                        .buttonStyle(.plain)
                         .accessibilityHint("Font and page settings for reading")
                     }
 
@@ -145,41 +149,43 @@ enum ProfileScreen {
                         Text("Your token is kept in the device keychain and removed when you sign out.")
                     }
                 }
-                .navigationTitle("Profile")
-                .task {
-                    await refreshStats()
-                    await UpdateBadge.requestBadgePermission()
-                }
-                .confirmationDialog(
-                    "Clear downloads?",
-                    isPresented: $isConfirmingClear,
-                    titleVisibility: .visible,
-                    actions: {
-                        Button("Yes, clear them", role: .destructive) {
-                            Task {
-                                await SQLiteBookStore.shared.clearDownloads()
-                                await CoverCache.shared.clear()
-                                await refreshStats()
-                            }
-                        }
-                        Button("Cancel", role: .cancel, action: {})
-                    },
-                    message: {
-                        Text(
-                            "Chapters saved for reading offline are removed and downloaded again when you next open them. Books you imported are kept."
-                        )
-                    }
-                )
-                .confirmationDialog(
-                    "Sign out?",
-                    isPresented: $isConfirmingSignOut,
-                    titleVisibility: .visible,
-                    actions: {
-                        Button("Yes, sign out", role: .destructive) { session.signOut() }
-                        Button("Cancel", role: .cancel, action: {})
-                    }
-                )
+                .listRowBackground(Design.Surface.card)
             }
+            .listOnScreen()
+            .navigationTitle("Profile")
+            .task {
+                await refreshStats()
+                await UpdateBadge.requestBadgePermission()
+            }
+            .confirmationDialog(
+                "Clear downloads?",
+                isPresented: $isConfirmingClear,
+                titleVisibility: .visible,
+                actions: {
+                    Button("Yes, clear them", role: .destructive) {
+                        Task {
+                            await SQLiteBookStore.shared.clearDownloads()
+                            await CoverCache.shared.clear()
+                            await refreshStats()
+                        }
+                    }
+                    Button("Cancel", role: .cancel, action: {})
+                },
+                message: {
+                    Text(
+                        "Chapters saved for reading offline are removed and downloaded again when you next open them. Books you imported are kept."
+                    )
+                }
+            )
+            .confirmationDialog(
+                "Sign out?",
+                isPresented: $isConfirmingSignOut,
+                titleVisibility: .visible,
+                actions: {
+                    Button("Yes, sign out", role: .destructive) { session.signOut() }
+                    Button("Cancel", role: .cancel, action: {})
+                }
+            )
         }
 
         private func profileRow(_ user: UserInfo) -> some View {

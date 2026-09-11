@@ -258,7 +258,6 @@ extension LibraryScreen {
         }
 
         var filter: Filter = .reading
-        var searchText = ""
 
         /// The names of the series the reader put together, which are kept in the order they chose
         /// rather than newest first.
@@ -298,35 +297,20 @@ extension LibraryScreen {
         /// Every local book's own text, hashed, so two copies of one book are one book on the shelf.
         private(set) var sameText: [Int: String] = [:]
 
-        /// The books the local title and author search leaves, before the filter has had its say.
-        private var searchedWorks: [Book] {
-            guard let query else { return library }
-
-            return library.filter {
-                $0.title.lowercased().contains(query)
-                    || $0.authorLine.lowercased().contains(query)
-                    || $0.seriesTitle?.lowercased().contains(query) == true
-            }
-        }
-
-        /// What is being looked for, where anything is.
-        private var query: String? {
-            let asked = searchText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-
-            return asked.isEmpty ? nil : asked
-        }
-
-        /// A search stands the filter aside: a reader looking for a book by name is looking for it
-        /// wherever it is, and a shelf answering "nothing found" because the book was finished would
-        /// be wrong rather than filtered.
-        private var searchFilter: Filter { query == nil ? filter : .everything }
+        /// The whole shelf, under the filter.
+        var groups: [Group] { groups(matching: nil) }
 
         /// Books in a series stand together under its name, latest first; a book in no series stands
         /// alone. Whatever was last read or last gained a chapter comes first.
         /// The filter runs over whole cards rather than over books, so a series the reader is partway
         /// through arrives entire, and the books behind them stay where they were.
-        var groups: [Group] {
-            let searched = searchedWorks
+        ///
+        /// - Parameter search: the books a search keeps, or `nil` for no search.
+        func groups(matching search: ((Book) -> Bool)?) -> [Group] {
+            let searched = search.map { library.filter($0) } ?? library
+            // A search stands the filter aside: a reader looking for a book by name is looking for it
+            // wherever it is, and "nothing found" because the book was finished would be wrong.
+            let searchFilter = search == nil ? filter : .everything
             let named = Dictionary(grouping: searched.filter { $0.series != nil }) {
                 seriesKey(of: $0)
             }
@@ -798,9 +782,14 @@ extension LibraryScreen {
             await refreshFromStore()
         }
 
+        /// The whole shelf as one card an author, under the filter.
+        var shelves: [AuthorShelf] { shelves(matching: nil) }
+
         /// The library as one card an author, their series in it and their loose books after.
-        var shelves: [AuthorShelf] {
-            let held = groups
+        ///
+        /// - Parameter search: the books a search keeps, or `nil` for no search.
+        func shelves(matching search: ((Book) -> Bool)?) -> [AuthorShelf] {
+            let held = groups(matching: search)
             // A series the reader put together out of several writers' books is nobody's shelf but its
             // own: filed under whichever of them wrote the most of it, it would sit among that
             // writer's books as though the others had no part in it.
@@ -959,6 +948,14 @@ extension LibraryScreen {
         func loadIfNeeded() async {
             guard !hasLoaded else { return }
 
+            #if DEBUG
+                if DemoLibrary.isOn {
+                    apply(entries: DemoLibrary.books)
+                    hasLoaded = true
+                    return
+                }
+            #endif
+
             madeSeries = Set(await store.customSeries().values.map(\.series))
             authorNames = await store.authorAliases()
             await showStoredLibrary()
@@ -1099,8 +1096,26 @@ extension LibraryScreen {
             }
         }
 
+        /// The asking already under way, which a second reload waits for rather than starting another.
+        @ObservationIgnored
+        private var reloading: Task<Void, Never>?
+
+        /// Asks the service for the library, or waits for the asking already under way.
         func reload() async {
-            guard !isLoading else { return }
+            if let reloading { return await reloading.value }
+
+            let asking = Task { await fetchLibrary() }
+
+            reloading = asking
+            await asking.value
+            reloading = nil
+        }
+
+        private func fetchLibrary() async {
+            #if DEBUG
+                // The invented library stands in for the service's, which would replace it.
+                guard !DemoLibrary.isOn else { return }
+            #endif
 
             isLoading = true
             errorMessage = nil

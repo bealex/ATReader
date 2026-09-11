@@ -570,126 +570,133 @@ enum ReaderScreen {
         #endif
     }
 
-    /// Typeface, size, spacing, margins, alignment and page tint.
+    /// The appearance form over the page, with a way to put it away.
     struct SettingsSheet: View {
+        @Environment(\.dismiss)
+        private var dismiss
+
+        var body: some View {
+            NavigationStack {
+                Appearance()
+                    .toolbar {
+                        ToolbarItem(placement: .confirmationAction) {
+                            Button("Done") { dismiss() }
+                        }
+                    }
+            }
+            // Half height on purpose: the page stays visible above, so every change can be seen
+            // landing on the real text rather than on a sample.
+            .presentationDetents([ .medium ])
+            .presentationBackgroundInteraction(.disabled)
+        }
+    }
+
+    /// Typeface, size, spacing, margins, alignment and page tint.
+    struct Appearance: View {
         @Environment(ReaderSettings.self)
         private var settings
 
         @Environment(\.scenePhase)
         private var scenePhase
 
-        @Environment(\.dismiss)
-        private var dismiss
-
         var body: some View {
             @Bindable var settings = settings
 
-            NavigationStack {
-                Form {
-                    Section {
-                        Picker("Typeface", selection: $settings.face) {
-                            ForEach(ReaderSettings.Face.allCases) { face in
-                                Text(face.title)
-                                    .font(Font(face.font(size: 17)))
-                                    .tag(face)
-                            }
-                        }
-                        .pickerStyle(.menu)
-                        .accessibilityIdentifier("reader.face")
-                        .accessibilityLabel("Typeface")
-
-                        Picker("Weight", selection: $settings.weight) {
-                            ForEach(settings.face.weights) { weight in
-                                Text(settings.face.title(for: weight))
-                                    .font(Font(settings.face.font(size: 17, weight: weight.uiWeight)))
-                                    .tag(weight)
-                            }
-                        }
-                        .pickerStyle(.menu)
-                        .accessibilityIdentifier("reader.weight")
-                        .accessibilityLabel("Font weight")
-                    }
-
-                    Section {
-                        Slider(
-                            value: $settings.fontSize,
-                            in: ReaderSettings.fontSizeRange,
-                            step: 1,
-                            label: { Text("Font size") },
-                            minimumValueLabel: { Text("A").font(.caption) },
-                            maximumValueLabel: { Text("A").font(.title3) }
-                        )
-                        .accessibilityIdentifier("reader.fontSize")
-                        .accessibilityLabel("Font size")
-                        .accessibilityValue("\(Int(settings.fontSize)) points")
-                    } header: {
-                        setting("Size", at: settings.fontSize)
-                    }
-
-                    Section {
-                        Slider(value: $settings.lineSpacing, in: 0 ... 16, step: 1)
-                            .accessibilityIdentifier("reader.lineSpacing")
-                            .accessibilityLabel("Line spacing")
-                            .accessibilityValue("\(Int(settings.lineSpacing))")
-                    } header: {
-                        setting("Line spacing", at: settings.lineSpacing)
-                    }
-
-                    Section {
-                        Slider(value: $settings.letterSpacing, in: ReaderSettings.letterSpacingRange, step: 0.1)
-                            .accessibilityIdentifier("reader.letterSpacing")
-                            .accessibilityLabel("Letter spacing")
-                            .accessibilityValue(
-                                "\(settings.letterSpacing.formatted(.number.precision(.fractionLength(1)))) points"
-                            )
-                    } header: {
-                        setting("Letter spacing", at: settings.letterSpacing, fraction: 1)
-                    }
-
-                    Section {
-                        Slider(value: $settings.margins, in: ReaderSettings.marginRange, step: 1)
-                            .accessibilityIdentifier("reader.margins")
-                            .accessibilityLabel("Page margins")
-                            .accessibilityValue("\(Int(settings.margins)) points")
-                    } header: {
-                        setting("Margins", at: settings.margins)
-                    }
-
-                    Section("Alignment") {
-                        alignmentPicker("Russian", selection: $settings.russianAlignment, key: "ru")
-                        alignmentPicker("English", selection: $settings.englishAlignment, key: "en")
-                    }
-
-                    Section("Screen") {
-                        Toggle("Portrait only", isOn: $settings.isPortraitOnly)
-                            .accessibilityIdentifier("reader.portraitOnly")
-                            .accessibilityHint("Keeps the page upright when the device is turned")
-                    }
-
-                    Section("Pictures") {
-                        Toggle("Follow the page", isOn: $settings.monochromeImages)
-                            .accessibilityIdentifier("reader.monochromeImages")
-                            .accessibilityHint("Draws every picture in the page’s own two colours")
-                    }
-
-                    Section("Page") {
-                        ForEach(ReaderSettings.Theme.allCases) { theme in
-                            themeRow(theme, isSelected: settings.theme == theme)
+            Form {
+                Section {
+                    Picker("Typeface", selection: $settings.face) {
+                        ForEach(ReaderSettings.Face.allCases) { face in
+                            Text(face.title)
+                                .font(Font(face.font(size: 17)))
+                                .tag(face)
                         }
                     }
+                    .pickerStyle(.menu)
+                    .accessibilityIdentifier("reader.face")
+                    .accessibilityLabel("Typeface")
+
+                    Picker("Weight", selection: $settings.weight) {
+                        ForEach(settings.face.weights) { weight in
+                            Text(settings.face.title(for: weight))
+                                .font(Font(settings.face.font(size: 17, weight: weight.uiWeight)))
+                                .tag(weight)
+                        }
+                    }
+                    .pickerStyle(.menu)
+                    .accessibilityIdentifier("reader.weight")
+                    .accessibilityLabel("Font weight")
                 }
-                .navigationTitle("Appearance")
-                .navigationBarTitleDisplayMode(.inline)
-                .toolbar {
-                    ToolbarItem(placement: .confirmationAction) {
-                        Button("Done") { dismiss() }
+
+                Section {
+                    Slider(
+                        value: $settings.fontSize,
+                        in: ReaderSettings.fontSizeRange,
+                        step: 1,
+                        label: { Text("Font size") },
+                        minimumValueLabel: { Text("A").font(.caption) },
+                        maximumValueLabel: { Text("A").font(.title3) }
+                    )
+                    .accessibilityIdentifier("reader.fontSize")
+                    .accessibilityLabel("Font size")
+                    .accessibilityValue("\(Int(settings.fontSize)) points")
+                } header: {
+                    setting("Size", at: settings.fontSize)
+                }
+
+                Section {
+                    Slider(value: $settings.lineSpacing, in: 0 ... 16, step: 1)
+                        .accessibilityIdentifier("reader.lineSpacing")
+                        .accessibilityLabel("Line spacing")
+                        .accessibilityValue("\(Int(settings.lineSpacing))")
+                } header: {
+                    setting("Line spacing", at: settings.lineSpacing)
+                }
+
+                Section {
+                    Slider(value: $settings.letterSpacing, in: ReaderSettings.letterSpacingRange, step: 0.1)
+                        .accessibilityIdentifier("reader.letterSpacing")
+                        .accessibilityLabel("Letter spacing")
+                        .accessibilityValue(
+                            "\(settings.letterSpacing.formatted(.number.precision(.fractionLength(1)))) points"
+                        )
+                } header: {
+                    setting("Letter spacing", at: settings.letterSpacing, fraction: 1)
+                }
+
+                Section {
+                    Slider(value: $settings.margins, in: ReaderSettings.marginRange, step: 1)
+                        .accessibilityIdentifier("reader.margins")
+                        .accessibilityLabel("Page margins")
+                        .accessibilityValue("\(Int(settings.margins)) points")
+                } header: {
+                    setting("Margins", at: settings.margins)
+                }
+
+                Section("Alignment") {
+                    alignmentPicker("Russian", selection: $settings.russianAlignment, key: "ru")
+                    alignmentPicker("English", selection: $settings.englishAlignment, key: "en")
+                }
+
+                Section("Screen") {
+                    Toggle("Portrait only", isOn: $settings.isPortraitOnly)
+                        .accessibilityIdentifier("reader.portraitOnly")
+                        .accessibilityHint("Keeps the page upright when the device is turned")
+                }
+
+                Section("Pictures") {
+                    Toggle("Follow the page", isOn: $settings.monochromeImages)
+                        .accessibilityIdentifier("reader.monochromeImages")
+                        .accessibilityHint("Draws every picture in the page’s own two colours")
+                }
+
+                Section("Page") {
+                    ForEach(ReaderSettings.Theme.allCases) { theme in
+                        themeRow(theme, isSelected: settings.theme == theme)
                     }
                 }
             }
-            // Half height on purpose: the page stays visible above, so every change can be seen
-            // landing on the real text rather than on a sample.
-            .presentationDetents([ .medium ])
-            .presentationBackgroundInteraction(.disabled)
+            .navigationTitle("Appearance")
+            .navigationBarTitleDisplayMode(.inline)
         }
 
         /// A section's own name with the value its slider stands at, so a setting can be read as well
