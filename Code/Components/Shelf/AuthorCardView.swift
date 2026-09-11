@@ -139,6 +139,10 @@ final class AuthorCardView: UIView {
     private static func headerHeight(_ contents: Contents?, across width: CGFloat) -> CGFloat {
         guard let contents else { return 0 }
 
+        let key = "\(contents.name)|\(width)|\(UIApplication.shared.preferredContentSizeCategory.rawValue)"
+
+        if let held = measuredNames[key] { return held }
+
         let font = nameFont
         let box = (contents.name as NSString).boundingRect(
             with: CGSize(width: width - Shelf.gutter, height: .greatestFiniteMagnitude),
@@ -146,9 +150,15 @@ final class AuthorCardView: UIView {
             attributes: [ .font: font ],
             context: nil
         )
+        let height = min(box.height, font.lineHeight * 2).rounded(.up)
 
-        return min(box.height, font.lineHeight * 2).rounded(.up)
+        measuredNames[key] = height
+        return height
     }
+
+    /// Names measured before, by name, width and type size: every card is measured again whenever the
+    /// cards change, and a name set in text is the slowest part of it.
+    private static var measuredNames: [String: CGFloat] = [:]
 
     @objc
     private func tapped() { onName?() }

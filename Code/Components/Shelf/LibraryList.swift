@@ -67,6 +67,10 @@ struct LibraryList: UIViewControllerRepresentable {
         private var carrying: Carrying?
         /// A refresh that finished while the finger was still pulling, left to end once it lets go.
         private var endsRefreshingOnRelease = false
+        /// How tall each card stands across the width it was measured at, and the shape of the shelf it
+        /// was measured for. A layout asks for every card on every pass, and on every frame of a turn.
+        private var measured: [String: (shape: Int, height: CGFloat)] = [:]
+        private var measuredAcross: CGFloat = 0
 
         /// A card on its way from one height to another. It holds the card itself rather than looking
         /// it up: the height is asked for in the middle of a layout, and a collection view hands out no
@@ -79,6 +83,9 @@ struct LibraryList: UIViewControllerRepresentable {
 
             var reached: CGFloat { card?.reached ?? 1 }
         }
+
+        /// How many books the shelf makes before anyone scrolls: a few screens' worth of cards.
+        private static let preparedBooks = 150
 
         init(_ list: LibraryList) {
             self.list = list
@@ -99,8 +106,17 @@ struct LibraryList: UIViewControllerRepresentable {
             source = make(controller.collectionView)
             self.controller = controller
 
+            // The stand-ins every book shows until its own pictures arrive, printed before any is asked for.
+            for isDark in [ false, true ] {
+                _ = CoverPrint.blank(isDark: isDark)
+                _ = SpinePrint.blank(isDark: isDark)
+                _ = BookcasePrint.lid(isDark: isDark)
+                _ = BookcasePrint.corner(isDark: isDark)
+            }
+
             apply(animated: false)
             press()
+            ShelfView.prepare(upTo: Self.preparedBooks)
 
             return controller
         }
@@ -113,6 +129,7 @@ struct LibraryList: UIViewControllerRepresentable {
             let standing = heights(across: cardWidth)
 
             self.list = list
+            measure(across: cardWidth)
 
             apply(animated: false)
             press()
@@ -151,7 +168,7 @@ struct LibraryList: UIViewControllerRepresentable {
             carrying = Carrying(
                 id: card.id,
                 from: standing ?? height(of: card.id, across: across) ?? 0,
-                to: AuthorCardView.height(card, across: across),
+                to: measured[card.id]?.height ?? AuthorCardView.height(card, across: across),
                 card: cell.card
             )
             cell.card.onFrame = { [weak self] in
@@ -179,13 +196,43 @@ struct LibraryList: UIViewControllerRepresentable {
         /// What a card stands at across the width it is given, which is its own height except while it
         /// is turning, when it is somewhere between the two.
         private func height(of id: String, across: CGFloat) -> CGFloat? {
-            guard let card = list.cards.first(where: { $0.id == id }) else { return nil }
+            if let carrying, carrying.id == id {
+                return carrying.from + (carrying.to - carrying.from) * carrying.reached
+            }
 
-            let settled = AuthorCardView.height(card, across: across)
+            if measuredAcross != across { measure(across: across) }
 
-            guard let carrying, carrying.id == id else { return settled }
+            return measured[id]?.height
+        }
 
-            return carrying.from + (carrying.to - carrying.from) * carrying.reached
+        /// Works out every card's height, keeping the ones whose shelves still stand the way they did.
+        /// Run when the cards change, which is also when the filter or a search changes them.
+        private func measure(across: CGFloat) {
+            if measuredAcross != across {
+                measured.removeAll(keepingCapacity: true)
+                measuredAcross = across
+            }
+
+            let typeSize = controller?.collectionView.traitCollection.preferredContentSizeCategory
+            var kept: [String: (shape: Int, height: CGFloat)] = [:]
+
+            for card in list.cards {
+                var hasher = Hasher()
+
+                hasher.combine(card.name)
+                hasher.combine(typeSize)
+                ShelfView.shape(of: card.shelf, into: &hasher)
+
+                let shape = hasher.finalize()
+
+                if let held = measured[card.id], held.shape == shape {
+                    kept[card.id] = held
+                } else {
+                    kept[card.id] = (shape, AuthorCardView.height(card, across: across))
+                }
+            }
+
+            measured = kept
         }
 
         private func refresh() {
@@ -227,7 +274,29 @@ struct LibraryList: UIViewControllerRepresentable {
         }
 
         func collectionView(_ collectionView: UICollectionView, prefetchItemsAt indexPaths: [IndexPath]) {
-            SpinePress.warm(cards(at: indexPaths).flatMap { ShelfView.covers(in: $0.shelf) })
+            let coming = cards(at: indexPaths)
+            let isDark = collectionView.traitCollection.userInterfaceStyle == .dark
+
+            SpinePress.warm(coming.flatMap { ShelfView.covers(in: $0.shelf) })
+            CoverPrint.warm(coming.flatMap { ShelfView.faces(in: $0.shelf, isDark: isDark) })
+        }
+
+        /// A card coming into view asks again for whatever it gave up while it was away.
+        func collectionView(
+            _ collectionView: UICollectionView,
+            willDisplay cell: UICollectionViewCell,
+            forItemAt indexPath: IndexPath
+        ) {
+            (cell as? AuthorCardCell)?.card.shelf.resumeLoading()
+        }
+
+        /// A card that has left the screen stops decoding and printing for books nobody can see.
+        func collectionView(
+            _ collectionView: UICollectionView,
+            didEndDisplaying cell: UICollectionViewCell,
+            forItemAt indexPath: IndexPath
+        ) {
+            (cell as? AuthorCardCell)?.card.shelf.pauseLoading()
         }
 
         private func cards(at paths: [IndexPath]) -> [AuthorCardView.Contents] {

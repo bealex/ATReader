@@ -39,6 +39,16 @@ public actor CoverCache {
     /// In-flight downloads, so a scrolling list asking for the same cover ten times fetches it once.
     private var loading: [URL: Task<UIImage?, Never>] = [:]
 
+    /// Covers this device makes rather than downloads, by address scheme: the invented library a debug
+    /// build shows. Made off the main actor whenever asked for and kept in memory only, so they never
+    /// push a real cover off the disk.
+    private var painters: [String: @Sendable (URL) -> UIImage?] = [:]
+
+    /// Makes every cover whose address has this scheme with `painter` rather than fetching it.
+    public func paint(_ scheme: String, with painter: @escaping @Sendable (URL) -> UIImage?) {
+        painters[scheme] = painter
+    }
+
     /// Writes since the last sweep, so eviction runs now and then rather than on every cover.
     private var writesSinceSweep = 0
     private var hasSwept = false
@@ -67,8 +77,11 @@ public actor CoverCache {
 
         if let existing = loading[url] { return await existing.value }
 
+        let painter = url.scheme.flatMap { painters[$0] }
         let task = Task<UIImage?, Never> { [session, directory] in
-            await Self.fetch(url, session: session, directory: directory)
+            if let painter { return await Self.painted(url, by: painter) }
+
+            return await Self.fetch(url, session: session, directory: directory)
         }
 
         loading[url] = task
@@ -77,7 +90,8 @@ public actor CoverCache {
 
         if let image {
             remember(image, key: key)
-            writesSinceSweep += 1
+
+            if painter == nil { writesSinceSweep += 1 }
         }
 
         await sweepIfDue()
@@ -92,6 +106,16 @@ public actor CoverCache {
         let key = Self.fileKey(for: url)
 
         if let cached = memory.object(forKey: key as NSString) { return cached }
+
+        // A cover made on the device is as much at hand as one on its disk.
+        if let painter = url.scheme.flatMap({ painters[$0] }) {
+            let image = await Self.painted(url, by: painter)
+
+            if let image { remember(image, key: key) }
+
+            return image
+        }
+
         guard let stored = await Self.decode(fileURL(key)) else { return nil }
 
         remember(stored, key: key)
@@ -141,6 +165,14 @@ public actor CoverCache {
             logger.error("download failed: \(error.localizedDescription, privacy: .public)")
             return nil
         }
+    }
+
+    private static func painted(_ url: URL, by painter: @escaping @Sendable (URL) -> UIImage?) async -> UIImage? {
+        await Task.detached(priority: .userInitiated) {
+            guard let image = painter(url) else { return nil }
+
+            return image.preparingForDisplay() ?? image
+        }.value
     }
 
     /// Reads and decodes a stored cover away from the main actor, ready to draw without decoding again.
@@ -295,6 +327,9 @@ public enum CoverShapes {
     /// laying them out, and the store answers across an actor hop it cannot wait for.
     private static var shapes: [String: Double] = [:]
 
+    /// Moves on whenever a shape is learned, for whatever keeps what it worked out from them.
+    public private(set) static var version = 0
+
     /// How many times taller than wide this cover is, where it has been seen before.
     public static func aspect(for url: URL) -> CGFloat? {
         shapes[url.absoluteString].map { CGFloat($0) }
@@ -303,6 +338,7 @@ public enum CoverShapes {
     /// Reads back what earlier runs measured. Once, as the app comes up.
     public static func load(from store: SQLiteBookStore = .shared) async {
         shapes = await store.coverShapes()
+        version += 1
     }
 
     static func remember(_ image: UIImage, for url: URL) {
@@ -314,6 +350,7 @@ public enum CoverShapes {
         guard shapes[address] != aspect else { return }
 
         shapes[address] = aspect
+        version += 1
         Task { await SQLiteBookStore.shared.store(coverShape: aspect, url: address) }
     }
 }

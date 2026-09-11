@@ -17,7 +17,7 @@ apply `Design` to the page.
 | --- | --- |
 | `Space` | Seven steps from 3 to 36, all multiples of `unit`. |
 | `Radius` | Three fixed, plus the barely-there `spine` and `cover`, which are cut nearly square. |
-| `Stroke` | The hairline and the ring. |
+| `Stroke` | The hairline, the line under a run on a shelf, and the ring. |
 | `Size` | Eight fixed dimensions, from an 18pt mark to a 120pt cover. |
 | `Palette` | The five meanings, and the one opacity every tinted ground and edge is drawn at. |
 | `Surface` | Screen and card, slate greys in light mode and the system's in dark; fill, the edge colour, and `ground(_:)` for a tinted pill. |

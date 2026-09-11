@@ -35,6 +35,16 @@ final class GapView: UIImageView {
         }
     }
 
+    /// A gap is printed only while it shows: every book carries a pair of them, hidden unless the book
+    /// is a volume nobody holds.
+    override var isHidden: Bool {
+        didSet {
+            guard oldValue != isHidden, !isHidden else { return }
+
+            reprint()
+        }
+    }
+
     override init(frame: CGRect) {
         super.init(frame: frame)
 
@@ -51,6 +61,8 @@ final class GapView: UIImageView {
     }
 
     private func reprint() {
+        guard !isHidden, bounds.width > 0, bounds.height > 0 else { return }
+
         let wanted = GapPrint.image(GapPrint.Order(
             side: side,
             number: number,
@@ -112,7 +124,7 @@ enum GapPrint {
         let colours = SpineInk(isDark: order.isDark)
         let shape =
             order.side == .face
-            ? UIBezierPath(cgPath: CoverView.board(in: bounds))
+            ? UIBezierPath(cgPath: CoverPrint.board(in: bounds))
             : UIBezierPath(roundedRect: bounds, cornerRadius: Design.Radius.spine)
 
         return UIGraphicsImageRenderer(size: order.size).image { drawn in

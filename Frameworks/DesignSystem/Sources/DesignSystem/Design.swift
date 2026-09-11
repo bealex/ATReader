@@ -49,6 +49,8 @@ public enum Design {
     public enum Stroke {
         /// A hairline is a device pixel rather than a measurement, which is why it is off the lattice.
         public static let hairline: CGFloat = 0.5
+        /// The line under a run of books on a shelf, a shade over a hairline so it reads across the plank.
+        public static let bracket = hairline * 1.3
         public static let ring = Space.unit
     }
 

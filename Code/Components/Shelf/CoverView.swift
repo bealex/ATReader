@@ -29,46 +29,41 @@ final class CoverView: UIView {
         }
     }
 
-    private let artwork = UIImageView()
-    private let placeholder = UIImageView()
-    private let hinge = CAGradientLayer()
-    private let edge = CAShapeLayer()
-    private let board = CAShapeLayer()
-    private let progress = UIImageView()
-    private let source = UIImageView()
-    private let ongoing = UIImageView()
+    /// The printed face, or the bare board standing in for it until the face arrives.
+    private let face = UIImageView()
+    /// What a book with no cover at all shows, and the marks over a face, each made the first time a
+    /// book needs it: a card coming into view makes every book on it, and most need none of these.
+    private var placeholder: UIImageView?
+    private var progress: UIImageView?
+    private var source: UIImageView?
+    private var ongoing: UIImageView?
 
     private var marks = Marks()
-    private var loading: Task<Void, Never>?
+    private var url: URL?
+    /// The face hanging now, where it is a printed one rather than the bare board.
+    private var shown: CoverPrint.Order?
+    private var loading: (order: CoverPrint.Order, task: Task<Void, Never>)?
+
+    /// Whether the face can be seen. A book standing on its edge has no use for its cover's picture, so
+    /// nothing is decoded or drawn for it until it turns.
+    var wantsArtwork = false {
+        didSet {
+            guard wantsArtwork != oldValue else { return }
+
+            refreshFace()
+        }
+    }
 
     override init(frame: CGRect) {
         super.init(frame: frame)
 
-        layer.mask = board
-        backgroundColor = UIColor(Design.Surface.fill)
+        face.contentMode = .scaleToFill
+        addSubview(face)
 
-        // Filled rather than fitted: the box a shelf gives a book is worked out from that book's own
-        // cover and rounded to whole points, and a picture fitted into a box a fraction of a point off
-        // its shape leaves a bar of nothing down the side it is bound on.
-        artwork.contentMode = .scaleAspectFill
-        placeholder.contentMode = .center
-        placeholder.image = UIImage(systemName: "book.closed")
-
-        for view in [ artwork, placeholder, progress, source, ongoing ] { addSubview(view) }
-
-        // A layer of its own rather than this view's border, which draws over every sublayer it has:
-        // the hinge is the board bending, and a hairline of the card's own colour laid over it is the
-        // white line a cover used to carry down the side it is bound on.
-        edge.lineWidth = Design.Stroke.hairline
-        edge.fillColor = nil
-        layer.insertSublayer(edge, above: placeholder.layer)
-
-        // Over the picture and over that edge: it is the board itself, not something laid on it.
-        layer.insertSublayer(hinge, above: edge)
-        hinge.startPoint = CGPoint(x: 0, y: 0.5)
-        hinge.endPoint = CGPoint(x: 1, y: 0.5)
-
-        registerForTraitChanges([ UITraitUserInterfaceStyle.self ]) { (self: Self, _) in self.paint() }
+        registerForTraitChanges([ UITraitUserInterfaceStyle.self ]) { (self: Self, _) in
+            self.paint()
+            self.refreshFace()
+        }
         paint()
     }
 
@@ -78,142 +73,158 @@ final class CoverView: UIView {
     /// What this cover is of, from the book's own artwork down to the marks over it.
     func show(_ work: Book, marks: Marks) {
         self.marks = marks
-        loading?.cancel()
 
-        let held = work.coverURL.flatMap(CoverImages.image(for:))
+        if url != work.coverURL {
+            url = work.coverURL
+            stopLoading()
+        }
 
-        artwork.image = held
-        placeholder.isHidden = held != nil
+        if url == nil {
+            let placeholder = made(&placeholder)
 
-        if let url = work.coverURL, held == nil {
-            loading = Task { [weak self] in
-                guard let loaded = await CoverCache.shared.image(for: url) else { return }
-
-                CoverImages.remember(loaded, for: url)
-
-                guard !Task.isCancelled, self?.window != nil else { return }
-
-                self?.artwork.image = loaded
-                self?.placeholder.isHidden = true
-                self?.onArtwork?()
-            }
+            placeholder.contentMode = .center
+            placeholder.image = UIImage(systemName: "book.closed")
+            placeholder.isHidden = false
+        } else {
+            placeholder?.isHidden = true
         }
 
         paint()
+        refreshFace()
+    }
+
+    /// One of the views a book makes only when it needs it, made now if it hasn't been.
+    private func made(_ view: inout UIImageView?) -> UIImageView {
+        if let view { return view }
+
+        let new = UIImageView()
+
+        addSubview(new)
+        view = new
         setNeedsLayout()
+
+        return new
     }
 
     /// Told when the picture finally arrives, since a spine printed without it has to be printed again.
     var onArtwork: (() -> Void)?
 
+    /// Gives up the face on its way, for a book that has left the screen.
     func stopLoading() {
-        loading?.cancel()
+        loading?.task.cancel()
         loading = nil
     }
+
+    /// Asks again for a face given up while the book was off the screen.
+    func resumeLoading() { refreshFace() }
 
     override func layoutSubviews() {
         super.layoutSubviews()
 
-        artwork.frame = bounds
-        placeholder.frame = bounds
-        placeholder.preferredSymbolConfiguration = .init(pointSize: bounds.width * 0.3)
-
-        CATransaction.begin()
-        CATransaction.setDisableActions(true)
-        hinge.frame = bounds
-        edge.frame = bounds
-        board.frame = bounds
-        edge.path = Self.board(in: bounds)
-        board.path = edge.path
-        crease()
-        CATransaction.commit()
+        face.frame = bounds
+        placeholder?.frame = bounds
+        placeholder?.preferredSymbolConfiguration = .init(pointSize: bounds.width * 0.3)
 
         let inset = Design.Space.extraSmall
         let mark = Design.Size.mark
 
-        progress.frame = CGRect(x: bounds.maxX - inset - mark, y: bounds.maxY - inset - mark, width: mark, height: mark)
-        source.frame = CGRect(x: inset, y: inset, width: mark, height: mark)
-        ongoing.frame = CGRect(x: inset, y: bounds.maxY - inset - mark, width: mark, height: mark)
+        progress?.frame = CGRect(
+            x: bounds.maxX - inset - mark,
+            y: bounds.maxY - inset - mark,
+            width: mark,
+            height: mark
+        )
+        source?.frame = CGRect(x: inset, y: inset, width: mark, height: mark)
+        ongoing?.frame = CGRect(x: inset, y: bounds.maxY - inset - mark, width: mark, height: mark)
+
+        refreshFace()
     }
 
-    /// The shape of a board: square along the edge it is bound on and rounded at the two corners that
-    /// are handled, which is how a book is cut.
-    static func board(in rect: CGRect) -> CGPath {
-        let bound = Design.Radius.cover
-        let outer = Design.Radius.foreEdge
-        let path = CGMutablePath()
+    /// Hangs the printed face where it is at hand, and otherwise the bare board, printing the face in
+    /// the background and fading it in once it is.
+    private func refreshFace() {
+        let isDark = traitCollection.userInterfaceStyle == .dark
 
-        path.move(to: CGPoint(x: rect.minX + bound, y: rect.minY))
-        path.addArc(
-            tangent1End: CGPoint(x: rect.maxX, y: rect.minY),
-            tangent2End: CGPoint(x: rect.maxX, y: rect.maxY),
-            radius: outer
-        )
-        path.addArc(
-            tangent1End: CGPoint(x: rect.maxX, y: rect.maxY),
-            tangent2End: CGPoint(x: rect.minX, y: rect.maxY),
-            radius: outer
-        )
-        path.addArc(
-            tangent1End: CGPoint(x: rect.minX, y: rect.maxY),
-            tangent2End: CGPoint(x: rect.minX, y: rect.minY),
-            radius: bound
-        )
-        path.addArc(
-            tangent1End: CGPoint(x: rect.minX, y: rect.minY),
-            tangent2End: CGPoint(x: rect.maxX, y: rect.minY),
-            radius: bound
-        )
-        path.closeSubpath()
+        guard
+            let url,
+            bounds.width > 0,
+            bounds.height > 0
+        else {
+            stopLoading()
+            shown = nil
+            face.image = CoverPrint.blank(isDark: isDark)
+            return
+        }
 
-        return path
+        let order = CoverPrint.Order(url: url, size: bounds.size, isDark: isDark)
+
+        guard shown != order else { return }
+
+        if let held = CoverPrint.held(order) {
+            stopLoading()
+            face.image = held
+            shown = order
+            return
+        }
+
+        // Another book's face never stands in for this one; this book's own at another size can.
+        if shown?.url != url || shown?.isDark != isDark {
+            face.image = CoverPrint.blank(isDark: isDark)
+            shown = nil
+        }
+
+        guard wantsArtwork else { return stopLoading() }
+        guard loading?.order != order else { return }
+
+        stopLoading()
+        loading = (
+            order,
+            Task { [weak self] in
+                guard let printed = await CoverPrint.printed(order) else { return }
+                guard let self, !Task.isCancelled, self.loading?.order == order else { return }
+
+                self.loading = nil
+                self.shown = order
+                self.face.arrive(printed)
+                self.onArtwork?()
+            }
+        )
     }
 
-    /// The crease this cover is bound along, laid out across whatever width it has been given.
-    private func crease() {
-        guard bounds.width > 0 else { return }
-
-        let scheme: ColorScheme = traitCollection.userInterfaceStyle == .dark ? .dark : .light
-        let stops = Board.crease(scheme)
-
-        hinge.colors = stops.map { UIColor($0.colour).resolvedColor(with: traitCollection).cgColor }
-        hinge.locations = stops.map { NSNumber(value: min(1, $0.at / bounds.width)) }
-    }
-
-    /// Every colour this view holds itself, since a layer keeps the colour it was given rather than
-    /// following the shelf into the dark.
+    /// The marks over the face, which take the room's colours rather than the book's.
     private func paint() {
         let isDark = traitCollection.userInterfaceStyle == .dark
         let scheme =
             isDark ? UITraitCollection(userInterfaceStyle: .dark) : UITraitCollection(userInterfaceStyle: .light)
+        let neutral = UIColor(Design.Palette.neutral).resolvedColor(with: scheme)
 
-        edge.strokeColor = UIColor(Design.Surface.edge).resolvedColor(with: scheme).cgColor
-        placeholder.tintColor = UIColor.tertiaryLabel
-        crease()
+        placeholder?.tintColor = UIColor.tertiaryLabel
 
         if let read = marks.progress, read > 0 {
+            let progress = made(&progress)
+
             progress.image = MarkPrint.progress(read, isComplete: marks.isComplete, isDark: isDark)
             progress.isHidden = false
         } else {
-            progress.isHidden = true
+            progress?.isHidden = true
         }
 
         if let origin = marks.origin {
-            source.image = MarkPrint.circle(
-                origin.systemImage,
-                tint: UIColor(Design.Palette.neutral).resolvedColor(with: scheme),
-                isDark: isDark
-            )
+            let source = made(&source)
+
+            source.image = MarkPrint.circle(origin.systemImage, tint: neutral, isDark: isDark)
             source.isHidden = false
         } else {
-            source.isHidden = true
+            source?.isHidden = true
         }
 
-        ongoing.isHidden = !marks.isOngoing
-        ongoing.image = MarkPrint.circle(
-            "pencil",
-            tint: UIColor(Design.Palette.neutral).resolvedColor(with: scheme),
-            isDark: isDark
-        )
+        if marks.isOngoing {
+            let ongoing = made(&ongoing)
+
+            ongoing.image = MarkPrint.circle("pencil", tint: neutral, isDark: isDark)
+            ongoing.isHidden = false
+        } else {
+            ongoing?.isHidden = true
+        }
     }
 }

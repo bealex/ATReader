@@ -205,14 +205,25 @@ extension LibraryScreen {
             }
         }
 
-        var filter: Filter = .reading
+        var filter: Filter = .reading {
+            didSet {
+                if oldValue != filter { forgetFiling() }
+            }
+        }
 
         /// The names of the series the reader put together, which are kept in the order they chose
         /// rather than newest first.
-        private(set) var madeSeries: Set<String> = []
+        private(set) var madeSeries: Set<String> = [] {
+            didSet {
+                if oldValue != madeSeries { forgetFiling() }
+            }
+        }
 
         private(set) var works: [Book] = [] {
-            didSet { refreshWriters() }
+            didSet {
+                refreshWriters()
+                forgetFiling()
+            }
         }
         private(set) var isLoading = false
         private(set) var errorMessage: String?
@@ -242,10 +253,52 @@ extension LibraryScreen {
         var visibleWorks: [Book] { groups.flatMap(\.works) }
 
         /// The shelf's own books: one copy of each, whichever of them is the better one to hold.
-        var library: [Book] { Self.oneOfEach(works, sameText: sameText, arranged: madeSeries) }
+        var library: [Book] {
+            watchFiling()
+
+            if let filedLibrary { return filedLibrary }
+
+            let made = Self.oneOfEach(works, sameText: sameText, arranged: madeSeries)
+
+            filedLibrary = made
+            return made
+        }
 
         /// Every local book's own text, hashed, so two copies of one book are one book on the shelf.
-        private(set) var sameText: [Int: String] = [:]
+        private(set) var sameText: [Int: String] = [:] {
+            didSet { forgetFiling() }
+        }
+
+        // MARK: - The shelf as it was last filed
+
+        /// The library, its cards and its counts as they came out last time, kept until anything they are
+        /// worked out from changes. Filing a couple of thousand books takes long enough to be felt, and a
+        /// screen asks for the filing every time it redraws.
+        @ObservationIgnored
+        private var filedLibrary: [Book]?
+        @ObservationIgnored
+        private var filedGroups: [Group]?
+        @ObservationIgnored
+        private var filedShelves: [AuthorShelf]?
+        @ObservationIgnored
+        private var filedCounts: [Filter: Int] = [:]
+
+        private func forgetFiling() {
+            filedLibrary = nil
+            filedGroups = nil
+            filedShelves = nil
+            filedCounts = [:]
+        }
+
+        /// Reads everything the filing is worked out from, so whatever shows it hears when any of them
+        /// changes, a filing already at hand included.
+        private func watchFiling() {
+            _ = works
+            _ = sameText
+            _ = madeSeries
+            _ = filter
+            _ = authorNames
+        }
 
         /// The whole shelf, under the filter.
         var groups: [Group] { groups(matching: nil) }
@@ -257,6 +310,20 @@ extension LibraryScreen {
         ///
         /// - Parameter search: the books a search keeps, or `nil` for no search.
         func groups(matching search: ((Book) -> Bool)?) -> [Group] {
+            if search == nil {
+                watchFiling()
+
+                if let filedGroups { return filedGroups }
+            }
+
+            let filed = filedGroups(matching: search)
+
+            if search == nil { filedGroups = filed }
+
+            return filed
+        }
+
+        private func filedGroups(matching search: ((Book) -> Bool)?) -> [Group] {
             let searched = search.map { library.filter($0) } ?? library
             // A search stands the filter aside: a reader looking for a book by name is looking for it
             // wherever it is, and "nothing found" because the book was finished would be wrong.
@@ -328,7 +395,14 @@ extension LibraryScreen {
         func count(for filter: Filter) -> Int? {
             guard !works.isEmpty else { return nil }
 
-            return library.count(where: filter.includes)
+            watchFiling()
+
+            if let held = filedCounts[filter] { return held }
+
+            let counted = library.count(where: filter.includes)
+
+            filedCounts[filter] = counted
+            return counted
         }
 
         // MARK: - The same book, held twice
@@ -617,7 +691,10 @@ extension LibraryScreen {
         /// The spellings of a writer's name the reader has held together, keyed by the plain form of
         /// each. Two services spell one name two ways and only the reader knows they are one writer.
         private(set) var authorNames: [String: String] = [:] {
-            didSet { refreshWriters() }
+            didSet {
+                refreshWriters()
+                forgetFiling()
+            }
         }
 
         /// The name each spelling of a writer is filed under, where the library shows two spellings to be
@@ -711,6 +788,20 @@ extension LibraryScreen {
         ///
         /// - Parameter search: the books a search keeps, or `nil` for no search.
         func shelves(matching search: ((Book) -> Bool)?) -> [AuthorShelf] {
+            if search == nil {
+                watchFiling()
+
+                if let filedShelves { return filedShelves }
+            }
+
+            let filed = filedShelves(matching: search)
+
+            if search == nil { filedShelves = filed }
+
+            return filed
+        }
+
+        private func filedShelves(matching search: ((Book) -> Bool)?) -> [AuthorShelf] {
             // Only a writer who leads a book of their own gets a card: an anthology of fifteen writers
             // would otherwise deal a card to each of them.
             let leads = Set(works.map(authorKey(of:)))
@@ -979,6 +1070,7 @@ extension LibraryScreen {
 
             #if DEBUG
                 if DemoLibrary.isOn {
+                    await DemoLibrary.install()
                     apply(entries: DemoLibrary.books)
                     hasLoaded = true
                     return

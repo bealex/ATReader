@@ -72,7 +72,7 @@ final class BracketView: UIView {
         let tick = line - Design.Space.small
 
         context.setStrokeColor(Self.rule.resolvedColor(with: traitCollection).cgColor)
-        context.setLineWidth(Design.Stroke.hairline)
+        context.setLineWidth(Design.Stroke.bracket)
         context.move(to: CGPoint(x: bounds.minX, y: line))
         context.addLine(to: CGPoint(x: max(bounds.minX, name.frame.minX), y: line))
         context.move(to: CGPoint(x: min(bounds.maxX, name.frame.maxX), y: line))

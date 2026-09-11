@@ -107,6 +107,41 @@ enum SpinePrint {
     @MainActor
     static func forget() { prints.removeAllObjects() }
 
+    @MainActor
+    private static var blanks: [Bool: UIImage] = [:]
+
+    /// A spine with nothing printed on it yet: the shelf's own colour and the light across the board,
+    /// which stands in until the book's own spine is printed.
+    ///
+    /// One picture stretches to every spine. The light runs across it, so it scales with the width, and
+    /// the head and foot are held at the size they are drawn.
+    @MainActor
+    static func blank(isDark: Bool) -> UIImage {
+        if let held = blanks[isDark] { return held }
+
+        let held = Design.Radius.spine + 1 / density
+        let size = CGSize(width: Design.Size.spine, height: held * 2 + 1)
+        let bounds = CGRect(origin: .zero, size: size)
+        let colours = SpineInk(isDark: isDark)
+        let format = UIGraphicsImageRendererFormat()
+
+        format.scale = density
+
+        let drawn = UIGraphicsImageRenderer(size: size, format: format).image { drawn in
+            let context = drawn.cgContext
+
+            UIBezierPath(roundedRect: bounds, cornerRadius: Design.Radius.spine).addClip()
+            colours.bare.setFill()
+            context.fill(bounds)
+            curve(in: bounds, colours: colours, context: context)
+            binding(in: bounds, colours: colours, density: density, context: context)
+        }
+        .resizableImage(withCapInsets: UIEdgeInsets(top: held, left: 0, bottom: held, right: 0), resizingMode: .stretch)
+
+        blanks[isDark] = drawn
+        return drawn
+    }
+
     /// How many pixels a point is here, which a press off the main actor is told rather than asks.
     @MainActor
     static var density: CGFloat { UIScreen.main.scale }

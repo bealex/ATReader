@@ -204,8 +204,8 @@ a tick in place of the figure once the book has been read to its end.
 
 The library is a `UICollectionView` and everything on it is drawn by hand. `LibraryList` holds the
 collection view with a section per author, `AuthorCardView` is the cell, and inside it a `ShelfView`
-stands books where `ShelfLayout` puts them. The search field is `LibrarySearchView`; the SwiftUI left
-around the list owns the sheets and the alert.
+stands books where `ShelfLayout` puts them. The SwiftUI left around the list owns the sheets and the
+alert.
 
 Two things needed it. A book that lands in a different row when a run refolds is the same book, and only
 a layout owning every book on the card can say so: as separate SwiftUI rows it was one book leaving and
@@ -218,6 +218,26 @@ a crash: the card answers from the turn's clock, that disagrees with the layout,
 and asks again, and the clock has moved by then. It never settles, and the collection view trips over
 itself a dozen passes down. Heights are `.absolute`, `AuthorCardView.height(across:)` interpolates
 between where the card was and where it is going, and the turn's clock invalidates the layout each frame.
+
+Nothing on the shelf is drawn while it scrolls:
+
+- **Every picture is printed once.** A cover is `CoverPrint`, its artwork cut to the board with the
+  edge and crease on it, so no cover carries a mask; a spine is `SpinePrint`; the bookcase is
+  `BookcasePrint`, a point-wide lid and row for each slot height, stretched across the card by layers
+  that share them, with its rounded corners laid on as caps in the screen colour.
+- **A book shows a stand-in until its picture is at hand.** The bare board and the bare spine are one
+  stretchable picture each, printed before the list is built. The real picture is printed off the main
+  actor and fades in over the stand-in (`ArrivalMotion`). Only the side of a book that can be seen is
+  printed, and a card that leaves the screen gives up what it was waiting for.
+- **Cards measure once.** `LibraryList` keeps each card's height with a hash of what it turns on, and
+  works it out again only when that changes. `BookShapes` keeps every book's cover shape and spine
+  thickness by book, and the model keeps the library, its cards and its counts until the books, the
+  filter, merged series or name aliases change.
+- **Books are made ahead.** Views for books come from one pool every shelf shares, filled a few at a
+  time after the list appears, and a book makes its gap views and cover marks only when it needs them.
+
+`-at-demo-books 2390` makes up a library of that many books in a Debug build, with covers the cover
+cache paints on demand, for looking at how the shelf copes with a big one.
 
 Nothing is built until the cover shapes are read back. A book whose shape nobody has measured is taken
 for the commonest one, so a shelf laid out before that read lands stands every book at the wrong height

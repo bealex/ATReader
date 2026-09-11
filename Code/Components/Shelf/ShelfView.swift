@@ -53,9 +53,19 @@ final class ShelfView: UIView {
     private var link: CADisplayLink?
     private var brackets: [String: BracketView] = [:]
     private let bookcase = BookcaseView()
-    /// Books taken off the shelf, kept to stand the next ones in. A card is handed to another author
-    /// whole, and building a book costs more than dressing one again.
-    private var spare: [BookView] = []
+    /// Books taken off a shelf, kept to stand the next ones in on any shelf. A card is handed to another
+    /// author whole, and building a book costs more than dressing one again.
+    private static var spare: [BookView] = []
+
+    /// Gives up every picture on its way, for a shelf that has left the screen.
+    func pauseLoading() {
+        for book in books.values { book.stopLoading() }
+    }
+
+    /// Asks again for the pictures given up while the shelf was off the screen.
+    func resumeLoading() {
+        for book in books.values { book.resumeLoading() }
+    }
 
     /// How far round each book on the shelf stands, which is what a turn moves.
     var turns: [String: CGFloat] { books.mapValues(\.turned) }
@@ -244,6 +254,43 @@ final class ShelfView: UIView {
         }
     }
 
+    /// Everything a shelf's height turns on: which books stand where and which way round, how wide a
+    /// cover is, and what shape each cover is known to be. Two contents that hash alike stand alike.
+    static func shape(of contents: Contents, into hasher: inout Hasher) {
+        hasher.combine(contents.coverWidth)
+
+        for place in places(contents) {
+            hasher.combine(place.id)
+            hasher.combine(place.run)
+            hasher.combine(standsAsCover(place.slot, in: contents))
+
+            if case let .book(work, _, _, _) = place.slot {
+                let shape = BookShapes.shape(of: work)
+
+                hasher.combine(shape.cover)
+                hasher.combine(shape.length)
+            }
+        }
+    }
+
+    /// Every face this shelf shows as a cover, at the size it shows it, for whoever prints them before
+    /// the shelf comes into view.
+    static func faces(in contents: Contents, isDark: Bool) -> [CoverPrint.Order] {
+        let slot = slotHeight(contents)
+
+        return places(contents).compactMap { place in
+            guard
+                case let .book(work, _, _, _) = place.slot,
+                let url = work.coverURL,
+                standsAsCover(place.slot, in: contents)
+            else { return nil }
+
+            let size = CGSize(width: contents.coverWidth, height: standing(place.slot, in: contents, slot: slot))
+
+            return CoverPrint.Order(url: url, size: size, isDark: isDark)
+        }
+    }
+
     /// Every cover this shelf will show, for whoever pulls them off the disk before it does.
     static func covers(in contents: Contents) -> [URL] {
         places(contents).compactMap { place in
@@ -280,7 +327,7 @@ final class ShelfView: UIView {
         let shapes = (contents.runs.flatMap(\.slots) + contents.alone).compactMap { slot -> CGFloat? in
             guard case let .book(work, _, _, _) = slot else { return nil }
 
-            return work.coverURL.flatMap(CoverShapes.aspect(for:))
+            return BookShapes.shape(of: work).cover
         }
 
         return Design.Size.coverHeight(width: contents.coverWidth, ratio: shapes.max() ?? Shelf.unknownShape)
@@ -301,16 +348,13 @@ final class ShelfView: UIView {
 
         return standsAsCover(slot, in: contents)
             ? contents.coverWidth
-            : Shelf.spineWidth(of: work, cover: contents.coverWidth)
+            : Shelf.spineWidth(share: BookShapes.shape(of: work).length, cover: contents.coverWidth)
     }
 
     /// How tall a book stands, which is how tall its own cover comes out. A shelf whose books are all
     /// one height is a shelf of one book printed over and over.
     private static func standing(_ slot: SeriesSlot, in contents: Contents, slot height: CGFloat) -> CGFloat {
-        guard
-            case let .book(work, _, _, _) = slot,
-            let shape = work.coverURL.flatMap(CoverShapes.aspect(for:))
-        else { return height }
+        guard case let .book(work, _, _, _) = slot, let shape = BookShapes.shape(of: work).cover else { return height }
 
         return Design.Size.coverHeight(width: contents.coverWidth, ratio: shape)
     }
@@ -347,13 +391,28 @@ final class ShelfView: UIView {
 
             book.stopLoading()
 
-            if spare.count < Self.spares { spare.append(book) }
+            if Self.spare.count < Self.spares { Self.spare.append(book) }
         }
     }
 
-    /// How many books to keep back. More than any one card stands, since a card is emptied before the
-    /// next is filled.
-    private static let spares = 64
+    /// How many books to keep back: enough for the few cards on screen to be emptied into and filled
+    /// from.
+    private static let spares = 200
+
+    /// Makes books ahead of the first scroll, a handful between frames, so a card coming into view
+    /// dresses books it already has rather than making them in the middle of a frame.
+    static func prepare(upTo count: Int) {
+        guard spare.count < min(count, spares) else { return }
+
+        DispatchQueue.main.async {
+            for _ in 0 ..< preparedAtOnce where spare.count < min(count, spares) { spare.append(BookView()) }
+
+            prepare(upTo: count)
+        }
+    }
+
+    /// How many books are made between two frames while the shelf prepares.
+    private static let preparedAtOnce = 6
 
     /// A view for one place on the shelf, whichever kind of place it is.
     private func make(_ place: Place, in contents: Contents) {
@@ -363,7 +422,7 @@ final class ShelfView: UIView {
         if let held = books[place.id] {
             view = held
         } else {
-            view = spare.popLast() ?? BookView()
+            view = Self.spare.popLast() ?? BookView()
             books[place.id] = view
             addSubview(view)
             isNew = true
@@ -411,7 +470,7 @@ final class ShelfView: UIView {
     private static func edgeWidth(of slot: SeriesSlot, in contents: Contents) -> CGFloat {
         guard case let .book(work, _, _, _) = slot else { return Design.Size.spine }
 
-        return Shelf.spineWidth(of: work, cover: contents.coverWidth)
+        return Shelf.spineWidth(share: BookShapes.shape(of: work).length, cover: contents.coverWidth)
     }
 
     /// A tap on a cover opens the book; a tap on a spine, or on a volume that isn't there, turns the

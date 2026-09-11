@@ -9,21 +9,68 @@
     import DesignSystem
     import UIKit
 
-    /// An invented library, for looking at the shelf without an account. `-at-demo-library YES`.
+    /// An invented library, for looking at the shelf without an account. `-at-demo-library YES` shows a
+    /// few shelves set out by hand; `-at-demo-books 2390` makes up that many books.
     ///
     /// Every author, title and cover here is made up on the spot: nothing the service returned ever goes
     /// in the repository.
     @MainActor
     enum DemoLibrary {
-        static var isOn: Bool { UserDefaults.standard.bool(forKey: "at-demo-library") }
+        static var isOn: Bool { UserDefaults.standard.bool(forKey: "at-demo-library") || count > 0 }
 
-        /// The books, with their covers painted into the shared cache the shelf reads from.
+        /// How many books to make up, or nought for the shelves set out by hand.
+        private static var count: Int { UserDefaults.standard.integer(forKey: "at-demo-books") }
+
+        /// Tells the cover cache how to paint the invented covers, which it then does like any other:
+        /// in the background, when a shelf asks for one.
+        static func install() async {
+            await CoverCache.shared.paint(scheme) { url in DemoLibrary.paint(url) }
+        }
+
         static var books: [Book] {
-            (crowded + shelves).enumerated().flatMap { number, shelf in
+            guard count <= 0 else { return DemoCatalogue.books(count) }
+
+            return (crowded + shelves).enumerated().flatMap { number, shelf in
                 shelf.books.enumerated().map { place, entry in
                     book(entry, by: shelf.author, series: shelf.series, shelf: number, place: place)
                 }
             }
+        }
+
+        /// The address scheme an invented cover is known by.
+        nonisolated static let scheme = "demo"
+
+        /// Where an invented cover is found, carrying everything its painter needs to paint it.
+        nonisolated static func coverURL(id: Int, title: String, author: String, isLight: Bool, shape: Double) -> URL? {
+            var parts = URLComponents()
+
+            parts.scheme = scheme
+            parts.host = "cover"
+            parts.path = "/\(id)"
+            parts.queryItems = [
+                URLQueryItem(name: "title", value: title),
+                URLQueryItem(name: "author", value: author),
+                URLQueryItem(name: "light", value: isLight ? "1" : "0"),
+                URLQueryItem(name: "shape", value: String(shape)),
+            ]
+
+            return parts.url
+        }
+
+        /// Paints the cover an invented address describes.
+        nonisolated static func paint(_ url: URL) -> UIImage? {
+            guard let parts = URLComponents(url: url, resolvingAgainstBaseURL: false) else { return nil }
+
+            let items = Dictionary((parts.queryItems ?? []).map { ($0.name, $0.value ?? "") }) { first, _ in first }
+            let id = Int(url.lastPathComponent) ?? 0
+
+            return cover(
+                items["title"] ?? "",
+                by: items["author"] ?? "",
+                hue: hue(of: id),
+                isLight: items["light"] == "1",
+                shape: Double(items["shape"] ?? "") ?? 1.5
+            )
         }
 
         private struct Entry {
@@ -183,11 +230,7 @@
 
         private static func book(_ entry: Entry, by author: String, series: String?, shelf: Int, place: Int) -> Book {
             let id = 900_000 + shelf * 100 + place
-            let url = URL(string: "demo://cover/\(id)")
-
-            if let url, CoverImages.image(for: url) == nil {
-                CoverImages.remember(cover(entry.title, by: author, hue: hue(of: id), isLight: entry.isLight), for: url)
-            }
+            let url = coverURL(id: id, title: entry.title, author: author, isLight: entry.isLight, shape: 1.5)
 
             return Book(
                 id: id,
@@ -207,7 +250,7 @@
         }
 
         /// A different colour for every book, spread round the wheel.
-        private static func hue(of id: Int) -> CGFloat {
+        nonisolated private static func hue(of id: Int) -> CGFloat {
             CGFloat((id * 37) % 360) / 360
         }
 
@@ -237,13 +280,19 @@
         }
 
         /// An invented cover: two colours, a shape between them, the title above and the author below.
-        private static func cover(_ title: String, by author: String, hue: CGFloat, isLight: Bool) -> UIImage {
+        nonisolated private static func cover(
+            _ title: String,
+            by author: String,
+            hue: CGFloat,
+            isLight: Bool,
+            shape: Double
+        ) -> UIImage {
             let unit = Design.Space.unit
-            let size = CGSize(width: unit * 66, height: unit * 99)
+            let size = CGSize(width: unit * 66, height: unit * 66 * shape)
             let palette = Palette(hue: hue, isLight: isLight)
             let style = NSMutableParagraphStyle()
-            // Twice the point size rather than the screen's three times: the cover cache is bounded by
-            // bytes, and forty-odd covers at three times would push the first of them out again.
+            // Twice the point size rather than the screen's three times, which is already more than a
+            // shelf shows it at.
             let format = UIGraphicsImageRendererFormat()
 
             style.alignment = .center
@@ -261,7 +310,9 @@
                 }
 
                 palette.shape.setFill()
-                context.fillEllipse(in: CGRect(x: unit * 15, y: unit * 36, width: unit * 36, height: unit * 36))
+                context.fillEllipse(
+                    in: CGRect(x: unit * 15, y: size.height / 2 - unit * 18, width: unit * 36, height: unit * 36)
+                )
 
                 NSAttributedString(
                     string: title,

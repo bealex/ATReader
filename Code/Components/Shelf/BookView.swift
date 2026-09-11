@@ -4,6 +4,7 @@
 //
 
 import BookKit
+import BookStorage
 import DesignSystem
 import UIKit
 
@@ -38,14 +39,16 @@ final class BookView: UIView {
     private let facePanel = UIView()
     private let spine = UIImageView()
     private let cover = CoverView()
-    private let edgeGap = GapView(frame: .zero)
-    private let faceGap = GapView(frame: .zero)
-    private let edgeShade = UIView()
-    private let faceShade = UIView()
+    /// The two sides of a volume nobody holds, made the first time this view stands for one.
+    private var gaps: (edge: GapView, face: GapView)?
+    /// How far each panel has turned out of the light. Layers rather than views: every book carries a
+    /// pair, and a card coming into view makes every one of them.
+    private let edgeShade = CALayer()
+    private let faceShade = CALayer()
 
     private var contents: Contents?
     private var held: CGFloat = 0
-    private var printing: Task<Void, Never>?
+    private var printing: (order: SpinePrint.Order, task: Task<Void, Never>)?
     /// Which book the spine now hanging is of, so a view given a different one clears it first.
     private var shown: Int?
 
@@ -70,21 +73,14 @@ final class BookView: UIView {
 
         edgePanel.addSubview(spine)
         facePanel.addSubview(cover)
-        edgePanel.addSubview(edgeGap)
-        facePanel.addSubview(faceGap)
-        edgeGap.side = .edge
-        faceGap.side = .face
 
-        for content in [ spine, cover, edgeGap, faceGap ] { content.layer.allowsEdgeAntialiasing = true }
+        for content in [ spine, cover ] { content.layer.allowsEdgeAntialiasing = true }
 
-        for shade in [ edgeShade, faceShade ] {
-            shade.backgroundColor = .black
-            shade.isUserInteractionEnabled = false
-            shade.alpha = 0
+        for (shade, panel) in [ (edgeShade, edgePanel), (faceShade, facePanel) ] {
+            shade.backgroundColor = UIColor.black.cgColor
+            shade.opacity = 0
+            panel.layer.addSublayer(shade)
         }
-
-        edgePanel.addSubview(edgeShade)
-        facePanel.addSubview(faceShade)
 
         cover.onArtwork = { [weak self] in self?.reprint() }
 
@@ -108,17 +104,40 @@ final class BookView: UIView {
                 reprint()
                 cover.show(work, marks: marks.with(isDark: isDark(of: work)))
             case let .gap(number):
-                edgeGap.number = number
-                faceGap.number = number
+                let gaps = madeGaps()
+
+                gaps.edge.number = number
+                gaps.face.number = number
         }
 
         for content in [ spine, cover ] { content.isHidden = !isBook }
 
-        for content in [ edgeGap, faceGap ] { content.isHidden = isBook }
+        if let gaps { for content in [ gaps.edge, gaps.face ] { content.isHidden = isBook } }
 
         setNeedsLayout()
         layoutIfNeeded()
         place(held)
+    }
+
+    /// The gap's two sides, made now if this view has never stood for a gap.
+    private func madeGaps() -> (edge: GapView, face: GapView) {
+        if let gaps { return gaps }
+
+        let made = (edge: GapView(frame: .zero), face: GapView(frame: .zero))
+
+        made.edge.side = .edge
+        made.face.side = .face
+
+        for (gap, panel, over) in [ (made.edge, edgePanel, spine as UIView), (made.face, facePanel, cover) ] {
+            gap.layer.allowsEdgeAntialiasing = true
+            // Under the shade, which is a layer laid over everything the panel holds.
+            panel.insertSubview(gap, aboveSubview: over)
+        }
+
+        gaps = made
+        setNeedsLayout()
+
+        return made
     }
 
     private var isBook: Bool {
@@ -132,10 +151,17 @@ final class BookView: UIView {
         SpinePrint.isDark(of: work.id) ?? (traitCollection.userInterfaceStyle == .dark)
     }
 
+    /// Gives up the pictures on their way, for a book that has left the screen or the shelf.
     func stopLoading() {
         cover.stopLoading()
-        printing?.cancel()
+        printing?.task.cancel()
         printing = nil
+    }
+
+    /// Asks again for whatever was given up while the book was off the screen.
+    func resumeLoading() {
+        reprint()
+        cover.resumeLoading()
     }
 
     /// Turns the book, either at once or over the time a hinge takes.
@@ -159,10 +185,15 @@ final class BookView: UIView {
         stand(facePanel, at: CGPoint(x: 0, y: top), size: CGSize(width: contents.face, height: contents.standing))
         spine.frame = edgePanel.bounds
         cover.frame = facePanel.bounds
-        edgeGap.frame = edgePanel.bounds
-        faceGap.frame = facePanel.bounds
+        gaps?.edge.frame = edgePanel.bounds
+        gaps?.face.frame = facePanel.bounds
+
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
         edgeShade.frame = edgePanel.bounds
         faceShade.frame = facePanel.bounds
+        CATransaction.commit()
+
         place(held)
     }
 
@@ -193,14 +224,22 @@ final class BookView: UIView {
             let light = hinge.light(of: which)
 
             panel.layer.transform = hinge.transform(of: which, eye: eye)
-            shade.alpha = Hinge.shading * (1 - light)
+            shade.opacity = Float(Hinge.shading * (1 - light))
             // A panel edge-on to the reader is not drawn at all: standing both behind every book
             // would draw the shelf twice over and show one of them.
             panel.isHidden = light <= 0
         }
 
         CATransaction.commit()
+
+        // Only the side that can be seen is printed: a shelf of spines never decodes its covers.
+        cover.wantsArtwork = !facePanel.isHidden
+
+        if !edgePanel.isHidden, printing == nil, spineIsBlank { reprint() }
     }
+
+    /// True while the spine hanging is the bare stand-in rather than this book's own.
+    private var spineIsBlank = true
 
     /// The spine is a picture, so it is hung again whenever what it is a picture of changes, and asked
     /// of the press when the one wanted has not been printed yet.
@@ -216,23 +255,53 @@ final class BookView: UIView {
         let isDark = traitCollection.userInterfaceStyle == .dark
         let standing = SpinePrint.standing(of: work, number: number, title: title, size: size, isDark: isDark)
 
-        printing?.cancel()
-        printing = nil
-
-        // Whatever is filed, but never the book that stood here before this one.
-        if standing.image != nil || shown != work.id { spine.image = standing.image }
+        if let image = standing.image {
+            spine.image = image
+            spineIsBlank = false
+        } else if shown != work.id || spineIsBlank {
+            // Never the book that stood here before this one: the bare board until this one's is printed.
+            spine.image = SpinePrint.blank(isDark: isDark)
+            spineIsBlank = true
+        }
 
         shown = work.id
 
-        guard !standing.isWanted else { return }
+        let order = SpinePrint.Order(
+            id: work.id,
+            number: number,
+            title: title,
+            size: size,
+            isDark: isDark,
+            hasArtwork: work.coverURL.flatMap(CoverImages.image(for:)) != nil
+        )
 
-        printing = Task { [weak self] in
-            let pulled = await SpinePress.printed(of: work, number: number, title: title, size: size, isDark: isDark)
+        guard !standing.isWanted, !edgePanel.isHidden else { return stopPrinting() }
+        guard printing?.order != order else { return }
 
-            guard let pulled, !Task.isCancelled else { return }
+        stopPrinting()
+        printing = (
+            order,
+            Task { [weak self] in
+                let pulled = await SpinePress.printed(
+                    of: work,
+                    number: number,
+                    title: title,
+                    size: size,
+                    isDark: isDark
+                )
 
-            self?.spine.image = pulled
-        }
+                guard let self, let pulled, !Task.isCancelled, self.printing?.order == order else { return }
+
+                self.printing = nil
+                self.spineIsBlank = false
+                self.spine.arrive(pulled)
+            }
+        )
+    }
+
+    private func stopPrinting() {
+        printing?.task.cancel()
+        printing = nil
     }
 
     /// What a reader who cannot see the shelf is told, which is what this place is showing: a book

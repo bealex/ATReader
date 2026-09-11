@@ -27,3 +27,9 @@ public enum FoldMotion {
 
     public static var turningSeconds: Double { 0.45 * MotionScale.factor }
 }
+
+/// How a picture drawn in the background arrives over the stand-in it replaces: quick enough not to be
+/// waited on, slow enough not to flash.
+public enum ArrivalMotion {
+    public static var fadeSeconds: Double { 0.18 * MotionScale.factor }
+}

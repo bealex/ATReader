@@ -54,7 +54,8 @@ Every run prints one line per phase and a final `RESULT` line, and writes the fu
 underlying tool.
 
 The script refuses to choose between several connected devices, so pass `--device-id` when more than one
-is plugged in. Release carries no provisioning profile, so it builds but can't install on hardware.
+is plugged in. Release signs with the development profile, there being no distribution one yet, so it
+installs on hardware like Debug does.
 
 ## Style
 

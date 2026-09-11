@@ -36,7 +36,12 @@ enum SpinePress {
 
         pressed = asked
         running?.cancel()
-        running = Task(priority: .utility) { await run(wanted, isDark: isDark, density: SpinePrint.density) }
+
+        let density = SpinePrint.density
+
+        // Detached, so the walk through a whole library happens off the main actor and only calls in to
+        // look a print up and to file one.
+        running = Task.detached(priority: .utility) { await run(wanted, isDark: isDark, density: density) }
     }
 
     /// Pulls covers off the disk for a card about to come into view, for the ones a whole library's
@@ -80,11 +85,11 @@ enum SpinePress {
     /// What the last run was asked for, so a shelf redrawn for a cover landing doesn't start over.
     private static var pressed: Int?
 
-    private static func run(_ wanted: [Wanted], isDark: Bool, density: CGFloat) async {
+    nonisolated private static func run(_ wanted: [Wanted], isDark: Bool, density: CGFloat) async {
         for one in wanted {
             guard !Task.isCancelled else { return }
 
-            let artwork = await cover(at: one.coverURL)
+            let artwork = await held(at: one.coverURL)
             let order = SpinePrint.Order(
                 id: one.id,
                 number: one.number,
@@ -94,10 +99,24 @@ enum SpinePress {
                 hasArtwork: artwork != nil
             )
 
-            guard !SpinePrint.has(order) else { continue }
+            guard await !SpinePrint.has(order) else { continue }
 
-            SpinePrint.keep(await Press.shared.pull(order, artwork: artwork, density: density), for: order)
+            let impression = await Press.shared.pull(order, artwork: artwork, density: density)
+
+            await SpinePrint.keep(impression, for: order)
         }
+    }
+
+    /// The cover this device holds, looked up without holding the main actor while the disk is read.
+    nonisolated private static func held(at url: URL?) async -> UIImage? {
+        guard let url else { return nil }
+
+        if let inMemory = await CoverImages.image(for: url) { return inMemory }
+        guard let stored = await CoverCache.shared.held(for: url) else { return nil }
+
+        await CoverImages.remember(stored, for: url)
+
+        return stored
     }
 
     /// The cover this device already has, from memory or from its own disk, and never off the network:
