@@ -68,4 +68,23 @@ struct BookHTMLTests {
         #expect(paragraphs.count == 1)
         #expect(paragraphs[0].text == "Papa")
     }
+
+    /// A chapter as long as a novel reads in one pass. Looking for the next picture from every paragraph
+    /// read the whole rest of a chapter that had none left, once per paragraph, and a novel set as one
+    /// chapter took minutes to open.
+    @Test
+    func aLongChapterWithOnePictureReadsInOnePass() {
+        let paragraph = "<p>Жулдыбр кармоздел и вострыня пелькует, трямбла снова кувырнется.</p>"
+        let html = "<img src=\"cover.jpg\">" + String(repeating: paragraph, count: 4000)
+        let clock = ContinuousClock()
+
+        let took = clock.measure {
+            let paragraphs = BookHTML.paragraphs(from: html)
+
+            #expect(paragraphs.count == 4001)
+            #expect(paragraphs[0].imageSource == "cover.jpg")
+        }
+
+        #expect(took < .seconds(2))
+    }
 }

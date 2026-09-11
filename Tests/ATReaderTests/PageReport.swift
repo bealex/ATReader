@@ -61,6 +61,17 @@ struct PageReport: CustomStringConvertible, Sendable {
         return PageReport(name: name, html: html, context: context, textSize: size)
     }
 
+    /// The setting a report was read at, and the fingerprint the device gave it, for setting other text.
+    static func setting(ofReportAt folder: URL) -> (context: ChapterLayout.Context, fingerprint: String?)? {
+        guard
+            let settings = try? String(contentsOf: folder.appendingPathComponent("settings.txt"), encoding: .utf8)
+        else { return nil }
+
+        let fields = fields(of: settings)
+
+        return context(from: fields).map { ($0, fields["fingerprint"]) }
+    }
+
     private static func fields(of settings: String) -> [String: String] {
         settings.components(separatedBy: "\n").reduce(into: [:]) { result, line in
             guard let colon = line.firstIndex(of: ":") else { return }

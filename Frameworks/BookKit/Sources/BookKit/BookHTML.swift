@@ -104,10 +104,19 @@ public enum BookHTML {
     private static func blocks(in html: String) -> [Block] {
         var blocks: [Block] = []
         var cursor = html.startIndex
+        // Each is kept until the cursor passes it. Looked for afresh from every paragraph, a tag the rest
+        // of the chapter doesn't have costs a read of the whole rest of it, once per paragraph.
+        var paragraph = html.range(of: "<p", options: .caseInsensitive)
+        var picture = html.range(of: "<img", options: .caseInsensitive)
 
         while cursor < html.endIndex {
-            let paragraph = html.range(of: "<p", options: .caseInsensitive, range: cursor ..< html.endIndex)
-            let picture = html.range(of: "<img", options: .caseInsensitive, range: cursor ..< html.endIndex)
+            if let passed = paragraph, passed.lowerBound < cursor {
+                paragraph = html.range(of: "<p", options: .caseInsensitive, range: cursor ..< html.endIndex)
+            }
+
+            if let passed = picture, passed.lowerBound < cursor {
+                picture = html.range(of: "<img", options: .caseInsensitive, range: cursor ..< html.endIndex)
+            }
 
             // A picture standing on its own, where it comes before the next paragraph. One set inside a
             // paragraph is left to that paragraph.

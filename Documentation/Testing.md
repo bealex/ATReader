@@ -41,6 +41,22 @@ that directory in `TEST_RUNNER_AT_REPORTS`.
 Book text is never committed, so the directory is ignored by git and a fresh checkout has none. The
 suites over it pass having read nothing.
 
+## A whole library
+
+`BackupBooksTests` takes every book in a library backup through the reader's own path. It reads each
+kept file under `Books/` with this build's parser, prepares each service book's text in
+`library.sqlite` again, and has `BookPagination` measure every chapter at a reported page's setting. It
+fails on a book that won't import, a chapter whose stored text prepares to nothing, a chapter with
+text and no pages, and a chapter that takes longer than five seconds to lay out.
+
+    TEST_RUNNER_AT_BACKUP=~/…/Backup/ATReader \
+    TEST_RUNNER_AT_BACKUP_SETTINGS=~/Downloads/reader-… \
+    TEST_RUNNER_AT_BACKUP_LOG=$PWD/build/backup.log \
+    Scripts/app.sh test --only ATReaderTests/BackupBooksTests
+
+Each chapter goes into the log before it's measured, so the log's last line names a layout that never
+comes back. Without the variables the suite does nothing.
+
 ## Looking at the column
 
     TEST_RUNNER_AT_RENDER_DIR=$PWD/build/renders/after Scripts/app.sh test --only ATReaderTests
