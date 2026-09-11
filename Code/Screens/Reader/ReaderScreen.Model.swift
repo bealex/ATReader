@@ -390,13 +390,25 @@ extension ReaderScreen {
         private func refreshBookPaging() {
             guard let pagination else { return paging = .nothing }
 
+            let chapters = readableChapters
+            let measured = pagination.pageCount(of: chapters)
+            // A chapter that came to no pages is text the device hasn't got yet, and is guessed at with
+            // the ones the pass hasn't reached.
+            let (set, unset) = chapters.reduce(into: (0, 0)) { characters, chapter in
+                if (pagination.placement(of: chapter.id)?.pageCount ?? 0) > 0 {
+                    characters.0 += chapter.textLength ?? 0
+                } else {
+                    characters.1 += chapter.textLength ?? 0
+                }
+            }
+
             // The title page in front of the first chapter, which every figure counts from.
             paging = BookPaging(
-                firstPages: pagination.firstPages(of: readableChapters).mapValues { $0 + 1 },
-                chapterPages: readableChapters.reduce(into: [:]) { pages, chapter in
+                firstPages: pagination.firstPages(of: chapters).mapValues { $0 + 1 },
+                chapterPages: chapters.reduce(into: [:]) { pages, chapter in
                     pages[chapter.id] = pagination.placement(of: chapter.id)?.pageCount
                 },
-                length: pagination.pageCount(of: readableChapters) + 1
+                length: measured + BookPaging.estimate(unset, at: measured, per: set) + 1
             )
         }
 
@@ -649,6 +661,8 @@ extension ReaderScreen {
                         through: pagination.measured + 1,
                         content: { [weak self] in await self?.storedContent(for: $0) }
                     )
+                    // Each chapter measured turns a guess at the book's length into pages.
+                    self.refreshBookPaging()
                 }
 
                 self?.backgroundMeasuring = nil

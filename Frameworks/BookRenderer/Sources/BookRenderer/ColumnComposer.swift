@@ -5,6 +5,7 @@
 
 import BookKit
 import CoreText
+import Synchronization
 import UIKit
 
 /// How the slack on one line is shared out: between the gaps, between the letters, and last of all
@@ -13,7 +14,7 @@ import UIKit
 /// The three move together rather than in turn. Each has its own ceiling and all three reach theirs at
 /// the same moment, so a line with few gaps leans on its letters and a line with many leans on its gaps
 /// without either being settled in advance.
-public struct LineFill {
+public struct LineFill: Sendable {
     /// Added to every gap the line may open, on top of the tracking the gap already takes.
     public var perGap: CGFloat = 0
     /// Tracking added between every pair of characters, the held gap aside.
@@ -91,7 +92,8 @@ public struct LineFill {
 /// The breaking is the column's own rather than TextKit's, so where a line ends and how it is filled are
 /// one decision instead of two: every arrangement of a paragraph's breaks is costed by how hard its
 /// lines have to be pushed to reach the measure, and the cheapest arrangement wins.
-@MainActor
+///
+/// One composer belongs to one worker: it keeps the widths it has measured to itself.
 public final class ColumnComposer {
     enum Rules {
         /// How far a gap may open before it stops sharing the slack with the letters, against its own
@@ -145,7 +147,18 @@ public final class ColumnComposer {
     }
 
     /// One line as the column settled it, ready to be cut into a page and drawn.
-    struct Line {
+    struct Line: Sendable {
+        /// What a line's CoreText line is set from: the stretch of its paragraph and how it is filled.
+        struct Setting: Sendable {
+            var paragraph: NSRange
+            /// Where the line starts and where its ink stops, counted from the paragraph's first character.
+            var start: Int
+            var content: Int
+            var fill: LineFill
+            var holdsFirstGap: Bool
+            var drawsHyphen: Bool
+        }
+
         var characters: NSRange
         var startsParagraph: Bool
         var endsParagraph: Bool
@@ -161,7 +174,7 @@ public final class ColumnComposer {
         var origin: CGFloat
         /// How wide the line's ink runs.
         var width: CGFloat
-        var drawn: CTLine?
+        var setting: Setting?
         /// The picture the line stands for, on a line that is one instead of text.
         var image: PageImage?
         /// How large that picture is drawn, from the line's own top left corner.
@@ -187,15 +200,8 @@ public final class ColumnComposer {
         self.headingLength = headingLength
     }
 
-    /// Sets a whole chapter, a paragraph at a time.
-    static func compose(
-        text: NSAttributedString,
-        headingLength: Int,
-        measure: CGFloat,
-        depth: CGFloat,
-        onProgress: (@MainActor (Double) -> Void)?
-    ) async -> [Line] {
-        let composer = ColumnComposer(measure: measure, depth: depth, headingLength: headingLength)
+    /// Where each paragraph of a chapter stands in its text, its closing newline included.
+    static func paragraphs(in text: NSAttributedString) -> [NSRange] {
         let string = text.string as NSString
         var paragraphs: [NSRange] = []
         var start = 0
@@ -209,22 +215,105 @@ public final class ColumnComposer {
             paragraphs.append(NSRange(location: start, length: string.length - start))
         }
 
-        var result: [Line] = []
+        return paragraphs
+    }
 
-        for (index, range) in paragraphs.enumerated() {
-            if let picture = text.attribute(.pageImage, at: range.location, effectiveRange: nil) as? PageImage {
-                result.append(composer.line(of: picture, in: text, range: range))
-            } else if let ruler = ParagraphRuler(text: text, range: range) {
-                result.append(contentsOf: composer.lines(of: ruler))
+    /// How many paragraphs a worker takes at a time, which is also how often the reader is told how far
+    /// the chapter has got.
+    private static let paragraphsPerTurn = 16
+
+    /// Past this many, a worker spends what it gains waiting on the lock every attributed-string change takes.
+    private static let mostWorkers = 4
+
+    /// Sets a whole chapter, its paragraphs shared out between as many workers as the device has cores.
+    ///
+    /// A paragraph's lines depend on nothing outside it. An attributed string can't be handed from one
+    /// thread to another, so each worker typesets its own copy of the chapter from `typesetting`, which
+    /// has to give the same text every time.
+    static func compose(
+        paragraphs: [NSRange],
+        typesetting: @escaping @Sendable () -> NSAttributedString,
+        headingLength: Int,
+        measure: CGFloat,
+        depth: CGFloat,
+        onProgress: (@MainActor (Double) -> Void)?
+    ) async -> [Line] {
+        let turns = stride(from: 0, to: paragraphs.count, by: paragraphsPerTurn).map { first in
+            first ..< min(first + paragraphsPerTurn, paragraphs.count)
+        }
+
+        guard !turns.isEmpty else { return [] }
+
+        let tally = Tally()
+        let workers = min(turns.count, Self.mostWorkers, max(1, ProcessInfo.processInfo.activeProcessorCount))
+
+        let settled = await withTaskGroup(of: [ (turn: Int, lines: [ Line ]) ].self) { group in
+            for _ in 0 ..< workers {
+                group.addTask {
+                    let text = typesetting()
+                    let composer = ColumnComposer(measure: measure, depth: depth, headingLength: headingLength)
+                    var done: [(turn: Int, lines: [Line])] = []
+
+                    while let turn = tally.nextTurn(of: turns.count) {
+                        done.append((turn, composer.lines(in: text, paragraphs: paragraphs[turns[turn]])))
+
+                        let finished = tally.finishTurn()
+
+                        await onProgress?(Double(finished) / Double(turns.count))
+                        await Task.yield()
+                    }
+
+                    return done
+                }
             }
 
-            if index % 8 == 7 {
-                onProgress?(Double(index + 1) / Double(paragraphs.count))
-                await Task.yield()
+            var settled: [(turn: Int, lines: [Line])] = []
+
+            for await done in group { settled += done }
+
+            return settled
+        }
+
+        return settled.sorted { $0.turn < $1.turn }.flatMap(\.lines)
+    }
+
+    /// Which turns of a chapter have been handed out and how many are finished, shared between workers.
+    private final class Tally: Sendable {
+        private let handedOut = Mutex(0)
+        private let finished = Mutex(0)
+
+        /// The next turn nobody has taken, or `nil` once all of them have been.
+        func nextTurn(of count: Int) -> Int? {
+            handedOut.withLock { next in
+                guard next < count else { return nil }
+
+                defer { next += 1 }
+
+                return next
             }
         }
 
-        onProgress?(1)
+        /// Counts a turn as done, and says how many are.
+        func finishTurn() -> Int {
+            finished.withLock { done in
+                done += 1
+                return done
+            }
+        }
+    }
+
+    /// The lines of a run of paragraphs, pictures included.
+    private func lines(in text: NSAttributedString, paragraphs: ArraySlice<NSRange>) -> [Line] {
+        var result: [Line] = []
+
+        for range in paragraphs {
+            if let picture = text.attribute(.pageImage, at: range.location, effectiveRange: nil) as? PageImage {
+                result.append(line(of: picture, in: text, range: range))
+            } else if let ruler = ParagraphRuler(text: text, range: range) {
+                result.append(contentsOf: lines(of: ruler))
+            }
+        }
+
         return result
     }
 
@@ -530,6 +619,14 @@ public final class ColumnComposer {
             ruler.alignment == .center
             ? piece.indent + (measure - piece.indent - width) / 2
             : piece.indent
+        let setting = Line.Setting(
+            paragraph: ruler.range,
+            start: piece.start,
+            content: piece.content,
+            fill: fill,
+            holdsFirstGap: piece.holdsFirstGap,
+            drawsHyphen: piece.drawsHyphen
+        )
 
         return Line(
             characters: NSRange(location: ruler.range.location + piece.start, length: piece.ending - piece.start),
@@ -542,7 +639,7 @@ public final class ColumnComposer {
             baseline: ruler.font.ascender,
             origin: origin,
             width: width,
-            drawn: drawn,
+            setting: drawn == nil ? nil : setting,
             shortReason: piece.fills ? Self.reason(fill, piece: piece, ruler: ruler) : nil,
             gapMultiple: piece.gaps > 0 ? 1 + fill.perGap / max(1, ruler.spaceWidth) : 1,
             gaps: piece.gaps

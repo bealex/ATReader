@@ -371,7 +371,7 @@ cmd_test() {
     export TEST_RUNNER_AT_REPORTS="$REPO/Fixtures/Reports"
     local label="test · app UI · $CONFIG"
     [ "$TEST_ACTION" = test ] || label="$label · $TEST_ACTION"
-    xcode_build "id=$SIM_ID" "$label" "$TEST_ACTION" ${ONLY[@]+"${ONLY[@]}"} || rc=1
+    xcode_build "id=$SIM_ID" "$label" "$TEST_ACTION" ${ONLY[@]+"${ONLY[@]}"} ${SIGNING[@]+"${SIGNING[@]}"} || rc=1
   fi
   test_totals
   return "$rc"

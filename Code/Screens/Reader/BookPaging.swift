@@ -15,10 +15,26 @@ struct BookPaging: Equatable {
     let firstPages: [Int: Int]
     /// How many pages each chapter ran to when it was measured.
     let chapterPages: [Int: Int]
-    /// How long the book ran to when it was measured, the title page included.
+    /// How long the book runs to, the title page included: what has been measured, and a guess for
+    /// the chapters that haven't been.
     let length: Int
 
     static let nothing = BookPaging(firstPages: [:], chapterPages: [:], length: 0)
+
+    /// How many pages text nobody has measured yet will come to, at the rate the measured text ran.
+    ///
+    /// Pages follow characters closely within one book set one way, so a book opened on its first
+    /// chapter shows the length it will settle at rather than the length of what has been measured.
+    ///
+    /// - Parameters:
+    ///   - characters: the text still to be measured.
+    ///   - pages: how many pages the measured text came to.
+    ///   - measured: how many characters that measured text holds.
+    static func estimate(_ characters: Int, at pages: Int, per measured: Int) -> Int {
+        guard characters > 0, pages > 0, measured > 0 else { return 0 }
+
+        return Int((Double(characters) * Double(pages) / Double(measured)).rounded(.up))
+    }
 
     /// Where one of a chapter's own pages falls in the book, both counted from one.
     ///

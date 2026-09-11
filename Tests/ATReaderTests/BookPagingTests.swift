@@ -66,4 +66,26 @@ struct BookPagingTests {
 
         #expect(paging.page(of: 2, within: 6) ?? 0 <= grown)
     }
+
+    /// What the reader saw: a book of more than a thousand pages opened as "page 2 of 46", the length of
+    /// the two chapters measured before it opened.
+    @Test
+    func guessesTheRestOfTheBookAtTheRateTheMeasuredTextRan() {
+        #expect(BookPaging.estimate(90_000, at: 46, per: 10_000) == 414)
+    }
+
+    @Test
+    func roundsAGuessUpToAWholePage() {
+        #expect(BookPaging.estimate(1, at: 46, per: 10_000) == 1)
+    }
+
+    @Test
+    func guessesNothingUntilSomethingHasBeenMeasured() {
+        #expect(BookPaging.estimate(90_000, at: 0, per: 0) == 0)
+    }
+
+    @Test
+    func guessesNothingOnceEverythingHasBeenMeasured() {
+        #expect(BookPaging.estimate(0, at: 46, per: 10_000) == 0)
+    }
 }

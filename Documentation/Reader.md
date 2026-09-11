@@ -28,8 +28,12 @@ column is narrow, and a justified line that can't break a word has to stretch in
 `Typography.hyphenated` walks every word through the system's dictionary for the language the text is
 in and marks every break that dictionary allows.
 
-The setting is built from `UIFont` and drawn into a UIKit context, so it stays on the main actor and
-yields between paragraphs rather than blocking a page turn.
+`ColumnComposer` sets a chapter's paragraphs away from the main actor, on up to four workers at once,
+since a paragraph's lines depend on nothing outside it. An attributed string can't cross from one thread to
+another, so each worker typesets its own copy of the chapter and hands back plain values: where each
+line breaks and how it's filled. `ChapterLayout` builds a line's `CTLine` from those only when a page
+draws it, so measuring a book draws nothing. A fifth worker adds no speed, because every change to an
+attributed string takes a lock UIFoundation shares across the process.
 
 ## Setting the text
 
@@ -317,9 +321,8 @@ taken in after it, softer again when the aside arrives.
 
 ## Cutting the column into pages
 
-`ColumnComposer` sets the chapter as a single column, a paragraph at a time with a yield between them
-so a long chapter never blocks a page turn, and `ChapterLayout` cuts that column into pages line by
-line.
+`ColumnComposer` sets the chapter as a single column, and `ChapterLayout` cuts that column into pages
+line by line.
 
 Cutting by hand rather than flowing the text through page-sized containers is what makes the rules
 possible. None of these is allowed at a break:
@@ -387,6 +390,12 @@ style or the page size changes, which is what those measurements depend on.
 It measures only text the device already holds. Fetching a whole book to find out where its pages fall
 would turn opening one chapter into a download of all of them, so a chapter that isn't here yet ends
 the run-on and the chapter after it starts a page of its own.
+
+The book's length in the footer is the pages the pass has measured plus a guess for the rest. Every
+chapter carries its length in characters, and within one book set one way pages follow characters
+closely, so the unmeasured text is counted at the rate the measured text ran. Each chapter the pass
+measures behind the reader turns part of the guess into pages, and a chapter the device hasn't got yet
+stays a guess.
 
 Because a page can show a chapter that hasn't arrived yet, the model's layout cache is observed, not
 ignored: a neighbour landing has to redraw the page already on screen.

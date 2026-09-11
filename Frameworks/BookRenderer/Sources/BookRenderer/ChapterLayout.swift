@@ -136,6 +136,8 @@ public final class ChapterLayout {
 
     private(set) var lines: [ColumnComposer.Line] = []
     private(set) var pages: [Page] = []
+    /// Each line's CoreText line, built the first time a page draws the line or looks into it.
+    private var drawnLines: [Int: CTLine] = [:]
 
     /// One page: the lines it carries and the space added to (or taken from) each gap between them.
     struct Page {
@@ -155,8 +157,8 @@ public final class ChapterLayout {
 
     /// Lays a chapter out and cuts it into pages.
     ///
-    /// CoreText is what measures and draws, but the setting is built from `UIFont` and drawn into a
-    /// UIKit context, so this stays on the main actor and yields between paragraphs instead.
+    /// The paragraphs are set away from the main actor, on every core at once; only cutting the column
+    /// into pages and drawing them happen here.
     public static func make(
         chapterId: Int,
         content: ChapterContent,
@@ -168,28 +170,42 @@ public final class ChapterLayout {
         // The pictures are read off the device before anything is measured: a line as deep as a plate
         // cannot be set without knowing how deep the plate is.
         let images = await BookImages.shared.prepare(sources: content.imageSources)
-        let text = ChapterPagination.typeset(
-            // Justified setting takes every break the dictionary offers; ragged-right needs no
-            // filling, so it is set as it was written.
-            paragraphs: context.style.justifies(content.language) ? content.hyphenated : content.paragraphs,
-            heading: heading,
-            language: content.language,
-            style: context.style,
-            images: images
+        // Justified setting takes every break the dictionary offers; ragged-right needs no filling, so it
+        // is set as it was written.
+        let paragraphs = context.style.justifies(content.language) ? content.hyphenated : content.paragraphs
+        let language = content.language
+        let style = context.style
+        let typesetting: @Sendable () -> ChapterPagination.TypesetText = {
+            ChapterPagination.typeset(
+                paragraphs: paragraphs,
+                heading: heading,
+                language: language,
+                style: style,
+                images: images
+            )
+        }
+        let layout = ChapterLayout(
+            chapterId: chapterId,
+            text: typesetting(),
+            context: context,
+            startOffset: startOffset
         )
-        let layout = ChapterLayout(chapterId: chapterId, text: text, context: context, startOffset: startOffset)
-        await layout.build(onProgress: onProgress)
+        await layout.build(typesetting: { typesetting().attributed }, onProgress: onProgress)
         return layout
     }
 
     /// True when laying this chapter out takes long enough that the reader should be told.
     public var isLong: Bool { text.string.utf8.count > Self.progressThreshold }
 
-    private func build(onProgress: (@MainActor (Double) -> Void)?) async {
+    private func build(
+        typesetting: @escaping @Sendable () -> NSAttributedString,
+        onProgress: (@MainActor (Double) -> Void)?
+    ) async {
         guard context.isUsable, text.length > 0 else { return }
 
         lines = await ColumnComposer.compose(
-            text: text,
+            paragraphs: ColumnComposer.paragraphs(in: text),
+            typesetting: typesetting,
             headingLength: headingLength,
             measure: context.textSize.width,
             depth: context.textSize.height,
@@ -507,6 +523,19 @@ public final class ChapterLayout {
 
     private static let softHyphen = unichar(0x00AD)
 
+    /// A line's CoreText line, set from the chapter's own text the first time anything asks for it.
+    func drawnLine(_ index: Int) -> CTLine? {
+        if let held = drawnLines[index] { return held }
+
+        guard
+            let setting = lines[index].setting,
+            let built = ParagraphRuler.line(in: text, setting: setting)
+        else { return nil }
+
+        drawnLines[index] = built
+        return built
+    }
+
     /// Draws a page, line by line, so the page's own leading can be applied as it goes.
     ///
     /// The text matrix is flipped because a UIKit context counts downwards and CoreText sets glyphs
@@ -539,7 +568,7 @@ public final class ChapterLayout {
                 continue
             }
 
-            if let drawn = lines[line].drawn {
+            if let drawn = drawnLine(line) {
                 drawing.textPosition = CGPoint(
                     x: context.textRect.minX + lines[line].origin,
                     y: cursor + lines[line].baseline
@@ -569,7 +598,7 @@ public final class ChapterLayout {
 
             defer { cursor += allotted + page.leading }
 
-            guard point.y >= cursor, point.y < cursor + allotted, let drawn = lines[line].drawn else { continue }
+            guard point.y >= cursor, point.y < cursor + allotted, let drawn = drawnLine(line) else { continue }
 
             let origin = context.textRect.minX + lines[line].origin
 
@@ -601,7 +630,7 @@ public final class ChapterLayout {
         var result: [String] = []
 
         for line in pages[index].lines {
-            guard let runs = lines[line].drawn.flatMap({ CTLineGetGlyphRuns($0) as? [CTRun] }) else { continue }
+            guard let runs = drawnLine(line).flatMap({ CTLineGetGlyphRuns($0) as? [CTRun] }) else { continue }
 
             for glyphs in runs {
                 let attributes = CTRunGetAttributes(glyphs) as NSDictionary

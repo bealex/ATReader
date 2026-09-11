@@ -208,9 +208,42 @@ public struct ParagraphRuler {
     public func setting(from start: Int, to ending: Int, fill: LineFill, holdsFirstGap: Bool, drawsHyphen: Bool)
         -> CTLine?
     {
-        let first = places[start]
-        let last = places[ending]
+        Self.set(
+            visible,
+            from: places[start],
+            to: places[ending],
+            fill: fill,
+            holdsFirstGap: holdsFirstGap,
+            drawsHyphen: drawsHyphen
+        )
+    }
 
+    /// A line the column settled, set again from the chapter's text alone.
+    ///
+    /// The same text and the same setting give the same line the column measured, so a line can be
+    /// built only when a page draws it.
+    static func line(in text: NSAttributedString, setting: ColumnComposer.Line.Setting) -> CTLine? {
+        let skeleton = skeleton(of: text.string as NSString, range: setting.paragraph)
+
+        return set(
+            visibleText(of: text, range: setting.paragraph, runs: skeleton.visibleRuns),
+            from: skeleton.places[setting.start],
+            to: skeleton.places[setting.content],
+            fill: setting.fill,
+            holdsFirstGap: setting.holdsFirstGap,
+            drawsHyphen: setting.drawsHyphen
+        )
+    }
+
+    /// Sets the visible characters from `first` to `last` as one line, filled as the column decided.
+    private static func set(
+        _ visible: NSAttributedString,
+        from first: Int,
+        to last: Int,
+        fill: LineFill,
+        holdsFirstGap: Bool,
+        drawsHyphen: Bool
+    ) -> CTLine? {
         guard last > first else { return nil }
 
         let piece = NSMutableAttributedString(
@@ -222,24 +255,28 @@ public struct ParagraphRuler {
             piece.append(NSAttributedString(string: "-", attributes: tail))
         }
 
-        if fill.glyphScale != 1 { Self.widen(piece, by: fill.glyphScale) }
+        if fill.glyphScale != 1 { widen(piece, by: fill.glyphScale) }
 
+        // A run of the tracking the text already carries at a time, then each space on its own: every
+        // change to an attributed string takes a lock the whole process shares, and the workers setting a
+        // chapter queue on it.
         let text = piece.string as NSString
+        var runs: [(range: NSRange, base: CGFloat)] = []
         var held = holdsFirstGap
 
-        for index in 0 ..< piece.length - 1 {
-            let base = (piece.attribute(.kern, at: index, effectiveRange: nil) as? NSNumber)?.doubleValue ?? 0
-            var kern = CGFloat(base) + fill.perLetter
+        piece.enumerateAttribute(.kern, in: NSRange(location: 0, length: piece.length)) { value, range, _ in
+            runs.append((range, CGFloat((value as? NSNumber)?.doubleValue ?? 0)))
+        }
 
-            if text.character(at: index) == 0x20 {
-                if held {
-                    kern = CGFloat(base)
-                    held = false
-                } else {
-                    kern += fill.perGap
-                }
-            }
+        for run in runs {
+            piece.addAttribute(.kern, value: run.base + fill.perLetter, range: run.range)
+        }
 
+        for index in 0 ..< piece.length - 1 where text.character(at: index) == 0x20 {
+            let base = runs.first { NSLocationInRange(index, $0.range) }?.base ?? 0
+            let kern = held ? base : base + fill.perLetter + fill.perGap
+
+            held = false
             piece.addAttribute(.kern, value: kern, range: NSRange(location: index, length: 1))
         }
 

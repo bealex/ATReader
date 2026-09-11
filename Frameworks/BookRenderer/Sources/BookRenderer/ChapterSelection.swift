@@ -54,7 +54,7 @@ public extension ChapterLayout {
             let line = lines[placed.index]
             let shared = NSIntersectionRange(line.characters, range)
 
-            guard shared.length > 0, let drawn = line.drawn else { continue }
+            guard shared.length > 0, let drawn = drawnLine(placed.index) else { continue }
 
             let origin = context.textRect.minX + line.origin
             let opening = CTLineGetOffsetForStringIndex(drawn, visible(ofSource: shared.location, in: line), nil)
@@ -131,7 +131,7 @@ public extension ChapterLayout {
             placed.first { point.y >= $0.edge && point.y < $0.edge + $0.height }
             ?? placed.min { abs(point.y - $0.edge) < abs(point.y - $1.edge) }
 
-        guard let over, let drawn = lines[over.index].drawn else { return nil }
+        guard let over, let drawn = drawnLine(over.index) else { return nil }
 
         let line = lines[over.index]
         let along = point.x - context.textRect.minX - line.origin

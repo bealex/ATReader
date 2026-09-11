@@ -63,7 +63,7 @@ public extension NSAttributedString.Key {
 /// the two a picture is comes from its pixels, since nothing in the file says.
 ///
 /// A picture the reader has chosen to see in monochrome takes that path whatever it is made of.
-public final class PageImage {
+public final class PageImage: Sendable {
     public enum Kind: Sendable {
         /// Colour art, shown as it was drawn.
         case colour
