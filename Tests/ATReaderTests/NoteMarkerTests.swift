@@ -3,7 +3,9 @@
 //  Licensed under the MIT License. See LICENSE in the repository root.
 //
 
+import BookKit
 import BookRenderer
+import Foundation
 import Testing
 
 /// How a note's marker is set against the body it stands in.
@@ -33,5 +35,23 @@ struct NoteMarkerTests {
         let top = abs(NoteMarker.baselineOffset(forFontSize: size)) + size * NoteMarker.scale * 0.75
 
         #expect(top < size * 0.8)
+    }
+
+    /// A marker covers its own characters in every setting, however many word joiners and soft
+    /// hyphens the typesetter put in before it.
+    @Test
+    func aMarkerStaysOnItsCharactersThroughEverySetting() async {
+        let html = """
+            <p>и в а ко бразуметство и в а ко мудрахленье<a href="#n2">[2]</a> а посему, грыштальники</p>
+            <p id="n2">Зябровка кутельная.</p>
+            """
+        let content = await ChapterContent.prepare(html: html)
+
+        for paragraphs in [ content.paragraphs, content.hyphenated ] {
+            let paragraph = paragraphs[0]
+            let mark = paragraph.notes.first
+
+            #expect(mark.map { (paragraph.text as NSString).substring(with: $0.range) } == "[2]")
+        }
     }
 }

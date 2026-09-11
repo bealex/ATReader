@@ -14,16 +14,15 @@ public extension ChapterContent {
             let chapter = BookHTML.chapter(from: html)
             let paragraphs = chapter.paragraphs
             let language = Self.language(of: paragraphs)
-            let bound = paragraphs.map { paragraph in
-                Self.setting(
-                    paragraph,
-                    // The dashes are put right first: binding reads them, and so does the layout when
-                    // it decides which lines open on the dash of speech.
-                    as: Typography.bound(Typography.dashes(paragraph.text, language: language), language: language)
-                )
+            // The dashes are put right first: binding reads them, and so does the layout when it decides
+            // which lines open on the dash of speech.
+            let texts = paragraphs.map { paragraph in
+                Typography.bound(Typography.dashes(paragraph.text, language: language), language: language)
             }
-            let hyphenated = bound.map { paragraph in
-                Self.setting(paragraph, as: Typography.hyphenated(paragraph.text, language: language))
+            // Each setting places its markers from the source marks, which count the text as it arrived.
+            let bound = zip(paragraphs, texts).map { Self.setting($0, as: $1) }
+            let hyphenated = zip(paragraphs, texts).map { paragraph, text in
+                Self.setting(paragraph, as: Typography.hyphenated(text, language: language))
             }
             return ChapterContent(paragraphs: bound, hyphenated: hyphenated, language: language, notes: chapter.notes)
         }.value
