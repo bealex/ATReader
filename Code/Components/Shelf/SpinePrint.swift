@@ -188,7 +188,7 @@ enum SpinePrint {
         let across = CGRect(origin: .zero, size: CGSize(width: bounds.width * density, height: bounds.height * density))
         let filled = fill(source, of: across.size)
         let blurred = filled.applyingGaussianBlur(sigma: Design.Size.spineBlur * density)
-        let colours = SpineInk(isDark: isDark(blurred, in: across, context: context))
+        let colours = SpineInk(isDark: isDark(blurred, in: across, context: context), isOnLightShelf: !shelfIsDark)
         let controls = CIFilter.colorControls()
         controls.inputImage = blurred
         controls.saturation = Float(colours.saturation)
@@ -447,10 +447,14 @@ enum SpinePrint {
 /// artwork, and a colour that reads on a card says nothing about one that reads on a picture.
 struct SpineInk {
     let isDark: Bool
+    var isOnLightShelf = false
 
-    /// Grey on a dark shelf, near-black on a light one. Writing printed onto a binding is never the
-    /// brightest thing on it.
-    var ink: UIColor { isDark ? .white.withAlphaComponent(0.58) : .black.withAlphaComponent(0.8) }
+    /// Near-black on a light spine. On a dark one, white on a light shelf and grey on a dark shelf.
+    var ink: UIColor {
+        guard isDark else { return .black.withAlphaComponent(0.8) }
+
+        return isOnLightShelf ? .white : .white.withAlphaComponent(0.58)
+    }
 
     /// How light a spine may get, and how dark. Drawn per channel, so a colour keeps its hue and gives
     /// up only what stood past the line.
