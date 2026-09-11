@@ -24,11 +24,10 @@ final class BracketView: UIView {
         backgroundColor = .clear
         isOpaque = false
 
-        // Laid over the line rather than beside it, with the card's own colour behind the words so the
-        // line runs into them and stops.
+        // Laid over the line rather than beside it. The line stops either side of the words rather than
+        // behind them, so it reads the same on whatever it is drawn on.
         name.font = UIFont.systemFont(ofSize: Design.Style.spineSize, weight: .medium, width: .compressed)
-        name.textColor = .secondaryLabel
-        name.backgroundColor = UIColor(Design.Surface.card)
+        name.textColor = Self.ink
         name.textAlignment = .center
         addSubview(name)
 
@@ -55,13 +54,15 @@ final class BracketView: UIView {
         for words in [ title, Self.initials(of: title), "" ] {
             name.text = words
 
-            let width = name.sizeThatFits(bounds.size).width + Design.Space.extraSmall * 2
+            let width = words.isEmpty ? 0 : name.sizeThatFits(bounds.size).width + Design.Space.extraSmall * 2
 
             if width <= bounds.width || words.isEmpty {
                 name.frame = CGRect(x: bounds.midX - width / 2, y: 0, width: width, height: bounds.height)
                 break
             }
         }
+
+        setNeedsDisplay()
     }
 
     override func draw(_ rect: CGRect) {
@@ -70,9 +71,11 @@ final class BracketView: UIView {
         let line = bounds.midY
         let tick = line - Design.Space.small
 
-        context.setStrokeColor(UIColor.tertiaryLabel.resolvedColor(with: traitCollection).cgColor)
+        context.setStrokeColor(Self.rule.resolvedColor(with: traitCollection).cgColor)
         context.setLineWidth(Design.Stroke.hairline)
         context.move(to: CGPoint(x: bounds.minX, y: line))
+        context.addLine(to: CGPoint(x: max(bounds.minX, name.frame.minX), y: line))
+        context.move(to: CGPoint(x: min(bounds.maxX, name.frame.maxX), y: line))
         context.addLine(to: CGPoint(x: bounds.maxX, y: line))
 
         if opens {
@@ -86,6 +89,19 @@ final class BracketView: UIView {
         }
 
         context.strokePath()
+    }
+
+    /// The name and the line, dark enough to read on the plank they are drawn on.
+    private static let ink = UIColor { traits in
+        traits.userInterfaceStyle == .dark
+            ? .secondaryLabel.resolvedColor(with: traits)
+            : .black.withAlphaComponent(Bookcase.lightPlankInk)
+    }
+
+    private static let rule = UIColor { traits in
+        traits.userInterfaceStyle == .dark
+            ? .tertiaryLabel.resolvedColor(with: traits)
+            : .black.withAlphaComponent(Bookcase.lightPlankRule)
     }
 
     /// A name the line has no room for, as the letters its words begin with.

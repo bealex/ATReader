@@ -75,6 +75,41 @@ struct SeriesNumberingTests {
         #expect(reading.missing == [ 3, 4, 5 ])
     }
 
+    /// A figure every title shares is part of the series' name; the one that changes is the volume.
+    @Test
+    func readsPastAFigureInTheSeriesName() throws {
+        let reading = try #require(
+            SeriesNumbering.read(books([
+                "99 Worlds. Harbour",
+                "99 Worlds – 2. North",
+                "99 Worlds – 3. Ash",
+            ]))
+        )
+
+        #expect(reading.books.map(\.number) == [ 1, 2, 3 ])
+        #expect(reading.books.map(\.title) == [ "Harbour", "North", "Ash" ])
+    }
+
+    /// The dash between a series' name and its figure goes with them.
+    @Test
+    func takesTheNameDashAndFigureOffATitle() {
+        #expect(SeriesNumbering.title("99 Worlds – 2. North", in: "99 Worlds", volume: 2) == "North")
+    }
+
+    /// What a book states about its volume beats what its title says, book by book.
+    @Test
+    func aStatedVolumeBeatsTheTitle() throws {
+        var held = books([ "Ember 5. Tin Garden", "Ember 6. Frost", "Ember 7. Ash" ])
+
+        held[0].seriesOrder = 1
+        held[1].seriesOrder = 0
+
+        let volumes = SeriesNumbering.volumes(of: held, reading: SeriesNumbering.read(held))
+
+        // A stated nought is no volume, so the title's figure stands for that book.
+        #expect(volumes == [ 1: 1, 2: 6, 3: 7 ])
+    }
+
     @Test
     func leavesTitlesThatShareNoRunAlone() {
         #expect(SeriesNumbering.read(books([ "Tin Garden", "Spindle and Ash", "Quiet Harbour" ])) == nil)
@@ -106,35 +141,99 @@ struct SeriesNumberingTests {
     /// carrying the aside is no run to read. The aside is not part of the book's name either way.
     @Test
     func takesTheSeriesAsideOffATitle() {
-        #expect(SeriesNumbering.withoutSeries("Tin Garden (Ember-4)", in: "Ember") == "Tin Garden")
+        #expect(SeriesNumbering.title("Tin Garden (Ember-4)", in: "Ember") == "Tin Garden")
     }
 
     /// Anything else in brackets is part of what the book is called.
     @Test
     func keepsAnAsideThatIsNotTheSeries() {
-        #expect(SeriesNumbering.withoutSeries("Tin Garden (a collection)", in: "Ember") == "Tin Garden (a collection)")
+        #expect(SeriesNumbering.title("Tin Garden (a collection)", in: "Ember") == "Tin Garden (a collection)")
     }
 
     /// A title that is nothing but its aside keeps it: there would be nothing left to call it.
     @Test
     func keepsATitleThatIsOnlyItsAside() {
-        #expect(SeriesNumbering.withoutSeries("(Ember-4)", in: "Ember") == "(Ember-4)")
+        #expect(SeriesNumbering.title("(Ember-4)", in: "Ember") == "(Ember-4)")
     }
 
     /// The series' name at the front of a title, and the figure it carried, belong to the series.
     @Test
     func takesTheSeriesNameOffTheFrontOfATitle() {
-        #expect(SeriesNumbering.withoutSeries("Ember 3. Tin Garden", in: "Ember") == "Tin Garden")
+        #expect(SeriesNumbering.title("Ember 3. Tin Garden", in: "Ember") == "Tin Garden")
     }
 
     /// A book whose title is its series' name is called that, so nothing is taken.
     @Test
     func keepsATitleThatIsOnlyTheSeriesName() {
-        #expect(SeriesNumbering.withoutSeries("Ember", in: "Ember") == "Ember")
+        #expect(SeriesNumbering.title("Ember", in: "Ember") == "Ember")
     }
 
     @Test
     func leavesATitleAloneWithoutASeries() {
-        #expect(SeriesNumbering.withoutSeries("Tin Garden (Ember-4)", in: nil) == "Tin Garden (Ember-4)")
+        #expect(SeriesNumbering.title("Tin Garden (Ember-4)", in: nil) == "Tin Garden (Ember-4)")
+    }
+
+    /// A title that is the series' name and its index is called by the name.
+    @Test
+    func takesTheIndexOffATitleThatIsOnlyTheSeriesName() {
+        #expect(SeriesNumbering.title("Ember (Ember-1)", in: "Ember", volume: 1) == "Ember")
+        #expect(SeriesNumbering.title("Ember. Book 8", in: "Ember", volume: 8) == "Ember")
+    }
+
+    // MARK: - Volume words
+
+    /// "Book 4" where the book is volume four is the series' index.
+    @Test
+    func takesAVolumeWordStatingTheBooksOwnVolume() {
+        #expect(SeriesNumbering.title("Ember. Book 4. Tin Garden", in: "Ember", volume: 4) == "Tin Garden")
+        #expect(SeriesNumbering.title("Ember, Part 2", in: "Ember", volume: 2) == "Ember")
+    }
+
+    /// Any other figure numbers the book within a smaller cycle, which the shelf writes shorter.
+    @Test
+    func writesAnyOtherVolumeWordAsAPart() {
+        #expect(SeriesNumbering.title("Tin Garden. Book 2", in: "Ember", volume: 5) == "Tin Garden /2")
+        #expect(SeriesNumbering.title("Tin Garden (book 1)", in: "Ember", volume: 7) == "Tin Garden /1")
+        #expect(SeriesNumbering.title("Tin Garden. Part 1. Frost", in: "Ember", volume: nil) == "Tin Garden /1. Frost")
+    }
+
+    /// A figure after the word is what makes it a volume.
+    @Test
+    func keepsAVolumeWordWithNoFigure() {
+        #expect(SeriesNumbering.title("The Book of Ash", in: "Ember", volume: 2) == "The Book of Ash")
+    }
+
+    // MARK: - The series' name at the front
+
+    /// A colon after the series' name starts the book's own name.
+    @Test
+    func keepsTheSeriesNameBeforeAColon() {
+        #expect(SeriesNumbering.title("Ember: Tin Garden", in: "Ember", volume: 1) == "Ember: Tin Garden")
+        #expect(SeriesNumbering.title("Ember: Tin Garden. Book 1", in: "Ember", volume: 6) == "Ember: Tin Garden /1")
+    }
+
+    /// Where the rest of the series numbers its name, the one volume without a figure loses it too.
+    @Test
+    func takesTheNameOffEveryTitleWhereTheSeriesNumbersIt() throws {
+        let books = [ "Ember: Tin Garden", "Ember 2: Frost", "Ember 3: Ash" ].enumerated().map { index, title in
+            Book(
+                id: index + 1,
+                title: title,
+                authorLine: "Author Name",
+                coverURL: nil,
+                annotation: nil,
+                seriesTitle: "Ember",
+                seriesOrder: index + 1
+            )
+        }
+        let reading = try #require(SeriesNumbering.read(books))
+
+        #expect(reading.books.map(\.title) == [ "Tin Garden", "Frost", "Ash" ])
+    }
+
+    /// A figure between the name and the colon is the series' own numbering.
+    @Test
+    func takesTheSeriesNameAndFigureBeforeAColon() {
+        #expect(SeriesNumbering.title("Ember 2: Tin Garden", in: "Ember", volume: 2) == "Tin Garden")
     }
 }

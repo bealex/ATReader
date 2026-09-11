@@ -369,6 +369,8 @@ cmd_test() {
     resolve_simulator || return 1
     # Pages reported as badly set. xcodebuild strips the prefix on the way to the test process.
     export TEST_RUNNER_AT_REPORTS="$REPO/Fixtures/Reports"
+    # Series titles the reader corrected by hand, which the shelf's names are checked against.
+    export TEST_RUNNER_AT_TITLES="$REPO/Fixtures/Titles"
     local label="test · app UI · $CONFIG"
     [ "$TEST_ACTION" = test ] || label="$label · $TEST_ACTION"
     xcode_build "id=$SIM_ID" "$label" "$TEST_ACTION" ${ONLY[@]+"${ONLY[@]}"} ${SIGNING[@]+"${SIGNING[@]}"} || rc=1

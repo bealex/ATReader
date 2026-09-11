@@ -7,8 +7,8 @@ import BookKit
 import DesignSystem
 import UIKit
 
-/// Everything of one author's, on one card: their name, their series in runs, and after them whatever
-/// stands on its own.
+/// Everything of one author's, in one bookcase: their name above it, their series in runs on its
+/// shelves, and after them whatever stands on its own.
 ///
 /// A reader follows writers more than they follow series, so one card holds an author's whole shelf. It
 /// lays itself out rather than being laid out, because the list has to know how tall the card comes out
@@ -43,11 +43,7 @@ final class AuthorCardView: UIView {
         guard let contents else { return 0 }
         guard let turning = shelf.turningHeight else { return Self.height(contents, across: width) }
 
-        return Design.Space.medium
-            + Self.headerHeight(contents, across: width - Design.Space.large * 2)
-            + Design.Space.medium
-            + turning
-            + Design.Space.large
+        return Self.above + Self.headerHeight(contents, across: width) + Self.between + turning
     }
 
     var nameMenu: (() -> UIMenu?)?
@@ -59,12 +55,10 @@ final class AuthorCardView: UIView {
     override init(frame: CGRect) {
         super.init(frame: frame)
 
-        backgroundColor = UIColor(Design.Surface.card)
-        layer.cornerRadius = Design.Radius.large
-        layer.cornerCurve = .continuous
+        backgroundColor = .clear
         clipsToBounds = true
 
-        name.font = UIFont.preferredFont(forTextStyle: .headline)
+        name.font = Self.nameFont
         name.numberOfLines = 2
         name.adjustsFontForContentSizeCategory = true
 
@@ -102,35 +96,50 @@ final class AuthorCardView: UIView {
     override func layoutSubviews() {
         super.layoutSubviews()
 
-        let inset = Design.Space.large
-        let across = bounds.width - inset * 2
+        // Level with the bookcase's own edge rather than with the books inside it.
+        let across = bounds.width
         let deep = Self.headerHeight(contents, across: across)
 
-        header.frame = CGRect(x: inset, y: Design.Space.medium, width: across, height: deep)
+        header.frame = CGRect(x: 0, y: Self.above, width: across, height: deep)
         name.frame = CGRect(x: 0, y: 0, width: across - Shelf.gutter, height: deep)
         shelf.frame = CGRect(
-            x: inset,
-            y: header.frame.maxY + Design.Space.medium,
-            width: across,
-            height: bounds.height - header.frame.maxY - Design.Space.medium - Design.Space.large
+            x: 0,
+            y: header.frame.maxY + Self.between,
+            width: bounds.width,
+            height: bounds.height - header.frame.maxY - Self.between
         )
     }
 
     /// How tall this card comes out, which the list has to know before the card exists.
     static func height(_ contents: Contents, across width: CGFloat) -> CGFloat {
-        let across = width - Design.Space.large * 2
+        above
+            + headerHeight(contents, across: width)
+            + between
+            + ShelfView.height(contents.shelf, across: width)
+    }
 
-        return Design.Space.medium
-            + headerHeight(contents, across: across)
-            + Design.Space.medium
-            + ShelfView.height(contents.shelf, across: across)
-            + Design.Space.large
+    /// The room over the author's name, and between it and the top of the bookcase.
+    private static let above = Design.Space.small
+    private static let between = Design.Space.small
+
+    /// How much larger than a headline the name stands: it heads a bookcase rather than a row.
+    private static let nameScale: CGFloat = 1.3
+
+    /// A headline's weight, larger, and still following Dynamic Type.
+    private static var nameFont: UIFont {
+        let standard = UIFont.preferredFont(
+            forTextStyle: .headline,
+            compatibleWith: UITraitCollection(preferredContentSizeCategory: .large)
+        )
+
+        return UIFontMetrics(forTextStyle: .headline)
+            .scaledFont(for: .systemFont(ofSize: standard.pointSize * nameScale, weight: .semibold))
     }
 
     private static func headerHeight(_ contents: Contents?, across width: CGFloat) -> CGFloat {
         guard let contents else { return 0 }
 
-        let font = UIFont.preferredFont(forTextStyle: .headline)
+        let font = nameFont
         let box = (contents.name as NSString).boundingRect(
             with: CGSize(width: width - Shelf.gutter, height: .greatestFiniteMagnitude),
             options: [ .usesLineFragmentOrigin, .usesFontLeading ],

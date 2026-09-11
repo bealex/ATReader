@@ -129,15 +129,48 @@ library at all. The book page adds or removes it, a long press in the list remov
 writes it.
 
 The shelf's name and the two menus that act on the whole of it are the navigation bar's. Search
-belongs to the tab bar, where the search tab takes the search role, so the library keeps a field of its
-own: filtering it by title isn't the same question as searching the catalogue.
+belongs to the tab bar, and the search tab shows what it finds in the library as the same shelves.
 
-Books in a series stand together in one card, latest book first, so a set reads as a set; a book in no
-series is a card of its own. A series can carry more than one author, so the author belongs to the row
-rather than the card's heading. The newest book comes first, by the service's own update time. Reading
-a book is not a change to it, so the list holds still while the reader reads instead of rearranging
-under them, and books the service dates identically keep a fixed order rather than whatever the
-grouping happened to produce.
+A card is one writer's: their series first, then their books that belong to none. Spellings of one
+name, with and without a patronymic or in either order, are one writer (`WriterNames`). Leading a book
+gives a writer a card, and a co-written book stands on the card of every writer it names who has one; an
+anthology would otherwise deal a card to each of its fifteen writers. A series written together from its
+first book goes to every card whole, and so does a series the reader put together out of several
+writers' runs. Otherwise the shared books stand on the co-author's card on their own, since a run
+missing the lead writer's volumes would show them as gaps.
+
+The newest book comes first, by the service's own update time. Reading a book isn't a change to it, so
+the list holds still while the reader reads, and books the service dates identically keep a fixed order.
+
+Inside a series a book is called by its title with the series' name and index taken off
+(`SeriesNumbering.title`):
+
+- **Name and figure** go from either end: "Name 3. Subtitle", "Name – 3. Subtitle" and
+  "Subtitle (Name-3)" are all "Subtitle".
+- **A volume word** ("Том 2", "Книга 2") goes where 2 is the volume the file states. Any other figure
+  numbers a part of a smaller cycle and becomes "/2".
+- **A colon** after the series' name starts the book's own title, so "Name: Subtitle" keeps the name,
+  unless the series' other titles read "Name 2: Subtitle", when it goes from all of them alike.
+- **Nothing left** means the title was the series' name and its index, and the book is called by the name.
+
+A book's volume is what it states first: the `<sequence>` number in its FB2, or the one the service
+gives. A figure read off the titles (`SeriesNumbering.read`) only numbers a book that states none, and
+only a figure that changes from title to title counts, so the 99 in "99 Worlds – 2" is part of the name.
+
+Books under one series name are one run when they share a writer, so a volume whose co-author is named
+first stays in its series. A label unrelated writers file books under, such as "LitRPG", stays apart.
+
+Whatever the reader says about one book's series is one row in `book_series_override`: the series'
+name, the volume, and where they dragged the book. Merging books into a series writes its name into
+each book's row, and correcting a book on its details page or from its menu on the shelf writes the
+same field, so naming a merged series joins it and naming any other leaves it. The row is laid over the
+book whenever the store hands it out, because the service replaces a book's stored copy every time it
+answers. An empty name takes the book out of every series, a volume of nought gives it none, and "Use
+what the book says" deletes the row. A series name the reader wrote files its books by the name alone,
+whoever wrote them, and offers "Break up this series", which clears the name again.
+
+A book marked read or unread turns between cover and spine on its own hinge, the way a whole card does.
+A book that leaves a card fades where it stood while the rest close up.
 
 A row has two tap targets: the cover opens the book, and everything else opens its page. Gestures rather
 than a button and a link, because the cover sits inside the row's own target and the inner gesture is

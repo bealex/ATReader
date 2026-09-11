@@ -41,7 +41,7 @@ struct BookRow: View {
 
             VStack(alignment: .leading, spacing: Design.Space.extraSmall) {
                 RowStack {
-                    if let number { SeriesNumber(number: number) }
+                    if let number { SeriesNumber(number: number, beside: .headline) }
 
                     Text(shortTitle ?? work.title)
                         .font(Design.Style.heading)

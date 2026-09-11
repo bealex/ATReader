@@ -17,16 +17,12 @@ final class CoverView: UIView {
         var isComplete = false
         var origin: CoverOrigin?
         var isOngoing = false
-        /// Which volume of its series this is, carried on the face as well as on the spine so the
-        /// figure stays put as the book turns rather than going out with the spine.
-        var volume: Int?
-        /// Which way the book's own colour runs, which is what its plate is set in.
+        /// Which way the book's own colour runs, which is what its marks are set against.
         var isDark = false
 
-        func with(volume: Int?, isDark: Bool) -> Marks {
+        func with(isDark: Bool) -> Marks {
             var marks = self
 
-            marks.volume = volume
             marks.isDark = isDark
 
             return marks
@@ -41,7 +37,6 @@ final class CoverView: UIView {
     private let progress = UIImageView()
     private let source = UIImageView()
     private let ongoing = UIImageView()
-    private let volume = UIImageView()
 
     private var marks = Marks()
     private var loading: Task<Void, Never>?
@@ -59,7 +54,7 @@ final class CoverView: UIView {
         placeholder.contentMode = .center
         placeholder.image = UIImage(systemName: "book.closed")
 
-        for view in [ artwork, placeholder, progress, source, ongoing, volume ] { addSubview(view) }
+        for view in [ artwork, placeholder, progress, source, ongoing ] { addSubview(view) }
 
         // A layer of its own rather than this view's border, which draws over every sublayer it has:
         // the hinge is the board bending, and a hairline of the card's own colour laid over it is the
@@ -139,14 +134,6 @@ final class CoverView: UIView {
         progress.frame = CGRect(x: bounds.maxX - inset - mark, y: bounds.maxY - inset - mark, width: mark, height: mark)
         source.frame = CGRect(x: inset, y: inset, width: mark, height: mark)
         ongoing.frame = CGRect(x: inset, y: bounds.maxY - inset - mark, width: mark, height: mark)
-
-        // Along the foot, in the middle: the corners are spoken for, and a volume standing under the
-        // artwork reads as part of the book rather than as another mark laid on it.
-        volume.sizeToFit()
-        volume.frame.origin = CGPoint(
-            x: bounds.midX - volume.frame.width / 2,
-            y: bounds.maxY - inset - volume.frame.height
-        )
     }
 
     /// The shape of a board: square along the edge it is bound on and rounded at the two corners that
@@ -228,12 +215,5 @@ final class CoverView: UIView {
             tint: UIColor(Design.Palette.neutral).resolvedColor(with: scheme),
             isDark: isDark
         )
-
-        if let number = marks.volume {
-            volume.image = SpinePrint.plate(number, isDark: marks.isDark)
-            volume.isHidden = false
-        } else {
-            volume.isHidden = true
-        }
     }
 }

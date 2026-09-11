@@ -27,9 +27,9 @@ extension LibraryScreen {
             /// books are named without a numbering, and for a book standing on its own.
             var numbering: SeriesNumbering.Reading?
 
-            /// What a book is called on this card, with the series' own aside off the end of it.
+            /// What a book is called on this card, with the series' own name and index off it.
             private func named(_ work: Book) -> String {
-                SeriesNumbering.withoutSeries(work.title, in: series)
+                SeriesNumbering.title(work.title, in: series, volume: work.seriesOrder)
             }
 
             /// Who the series is by: the name most of its books carry.
@@ -49,121 +49,69 @@ extension LibraryScreen {
                 return names.first { counted[$0] == most }
             }
 
-            /// The rows to draw, in order: the books held, and the volumes nothing accounts for.
             /// True where the reader has put this series in an order of their own, book by book.
             var isArranged: Bool { works.allSatisfy { $0.shelfOrder != nil } }
 
+            /// Each book's volume: what it states first, and what its title says only where it states none.
+            var volumes: [Int: Int] { SeriesNumbering.volumes(of: works, reading: numbering) }
+
+            /// The rows to draw, in order: the books held, and the volumes nothing accounts for.
             var rows: [SeriesRow] {
+                let volumes = volumes
+
                 // An order the reader set is the order they see. The volumes are still drawn, since a
-                // book knows which one it is, but nothing re-sorts them and no gap is called: what is
-                // missing from a series somebody arranged by hand is their business.
+                // book knows which one it is, but nothing re-sorts them and no gap is called.
                 if isArranged {
                     return works.enumerated().map { index, work in
-                        // The volume where anything states one, and otherwise a count up from the
-                        // bottom, where a series starts: the reader's own order is then the only thing
-                        // numbering these books.
-                        .book(work, number: volume(of: work) ?? works.count - index, title: named(work))
+                        .book(work, number: volumes[work.id] ?? works.count - index, title: title(of: work))
                     }
                 }
 
-                // Whichever numbering gives every book a volume of its own. Neither source can simply
-                // outrank the other: a file states the volume its publisher gave it, and two parts of
-                // one volume rightly share a figure, but two services filing one series disagree about
-                // its numbering often enough that what they state comes out with holes and repeats in
-                // it. A numbering with no repeat in it accounts for every book, which is what is
-                // wanted, and the titles usually have one where the files do not.
-                if let readOff, tellsThemApart(readOff.books.map(\.number)) { return volumes(readOff) }
-
-                if let stated { return stated }
-
+                // A book on its own is not a series.
                 guard
-                    let numbering = readOff
+                    series != nil,
+                    works.count > 1
                 else {
-                    // A series whose titles carry no numbering is still numbered, counting from one at
-                    // the bottom, which is where a series starts. A book on its own is not a series.
-                    guard
-                        series != nil,
-                        works.count > 1
-                    else {
-                        return works.map { .book($0, number: nil, title: named($0)) }
-                    }
-
+                    return works.map { .book($0, number: nil, title: title(of: $0)) }
+                }
+                // Nothing numbers these books, so they count from one at the bottom, where a series starts.
+                guard
+                    !volumes.isEmpty
+                else {
                     return works.enumerated().map { index, work in
-                        .book(work, number: works.count - index, title: named(work))
+                        .book(work, number: works.count - index, title: title(of: work))
                     }
                 }
 
-                return volumes(numbering)
+                let held = works.map { SeriesRow.book($0, number: volumes[$0.id], title: title(of: $0)) }
+
+                guard volumes.count == works.count else { return held }
+
+                return withGaps(held, numbers: works.compactMap { volumes[$0.id] })
             }
 
-            /// The numbering the titles carry, where they carry one.
-            private var readOff: SeriesNumbering.Reading? { numbering }
-
-            /// Which volume one book is, by whichever numbering tells this series' books apart.
-            private func volume(of work: Book) -> Int? {
-                if let readOff, tellsThemApart(readOff.books.map(\.number)) {
-                    return readOff.books.first { $0.book.id == work.id }?.number
-                }
-
-                return work.seriesOrder
+            /// What a book is called on this card.
+            private func title(of work: Book) -> String {
+                numbering?.books.first { $0.book.id == work.id }?.title ?? named(work)
             }
 
-            /// True where a numbering gives each of these books a volume of its own.
-            private func tellsThemApart(_ numbers: [Int]) -> Bool {
-                numbers.count == works.count && Set(numbers).count == works.count
-            }
+            /// The rows in volume order, with a gap standing wherever a volume between the first and the
+            /// last is missing. Two parts of one volume share its number and stand side by side.
+            private func withGaps(_ held: [SeriesRow], numbers: [Int]) -> [SeriesRow] {
+                guard let first = numbers.min(), let last = numbers.max() else { return held }
 
-            /// A numbering as rows, with the volumes nothing accounts for standing where they would.
-            private func volumes(_ reading: SeriesNumbering.Reading) -> [SeriesRow] {
-                let held = reading.books.map { SeriesRow.book($0.book, number: $0.number, title: $0.title) }
+                let gaps = (first ... last).filter { !numbers.contains($0) }.map(SeriesRow.missing)
+                let descending = (numbers.first ?? 0) >= (numbers.last ?? 0)
 
-                guard !reading.missing.isEmpty else { return held }
+                // A gap sits where its volume would have, which is what makes it read as a gap rather than
+                // as a note at the end of the list. Ties keep the order the books came in.
+                return (held + gaps).enumerated()
+                    .sorted { left, right in
+                        guard left.element.number != right.element.number else { return left.offset < right.offset }
 
-                // A gap sits where its volume would have, which is what makes it read as a gap rather
-                // than as a note at the end of the list.
-                let missing = reading.missing.map(SeriesRow.missing)
-                let order = reading.books.map(\.number)
-                let descending = order.count > 1 && (order.first ?? 0) > (order.last ?? 0)
-
-                return (held + missing).sorted { left, right in
-                    descending ? left.number > right.number : left.number < right.number
-                }
-            }
-
-            /// A series whose books each state their own place, as rows.
-            ///
-            /// Nothing where any book is silent about it, or where two claim the same volume: a series
-            /// half-numbered by its files is worse than one numbered from its titles throughout.
-            private var stated: [SeriesRow]? {
-                guard series != nil, works.count > 1 else { return nil }
-
-                // A volume is counted from one, so nought is absence written as a figure rather than a
-                // place in the series. Taken as one, it draws a book nought and moves every volume
-                // after it down by one.
-                let numbers = works.compactMap(\.seriesOrder).filter { $0 > 0 }
-
-                // Not all the same figure, and not one figure repeated for want of a real numbering.
-                // Two books sharing a volume are its two parts, which is a fact about the series.
-                guard numbers.count == works.count, Set(numbers).count > 1 else { return nil }
-
-                // The titles still come from the numbering, which is what takes the series' own repeated
-                // words off them. Only the figure is the file's.
-                let shortened = numbering?.books.reduce(into: [Int: String]()) { $0[$1.book.id] = $1.title } ?? [:]
-                let held = works.map { work in
-                    SeriesRow.book(work, number: work.seriesOrder, title: shortened[work.id] ?? named(work))
-                }
-
-                guard let first = numbers.min(), let last = numbers.max(), last > first else { return held }
-
-                let gaps = (first ... last).filter { !numbers.contains($0) }
-
-                guard !gaps.isEmpty else { return held }
-
-                let descending = (numbers.first ?? 0) > (numbers.last ?? 0)
-
-                return (held + gaps.map(SeriesRow.missing)).sorted { left, right in
-                    descending ? left.number > right.number : left.number < right.number
-                }
+                        return descending == (left.element.number > right.element.number)
+                    }
+                    .map(\.element)
             }
         }
 
@@ -263,7 +211,9 @@ extension LibraryScreen {
         /// rather than newest first.
         private(set) var madeSeries: Set<String> = []
 
-        private(set) var works: [Book] = []
+        private(set) var works: [Book] = [] {
+            didSet { refreshWriters() }
+        }
         private(set) var isLoading = false
         private(set) var errorMessage: String?
         private(set) var hasLoaded = false
@@ -311,9 +261,7 @@ extension LibraryScreen {
             // A search stands the filter aside: a reader looking for a book by name is looking for it
             // wherever it is, and "nothing found" because the book was finished would be wrong.
             let searchFilter = search == nil ? filter : .everything
-            let named = Dictionary(grouping: searched.filter { $0.series != nil }) {
-                seriesKey(of: $0)
-            }
+            let named = seriesRuns(searched.filter { $0.series != nil })
             // One book is not a series, whatever the book says it belongs to. A card built round a
             // single row claims the shelf holds a run of them, and the row already names the series it
             // came from without pretending to hold it.
@@ -338,60 +286,23 @@ extension LibraryScreen {
         /// still while the reader reads rather than shuffling under them.
         private static func updated(_ work: Book) -> Date { work.lastUpdateTime ?? .distantPast }
 
-        /// The order a series' books stand in, wherever they are shown. A series the reader arranged
-        /// keeps the order they put it in; one the service named leads with its newest book.
+        /// The order a series' books stand in, wherever they are shown: latest volume first, by what each
+        /// book states and then by what its title says. A series the reader dragged into an order keeps it.
         static func ordered(_ works: [Book], arrangedByHand: Bool) -> [Book] {
-            guard arrangedByHand else { return works.sorted(by: withinSeries) }
+            // Nothing is written down for the reader until they drag a book, so where every book carries
+            // a place, they put it there on purpose.
+            if arrangedByHand, works.allSatisfy({ $0.shelfOrder != nil }) { return works.sorted(by: byChosenOrder) }
 
-            // What the reader arranged wins outright. Nothing is written down for them until they
-            // drag a book, so where every book carries a place, they put it there on purpose.
-            if works.allSatisfy({ $0.shelfOrder != nil }) { return works.sorted(by: byChosenOrder) }
+            let volumes = SeriesNumbering.volumes(of: works, reading: SeriesNumbering.read(works))
 
-            // What a book says about itself beats where it was put, and a volume it states beats one
-            // read off its title. Two runs held together are filed one after the other, which leaves
-            // volume nine standing after volume one: an order nobody chose, out of two that were each
-            // right on their own.
-            let stated = works.compactMap(\.seriesOrder)
+            // Two parts of one volume, or two books nothing numbers, go in the order their titles put them.
+            return works.sorted { left, right in
+                let (mine, theirs) = (volumes[left.id], volumes[right.id])
 
-            let reading = SeriesNumbering.read(works)
+                guard mine == theirs else { return (mine ?? .min) > (theirs ?? .min) }
 
-            // The titles first, where they tell every book apart: two services filing one series
-            // disagree about its numbering often enough that what they state comes out with repeats
-            // in it, and a numbering with a repeat cannot say which book stands where.
-            if let reading, Set(reading.books.map(\.number)).count == works.count {
-                return reading.books.sorted { $0.number > $1.number }.map(\.book)
+                return left.title.localizedStandardCompare(right.title) == .orderedDescending
             }
-
-            // Then what the books state, which is where two parts of one volume are both volume four.
-            if stated.count == works.count, Set(stated).count > 1 {
-                return works.sorted(by: byStatedVolume)
-            }
-
-            guard let reading else { return works.sorted(by: byChosenOrder) }
-
-            return reading.books.sorted { $0.number > $1.number }.map(\.book)
-        }
-
-        /// Latest volume first, and two parts of one volume in the order their titles put them.
-        private static func byStatedVolume(_ left: Book, _ right: Book) -> Bool {
-            let mine = left.seriesOrder ?? 0
-            let theirs = right.seriesOrder ?? 0
-
-            guard mine == theirs else { return mine > theirs }
-
-            return left.title.localizedStandardCompare(right.title) == .orderedDescending
-        }
-
-        /// Latest book in the series first, which is the one with a chapter still arriving. Titles
-        /// compare numerically, so a series the service gives no order for still lands newest first.
-        private static func withinSeries(_ left: Book, _ right: Book) -> Bool {
-            guard
-                left.seriesOrder == right.seriesOrder
-            else {
-                return (left.seriesOrder ?? .min) > (right.seriesOrder ?? .min)
-            }
-
-            return left.title.localizedStandardCompare(right.title) == .orderedDescending
         }
 
         /// The order the reader put the series in, first book first.
@@ -705,7 +616,21 @@ extension LibraryScreen {
 
         /// The spellings of a writer's name the reader has held together, keyed by the plain form of
         /// each. Two services spell one name two ways and only the reader knows they are one writer.
-        private(set) var authorNames: [String: String] = [:]
+        private(set) var authorNames: [String: String] = [:] {
+            didSet { refreshWriters() }
+        }
+
+        /// The name each spelling of a writer is filed under, where the library shows two spellings to be
+        /// one writer without the reader saying so. Worked out once for the library rather than for every
+        /// book a shelf asks about.
+        @ObservationIgnored
+        private var writers: [String: String] = [:]
+
+        private func refreshWriters() {
+            writers = WriterNames.filed(works.flatMap { work in
+                Self.names(in: work.authorLine).map { authorNames[Self.plain($0)] ?? $0 }
+            })
+        }
 
         /// One writer as the library has them, for the dialog that holds two names together.
         struct AuthorTally: Identifiable {
@@ -720,11 +645,7 @@ extension LibraryScreen {
             var counted: [String: Int] = [:]
             var shown: [String: String] = [:]
 
-            for work in library {
-                let name = canonical(Self.leadAuthor(work.authorLine))
-
-                guard !name.isEmpty else { continue }
-
+            for name in library.flatMap(names(of:)) {
                 counted[Self.plain(name), default: 0] += 1
                 shown[Self.plain(name)] = name
             }
@@ -749,17 +670,18 @@ extension LibraryScreen {
             await refreshFromStore()
         }
 
-        /// The name a writer is filed under, where the reader has said two names are one writer.
+        /// The name a writer is filed under: the one the reader chose where they held two names together,
+        /// and otherwise the one the library's own spellings agree on.
         private func canonical(_ name: String) -> String {
-            authorNames[Self.plain(name)] ?? name
+            let said = authorNames[Self.plain(name)] ?? name
+
+            return writers[said] ?? said
         }
 
         /// Every series in the library, whatever the shelf is filtered to and whatever is searched
         /// for. A reader holding two series together is looking for what the shelf is not showing.
         var allSeries: [Group] {
-            let named = Dictionary(grouping: library.filter { $0.series != nil }) {
-                seriesKey(of: $0)
-            }
+            let named = seriesRuns(library.filter { $0.series != nil })
 
             // Every run, however short. One book of a series is not a series on the shelf, but it is
             // exactly what a reader combining two runs is looking for: the volume the other service
@@ -789,41 +711,81 @@ extension LibraryScreen {
         ///
         /// - Parameter search: the books a search keeps, or `nil` for no search.
         func shelves(matching search: ((Book) -> Bool)?) -> [AuthorShelf] {
-            let held = groups(matching: search)
-            // A series the reader put together out of several writers' books is nobody's shelf but its
-            // own: filed under whichever of them wrote the most of it, it would sit among that
-            // writer's books as though the others had no part in it.
-            let shared = held.filter { $0.isCustom && writers(of: $0).count > 1 }
-            let cards = Dictionary(grouping: held.filter { group in !shared.contains { $0.id == group.id } }) {
-                authorKey(of: $0)
-            }
-            let together = shared.map { group in
-                AuthorShelf(
-                    key: group.id,
-                    name: writers(of: group).joined(separator: ", "),
-                    runs: [ group ],
-                    alone: [],
-                    updated: group.updated
-                )
+            // Only a writer who leads a book of their own gets a card: an anthology of fifteen writers
+            // would otherwise deal a card to each of them.
+            let leads = Set(works.map(authorKey(of:)))
+            var cards: [String: [Group]] = [:]
+
+            for group in groups(matching: search) {
+                for (key, part) in filings(of: group) where leads.contains(key) {
+                    cards[key, default: []].append(part)
+                }
             }
 
             return
-                (cards
+                cards
                 .map { key, held in
                     AuthorShelf(
                         key: key,
-                        name: name(among: held),
+                        name: name(among: held, filedUnder: key),
                         runs: held.filter { $0.series != nil }.sorted(by: Self.byUpdate),
                         alone: held.filter { $0.series == nil }.sorted(by: Self.byUpdate),
                         updated: held.map(\.updated).max() ?? .distantPast
                     )
                 }
-                + together)
                 .sorted { left, right in
                     guard left.updated == right.updated else { return left.updated > right.updated }
 
                     return left.id.localizedStandardCompare(right.id) == .orderedAscending
                 }
+        }
+
+        /// Every card a group stands on, and what of it stands there.
+        ///
+        /// A series the reader put together out of several writers' runs stands whole on each writer's
+        /// card: it's one series, and split up it would show the other writers' volumes as gaps.
+        private func filings(of group: Group) -> [(key: String, group: Group)] {
+            let writers = writers(of: group)
+
+            guard !group.isCustom || writers.count < 2 else { return writers.map { (Self.plain($0), group) } }
+
+            let lead = authorKey(of: group)
+
+            return [ (lead, group) ] + coWritten(group, besides: lead)
+        }
+
+        /// A group's books again, for the shelves of the other writers named on them.
+        ///
+        /// A series every book of which a co-author shares goes to their shelf whole. Otherwise each
+        /// shared book stands there on its own, since a run with the lead writer's volumes missing
+        /// would call them gaps.
+        private func coWritten(_ group: Group, besides lead: String) -> [(key: String, group: Group)] {
+            var shared: [String: [Book]] = [:]
+
+            for work in group.works {
+                for name in names(of: work) where Self.plain(name) != lead {
+                    shared[Self.plain(name), default: []].append(work)
+                }
+            }
+
+            return shared.flatMap { key, works in
+                guard group.series == nil || works.count < group.works.count else { return [ (key, group) ] }
+
+                return works.map { work in
+                    (key, Group(id: "work:\(work.id)", series: nil, works: [ work ], updated: Self.updated(work)))
+                }
+            }
+        }
+
+        /// Every writer a book names, each as the library files them.
+        private func names(of work: Book) -> [String] {
+            var seen: Set<String> = []
+
+            return Self.names(in: work.authorLine).compactMap { name in
+                let filed = canonical(name)
+
+                return seen.insert(Self.plain(filed)).inserted ? filed : nil
+            }
         }
 
         /// The writers a group's books lead with, each named once, in the order they first appear.
@@ -839,19 +801,72 @@ extension LibraryScreen {
             }
         }
 
-        /// What a series is filed under: its name, and who wrote the books in it.
+        /// Books under each series name, run by run, keyed by the name and the writer the run belongs to.
         ///
-        /// A service files books under labels that are not series at all, and three writers' books
-        /// sharing one label are three different things rather than one run. A series the reader put
-        /// together is theirs, whoever wrote what they put in it, so its name alone files it.
-        private func seriesKey(of work: Book) -> String {
-            let series = work.series ?? ""
+        /// A service files books under labels that are not series at all, and three writers' books sharing
+        /// one label are three runs. Books sharing any writer are one: a volume a co-author is named first
+        /// on still belongs to the series. A series the reader put together is theirs, whoever wrote what
+        /// they put in it, so its name alone files it.
+        private func seriesRuns(_ books: [Book]) -> [String: [Book]] {
+            var runs: [String: [Book]] = [:]
 
-            guard !madeSeries.contains(series) else { return series }
+            for (series, held) in Dictionary(grouping: books, by: { $0.series ?? "" }) {
+                guard
+                    !madeSeries.contains(series)
+                else {
+                    runs[series] = held
+                    continue
+                }
 
-            return "\(series)|\(authorKey(of: work))"
+                for run in Self.linked(held, by: writerKeys(of:)) {
+                    runs["\(series)|\(Self.mostShared(run, by: writerKeys(of:)))"] = run
+                }
+            }
+
+            return runs
         }
 
+        /// Every writer a book names, as the keys their cards are filed under.
+        private func writerKeys(of work: Book) -> Set<String> {
+            let keys = Set(names(of: work).map(Self.plain))
+
+            return keys.isEmpty ? [ "" ] : keys
+        }
+
+        /// Books split into runs, two books standing in one run where they share a key.
+        private static func linked(_ books: [Book], by keys: (Book) -> Set<String>) -> [[Book]] {
+            var runs: [(keys: Set<String>, books: [Book])] = []
+
+            for book in books {
+                let mine = keys(book)
+                let joined = runs.filter { !$0.keys.isDisjoint(with: mine) }
+
+                runs.removeAll { !$0.keys.isDisjoint(with: mine) }
+                runs.append((
+                    joined.reduce(mine) { $0.union($1.keys) },
+                    joined.flatMap(\.books) + [ book ]
+                ))
+            }
+
+            return runs.map(\.books)
+        }
+
+        /// The key most of a run's books carry, and the first book's first where they tie.
+        private static func mostShared(_ run: [Book], by keys: (Book) -> Set<String>) -> String {
+            var counted: [String: Int] = [:]
+
+            for book in run {
+                for key in keys(book) { counted[key, default: 0] += 1 }
+            }
+
+            let most = counted.values.max() ?? 0
+            let lead = run.first.map(keys) ?? []
+            let rank = { (key: String) in (lead.contains(key) ? 0 : 1, key) }
+
+            return counted.filter { $0.value == most }.keys.min { rank($0) < rank($1) } ?? ""
+        }
+
+        /// What a book's lead writer's card is filed under.
         private func authorKey(of work: Book) -> String {
             Self.plain(canonical(Self.leadAuthor(work.authorLine)))
         }
@@ -865,13 +880,16 @@ extension LibraryScreen {
         }
 
         private static func leadAuthor(_ line: String) -> String {
-            String(line.split(separator: ",").first ?? "").trimmingCharacters(in: .whitespaces)
+            names(in: line).first ?? ""
         }
 
-        /// The name a shelf is headed with: the one most of its books put first.
-        private func name(among held: [Group]) -> String {
-            let names = held.flatMap(\.works).map { canonical(Self.leadAuthor($0.authorLine)) }
-                .filter { !$0.isEmpty }
+        private static func names(in line: String) -> [String] {
+            line.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
+        }
+
+        /// The name a shelf is headed with: the spelling of its writer most of its books carry.
+        private func name(among held: [Group], filedUnder key: String) -> String {
+            let names = held.flatMap(\.works).flatMap(names(of:)).filter { Self.plain($0) == key }
             var counted: [String: Int] = [:]
 
             for name in names { counted[name, default: 0] += 1 }
@@ -894,6 +912,17 @@ extension LibraryScreen {
         }
 
         // MARK: - Series the reader puts together
+
+        /// Which series the reader put together, by merging or by naming one.
+        private func readSeriesFiling() async {
+            madeSeries = Set(await store.customSeries().values.map(\.series))
+        }
+
+        /// Writes what the reader set on a book's series and volume; `nil` takes both from the book.
+        func correctSeries(of work: Book, to edit: SQLiteBookStore.SeriesEdit?) async {
+            await SeriesCorrection.save(edit, for: work.id, store: store)
+            await refreshFromStore()
+        }
 
         func reorder(series: String, workIds: [Int]) async {
             await store.store(order: workIds, series: series)
@@ -956,7 +985,7 @@ extension LibraryScreen {
                 }
             #endif
 
-            madeSeries = Set(await store.customSeries().values.map(\.series))
+            await readSeriesFiling()
             authorNames = await store.authorAliases()
             await showStoredLibrary()
             await reload()
@@ -974,7 +1003,7 @@ extension LibraryScreen {
             // Which series the reader put together, read back with everything else: filing one is
             // what decides whether a card is theirs to order, and it can be filed from the series'
             // own screen while the shelf stands behind it.
-            madeSeries = Set(await store.customSeries().values.map(\.series))
+            await readSeriesFiling()
             // And which names the reader has said are one writer. Read here rather than only where
             // the library first loads, since holding two names together refreshes from the store and
             // would otherwise redraw the shelf against the names it had before.

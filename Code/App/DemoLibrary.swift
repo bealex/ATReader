@@ -19,7 +19,7 @@
 
         /// The books, with their covers painted into the shared cache the shelf reads from.
         static var books: [Book] {
-            shelves.enumerated().flatMap { number, shelf in
+            (crowded + shelves).enumerated().flatMap { number, shelf in
                 shelf.books.enumerated().map { place, entry in
                     book(entry, by: shelf.author, series: shelf.series, shelf: number, place: place)
                 }
@@ -33,6 +33,8 @@
             let read: Double
             let isFinished: Bool
             let length: Int
+            /// Pale artwork, which prints a pale spine with dark writing on it.
+            let isLight: Bool
         }
 
         private struct Shelf {
@@ -46,10 +48,64 @@
             volume: Int? = nil,
             read: Double,
             isFinished: Bool = true,
-            length: Int = 600_000
+            length: Int = 600_000,
+            isLight: Bool = false
         ) -> Entry {
-            Entry(title: title, volume: volume, read: read, isFinished: isFinished, length: length)
+            Entry(title: title, volume: volume, read: read, isFinished: isFinished, length: length, isLight: isLight)
         }
+
+        /// A long pale series, enough to run onto a second row, and an author mixing pale and dark.
+        private static let crowded = [
+            Shelf(
+                author: "Вера Облакова",
+                series: "Белый город",
+                books: (1 ... 12).map { volume in
+                    entry(
+                        "Белый город \(volume)",
+                        volume: volume,
+                        read: volume <= 7 ? 1 : volume == 8 ? 0.6 : volume == 9 ? 0.2 : 0,
+                        isFinished: volume < 12,
+                        length: 300_000 + volume * 70_000,
+                        isLight: true
+                    )
+                }
+            ),
+            Shelf(
+                author: "Вера Облакова",
+                series: nil,
+                books: [
+                    entry("Сахарный лёд", read: 0.3, isLight: true),
+                    entry("Мел и соль", read: 1, length: 350_000, isLight: true),
+                ]
+            ),
+            Shelf(
+                author: "Семён Буков",
+                series: "Северные письма",
+                books: (1 ... 6).map { volume in
+                    entry(
+                        "Письмо \(volume)",
+                        volume: volume,
+                        read: volume <= 3 ? 1 : volume == 4 ? 0.5 : 0,
+                        length: 400_000 + volume * 90_000,
+                        isLight: volume.isMultiple(of: 2)
+                    )
+                }
+            ),
+            Shelf(
+                author: "Семён Буков",
+                series: "Рыжий кот",
+                books: (1 ... 3).map { volume in
+                    entry("Рыжий кот \(volume)", volume: volume, read: 1, length: 260_000, isLight: true)
+                }
+            ),
+            Shelf(
+                author: "Вера Облакова, Семён Буков",
+                series: nil,
+                books: [
+                    entry("Два берега", read: 0.4, isFinished: false)
+                ]
+            ),
+        ]
 
         private static let shelves = [
             Shelf(
@@ -130,7 +186,7 @@
             let url = URL(string: "demo://cover/\(id)")
 
             if let url, CoverImages.image(for: url) == nil {
-                CoverImages.remember(cover(entry.title, by: author, hue: hue(of: id)), for: url)
+                CoverImages.remember(cover(entry.title, by: author, hue: hue(of: id), isLight: entry.isLight), for: url)
             }
 
             return Book(
@@ -155,46 +211,63 @@
             CGFloat((id * 37) % 360) / 360
         }
 
+        /// The four colours an invented cover is painted in: its two grounds, its shape and its lettering.
+        private struct Palette {
+            let top: UIColor
+            let bottom: UIColor
+            let shape: UIColor
+            let ink: UIColor
+
+            init(hue: CGFloat, isLight: Bool) {
+                let next = (hue + 0.12).truncatingRemainder(dividingBy: 1)
+                let opposite = (hue + 0.5).truncatingRemainder(dividingBy: 1)
+
+                if isLight {
+                    top = UIColor(hue: hue, saturation: 0.12, brightness: 0.98, alpha: 1)
+                    bottom = UIColor(hue: next, saturation: 0.25, brightness: 0.88, alpha: 1)
+                    shape = UIColor(hue: opposite, saturation: 0.45, brightness: 0.75, alpha: 0.8)
+                    ink = UIColor(white: 0.2, alpha: 1)
+                } else {
+                    top = UIColor(hue: hue, saturation: 0.55, brightness: 0.55, alpha: 1)
+                    bottom = UIColor(hue: next, saturation: 0.7, brightness: 0.3, alpha: 1)
+                    shape = UIColor(hue: opposite, saturation: 0.4, brightness: 0.95, alpha: 0.8)
+                    ink = .white
+                }
+            }
+        }
+
         /// An invented cover: two colours, a shape between them, the title above and the author below.
-        private static func cover(_ title: String, by author: String, hue: CGFloat) -> UIImage {
+        private static func cover(_ title: String, by author: String, hue: CGFloat, isLight: Bool) -> UIImage {
             let unit = Design.Space.unit
             let size = CGSize(width: unit * 66, height: unit * 99)
+            let palette = Palette(hue: hue, isLight: isLight)
+            let style = NSMutableParagraphStyle()
+            // Twice the point size rather than the screen's three times: the cover cache is bounded by
+            // bytes, and forty-odd covers at three times would push the first of them out again.
+            let format = UIGraphicsImageRendererFormat()
 
-            return UIGraphicsImageRenderer(size: size).image { drawing in
+            style.alignment = .center
+            format.scale = 2
+
+            return UIGraphicsImageRenderer(size: size, format: format).image { drawing in
                 let context = drawing.cgContext
-                let top = UIColor(hue: hue, saturation: 0.55, brightness: 0.55, alpha: 1)
-                let bottom = UIColor(
-                    hue: (hue + 0.12).truncatingRemainder(dividingBy: 1),
-                    saturation: 0.7,
-                    brightness: 0.3,
-                    alpha: 1
-                )
 
                 if let gradient = CGGradient(
                     colorsSpace: CGColorSpaceCreateDeviceRGB(),
-                    colors: [ top.cgColor, bottom.cgColor ] as CFArray,
+                    colors: [ palette.top.cgColor, palette.bottom.cgColor ] as CFArray,
                     locations: [ 0, 1 ]
                 ) {
                     context.drawLinearGradient(gradient, start: .zero, end: CGPoint(x: 0, y: size.height), options: [])
                 }
 
-                UIColor(
-                    hue: (hue + 0.5).truncatingRemainder(dividingBy: 1),
-                    saturation: 0.4,
-                    brightness: 0.95,
-                    alpha: 0.8
-                )
-                .setFill()
+                palette.shape.setFill()
                 context.fillEllipse(in: CGRect(x: unit * 15, y: unit * 36, width: unit * 36, height: unit * 36))
-
-                let style = NSMutableParagraphStyle()
-                style.alignment = .center
 
                 NSAttributedString(
                     string: title,
                     attributes: [
                         .font: UIFont(name: "Georgia-Bold", size: 22) ?? .boldSystemFont(ofSize: 22),
-                        .foregroundColor: UIColor.white,
+                        .foregroundColor: palette.ink,
                         .paragraphStyle: style,
                     ]
                 )
@@ -204,7 +277,7 @@
                     string: author,
                     attributes: [
                         .font: UIFont(name: "Georgia", size: 14) ?? .systemFont(ofSize: 14),
-                        .foregroundColor: UIColor.white.withAlphaComponent(0.85),
+                        .foregroundColor: palette.ink.withAlphaComponent(0.85),
                         .paragraphStyle: style,
                     ]
                 )

@@ -132,15 +132,17 @@ public enum Design {
         // The three the system names, which it names differently on each platform. The package builds
         // for the Mac so its own logic can be tested there; nothing of the app is drawn on one.
         #if canImport(UIKit)
+            /// Slate grey in light mode rather than the system's near-white, which left the covers standing
+            /// on white; the system's own in dark mode.
             public static let screen = Color(uiColor: UIColor { traits in
                 traits.userInterfaceStyle == .dark
                     ? UIColor.systemGroupedBackground.resolvedColor(with: traits)
-                    : LightSurfaceTrial.current.screen
+                    : UIColor(red: 0xCB / 255, green: 0xCB / 255, blue: 0xD1 / 255, alpha: 1)
             })
             public static let card = Color(uiColor: UIColor { traits in
                 traits.userInterfaceStyle == .dark
                     ? UIColor.secondarySystemGroupedBackground.resolvedColor(with: traits)
-                    : LightSurfaceTrial.current.card
+                    : UIColor(red: 0xDD / 255, green: 0xDD / 255, blue: 0xE3 / 255, alpha: 1)
             })
             /// An inert shape: an unselected chip, a tag, a cover with no artwork yet.
             public static let fill = Color(.secondarySystemFill)

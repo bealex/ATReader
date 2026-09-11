@@ -75,18 +75,28 @@ extension WorkScreen {
 
         /// Reads this book's number out of its series, using the siblings the device holds. The same
         /// routine the library runs, so a book is the same volume on both screens.
-        private func readSeriesNumber(of book: Book) async {
-            guard let series = book.series else { return }
+        private func readSeriesNumber(of book: Book, among books: [Book]) {
+            let siblings = book.series.map { series in books.filter { $0.series == series } } ?? []
+            let reading = SeriesNumbering.read(siblings)
+            let number = SeriesNumbering.volumes(of: siblings, reading: reading)[book.id]
+            let title = reading?.books.first { $0.book.id == book.id }?.title
 
-            let siblings = await store.books().filter { $0.series == series }
+            if seriesNumber != number { seriesNumber = number }
+            if shortTitle != title { shortTitle = title }
+        }
 
-            guard
-                let reading = SeriesNumbering.read(siblings),
-                let mine = reading.books.first(where: { $0.book.id == book.id })
-            else { return }
+        // MARK: - The series the reader gives it
 
-            seriesNumber = mine.number
-            shortTitle = mine.title
+        /// The series and volume this book states, and what the reader set over them.
+        private(set) var seriesDraft: SeriesCorrection.Draft?
+
+        /// Every series this book's writer has in the library, to pick from rather than type.
+        private(set) var writersSeries: [String] = []
+
+        /// Writes what the reader set on the book's series and volume; `nil` takes both from the book.
+        func setSeries(_ edit: SQLiteBookStore.SeriesEdit?) async {
+            await SeriesCorrection.save(edit, for: workId, store: store)
+            await refreshFromStore()
         }
 
         func state(of chapter: BookChapter) -> ChapterState {
@@ -164,7 +174,14 @@ extension WorkScreen {
 
             guard let stored else { return }
 
-            await readSeriesNumber(of: stored.summary)
+            let books = await store.books()
+            let draft = await SeriesCorrection.draft(for: workId, store: store)
+            let series = SeriesCorrection.writersSeries(of: stored.summary, among: books)
+
+            readSeriesNumber(of: stored.summary, among: books)
+
+            if seriesDraft != draft { seriesDraft = draft }
+            if writersSeries != series { writersSeries = series }
 
             if summary != stored.summary { summary = stored.summary }
             if tags != stored.tags { tags = stored.tags }

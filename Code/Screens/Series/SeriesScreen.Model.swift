@@ -33,50 +33,31 @@ extension SeriesScreen {
         /// taken over by another, or held together out of two writers' runs by the reader. A card can
         /// afford one name; a screen about the series itself should say who wrote it.
         var authors: [String] {
-            var seen: Set<String> = []
-
-            return
+            let names =
                 books
                 .flatMap { $0.authorLine.split(separator: ",") }
                 .map { $0.trimmingCharacters(in: .whitespaces) }
                 .filter { !$0.isEmpty }
-                .compactMap { seen.insert($0.lowercased()).inserted ? $0 : nil }
+            // Two spellings of one name are one writer here as they are on the shelf.
+            let filed = WriterNames.filed(names)
+            var seen: Set<String> = []
+
+            return names.compactMap { name in
+                let writer = filed[name] ?? name
+
+                return seen.insert(writer.lowercased()).inserted ? writer : nil
+            }
         }
 
         /// This book's volume: what it states about itself, and failing that what its title says.
-        ///
-        /// A file carries the volume its publisher gave it, which is worth more than a figure read off
-        /// a title: two parts of one volume are both numbered four, and no reading of their names can
-        /// say so.
         func number(of work: Book) -> Int? {
-            guard !titlesTellThemApart, statesVolumes else { return readOff(work) }
-
-            return work.seriesOrder
-        }
-
-        private func readOff(_ work: Book) -> Int? {
-            numbering?.books.first { $0.book.id == work.id }?.number
-        }
-
-        /// True where the titles give every book here a volume of its own, which is the numbering to
-        /// trust: what two services state about one series comes out with repeats in it often enough.
-        private var titlesTellThemApart: Bool {
-            guard let numbering else { return false }
-
-            return Set(numbering.books.map(\.number)).count == books.count
-        }
-
-        /// True where every book here states a volume, and they do not all state the same one.
-        private var statesVolumes: Bool {
-            let stated = books.compactMap(\.seriesOrder)
-
-            return stated.count == books.count && Set(stated).count > 1
+            SeriesNumbering.volumes(of: books, reading: numbering)[work.id]
         }
 
         /// The title with the series' own repeated words taken off it.
         func title(of work: Book) -> String {
             numbering?.books.first { $0.book.id == work.id }?.title
-                ?? SeriesNumbering.withoutSeries(work.title, in: series)
+                ?? SeriesNumbering.title(work.title, in: series, volume: work.seriesOrder)
         }
 
         func load() async {

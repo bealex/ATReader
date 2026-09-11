@@ -52,12 +52,28 @@ final class ShelfView: UIView {
     private var turning: Turning?
     private var link: CADisplayLink?
     private var brackets: [String: BracketView] = [:]
+    private let bookcase = BookcaseView()
     /// Books taken off the shelf, kept to stand the next ones in. A card is handed to another author
     /// whole, and building a book costs more than dressing one again.
     private var spare: [BookView] = []
 
     /// How far round each book on the shelf stands, which is what a turn moves.
     var turns: [String: CGFloat] { books.mapValues(\.turned) }
+
+    /// How far in from either end of the bookcase the books stand.
+    static let inset = Design.Space.large
+
+    /// The width the books are laid out across, which is the bookcase's less its ends.
+    private var across: CGFloat { bounds.width - Self.inset * 2 }
+
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+
+        addSubview(bookcase)
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 
     func show(_ contents: Contents) {
         // A shelf told to stand a different way round without being asked to turn lands wherever it had
@@ -95,7 +111,12 @@ final class ShelfView: UIView {
 
         self.contents = contents
         places = Self.places(contents)
-        layout = Self.layout(contents, places: places, across: bounds.width)
+
+        let staying = Set(places.map(\.id))
+
+        for (id, view) in books where !staying.contains(id) { fadeAway(view) }
+
+        layout = Self.layout(contents, places: places, across: across)
         build(contents)
 
         turning = Turning(started: CACurrentMediaTime(), from: from, was: was, wasHeight: wasHeight)
@@ -103,6 +124,20 @@ final class ShelfView: UIView {
         link = CADisplayLink(target: self, selector: #selector(stepped))
         link?.add(to: .main, forMode: .common)
         stand()
+    }
+
+    /// A book leaving the shelf fades where it stood rather than vanishing from under the ones closing up.
+    private func fadeAway(_ view: BookView) {
+        guard let ghost = view.snapshotView(afterScreenUpdates: false) else { return }
+
+        ghost.frame = view.frame
+        insertSubview(ghost, belowSubview: view)
+
+        UIView.animate(withDuration: FoldMotion.turningSeconds / 2) {
+            ghost.alpha = 0
+        } completion: { _ in
+            ghost.removeFromSuperview()
+        }
     }
 
     /// A turn in flight: when it started, how far round each book was, where each stood, and how deep
@@ -167,14 +202,16 @@ final class ShelfView: UIView {
             land()
         }
 
-        layout = Self.layout(contents, places: places, across: bounds.width)
+        layout = Self.layout(contents, places: places, across: across)
+        bookcase.frame = bounds
+        bookcase.slot = layout.slot
         build(contents)
         stand()
     }
 
-    /// How tall this shelf comes out, before any of it is built.
+    /// How tall this shelf comes out, before any of it is built, across the whole bookcase's width.
     static func height(_ contents: Contents, across available: CGFloat) -> CGFloat {
-        layout(contents, places: places(contents), across: available).height
+        layout(contents, places: places(contents), across: available - inset * 2).height
     }
 
     /// Every spine this shelf will ask for, at the size it will ask for it.
@@ -197,6 +234,13 @@ final class ShelfView: UIView {
                     height: standing(place.slot, in: contents, slot: slot)
                 )
             )
+        }
+    }
+
+    /// Which way round each place on the shelf stands, true for a cover.
+    static func stance(of contents: Contents) -> [String: Bool] {
+        places(contents).reduce(into: [:]) { stance, place in
+            stance[place.id] = standsAsCover(place.slot, in: contents)
         }
     }
 
@@ -401,9 +445,9 @@ final class ShelfView: UIView {
             view = BracketView()
             view.onMenu = { [weak self] in self?.runMenu?(bracket.run) }
             brackets[bracket.id] = view
-            // Behind the books: a turning book stands past its own slot, and the line under the run it
-            // belongs to is a mark on the shelf rather than something laid over the books on it.
-            insertSubview(view, at: 0)
+            // Behind the books but on the bookcase: a turning book stands past its own slot, and the line
+            // under the run it belongs to is a mark on the plank rather than laid over the books on it.
+            insertSubview(view, aboveSubview: bookcase)
         }
 
         view.show(
@@ -433,7 +477,12 @@ final class ShelfView: UIView {
         }
 
         for placed in layout.placed {
-            let box = CGRect(x: placed.frame.minX, y: placed.frame.maxY - slot, width: placed.frame.width, height: slot)
+            let box = CGRect(
+                x: Self.inset + placed.frame.minX,
+                y: placed.frame.maxY - slot,
+                width: placed.frame.width,
+                height: slot
+            )
             let frame = turning?.was[placed.id].map { $0.carried(to: box, at: reached) } ?? box
 
             books[placed.id]?.frame = frame
@@ -441,9 +490,13 @@ final class ShelfView: UIView {
 
         for bracket in layout.brackets {
             let was = turning?.was[bracket.id]
+            let frame = bracket.frame.offsetBy(dx: Self.inset, dy: 0)
 
-            brackets[bracket.id]?.frame = was.map { $0.carried(to: bracket.frame, at: reached) } ?? bracket.frame
+            brackets[bracket.id]?.frame = was.map { $0.carried(to: frame, at: reached) } ?? frame
         }
+
+        // As deep as the shelf stands at this point in the turn, which is what the rows are drawn down.
+        bookcase.frame = bounds
     }
 }
 

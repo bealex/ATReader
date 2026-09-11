@@ -12,8 +12,10 @@ import Foundation
 /// needs a card's height before the card exists, the card places its books from it, and a bracket has to
 /// know which books landed on which row and how wide they came out.
 ///
-/// It counts in one space whose origin is the shelf's top left. Every book stands on the floor of its
-/// own row, so one shorter than the tallest keeps its feet down and leaves its room above.
+/// It counts in one space whose origin is the shelf's top left, and sets the shelf out as a bookcase: a
+/// board across the top, then for each row some headroom, the books, and the plank they stand on, whose
+/// front carries the brackets. Every book stands on its plank, so one shorter than the tallest keeps its
+/// feet down and leaves its room above.
 public struct ShelfLayout {
     /// One thing to stand on the shelf, as the layout is handed it.
     public struct Tile: Identifiable, Equatable {
@@ -54,33 +56,41 @@ public struct ShelfLayout {
 
     public let placed: [Placed]
     public let brackets: [Bracket]
-    /// What the whole shelf comes to, brackets and the gaps between rows included.
+    /// What the whole shelf comes to: the top board and every row, planks included.
     public let height: CGFloat
+    /// How tall a row's books may stand, which is the tallest of them.
+    public let slot: CGFloat
 
     public init(tiles: [Tile], slot: CGFloat, across available: CGFloat, gutter: CGFloat) {
         let rows = Self.broken(tiles, across: available, gutter: gutter)
-        let step = slot + Self.bracketGap + Self.bracketHeight + Self.rowGap
+        let step = Self.step(slot: slot)
         var placed: [Placed] = []
         var brackets: [Bracket] = []
 
         for (index, row) in rows.enumerated() {
-            let top = CGFloat(index) * step
+            let floor = Self.lid + CGFloat(index) * step + Self.headroom + slot
             var x: CGFloat = 0
 
             for tile in row {
-                let frame = CGRect(x: x, y: top + slot - tile.height, width: tile.width, height: tile.height)
+                let frame = CGRect(x: x, y: floor - tile.height, width: tile.width, height: tile.height)
 
                 placed.append(Placed(tile: tile, frame: frame, row: index))
                 x += tile.width + gutter
             }
 
-            brackets += Self.brackets(of: row, in: tiles, row: index, top: top + slot + Self.bracketGap, gutter: gutter)
+            let band = floor + (Self.plank - Self.bracketHeight) / 2
+
+            brackets += Self.brackets(of: row, in: tiles, row: index, top: band, gutter: gutter)
         }
 
         self.placed = placed
         self.brackets = brackets
-        height = rows.isEmpty ? 0 : CGFloat(rows.count) * step - Self.rowGap
+        self.slot = slot
+        height = rows.isEmpty ? 0 : Self.lid + CGFloat(rows.count) * step
     }
+
+    /// How deep one row stands, headroom and plank included.
+    public static func step(slot: CGFloat) -> CGFloat { headroom + slot + plank }
 
     public func frame(of id: String) -> CGRect? { placed.first { $0.id == id }?.frame }
 
@@ -157,9 +167,12 @@ public struct ShelfLayout {
         return brackets
     }
 
-    /// The gap between a row of books and the line under it, how deep that line's band is, and the gap
-    /// from there to the next row.
-    private static let bracketGap = Design.Space.extraSmall
+    /// The board across the top of the shelf.
+    public static let lid = Design.Space.small
+    /// The dark above the tallest book in a row, under the plank of the row above.
+    public static let headroom = Design.Space.medium
+    /// The plank a row stands on, deep enough for its front to carry a bracket and a series' name.
+    public static let plank = Design.Space.huge
+    /// How deep a bracket's band is: its line, its ticks and the name laid over them.
     private static let bracketHeight = Design.Space.large
-    private static let rowGap = Design.Space.medium
 }

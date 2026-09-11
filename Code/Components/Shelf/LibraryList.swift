@@ -60,8 +60,9 @@ struct LibraryList: UIViewControllerRepresentable {
         private var list: LibraryList
         private var controller: UICollectionViewController?
         private var source: UICollectionViewDiffableDataSource<Section, Section>?
-        /// What each card was last shown, so a card that only turned is turned rather than rebuilt.
-        private var shown: [String: Bool] = [:]
+        /// Which way round each card's books last stood, so a card whose books turned is turned rather
+        /// than rebuilt.
+        private var shown: [String: [String: Bool]] = [:]
         /// The card in the middle of a turn, and the two heights it is travelling between.
         private var carrying: Carrying?
         /// A refresh that finished while the finger was still pulling, left to end once it lets go.
@@ -123,13 +124,14 @@ struct LibraryList: UIViewControllerRepresentable {
                 guard let cell = controller?.collectionView.cellForItem(at: index) as? AuthorCardCell else { continue }
 
                 let was = shown[card.id]
+                let stance = ShelfView.stance(of: card.shelf)
 
-                shown[card.id] = card.shelf.showsEveryCover
+                shown[card.id] = stance
                 dress(cell, with: card)
 
                 // Only a card whose books have turned is animated. Everything else is a redraw, and a
                 // redraw that springs would move every book on screen whenever one cover loaded.
-                if turned, let was, was != card.shelf.showsEveryCover {
+                if turned, let was, was != stance {
                     turn(cell, to: card, from: standing[card.id])
                 } else {
                     cell.card.show(card)
@@ -304,7 +306,7 @@ struct LibraryList: UIViewControllerRepresentable {
 
                 dress(cell, with: contents)
                 cell.card.show(contents)
-                shown[id] = contents.shelf.showsEveryCover
+                shown[id] = ShelfView.stance(of: contents.shelf)
             }
 
             return UICollectionViewDiffableDataSource(collectionView: view) { view, index, section in

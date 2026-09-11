@@ -347,6 +347,17 @@
         }
       }
     },
+    "An empty field means none. The arrow takes a field from the book again.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Пустое поле значит «нет». Стрелка возвращает значение из книги."
+          }
+        }
+      }
+    },
     "Appearance": {
       "extractionState": "manual",
       "localizations": {
@@ -402,17 +413,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Создать копию"
-          }
-        }
-      }
-    },
-    "Backed up %@": {
-      "extractionState": "manual",
-      "localizations": {
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Скопировано: %@"
           }
         }
       }
@@ -685,6 +685,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Выберите, что показывать"
+          }
+        }
+      }
+    },
+    "Clear": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Очистить"
           }
         }
       }
@@ -1250,6 +1261,17 @@
         }
       }
     },
+    "Forget this folder?": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Забыть эту папку?"
+          }
+        }
+      }
+    },
     "Found: %@": {
       "extractionState": "manual",
       "localizations": {
@@ -1257,6 +1279,50 @@
           "stringUnit": {
             "state": "translated",
             "value": "Найдено: %@"
+          }
+        }
+      }
+    },
+    "From the book: %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Из книги: %@"
+          }
+        }
+      }
+    },
+    "From the book: %lld": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Из книги: %lld"
+          }
+        }
+      }
+    },
+    "From the book: no series": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Из книги: без цикла"
+          }
+        }
+      }
+    },
+    "From the book: no volume": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Из книги: без номера"
           }
         }
       }
@@ -1346,6 +1412,17 @@
         }
       }
     },
+    "Just now": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Только что"
+          }
+        }
+      }
+    },
     "Justified": {
       "extractionState": "manual",
       "localizations": {
@@ -1379,17 +1456,6 @@
         }
       }
     },
-    "Last backed up": {
-      "extractionState": "manual",
-      "localizations": {
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Последняя копия"
-          }
-        }
-      }
-    },
     "Last checked for updates": {
       "extractionState": "manual",
       "localizations": {
@@ -1397,6 +1463,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Последняя проверка обновлений"
+          }
+        }
+      }
+    },
+    "Last:": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Последняя:"
           }
         }
       }
@@ -1691,6 +1768,39 @@
         }
       }
     },
+    "No series": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Без цикла"
+          }
+        }
+      }
+    },
+    "No value": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Без значения"
+          }
+        }
+      }
+    },
+    "No volume": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Без номера"
+          }
+        }
+      }
+    },
     "Not in library": {
       "extractionState": "manual",
       "localizations": {
@@ -1834,6 +1944,17 @@
         }
       }
     },
+    "Other": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Другое"
+          }
+        }
+      }
+    },
     "Other libraries": {
       "extractionState": "manual",
       "localizations": {
@@ -1841,6 +1962,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Другие библиотеки"
+          }
+        }
+      }
+    },
+    "Other sources": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Другие источники"
           }
         }
       }
@@ -2290,6 +2422,17 @@
       "extractionState": "manual",
       "shouldTranslate": false
     },
+    "Save": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сохранить"
+          }
+        }
+      }
+    },
     "Saved": {
       "extractionState": "manual",
       "localizations": {
@@ -2400,6 +2543,17 @@
         }
       }
     },
+    "Series and volume": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Цикл и номер"
+          }
+        }
+      }
+    },
     "Series details": {
       "extractionState": "manual",
       "localizations": {
@@ -2429,17 +2583,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Серия или автор"
-          }
-        }
-      }
-    },
-    "Series: %@": {
-      "extractionState": "manual",
-      "localizations": {
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Цикл: %@"
           }
         }
       }
@@ -2763,6 +2906,17 @@
         }
       }
     },
+    "Take from the book": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Взять из книги"
+          }
+        }
+      }
+    },
     "That FB2 file has no text in it.": {
       "extractionState": "manual",
       "localizations": {
@@ -2906,6 +3060,17 @@
         }
       }
     },
+    "This writer’s series": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Циклы этого автора"
+          }
+        }
+      }
+    },
     "Title": {
       "extractionState": "manual",
       "localizations": {
@@ -3016,6 +3181,17 @@
         }
       }
     },
+    "Use what the book says": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Вернуть как в книге"
+          }
+        }
+      }
+    },
     "Username or email": {
       "extractionState": "manual",
       "localizations": {
@@ -3045,6 +3221,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Код подтверждения"
+          }
+        }
+      }
+    },
+    "Volume": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Номер"
           }
         }
       }
@@ -3159,6 +3346,17 @@
         }
       }
     },
+    "Yes, forget it": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Да, забыть"
+          }
+        }
+      }
+    },
     "Yes, restore": {
       "extractionState": "manual",
       "localizations": {
@@ -3247,6 +3445,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "книга пишется"
+          }
+        }
+      }
+    },
+    "≈ %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "≈ %@"
           }
         }
       }

@@ -375,7 +375,7 @@ enum DesignSystemScreen {
                             RowStack {
                                 Image(systemName: "checkmark.circle.fill")
                                     .font(Design.Style.caption)
-                                SeriesNumber(number: 3)
+                                SeriesNumber(number: 3, beside: .subheadline)
                                 Text(verbatim: "Image, off the line")
                                     .font(Design.Style.label)
                             }
@@ -383,7 +383,7 @@ enum DesignSystemScreen {
                             RowStack {
                                 LineGlyph(systemImage: "checkmark.circle.fill")
                                     .font(Design.Style.caption)
-                                SeriesNumber(number: 3)
+                                SeriesNumber(number: 3, beside: .subheadline)
                                 Text(verbatim: "LineGlyph, on it")
                                     .font(Design.Style.label)
                             }
@@ -401,34 +401,34 @@ enum DesignSystemScreen {
                     specimen("Baseline: a row sets everything on one line") {
                         VStack(alignment: .leading, spacing: Design.Space.large) {
                             RowStack {
-                                SeriesNumber(number: 3)
+                                SeriesNumber(number: 3, beside: .title3)
                                 Text(verbatim: "Title, in the title role").font(Design.Style.title)
                             }
 
                             RowStack {
-                                SeriesNumber(number: 12)
+                                SeriesNumber(number: 12, beside: .headline)
                                 Text(verbatim: "Heading, the role a row wears").font(Design.Style.heading)
                             }
 
                             RowStack {
-                                SeriesNumber(number: 7)
+                                SeriesNumber(number: 7, beside: .subheadline)
                                 Text(verbatim: "Label, the role a quiet row wears").font(Design.Style.label)
                             }
 
                             // The folded run on the shelf: two numbers and the gap between them.
                             RowStack {
-                                SeriesNumber(number: 1)
+                                SeriesNumber(number: 1, beside: .subheadline)
                                 Text(verbatim: "…").font(Design.Style.label).foregroundStyle(.tertiary)
-                                SeriesNumber(number: 17)
+                                SeriesNumber(number: 17, beside: .subheadline)
                             }
 
                             RowStack(spacing: Design.Space.medium) {
                                 Image(systemName: "checkmark.circle.fill")
                                     .font(Design.Style.caption)
                                     .foregroundStyle(.tint)
-                                SeriesNumber(number: 4)
+                                SeriesNumber(number: 4, beside: .subheadline)
                                 Text(verbatim: "Glyph, badge, words and pill").font(Design.Style.label)
-                                Pill(title: "Ongoing", systemImage: "pencil", label: "Ongoing")
+                                Pill(title: "Ongoing", systemImage: "pencil", label: "Ongoing", beside: .subheadline)
                             }
                         }
                     }

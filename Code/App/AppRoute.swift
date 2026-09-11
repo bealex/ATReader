@@ -19,6 +19,10 @@ enum AppRoute: Hashable {
     case reader(Reader)
     case series(name: String)
     case readerAppearance
+    #if DEBUG
+        /// The design catalogue, reached from the profile in debug builds.
+        case designSystem
+    #endif
 
     struct Reader: Hashable {
         let workId: Int

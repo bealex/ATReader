@@ -7,13 +7,13 @@ import DesignSystem
 import Litres
 import SwiftUI
 
-/// Litres, as it stands in the reader's profile: whether they are signed in, and the one button that
-/// brings their books across.
+/// Litres, as it stands among the profile's other sources: whether the reader is signed in, and the one
+/// button that brings their books across.
 ///
 /// Everything but signing in happens here. A web view is the only way to sign in, since the service
 /// hands its session to a browser and signs it with a key nobody else has, but there is no reason to
 /// stand in front of one to fetch a book.
-struct LitresSection: View {
+struct LitresRows: View {
     /// Called once a run has finished, for whatever else on the screen counts what the device holds.
     var onLibraryChanged: () -> Void = {}
 
@@ -30,7 +30,7 @@ struct LitresSection: View {
     private var report: SharedReport?
 
     var body: some View {
-        Section {
+        Group {
             standing
 
             if store.isSignedIn {
@@ -61,10 +61,6 @@ struct LitresSection: View {
                 }
                 .accessibilityIdentifier("litres.report.share")
             }
-        } header: {
-            Text("Other libraries")
-        } footer: {
-            Text("Your books come across once. Litres isn't watched afterwards, and the session ends when they arrive.")
         }
         .sheet(isPresented: $isSigningIn) { LitresLoginScreen.Component() }
         .sheet(item: $report) { ShareSheet(url: $0.url) }

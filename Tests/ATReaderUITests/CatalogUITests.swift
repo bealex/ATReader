@@ -9,8 +9,8 @@ import XCTest
 ///
 /// These cover everything a reader can reach without an account: search, the charts, a book's page and
 /// the reader itself. The library needs a real token and is covered by ``LibraryUITests``.
-final class CatalogUITests: XCTestCase {
-    private var app: XCUIApplication!
+class CatalogUITestCase: XCTestCase {
+    fileprivate var app: XCUIApplication!
 
     override func setUp() {
         continueAfterFailure = false
@@ -20,6 +20,8 @@ final class CatalogUITests: XCTestCase {
         // test to the same starting style.
         app.launchArguments = [
             "-at-ui-test-guest",
+            // The charts and the catalogue search are held back from the app for now, not from these.
+            "-at-show-catalogue", "YES",
             "-reader.fontSize", "19",
             "-reader.lineSpacing", "7",
             "-reader.margins", "24",
@@ -32,7 +34,7 @@ final class CatalogUITests: XCTestCase {
     }
 
     /// The search tab, set to ask the catalogue rather than the reader's own shelves.
-    private func searchTheCatalogue() -> XCUIElement {
+    fileprivate func searchTheCatalogue() -> XCUIElement {
         app.tabBars.buttons["Search"].tap()
 
         let catalogue = app.buttons["Author.Today"]
@@ -42,6 +44,101 @@ final class CatalogUITests: XCTestCase {
         return app.searchFields.firstMatch
     }
 
+    /// Opens the second book of the chart and waits for its page to offer a read action.
+    fileprivate func openBookPage() {
+        app.tabBars.buttons["Top"].tap()
+
+        let book = app.collectionViews.cells.element(boundBy: 1)
+        XCTAssertTrue(book.waitForExistence(timeout: 30), "no book to open")
+        book.tap()
+        XCTAssertTrue(
+            app.buttons["work.read"].waitForExistence(timeout: 30),
+            "book page never offered a read action"
+        )
+    }
+
+    fileprivate func openReader() {
+        app.tabBars.buttons["Top"].tap()
+
+        let firstBook = app.collectionViews.cells.element(boundBy: 1)
+        XCTAssertTrue(firstBook.waitForExistence(timeout: 30), "no book to open")
+        firstBook.tap()
+
+        let readButton = app.buttons["work.read"]
+        XCTAssertTrue(readButton.waitForExistence(timeout: 30), "book page never offered a read action")
+        readButton.tap()
+
+        XCTAssertTrue(
+            app.otherElements["reader.page"].firstMatch.waitForExistence(timeout: 40),
+            "reader never rendered a page"
+        )
+    }
+
+    /// The reader opens with no chrome at all; a tap in the middle third brings the controls back.
+    fileprivate func showChrome() {
+        app.otherElements["reader.page"].firstMatch
+            .coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+            .tap()
+        XCTAssertTrue(app.buttons["Appearance"].waitForExistence(timeout: 5), "the reader controls never appeared")
+    }
+
+    /// Turns one page forward. A book opens on its title page, so reading tests step past it first.
+    fileprivate func turnPage() {
+        app.otherElements["reader.page"].firstMatch
+            .coordinate(withNormalizedOffset: CGVector(dx: 0.85, dy: 0.5))
+            .tap()
+    }
+
+    /// Scrolls a fifth of the screen at a time. A Form does not instantiate cells below the fold, and
+    /// a full swipe carries a short sheet past several rows at once, so a control it skipped never
+    /// comes into being to be found.
+    fileprivate func scrollUntilVisible(_ element: XCUIElement, steps: Int = 12) -> Bool {
+        for _ in 0 ..< steps where !element.exists {
+            let start = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.8))
+            let end = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.6))
+            start.press(forDuration: 0.05, thenDragTo: end)
+        }
+
+        return element.exists
+    }
+
+    /// The drawn page exposes its whole text as one label under its own identifier.
+    fileprivate func longestPageLabel() -> String {
+        let page = app.staticTexts["reader.pageText"].firstMatch
+
+        guard page.waitForExistence(timeout: 5) else { return "" }
+
+        return page.label
+    }
+
+    fileprivate func waitForAbsence(of element: XCUIElement, timeout: TimeInterval = 10) -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+
+        while Date() < deadline {
+            if !element.exists { return true }
+
+            _ = element.waitForExistence(timeout: 0.3)
+        }
+
+        return false
+    }
+
+    fileprivate func waitForChange(of element: XCUIElement, from previous: String, timeout: TimeInterval = 10) -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+
+        while Date() < deadline {
+            if element.exists, element.label != previous { return true }
+
+            _ = element.waitForExistence(timeout: 0.3)
+        }
+
+        return false
+    }
+
+}
+
+/// Searching the catalogue, the charts, and how deep the tab bar reaches.
+final class CatalogUITests: CatalogUITestCase {
     func testSearchFindsBooksByText() {
         let field = searchTheCatalogue()
         XCTAssertTrue(field.waitForExistence(timeout: 10), "search field never appeared")
@@ -89,26 +186,28 @@ final class CatalogUITests: XCTestCase {
         XCTAssertTrue(app.collectionViews.cells.firstMatch.waitForExistence(timeout: 30))
     }
 
-    func testOpeningABookAndReadingAChapter() {
-        openReader()
-        turnPage()
+    /// The tab bar belongs to the root of each tab; pushed screens give the page the full height.
+    func testTabBarIsHiddenBelowTheTopLevel() {
+        XCTAssertTrue(app.tabBars.firstMatch.waitForExistence(timeout: 20), "tab bar missing at the top level")
 
-        // The page publishes its drawn text as its accessibility label, so a substantial label is
-        // evidence the chapter decrypted and paginated.
-        var longest = longestPageLabel()
-        let deadline = Date().addingTimeInterval(20)
+        app.tabBars.buttons["Top"].tap()
 
-        while Date() < deadline, longest.count <= 200 {
-            longest = longestPageLabel()
-        }
+        let firstBook = app.collectionViews.cells.element(boundBy: 1)
+        XCTAssertTrue(firstBook.waitForExistence(timeout: 30))
+        firstBook.tap()
 
-        XCTAssertGreaterThan(
-            longest.count,
-            200,
-            "page body looks empty — decryption or pagination may have failed"
-        )
+        let readButton = app.buttons["work.read"]
+        XCTAssertTrue(readButton.waitForExistence(timeout: 30))
+        XCTAssertFalse(app.tabBars.firstMatch.exists, "tab bar should be hidden on a book page")
+
+        readButton.tap()
+        XCTAssertTrue(app.otherElements["reader.page"].firstMatch.waitForExistence(timeout: 40))
+        XCTAssertFalse(app.tabBars.firstMatch.exists, "tab bar should be hidden while reading")
     }
+}
 
+/// Turning the reader's pages by tap and by swipe, and what an edge swipe must not do.
+final class ReaderTurningUITests: CatalogUITestCase {
     func testTappingTheRightThirdTurnsThePage() {
         openReader()
 
@@ -170,6 +269,29 @@ final class CatalogUITests: XCTestCase {
         XCTAssertTrue(waitForChange(of: caption, from: second), "swiping right did not go back a page")
     }
 
+    /// A rightward swipe from the leading edge would normally pop the screen. In the reader it has to
+    /// turn a page instead, so the interactive pop gesture is switched off there.
+    func testEdgeSwipeDoesNotLeaveTheReader() {
+        openReader()
+
+        let caption = app.staticTexts["reader.caption"]
+        XCTAssertTrue(caption.waitForExistence(timeout: 20), "page caption missing")
+
+        let page = app.otherElements["reader.page"].firstMatch
+        let leadingEdge = page.coordinate(withNormalizedOffset: CGVector(dx: 0.01, dy: 0.5))
+        let inward = page.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5))
+        leadingEdge.press(forDuration: 0.05, thenDragTo: inward)
+
+        XCTAssertTrue(
+            app.otherElements["reader.page"].firstMatch.waitForExistence(timeout: 10),
+            "an edge swipe popped the reader instead of turning a page"
+        )
+        XCTAssertTrue(caption.exists, "reader chrome disappeared after an edge swipe")
+    }
+}
+
+/// The reader's controls and its appearance settings.
+final class ReaderControlsUITests: CatalogUITestCase {
     /// Changing the typeface re-paginates, which shows up as a different page count in the caption.
     func testChangingTypefaceRepaginates() {
         openReader()
@@ -230,45 +352,6 @@ final class CatalogUITests: XCTestCase {
         XCTAssertTrue(waitForAbsence(of: app.buttons["Appearance"]), "a second middle tap left the controls up")
     }
 
-    /// A rightward swipe from the leading edge would normally pop the screen. In the reader it has to
-    /// turn a page instead, so the interactive pop gesture is switched off there.
-    func testEdgeSwipeDoesNotLeaveTheReader() {
-        openReader()
-
-        let caption = app.staticTexts["reader.caption"]
-        XCTAssertTrue(caption.waitForExistence(timeout: 20), "page caption missing")
-
-        let page = app.otherElements["reader.page"].firstMatch
-        let leadingEdge = page.coordinate(withNormalizedOffset: CGVector(dx: 0.01, dy: 0.5))
-        let inward = page.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5))
-        leadingEdge.press(forDuration: 0.05, thenDragTo: inward)
-
-        XCTAssertTrue(
-            app.otherElements["reader.page"].firstMatch.waitForExistence(timeout: 10),
-            "an edge swipe popped the reader instead of turning a page"
-        )
-        XCTAssertTrue(caption.exists, "reader chrome disappeared after an edge swipe")
-    }
-
-    /// The tab bar belongs to the root of each tab; pushed screens give the page the full height.
-    func testTabBarIsHiddenBelowTheTopLevel() {
-        XCTAssertTrue(app.tabBars.firstMatch.waitForExistence(timeout: 20), "tab bar missing at the top level")
-
-        app.tabBars.buttons["Top"].tap()
-
-        let firstBook = app.collectionViews.cells.element(boundBy: 1)
-        XCTAssertTrue(firstBook.waitForExistence(timeout: 30))
-        firstBook.tap()
-
-        let readButton = app.buttons["work.read"]
-        XCTAssertTrue(readButton.waitForExistence(timeout: 30))
-        XCTAssertFalse(app.tabBars.firstMatch.exists, "tab bar should be hidden on a book page")
-
-        readButton.tap()
-        XCTAssertTrue(app.otherElements["reader.page"].firstMatch.waitForExistence(timeout: 40))
-        XCTAssertFalse(app.tabBars.firstMatch.exists, "tab bar should be hidden while reading")
-    }
-
     /// The appearance sheet is capped to half the screen so the page stays visible, and every change
     /// has to land on that page straight away rather than on a sample.
     func testAppearanceSheetIsHalfHeightAndEditsApplyLive() {
@@ -304,6 +387,29 @@ final class CatalogUITests: XCTestCase {
             "changing the font did not re-paginate the page behind the sheet (still \(before))"
         )
     }
+}
+
+/// Opening a chapter, moving between chapters, and keeping the reader's place.
+final class ReaderPlaceUITests: CatalogUITestCase {
+    func testOpeningABookAndReadingAChapter() {
+        openReader()
+        turnPage()
+
+        // The page publishes its drawn text as its accessibility label, so a substantial label is
+        // evidence the chapter decrypted and paginated.
+        var longest = longestPageLabel()
+        let deadline = Date().addingTimeInterval(20)
+
+        while Date() < deadline, longest.count <= 200 {
+            longest = longestPageLabel()
+        }
+
+        XCTAssertGreaterThan(
+            longest.count,
+            200,
+            "page body looks empty — decryption or pagination may have failed"
+        )
+    }
 
     /// Walks from a chart to a book to its reader — the path every reading test starts with.
     /// Where the reader stopped comes back after the app is put away and killed.
@@ -336,97 +442,6 @@ final class CatalogUITests: XCTestCase {
         app.buttons["work.read"].tap()
         XCTAssertTrue(caption.waitForExistence(timeout: 40), "reader never rendered a page")
         XCTAssertEqual(caption.label, stoppedAt, "the reader did not reopen where it stopped")
-    }
-
-    /// Opens the second book of the chart and waits for its page to offer a read action.
-    private func openBookPage() {
-        app.tabBars.buttons["Top"].tap()
-
-        let book = app.collectionViews.cells.element(boundBy: 1)
-        XCTAssertTrue(book.waitForExistence(timeout: 30), "no book to open")
-        book.tap()
-        XCTAssertTrue(
-            app.buttons["work.read"].waitForExistence(timeout: 30),
-            "book page never offered a read action"
-        )
-    }
-
-    private func openReader() {
-        app.tabBars.buttons["Top"].tap()
-
-        let firstBook = app.collectionViews.cells.element(boundBy: 1)
-        XCTAssertTrue(firstBook.waitForExistence(timeout: 30), "no book to open")
-        firstBook.tap()
-
-        let readButton = app.buttons["work.read"]
-        XCTAssertTrue(readButton.waitForExistence(timeout: 30), "book page never offered a read action")
-        readButton.tap()
-
-        XCTAssertTrue(
-            app.otherElements["reader.page"].firstMatch.waitForExistence(timeout: 40),
-            "reader never rendered a page"
-        )
-    }
-
-    /// The reader opens with no chrome at all; a tap in the middle third brings the controls back.
-    private func showChrome() {
-        app.otherElements["reader.page"].firstMatch
-            .coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
-            .tap()
-        XCTAssertTrue(app.buttons["Appearance"].waitForExistence(timeout: 5), "the reader controls never appeared")
-    }
-
-    /// Turns one page forward. A book opens on its title page, so reading tests step past it first.
-    private func turnPage() {
-        app.otherElements["reader.page"].firstMatch
-            .coordinate(withNormalizedOffset: CGVector(dx: 0.85, dy: 0.5))
-            .tap()
-    }
-
-    /// Scrolls a fifth of the screen at a time. A Form does not instantiate cells below the fold, and
-    /// a full swipe carries a short sheet past several rows at once, so a control it skipped never
-    /// comes into being to be found.
-    private func scrollUntilVisible(_ element: XCUIElement, steps: Int = 12) -> Bool {
-        for _ in 0 ..< steps where !element.exists {
-            let start = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.8))
-            let end = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.6))
-            start.press(forDuration: 0.05, thenDragTo: end)
-        }
-
-        return element.exists
-    }
-
-    /// The drawn page exposes its whole text as one label under its own identifier.
-    private func longestPageLabel() -> String {
-        let page = app.staticTexts["reader.pageText"].firstMatch
-
-        guard page.waitForExistence(timeout: 5) else { return "" }
-
-        return page.label
-    }
-
-    private func waitForAbsence(of element: XCUIElement, timeout: TimeInterval = 10) -> Bool {
-        let deadline = Date().addingTimeInterval(timeout)
-
-        while Date() < deadline {
-            if !element.exists { return true }
-
-            _ = element.waitForExistence(timeout: 0.3)
-        }
-
-        return false
-    }
-
-    private func waitForChange(of element: XCUIElement, from previous: String, timeout: TimeInterval = 10) -> Bool {
-        let deadline = Date().addingTimeInterval(timeout)
-
-        while Date() < deadline {
-            if element.exists, element.label != previous { return true }
-
-            _ = element.waitForExistence(timeout: 0.3)
-        }
-
-        return false
     }
 
     func testChapterListNavigation() {

@@ -27,6 +27,8 @@ final class LibraryBackup {
     private(set) var folderName: String?
     /// When the folder was last written to, as the backup itself says.
     private(set) var writtenAt: Date?
+    /// How much the backup in the folder holds.
+    private(set) var bytes: Int64?
 
     var isWorking: Bool { stage == .working }
     var hasFolder: Bool { folderName != nil }
@@ -62,15 +64,18 @@ final class LibraryBackup {
         UserDefaults.standard.removeObject(forKey: Self.key)
         folderName = nil
         writtenAt = nil
+        bytes = nil
         stage = .idle
     }
 
     /// Writes everything the device holds into the folder.
     func backUp() async {
+        // The folder's row says how much it holds and when it was written, so a backup that worked
+        // leaves nothing else to say.
         await working { folder in
-            let manifest = try await LibraryArchive.write(to: folder, store: .shared)
+            _ = try await LibraryArchive.write(to: folder, store: .shared)
 
-            return String(localized: "Backed up \(manifest.bytes.formatted(.byteCount(style: .file)))")
+            return nil
         }
     }
 
@@ -89,7 +94,7 @@ final class LibraryBackup {
     }
 
     /// Holds the folder open for as long as the work takes, and says what came of it.
-    private func working(_ work: (URL) async throws -> String) async {
+    private func working(_ work: (URL) async throws -> String?) async {
         guard
             let folder = resolved()
         else {
@@ -106,7 +111,7 @@ final class LibraryBackup {
         stage = .working
 
         do {
-            stage = .done(try await work(folder))
+            stage = try await work(folder).map(Stage.done) ?? .idle
             refresh()
         } catch {
             stage = .failed(String(describing: error))
@@ -141,6 +146,9 @@ final class LibraryBackup {
             if scoped { folder.stopAccessingSecurityScopedResource() }
         }
 
-        writtenAt = LibraryArchive.manifest(in: folder)?.writtenAt
+        let manifest = LibraryArchive.manifest(in: folder)
+
+        writtenAt = manifest?.writtenAt
+        bytes = manifest?.bytes
     }
 }

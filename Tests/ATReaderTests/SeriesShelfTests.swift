@@ -96,11 +96,9 @@ struct SeriesShelfTests {
         #expect(model.groups.first?.series == "Зимпель")
     }
 
-    /// Runs by different writers, held together by hand, stand on a card of their own headed by all
-    /// of them. Filed under whichever of them wrote the most of it, the series would sit among that
-    /// writer's own books as though the others had no part in it.
+    /// Runs by different writers, held together by hand, stand whole on each writer's own card.
     @Test
-    func acombinedSeriesStandsOnACardOfItsOwn() async throws {
+    func acombinedSeriesStandsOnEachWritersCard() async throws {
         let database = FileManager.default.temporaryDirectory
             .appendingPathComponent("merge-\(UUID().uuidString).sqlite")
         let store = SQLiteBookStore(fileURL: database)
@@ -118,17 +116,83 @@ struct SeriesShelfTests {
         await store.store(books: held)
         await model.refreshFromStore()
         model.filter = .everything
-        // Picked in a stated order, since the card is headed with its writers in the order they were
-        // put together rather than in whatever order the shelf happened to list them.
         let first = try #require(model.allSeries.first { $0.author == "Первый Автор" })
         let second = try #require(model.allSeries.first { $0.author == "Второй Автор" })
 
         await model.merge([ first, second ], named: "Вместе")
 
-        let shelf = model.shelves.first { $0.runs.contains { $0.series == "Вместе" } }
+        #expect(Set(model.shelves.map(\.name)) == [ "Первый Автор", "Второй Автор" ])
+        #expect(model.shelves.allSatisfy { $0.runs.map(\.series) == [ "Вместе" ] && $0.works.count == 4 })
+    }
 
-        #expect(model.shelves.count == 1)
-        #expect(shelf?.name == "Первый Автор, Второй Автор")
+    /// A book whose file leaves its series out joins the run once the reader names the series, at the
+    /// volume they give it, and leaves again when they take the correction back.
+    @Test
+    func abookGivenItsSeriesByHandJoinsTheRun() async throws {
+        let database = FileManager.default.temporaryDirectory
+            .appendingPathComponent("edit-\(UUID().uuidString).sqlite")
+        let store = SQLiteBookStore(fileURL: database)
+        let model = Model(session: SessionStore(), store: store)
+
+        defer { try? FileManager.default.removeItem(at: database) }
+
+        var loose = Self.book(id: 3, title: "Третья")
+
+        loose.seriesTitle = nil
+        await store.store(books: [
+            Self.book(id: 1, title: "Первая", volume: 1),
+            Self.book(id: 2, title: "Вторая", volume: 2),
+            loose,
+        ])
+        await store.store(seriesEdit: .init(series: "Зимпель", volume: 3), workId: 3)
+        await model.refreshFromStore()
+        model.filter = .everything
+
+        let run = try #require(model.groups.first { $0.series == "Зимпель" })
+
+        #expect(run.rows.map(\.number) == [ 3, 2, 1 ])
+
+        await store.store(seriesEdit: nil, workId: 3)
+        await model.refreshFromStore()
+
+        #expect(model.groups.first { $0.series == "Зимпель" }?.works.count == 2)
+    }
+
+    /// Naming a merged series joins it, naming another leaves it, and taking the correction back
+    /// returns the book to the series it came with.
+    @Test
+    func correctingASeriesJoinsAndLeavesAMergedOne() async throws {
+        let database = FileManager.default.temporaryDirectory
+            .appendingPathComponent("correct-\(UUID().uuidString).sqlite")
+        let store = SQLiteBookStore(fileURL: database)
+        let model = Model(session: SessionStore(), store: store)
+
+        defer { try? FileManager.default.removeItem(at: database) }
+
+        await store.store(books: [
+            Self.book(id: 1, title: "Первая", volume: 1),
+            Self.book(id: 2, title: "Вторая", volume: 2),
+            Self.book(id: 3, title: "Чужая", series: "Другая"),
+        ])
+        await store.store(series: "Вместе", workIds: [ 1, 2 ])
+        await SeriesCorrection.save(.init(series: "Вместе", volume: 3), for: 3, store: store)
+        await SeriesCorrection.save(.init(series: "Своя", volume: nil), for: 1, store: store)
+        await model.refreshFromStore()
+        model.filter = .everything
+
+        let merged = try #require(model.groups.first { $0.series == "Вместе" })
+
+        #expect(Set(merged.works.map(\.id)) == [ 2, 3 ])
+        #expect(merged.volumes[3] == 3)
+        #expect(model.works.first { $0.id == 1 }?.series == "Своя")
+        #expect(Set(await store.seriesEdits().keys) == [ 1, 2, 3 ])
+        // A volume left alone is the one the book states.
+        #expect(model.works.first { $0.id == 1 }?.seriesOrder == 1)
+
+        await SeriesCorrection.save(nil, for: 3, store: store)
+        await model.refreshFromStore()
+
+        #expect(model.works.first { $0.id == 3 }?.series == "Другая")
     }
 
     /// Two spellings of one writer's name, held together, make one card under the name picked.
@@ -154,6 +218,61 @@ struct SeriesShelfTests {
 
         #expect(model.shelves.count == 1)
         #expect(model.shelves.first?.name == "Имя Фамилия")
+    }
+
+    /// A volume whose co-author is named first still belongs to the series its writer is running.
+    @Test
+    func avolumeWithItsCoauthorNamedFirstStaysInTheSeries() async throws {
+        let model = await Self.shelf(holding: [
+            Self.book(id: 1, title: "Первая", author: "Первый Автор", volume: 1),
+            Self.book(id: 2, title: "Вторая", author: "Второй Автор, Первый Автор", volume: 2),
+            Self.book(id: 3, title: "Третья", author: "Первый Автор", volume: 3),
+        ])
+
+        let run = try #require(model.groups.first { $0.series == "Зимпель" })
+
+        #expect(model.groups.count == 1)
+        #expect(run.rows.map(\.number) == [ 3, 2, 1 ])
+    }
+
+    /// A book two writers wrote stands on both their cards; the rest of the series stays with its writer.
+    @Test
+    func acowrittenBookStandsOnEveryWritersCard() async throws {
+        let model = await Self.shelf(holding: [
+            Self.book(id: 1, title: "Первая", author: "Первый Автор"),
+            Self.book(id: 2, title: "Вторая", author: "Первый Автор, Второй Автор"),
+            Self.book(id: 3, title: "Своя", author: "Второй Автор", series: "Другая"),
+        ])
+
+        let first = try #require(model.shelves.first { $0.name == "Первый Автор" })
+        let second = try #require(model.shelves.first { $0.name == "Второй Автор" })
+
+        #expect(model.shelves.count == 2)
+        #expect(Set(first.works.map(\.id)) == [ 1, 2 ])
+        #expect(Set(second.works.map(\.id)) == [ 2, 3 ])
+    }
+
+    /// A co-author who leads no book of their own gets no card: an anthology would deal one to everyone.
+    @Test
+    func acoauthorWithNoBookOfTheirOwnGetsNoCard() async {
+        let model = await Self.shelf(holding: [
+            Self.book(id: 1, title: "Первая", author: "Первый Автор, Второй Автор"),
+        ])
+
+        #expect(model.shelves.map(\.name) == [ "Первый Автор" ])
+    }
+
+    /// A series written together from its first book stands whole on both cards.
+    @Test
+    func aseriesWrittenTogetherStandsWholeOnBothCards() async {
+        let model = await Self.shelf(holding: [
+            Self.book(id: 1, title: "Первая", author: "Первый Автор, Второй Автор"),
+            Self.book(id: 2, title: "Вторая", author: "Первый Автор, Второй Автор"),
+            Self.book(id: 3, title: "Своя", author: "Второй Автор", series: "Другая"),
+        ])
+
+        #expect(model.shelves.count == 2)
+        #expect(model.shelves.allSatisfy { shelf in shelf.runs.contains { $0.series == "Зимпель" && $0.works.count == 2 } })
     }
 
     /// Two runs held together stand in the order their titles state, not one run after the other.
@@ -213,7 +332,9 @@ struct SeriesShelfTests {
         id: Int,
         title: String = "Зимпель",
         read: Double = 0,
-        author: String = "Имя Фамилия"
+        author: String = "Имя Фамилия",
+        series: String = "Зимпель",
+        volume: Int? = nil
     ) -> Book {
         Book(
             id: id,
@@ -221,8 +342,8 @@ struct SeriesShelfTests {
             authorLine: author,
             coverURL: nil,
             annotation: nil,
-            seriesTitle: "Зимпель",
-            seriesOrder: nil,
+            seriesTitle: series,
+            seriesOrder: volume,
             textLength: 1000,
             likeCount: nil,
             isFinished: true,

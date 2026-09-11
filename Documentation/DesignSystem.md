@@ -20,7 +20,8 @@ apply `Design` to the page.
 | `Stroke` | The hairline and the ring. |
 | `Size` | Eight fixed dimensions, from an 18pt mark to a 120pt cover. |
 | `Palette` | The five meanings, and the one opacity every tinted ground and edge is drawn at. |
-| `Surface` | Screen, card and fill, plus the edge colour and `ground(_:)` for a tinted pill. |
+| `Surface` | Screen and card, slate greys in light mode and the system's in dark; fill, the edge colour, and `ground(_:)` for a tinted pill. |
+| `listOnScreen()` | A list on the screen colour rather than the system's white. |
 | `Style` | Nine roles, each one system text style, so the whole app follows Dynamic Type. |
 | `Shade` | Two depths and the page-turn cast, applied with `.shade(_:)`. |
 | `Control` | What a button is set in: the action and the bar glyph. Neither is a text role. |
@@ -34,9 +35,10 @@ apply `Design` to the page.
 | `CalloutMotion` | How an aside comes and goes. |
 | `Hinge` | Two panels hinged along one edge at one moment of their turn: a book taken down off a shelf. |
 | `FoldMotion` | How long a fold takes to turn. |
-| `ShelfLayout` | Where a shelf's books stand once broken into rows, and where each run's bracket goes. |
+| `ShelfLayout` | Where a shelf's books stand once broken into rows, set out as a bookcase: a board on top, and each row on a plank whose front carries its brackets. |
+| `Bookcase` | How that bookcase is painted: dark inside, planks on the card colour. |
 | `callout(over:item:ground:)` | Hangs an aside over something in a view's own space. |
-| `sitsOnTheLine()` | What a boxed label wears so its ground sits on the line rather than under it. |
+| `centredOnCapitals(of:)` | What a boxed label wears so it stands centred on the capitals of the text beside it. |
 | `LineGlyph` | A symbol set as text, so a row's baseline runs through it. |
 | `Board` | How a bound board takes the light at its edge and along its crease, in points. |
 | `CoverHinge` | The few points of a cover nearest its binding, where the board bends. |
@@ -85,10 +87,11 @@ to each other. Centring them lines up their boxes and leaves their words at thre
 and the eye reads the words. Anything that genuinely wants a different alignment is a stack rather than
 a row, and says so by being one.
 
-A boxed label needs one more thing. A badge or a pill is text inside a padded ground, so a baseline
-drawn through its text hangs the ground below the line by whatever padding sits under it. `Pill` and
-`SeriesNumber` wear `sitsOnTheLine()`, which takes that padding back out of the baseline they offer the
-row and puts the box itself on the line. Any new boxed label wears it too.
+A boxed label needs one more thing. A badge or a pill is small text inside a padded ground, much
+smaller than the words beside it: a baseline drawn through its text hangs the ground below the line,
+and a ground stood on the line sits above the letters. `Pill` and `SeriesNumber` wear
+`centredOnCapitals(of:)`, which puts the middle of the box on the middle of the capitals of the text
+style they're told they stand beside. Any new boxed label wears it too.
 
 A glyph needs the same care for the opposite reason. An `Image` carries no baseline at all, so a symbol
 dropped into a row is lined up by its bottom edge and sits below the words beside it. `LineGlyph` sets
@@ -204,7 +207,7 @@ drawing of the app can.
 
 Two ways in:
 
-- Debug builds have a **Design** tab.
+- Profile has a **Design System** row in Debug builds.
 - `-at-design-system YES` opens it straight from launch without signing in, since the design system has
   nothing to do with having an account.
 

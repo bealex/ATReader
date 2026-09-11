@@ -133,8 +133,8 @@ public struct CircleMark: View {
 /// size from whatever font the row is using.
 ///
 /// It then rides a nudge above that line. A letter's baseline runs under its body; a round glyph's
-/// body straddles it, so a symbol sitting exactly on the line reads low beside words and lower still
-/// beside a badge, which has been lifted to put its own ground on the line.
+/// body straddles it, so a symbol sitting exactly on the line reads low beside words and beside a
+/// badge, which is centred on the capitals.
 public struct LineGlyph: View {
     public let systemImage: String
 
@@ -162,11 +162,21 @@ public struct Pill: View {
     @ScaledMetric(relativeTo: .caption2)
     private var lineHeight: CGFloat = 13
 
-    public init(title: String?, systemImage: String, tint: Color = Design.Palette.neutral, label: String) {
+    /// The text style of the words the pill stands among.
+    public var beside: Font.TextStyle
+
+    public init(
+        title: String?,
+        systemImage: String,
+        tint: Color = Design.Palette.neutral,
+        label: String,
+        beside: Font.TextStyle = .body
+    ) {
         self.title = title
         self.systemImage = systemImage
         self.tint = tint
         self.label = label
+        self.beside = beside
     }
 
     public var body: some View {
@@ -188,7 +198,7 @@ public struct Pill: View {
         .padding(.horizontal, Design.Space.small)
         .padding(.vertical, Design.Space.extraSmall)
         .background(Design.Surface.ground(tint), in: .capsule)
-        .sitsOnTheLine()
+        .centredOnCapitals(of: beside)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(label)
     }
@@ -231,9 +241,12 @@ public struct FilterChip: View {
 /// the title, not a fact about the book like the pills are.
 public struct SeriesNumber: View {
     public let number: Int
+    /// The text style of the title the plate stands before.
+    public let beside: Font.TextStyle
 
-    public init(number: Int) {
+    public init(number: Int, beside: Font.TextStyle = .body) {
         self.number = number
+        self.beside = beside
     }
 
     public var body: some View {
@@ -242,7 +255,7 @@ public struct SeriesNumber: View {
             .padding(.horizontal, Design.Space.small)
             .padding(.vertical, Design.Space.extraSmall)
             .background(Design.Surface.fill, in: .rect(cornerRadius: Design.Radius.small))
-            .sitsOnTheLine()
+            .centredOnCapitals(of: beside)
             .accessibilityHidden(true)
     }
 }

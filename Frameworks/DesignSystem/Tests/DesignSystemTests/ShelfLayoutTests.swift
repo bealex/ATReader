@@ -97,14 +97,31 @@ struct ShelfLayoutTests {
     }
 
     @Test
-    func measuresItselfByItsRowsAndTheLinesUnderThem() {
+    func measuresItselfByItsBoardAndItsRows() {
         let one = layout([ tile("a") ])
         let two = layout([ tile("a"), tile("b"), tile("c") ])
 
-        // A row is the slot, the gap under it and the bracket's own band.
-        #expect(one.height == 105)
-        // Two of those, and the gap between them.
-        #expect(two.height == 219)
+        // The board across the top, 6, then a row: headroom 9, the slot 90, and the plank under it, 24.
+        #expect(one.height == 129)
+        #expect(two.height == 252)
+    }
+
+    @Test
+    func standsEveryRowOnItsPlank() {
+        let shelf = layout([ tile("a"), tile("b"), tile("c") ])
+
+        // The board, the headroom and the slot; the second row one row's depth, 123, further down.
+        #expect(shelf.frame(of: "a")?.maxY == 105)
+        #expect(shelf.frame(of: "c")?.maxY == 228)
+    }
+
+    @Test
+    func setsABracketOnTheFrontOfThePlankUnderItsRun() {
+        let shelf = layout([ tile("a", run: "one") ])
+        let floor: CGFloat = 6 + 9 + 90
+
+        #expect(shelf.brackets.first?.frame.minY ?? 0 >= floor)
+        #expect(shelf.brackets.first?.frame.maxY ?? .infinity <= floor + 24)
     }
 
     @Test

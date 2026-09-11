@@ -52,7 +52,7 @@ enum SpinePrint {
     }()
 
     /// Which way each book's own colour ran, once its spine has been printed, so a cover can set its
-    /// own plate in what the spine was set in.
+    /// marks against what the spine was set in.
     @MainActor
     private static var darkness: [Int: Bool] = [:]
 
@@ -328,7 +328,8 @@ enum SpinePrint {
             x = plate(number, from: x, in: along, colours: colours, context: context) + Design.Space.small
         }
 
-        let room = along.maxX - Design.Space.nudge - x
+        // The same room above the title as below the plate, so the writing stands clear of both ends.
+        let room = along.maxX - Design.Space.medium - x
 
         if room > 0 {
             stamp(
@@ -342,30 +343,6 @@ enum SpinePrint {
         }
 
         context.restoreGState()
-    }
-
-    /// The volume on its plate as a picture of its own, so a cover carries the same one its spine does.
-    @MainActor
-    static func plate(_ number: Int, isDark: Bool) -> UIImage {
-        let key = "plate|\(number)|\(isDark)" as NSString
-
-        if let held = prints.object(forKey: key) { return held }
-
-        let colours = SpineInk(isDark: isDark)
-        let size = plateSize(number)
-        let drawn = UIGraphicsImageRenderer(size: size).image { context in
-            _ = plate(
-                number,
-                from: 0,
-                in: CGRect(origin: .zero, size: size),
-                colours: colours,
-                context: context.cgContext
-            )
-        }
-
-        prints.setObject(drawn, forKey: key, cost: bytes(of: drawn))
-
-        return drawn
     }
 
     /// How much room a volume's plate takes, for whoever has to centre one.

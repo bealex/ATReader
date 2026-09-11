@@ -71,7 +71,12 @@ struct SeriesOrderTests {
         ]
         let group = Model.Group(id: "series:Зимпель", series: "Зимпель", works: works, updated: .now)
 
-        #expect(group.rows.allSatisfy { $0.number > 0 })
+        // The book stating nought is drawn with no volume at all rather than as volume nought.
+        #expect(group.rows.allSatisfy { row in
+            guard case let .book(_, number, _) = row else { return true }
+
+            return number.map { $0 > 0 } ?? true
+        })
     }
 
     /// Volumes the file actually states are still what the shelf draws.

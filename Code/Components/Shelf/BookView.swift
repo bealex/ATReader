@@ -104,9 +104,9 @@ final class BookView: UIView {
 
         switch contents.stands {
             case let .book(work, _, _, marks):
-                // Printed first: what a cover's own plate is set in is what its spine turned out to be.
+                // Printed first: what a cover's marks are set against is what its spine turned out to be.
                 reprint()
-                cover.show(work, marks: marks.with(volume: volume, isDark: isDark(of: work)))
+                cover.show(work, marks: marks.with(isDark: isDark(of: work)))
             case let .gap(number):
                 edgeGap.number = number
                 faceGap.number = number
@@ -119,15 +119,6 @@ final class BookView: UIView {
         setNeedsLayout()
         layoutIfNeeded()
         place(held)
-    }
-
-    /// The volume this place carries, whether a book stands in it or not.
-    private var volume: Int? {
-        switch contents?.stands {
-            case let .book(_, number, _, _): number
-            case let .gap(number): number
-            case nil: nil
-        }
     }
 
     private var isBook: Bool {

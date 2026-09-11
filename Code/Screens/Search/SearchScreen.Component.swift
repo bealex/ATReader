@@ -95,14 +95,17 @@ enum SearchScreen {
 
         @ToolbarContentBuilder
         private var bar: some ToolbarContent {
-            ToolbarItem(placement: .principal) {
-                Picker("Search", selection: $source) {
-                    Text("Library").tag(Source.library)
-                    Text(verbatim: "Author.Today").tag(Source.authorToday)
+            // The catalogue is held back for now, and with it the choice between it and the library.
+            if Unfinished.showsCatalogue {
+                ToolbarItem(placement: .principal) {
+                    Picker("Search", selection: $source) {
+                        Text("Library").tag(Source.library)
+                        Text(verbatim: "Author.Today").tag(Source.authorToday)
+                    }
+                    .pickerStyle(.segmented)
+                    .fixedSize()
+                    .accessibilityIdentifier("search.source")
                 }
-                .pickerStyle(.segmented)
-                .fixedSize()
-                .accessibilityIdentifier("search.source")
             }
 
             if source == .authorToday { sortingMenu }

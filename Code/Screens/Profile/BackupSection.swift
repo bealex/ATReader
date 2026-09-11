@@ -21,30 +21,57 @@ struct BackupSection: View {
     @State
     private var isConfirmingRestore = false
 
+    @State
+    private var isConfirmingForget = false
+
     var body: some View {
         Section {
             if let folder = backup.folderName {
                 LabeledContent {
-                    Text(folder)
+                    RowStack(spacing: Design.Space.medium) {
+                        VStack(alignment: .trailing, spacing: Design.Space.extraSmall) {
+                            Text(folder)
+
+                            if let bytes = backup.bytes {
+                                Text(bytes, format: .byteCount(style: .file))
+                                    .font(Design.Style.caption)
+                                    .foregroundStyle(.tertiary)
+                            }
+                        }
+
+                        Button(role: .destructive) {
+                            isConfirmingForget = true
+                        } label: {
+                            Image(systemName: "xmark.circle.fill")
+                        }
+                        .buttonStyle(.borderless)
+                        .tint(Design.Palette.alert)
+                        .disabled(backup.isWorking)
+                        .accessibilityLabel("Forget this folder")
+                        .accessibilityIdentifier("backup.forget")
+                    }
                 } label: {
                     Label("Folder", systemImage: "folder")
                 }
 
-                if let written = backup.writtenAt {
-                    LabeledContent {
-                        Text(written, format: .relative(presentation: .named))
-                    } label: {
-                        Label("Last backed up", systemImage: "clock")
-                    }
-                }
+                LabeledContent {
+                    RowStack(spacing: Design.Space.medium) {
+                        if let written = backup.writtenAt { Self.age(of: written) }
 
-                Button {
-                    Task { await backup.backUp() }
+                        Button {
+                            Task { await backup.backUp() }
+                        } label: {
+                            Image(systemName: "arrow.clockwise.circle.fill")
+                        }
+                        .buttonStyle(.borderless)
+                        .disabled(backup.isWorking)
+                        .accessibilityLabel("Back up now")
+                        .accessibilityIdentifier("backup.write")
+                    }
                 } label: {
-                    Label("Back up now", systemImage: "arrow.up.circle")
+                    Label("Last:", systemImage: "clock")
                 }
-                .disabled(backup.isWorking)
-                .accessibilityIdentifier("backup.write")
+                .lineLimit(1)
 
                 Button(role: .destructive) {
                     isConfirmingRestore = true
@@ -53,9 +80,6 @@ struct BackupSection: View {
                 }
                 .disabled(backup.isWorking)
                 .accessibilityIdentifier("backup.restore")
-
-                Button("Forget this folder") { backup.forget() }
-                    .disabled(backup.isWorking)
             } else {
                 Button {
                     isChoosingFolder = true
@@ -92,7 +116,40 @@ struct BackupSection: View {
                 )
             }
         )
+        .confirmationDialog(
+            "Forget this folder?",
+            isPresented: $isConfirmingForget,
+            titleVisibility: .visible,
+            actions: {
+                Button("Yes, forget it", role: .destructive) { backup.forget() }
+                Button("Cancel", role: .cancel, action: {})
+            }
+        )
     }
+
+    /// How long ago the backup was written, to the nearest unit: "≈ 5 min", "≈ 2 hr".
+    private static func age(of written: Date) -> some View {
+        TimelineView(.periodic(from: .now, by: 60)) { context in
+            let elapsed = context.date.timeIntervalSince(written)
+
+            if elapsed < 60 {
+                Text("Just now")
+            } else {
+                Text("≈ \(Self.roughly.string(from: elapsed) ?? "")")
+            }
+        }
+        .accessibilityLabel(Text(written, format: .relative(presentation: .named)))
+    }
+
+    private static let roughly: DateComponentsFormatter = {
+        let formatter = DateComponentsFormatter()
+
+        formatter.unitsStyle = .abbreviated
+        formatter.maximumUnitCount = 1
+        formatter.allowedUnits = [ .minute, .hour, .day, .weekOfMonth, .month, .year ]
+
+        return formatter
+    }()
 
     @ViewBuilder
     private var standing: some View {

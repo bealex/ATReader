@@ -168,6 +168,10 @@ enum LibraryScreen {
         @State
         private var reordering: Model.Group?
 
+        /// The book whose series and volume are being corrected.
+        @State
+        private var correcting: Book?
+
         /// What the list has to lay cards out in, measured once rather than guessed at.
         @State
         private var listWidth: CGFloat = 0
@@ -202,7 +206,7 @@ enum LibraryScreen {
             } action: {
                 listWidth = $0
             }
-            .modifier(SeriesEditing(model: model, reordering: $reordering))
+            .modifier(SeriesEditing(model: model, reordering: $reordering, correcting: $correcting))
         }
 
         private var shelves: [Model.AuthorShelf] { model.shelves(matching: search) }
@@ -332,6 +336,7 @@ enum LibraryScreen {
                 ) {
                     Task { await model.markAsRead(work) }
                 },
+                .act(String(localized: "Series and volume"), systemImage: "number") { correcting = work },
                 .act(
                     model.isLocal(work)
                         ? String(localized: "Delete this book")
@@ -346,18 +351,29 @@ enum LibraryScreen {
     }
 }
 
-/// Naming a new series and reordering an existing one, kept off the shelf's own body.
+/// Reordering a series and correcting one book's series and volume, kept off the shelf's own body.
 private struct SeriesEditing: ViewModifier {
     let model: LibraryScreen.Model
 
     @Binding
     var reordering: LibraryScreen.Model.Group?
 
+    @Binding
+    var correcting: Book?
+
     func body(content: Content) -> some View {
         content
             .sheet(item: $reordering) { group in
                 SeriesOrder(group: group) { ids in
                     Task { await model.reorder(series: group.series ?? "", workIds: ids) }
+                }
+            }
+            .sheet(item: $correcting) { work in
+                SeriesEditor(
+                    work: work,
+                    writersSeries: SeriesCorrection.writersSeries(of: work, among: model.works)
+                ) { edit in
+                    Task { await model.correctSeries(of: work, to: edit) }
                 }
             }
     }
@@ -425,6 +441,10 @@ struct AppRouteDestination: View {
                 SeriesScreen.Component(series: name)
             case .readerAppearance:
                 ReaderScreen.Appearance()
+            #if DEBUG
+                case .designSystem:
+                    DesignSystemScreen.Component()
+            #endif
         }
     }
 }

@@ -62,7 +62,6 @@ private struct Tabs: UIViewControllerRepresentable {
         let search = Navigator()
         let top = Navigator()
         let profile = Navigator()
-        let design = Navigator()
         var delegates: [NavigatorDelegate] = []
 
         init(shelves: LibraryScreen.Model) {
@@ -85,7 +84,7 @@ private struct Tabs: UIViewControllerRepresentable {
     func updateUIViewController(_ controller: UITabBarController, context: Context) {}
 
     private func everyTab(_ coordinator: Coordinator) -> [UITab] {
-        var tabs: [UITab] = [
+        [
             UITab(
                 title: String(localized: "Library"),
                 image: UIImage(systemName: "books.vertical.fill"),
@@ -98,7 +97,7 @@ private struct Tabs: UIViewControllerRepresentable {
                 )
             },
             // The search role is what puts search on the bar itself rather than in a field above each
-            // screen, which is why the library keeps a field of its own instead.
+            // screen.
             UISearchTab { _ in
                 stack(
                     SearchScreen.Component(library: coordinator.shelves),
@@ -106,13 +105,15 @@ private struct Tabs: UIViewControllerRepresentable {
                     in: coordinator
                 )
             },
-            UITab(
-                title: String(localized: "Top"),
-                image: UIImage(systemName: "chart.bar.fill"),
-                identifier: "top"
-            ) { _ in
-                stack(TopScreen.Component(), navigator: coordinator.top, in: coordinator)
-            },
+            Unfinished.showsCatalogue
+                ? UITab(
+                    title: String(localized: "Top"),
+                    image: UIImage(systemName: "chart.bar.fill"),
+                    identifier: "top"
+                ) { _ in
+                    stack(TopScreen.Component(), navigator: coordinator.top, in: coordinator)
+                }
+                : nil,
             UITab(
                 title: String(localized: "Profile"),
                 image: UIImage(systemName: "person.crop.circle"),
@@ -121,16 +122,7 @@ private struct Tabs: UIViewControllerRepresentable {
                 stack(ProfileScreen.Component(), navigator: coordinator.profile, in: coordinator)
             },
         ]
-
-        #if DEBUG
-            // The token catalogue, drawn by the app from the tokens themselves. Its title is verbatim
-            // because a token name isn't translated.
-            tabs.append(UITab(title: "Design", image: UIImage(systemName: "ruler"), identifier: "design") { _ in
-                stack(DesignSystemScreen.Component(), navigator: coordinator.design, in: coordinator)
-            })
-        #endif
-
-        return tabs
+        .compactMap { $0 }
     }
 
     /// A tab's screen at the root of a stack of its own.

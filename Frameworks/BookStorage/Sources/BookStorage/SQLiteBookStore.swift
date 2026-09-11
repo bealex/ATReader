@@ -79,13 +79,14 @@ public actor SQLiteBookStore {
         if let shelf { statement.bind(1, shelf.rawValue) }
 
         let custom = customSeries()
+        let edits = seriesEdits()
         var result: [Book] = []
 
         while statement.step() {
             guard var summary = decode(Book.self, statement.string(0)) else { continue }
 
             summary.readingProgress = progress(statement.number(1), or: summary.readingProgress)
-            result.append(filed(summary, by: custom))
+            result.append(filed(summary, by: custom, edits: edits))
         }
 
         return result
@@ -102,19 +103,26 @@ public actor SQLiteBookStore {
 
         summary.readingProgress = progress(statement.number(2), or: summary.readingProgress)
         return StoredBook(
-            summary: filed(summary, by: customSeries()),
+            summary: filed(summary, by: customSeries(), edits: seriesEdits()),
             tags: decode([ String ].self, statement.string(1)) ?? []
         )
     }
 
-    /// The book under the series the reader filed it in, where they filed it in one.
+    /// The book under the series the reader gave it and the series the reader filed it in, where they
+    /// did either.
     ///
     /// Applied on the way out rather than written into the book, because the service replaces the whole
     /// payload every time it answers and would carry the reader's grouping away with it.
-    private func filed(_ summary: Book, by custom: [Int: CustomSeries]) -> Book {
-        guard let own = custom[summary.id] else { return summary }
-
+    private func filed(_ summary: Book, by custom: [Int: CustomSeries], edits: [Int: SeriesEdit]) -> Book {
         var result = summary
+
+        if let edit = edits[summary.id] {
+            if let series = edit.series { result.seriesTitle = series.isEmpty ? nil : series }
+            if let volume = edit.volume { result.seriesOrder = volume }
+        }
+
+        guard let own = custom[summary.id] else { return result }
+
         result.seriesTitle = own.series
 
         guard let order = own.order else { return result }
@@ -266,14 +274,14 @@ public actor SQLiteBookStore {
         public let order: Int?
     }
 
-    /// Every book the reader has filed by hand.
+    /// Every book the reader has filed under a series of their own, by merging or by naming one.
     ///
     /// Kept apart from the book itself because the payload is replaced wholesale every time the service
     /// answers, and a grouping written into it would last until the next refresh.
     public func customSeries() -> [Int: CustomSeries] {
-        guard
-            let statement = Statement(open(), "SELECT work_id, series, sort_order FROM book_series")
-        else { return [:] }
+        let query = "SELECT work_id, series, place FROM book_series_override WHERE series IS NOT NULL AND series != ''"
+
+        guard let statement = Statement(open(), query) else { return [:] }
 
         var result: [Int: CustomSeries] = [:]
 
@@ -286,11 +294,13 @@ public actor SQLiteBookStore {
         return result
     }
 
-    /// Files a run of books as one series, in the order given.
+    /// Files a run of books as one series, which is writing its name into each book's own series.
     public func store(series: String, workIds: [Int]) {
+        // No place. Which books belong together is one thing to say; which order they stand in is
+        // another, and the books state that themselves until the reader disagrees.
         let query = """
-            INSERT INTO book_series (work_id, series, sort_order) VALUES (?, ?, ?)
-            ON CONFLICT(work_id) DO UPDATE SET series = excluded.series, sort_order = excluded.sort_order
+            INSERT INTO book_series_override (work_id, series) VALUES (?, ?)
+            ON CONFLICT(work_id) DO UPDATE SET series = excluded.series, place = NULL
             """
 
         transaction {
@@ -300,9 +310,6 @@ public actor SQLiteBookStore {
                 statement.reset()
                 statement.bind(1, workId)
                 statement.bind(2, series)
-                // No order. Which books belong together is one thing to say; which order they stand
-                // in is another, and the books state that themselves until the reader disagrees.
-                statement.bind(3, nil as Int?)
                 statement.execute()
             }
         }
@@ -312,8 +319,8 @@ public actor SQLiteBookStore {
     /// state about themselves. Only a reader dragging books about says this.
     public func store(order workIds: [Int], series: String) {
         let query = """
-            INSERT INTO book_series (work_id, series, sort_order) VALUES (?, ?, ?)
-            ON CONFLICT(work_id) DO UPDATE SET series = excluded.series, sort_order = excluded.sort_order
+            INSERT INTO book_series_override (work_id, series, place) VALUES (?, ?, ?)
+            ON CONFLICT(work_id) DO UPDATE SET series = excluded.series, place = excluded.place
             """
 
         transaction {
@@ -329,11 +336,83 @@ public actor SQLiteBookStore {
         }
     }
 
-    /// Gives books back to whatever series the service or the file says they belong to.
+    /// The series and volume the reader gave one book, in place of what its file or the service says.
+    public struct SeriesEdit: Sendable, Equatable {
+        /// The series to file the book under: empty for none, and `nil` to leave its own alone.
+        public let series: String?
+        /// The volume it is: nought for none, and `nil` to leave the one it states alone.
+        public let volume: Int?
+
+        public init(series: String?, volume: Int?) {
+            self.series = series
+            self.volume = volume
+        }
+    }
+
+    /// The series and volume a book states itself, from its file or the service, before anything the
+    /// reader set over them.
+    public func ownSeries(workId: Int) -> (series: String?, volume: Int?) {
+        guard let statement = Statement(open(), "SELECT payload FROM work WHERE id = ?") else { return (nil, nil) }
+
+        statement.bind(1, workId)
+
+        guard statement.step(), let book = decode(Book.self, statement.string(0)) else { return (nil, nil) }
+
+        return (book.series, book.seriesOrder.flatMap { $0 > 0 ? $0 : nil })
+    }
+
+    /// Every book whose series or volume the reader set, merged ones included.
+    public func seriesEdits() -> [Int: SeriesEdit] {
+        guard
+            let statement = Statement(open(), "SELECT work_id, series, volume FROM book_series_override")
+        else { return [:] }
+
+        var result: [Int: SeriesEdit] = [:]
+
+        while statement.step() {
+            result[statement.integer(0)] = SeriesEdit(
+                series: statement.string(1),
+                volume: statement.number(2).map(Int.init)
+            )
+        }
+
+        return result
+    }
+
+    /// Gives one book the series and volume the reader says it has, or, with `nil`, the ones it came with.
+    public func store(seriesEdit edit: SeriesEdit?, workId: Int) {
+        guard
+            let edit
+        else {
+            return execute("DELETE FROM book_series_override WHERE work_id = \(workId)")
+        }
+
+        // A place in the order of one series means nothing in another.
+        let query = """
+            INSERT INTO book_series_override (work_id, series, volume) VALUES (?, ?, ?)
+            ON CONFLICT(work_id) DO UPDATE SET
+                series = excluded.series,
+                volume = excluded.volume,
+                place = CASE WHEN book_series_override.series IS excluded.series THEN place END
+            """
+
+        guard let statement = Statement(open(), query) else { return }
+
+        statement.bind(1, workId)
+        statement.bind(2, edit.series)
+        statement.bind(3, edit.volume)
+        statement.execute()
+    }
+
+    /// Gives books back to whatever series the service or the file says they belong to, keeping any
+    /// volume the reader gave them.
     public func removeFromCustomSeries(workIds: [Int]) {
         let ids = workIds.map(String.init).joined(separator: ",")
 
-        execute("DELETE FROM book_series WHERE work_id IN (\(ids.isEmpty ? "0" : ids))")
+        execute(
+            "UPDATE book_series_override SET series = NULL, place = NULL WHERE work_id IN (\(ids.isEmpty ? "0" : ids))"
+        )
+        execute("DELETE FROM book_series_override WHERE series IS NULL AND volume IS NULL")
     }
 
     // MARK: - Books this device owns
@@ -882,7 +961,10 @@ public actor SQLiteBookStore {
         createWorkTable()
         createChapterTables()
         createPositionTable()
-        createSeriesTable()
+        // The table merges were kept in before they became overrides, for the migrations written against it.
+        if userVersion() < 5 { createSeriesTable() }
+
+        createSeriesEditTable()
         createLocalBookTable()
         createContentTable()
         createPlacementTable()
@@ -894,6 +976,7 @@ public actor SQLiteBookStore {
         markServiceBooksRead()
         countSeriesFromOne()
         forgetArrangedOrders()
+        foldMergesIntoOverrides()
     }
 
     /// Adds the columns that say where a book came from, for a store made before it could tell.
@@ -968,6 +1051,52 @@ public actor SQLiteBookStore {
             )
             """
         )
+    }
+
+    /// Everything the reader says about one book's series: its name, its volume, and where they
+    /// dragged it. Merging books into a series is writing its name here.
+    private func createSeriesEditTable() {
+        execute(
+            """
+            CREATE TABLE IF NOT EXISTS book_series_override (
+                work_id INTEGER PRIMARY KEY,
+                series TEXT,
+                volume INTEGER,
+                place INTEGER
+            )
+            """
+        )
+
+        if !columns(of: "book_series_override").contains("place") {
+            execute("ALTER TABLE book_series_override ADD COLUMN place INTEGER")
+        }
+
+        // The first table had a series in every row, so it held no volume on its own. Its rows carry over.
+        guard !columns(of: "book_series_edit").isEmpty else { return }
+
+        execute(
+            "INSERT OR IGNORE INTO book_series_override (work_id, series, volume) SELECT work_id, series, volume FROM book_series_edit"
+        )
+        execute("DROP TABLE book_series_edit")
+    }
+
+    /// Moves the series the reader merged into the one table that says what they set on a book. Where a
+    /// book was both merged and given a series, the merge stands, as it did on the way out.
+    private func foldMergesIntoOverrides() {
+        guard userVersion() < 5 else { return }
+
+        if !columns(of: "book_series").isEmpty {
+            execute(
+                """
+                INSERT INTO book_series_override (work_id, series, place)
+                SELECT work_id, series, sort_order FROM book_series WHERE true
+                ON CONFLICT(work_id) DO UPDATE SET series = excluded.series, place = excluded.place
+                """
+            )
+            execute("DROP TABLE book_series")
+        }
+
+        execute("PRAGMA user_version = 5")
     }
 
     private func createLocalBookTable() {

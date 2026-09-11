@@ -77,6 +77,13 @@ enum WorkScreen {
                 if let summary = model.summary {
                     heading(model, work: summary)
                     actions(model, summary: summary)
+                    if let draft = model.seriesDraft {
+                        section("Series and volume") {
+                            SeriesInlineEditor(draft: draft, writersSeries: model.writersSeries) { edit in
+                                Task { await model.setSeries(edit) }
+                            }
+                        }
+                    }
                 }
 
                 if let annotation = model.summary?.annotation, !annotation.isEmpty {
@@ -125,7 +132,7 @@ enum WorkScreen {
 
                 VStack(alignment: .leading, spacing: Design.Space.small) {
                     RowStack {
-                        if let number = model.seriesNumber { SeriesNumber(number: number) }
+                        if let number = model.seriesNumber { SeriesNumber(number: number, beside: .title3) }
 
                         Text(model.shortTitle ?? work.title)
                             .font(Design.Style.title)
@@ -135,12 +142,6 @@ enum WorkScreen {
                     Text(work.authorLine)
                         .font(Design.Style.label)
                         .foregroundStyle(.secondary)
-
-                    if let series = work.seriesTitle, !series.isEmpty {
-                        Text("Series: \(series)")
-                            .font(Design.Style.caption)
-                            .foregroundStyle(.tertiary)
-                    }
 
                     statistics(work, costsMoney: model.isLockedByPrice)
                 }
@@ -377,7 +378,7 @@ enum WorkScreen {
         }
 
         @ViewBuilder
-        private func section(_ title: String, @ViewBuilder content: () -> some View) -> some View {
+        private func section(_ title: LocalizedStringKey, @ViewBuilder content: () -> some View) -> some View {
             VStack(alignment: .leading, spacing: Design.Space.medium) {
                 Text(title)
                     .font(Design.Style.heading)
