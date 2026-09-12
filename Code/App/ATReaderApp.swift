@@ -62,6 +62,9 @@ struct ATReaderApp: App {
 
                     inbox.libraryChanged()
                 }
+                // The book a fresh install opens with, offered once. A reader who deletes it keeps it
+                // deleted.
+                .task { await FirstBook.offer(through: inbox) }
                 // A book handed over by another app. The library screen may not exist yet, so the
                 // reading-in happens away from it and the shelf picks the book up afterwards.
                 .onOpenURL { url in

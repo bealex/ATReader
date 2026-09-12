@@ -110,6 +110,20 @@ way past, so nothing needs duplicating into the app's container first.
 A book that came from a file says so on its own page. Its cover carries no mark for
 it: where a book came from matters less than how far through it the reader is.
 
+## The book a fresh install opens with
+
+`Resources/Books/first-book.fb2.zip` ships in the app, and `FirstBook.offer(through:)` reads it in
+through the inbox on first launch, the same path a file picked by hand takes. A shelf with one book on
+it beats an empty one, and the reader can read something before signing in to anything.
+
+Once only. The mark is `firstBook.offered` in user defaults, and it goes down after the attempt rather
+than after a success, since a file this build can't read won't read any better tomorrow. A reader who
+deletes the book has deleted it: nothing puts it back. `FirstBookUITests` covers both halves, driving
+the app with `-firstBook.offered NO` to make a launch look fresh.
+
+The file is bundled under a name of its own rather than the book's, so swapping the file swaps the
+book. What it's called on the shelf comes out of the FB2's own metadata.
+
 ## Numbering
 
 The service numbers works from one upwards. Local books count down from below zero, so the two can

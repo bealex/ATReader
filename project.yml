@@ -46,6 +46,8 @@ targets:
       # Icon Composer bundle. `type: file` keeps it one reference rather than recursing into it.
       - path: Resources/app-icon.icon
         type: file
+      # The book a fresh install opens with. A folder, so swapping the book is swapping the file.
+      - path: Resources/Books
     preBuildScripts:
       - script: "\"$SRCROOT/Scripts/gen-secrets.sh\""
         name: Generate service constants

@@ -77,6 +77,7 @@ Layered by what they need:
 | `LibraryUITests` | a token | library list, the filter, profile and sign-out |
 | `HeaderMaterialUITests` | nothing (invented library) | a pinned author's name stands on the same ground as the bar above it |
 | `SpineMenuUITests` | nothing (invented library) | a menu lifts a spine and a cover on the book's own shape |
+| `FirstBookUITests` | nothing (bundled book) | a fresh install opens with a book, and a book deleted stays deleted |
 | `DesignSystemUITests` | nothing (catalogue) | an aside in the column and hung on a point, and what a cover comes out as |
 
 ### The invented library
