@@ -5,7 +5,7 @@
 
 import Testing
 
-@testable import ATReader
+@testable import Librix
 
 /// Which spellings of a name the library files as one writer without being told. Every name here is
 /// invented.

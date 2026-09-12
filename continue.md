@@ -87,7 +87,7 @@ pictures. Then `Documentation/History/2026-09/2026-09-04.md` for the spacing mea
 
 To see a change instead of arguing about it:
 
-    TEST_RUNNER_AT_RENDER_DIR=$PWD/build/renders/after Scripts/app.sh test --only ATReaderTests
+    TEST_RUNNER_AT_RENDER_DIR=$PWD/build/renders/after Scripts/app.sh test --only LibrixTests
 
 `PageRenderTests` writes a page per setting with a rule down each margin, and `SpacingTests` writes
 `spacing.txt` beside them: the loosest lines of every column checked, worst first. Render before a

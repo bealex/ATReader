@@ -6,7 +6,7 @@
 import Testing
 import UIKit
 
-@testable import ATReader
+@testable import Librix
 
 /// What must hold of a page a reader reported as badly set.
 ///

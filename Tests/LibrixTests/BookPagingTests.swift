@@ -5,7 +5,7 @@
 
 import Testing
 
-@testable import ATReader
+@testable import Librix
 
 /// Where a page falls in the whole book.
 ///

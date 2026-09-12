@@ -7,7 +7,7 @@ import BookKit
 import Foundation
 import Testing
 
-@testable import ATReader
+@testable import Librix
 
 /// One book owned in both libraries is one book on the shelf.
 ///

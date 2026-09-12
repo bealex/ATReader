@@ -1,4 +1,4 @@
-name: ATReader
+name: Librix
 
 options:
   bundleIdPrefix: com.lonelybytes
@@ -10,8 +10,8 @@ options:
   knownRegions: [ en, ru, Base ]
 
 configFiles:
-  Debug: ATReader.xcconfig
-  Release: ATReader.xcconfig
+  Debug: Librix.xcconfig
+  Release: Librix.xcconfig
 
 packages:
   AuthorToday:
@@ -32,7 +32,7 @@ packages:
     path: Frameworks/Litres
 
 targets:
-  ATReader:
+  Librix:
     type: application
     platform: iOS
     sources:
@@ -78,7 +78,7 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.lonelybytes.atreader
-        PRODUCT_NAME: ATReader
+        PRODUCT_NAME: Librix
         MARKETING_VERSION: "1.0"
         CURRENT_PROJECT_VERSION: "1"
         SWIFT_VERSION: "6.0"
@@ -106,7 +106,7 @@ targets:
     info:
       path: Code/Info.plist
       properties:
-        CFBundleDisplayName: ATReader
+        CFBundleDisplayName: Librix
         CFBundleShortVersionString: "$(MARKETING_VERSION)"
         CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
         UILaunchScreen:
@@ -155,13 +155,13 @@ targets:
         BGTaskSchedulerPermittedIdentifiers:
           - com.lonelybytes.atreader.refresh
 
-  ATReaderTests:
+  LibrixTests:
     type: bundle.unit-test
     platform: iOS
     sources:
-      - path: Tests/ATReaderTests
+      - path: Tests/LibrixTests
     dependencies:
-      - target: ATReader
+      - target: Librix
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.lonelybytes.atreader.tests
@@ -170,33 +170,33 @@ targets:
         CODE_SIGN_IDENTITY: "-"
         GENERATE_INFOPLIST_FILE: "YES"
 
-  ATReaderUITests:
+  LibrixUITests:
     type: bundle.ui-testing
     platform: iOS
     sources:
-      - path: Tests/ATReaderUITests
+      - path: Tests/LibrixUITests
     dependencies:
-      - target: ATReader
+      - target: Librix
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.lonelybytes.atreader.uitests
         SWIFT_VERSION: "6.0"
         CODE_SIGN_STYLE: Manual
         CODE_SIGN_IDENTITY: "-"
-        TEST_TARGET_NAME: ATReader
+        TEST_TARGET_NAME: Librix
         GENERATE_INFOPLIST_FILE: "YES"
 
 schemes:
-  ATReader:
+  Librix:
     build:
       targets:
-        ATReader: all
-        ATReaderTests: [ test ]
-        ATReaderUITests: [ test ]
+        Librix: all
+        LibrixTests: [ test ]
+        LibrixUITests: [ test ]
     run:
       config: Debug
     test:
       config: Debug
       targets:
-        - ATReaderTests
-        - ATReaderUITests
+        - LibrixTests
+        - LibrixUITests

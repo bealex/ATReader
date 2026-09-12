@@ -8,7 +8,7 @@ import BookStorage
 import Foundation
 import Testing
 
-@testable import ATReader
+@testable import Librix
 
 /// Where a book's volume number comes from, and what it may not be.
 ///

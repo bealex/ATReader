@@ -7,7 +7,7 @@ import BookKit
 import Foundation
 import Testing
 
-@testable import ATReader
+@testable import Librix
 
 /// What the shelf's filters keep, and what they hide.
 ///

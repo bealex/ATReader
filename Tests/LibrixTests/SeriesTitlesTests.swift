@@ -8,7 +8,7 @@ import BookStorage
 import Foundation
 import Testing
 
-@testable import ATReader
+@testable import Librix
 
 /// What a series' books are called on the shelf, checked against a list the reader corrected by hand.
 ///

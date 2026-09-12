@@ -8,11 +8,11 @@ service at all, and UI tests that drive the real app against the real service.
 Scripts/app.sh test --unit
 
 # UI tests: these hit the live service
-Scripts/app.sh test --only ATReaderUITests/CatalogUITests
+Scripts/app.sh test --only LibrixUITests/CatalogUITests
 
 # build the tests once, then run them again and again against that build
-Scripts/app.sh test --only ATReaderUITests/CatalogUITests --build-only
-Scripts/app.sh test --only ATReaderUITests/CatalogUITests --no-build
+Scripts/app.sh test --only LibrixUITests/CatalogUITests --build-only
+Scripts/app.sh test --only LibrixUITests/CatalogUITests --no-build
 ```
 
 ## Configuration
@@ -49,17 +49,17 @@ kept file under `Books/` with this build's parser, prepares each service book's 
 fails on a book that won't import, a chapter whose stored text prepares to nothing, a chapter with
 text and no pages, and a chapter that takes longer than five seconds to lay out.
 
-    TEST_RUNNER_AT_BACKUP=~/…/Backup/ATReader \
+    TEST_RUNNER_AT_BACKUP=~/…/Backup/Librix \
     TEST_RUNNER_AT_BACKUP_SETTINGS=~/Downloads/reader-… \
     TEST_RUNNER_AT_BACKUP_LOG=$PWD/build/backup.log \
-    Scripts/app.sh test --only ATReaderTests/BackupBooksTests
+    Scripts/app.sh test --only LibrixTests/BackupBooksTests
 
 Each chapter goes into the log before it's measured, so the log's last line names a layout that never
 comes back. Without the variables the suite does nothing.
 
 ## Looking at the column
 
-    TEST_RUNNER_AT_RENDER_DIR=$PWD/build/renders/after Scripts/app.sh test --only ATReaderTests
+    TEST_RUNNER_AT_RENDER_DIR=$PWD/build/renders/after Scripts/app.sh test --only LibrixTests
 
 `PageRenderTests` draws a page per setting to PNG with a rule down each margin, which is what makes an
 uneven edge visible at a glance, and `SpacingTests` writes `spacing.txt` beside them: the loosest lines
@@ -105,7 +105,7 @@ rest to the test process; without it the variables never arrive and the suites s
 TEST_RUNNER_AT_TEST_TOKEN="…" \
 TEST_RUNNER_AT_TEST_LOGIN="…" \
 TEST_RUNNER_AT_TEST_PASSWORD="…" \
-Scripts/app.sh test --only ATReaderUITests/LibraryUITests --no-build
+Scripts/app.sh test --only LibrixUITests/LibraryUITests --no-build
 ```
 
 `AT_TEST_CODE` completes a two-factor challenge, but codes are single-use, short-lived and invalidated

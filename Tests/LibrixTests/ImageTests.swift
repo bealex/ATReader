@@ -10,7 +10,7 @@ import SwiftUI
 import Testing
 import UIKit
 
-@testable import ATReader
+@testable import Librix
 
 /// What a picture is made of, and what the page does with it.
 ///

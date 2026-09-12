@@ -1,4 +1,4 @@
-// ATReader.xcconfig
+// Librix.xcconfig
 //
 // Project-level base build settings. This file is committed and must NOT contain any
 // private/local values. Machine-specific and private settings live in `Local.xcconfig`

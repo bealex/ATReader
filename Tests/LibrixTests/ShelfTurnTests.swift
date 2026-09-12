@@ -8,7 +8,7 @@ import DesignSystem
 import Testing
 import UIKit
 
-@testable import ATReader
+@testable import Librix
 
 /// A shelf turning its books from their spines to their covers.
 ///

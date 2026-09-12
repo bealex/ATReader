@@ -1,4 +1,4 @@
-# ATReader
+# Librix
 
 An iOS reader client for [author.today](https://author.today): sign in, read your library, search the
 catalogue, follow the charts.
@@ -25,7 +25,7 @@ service draws one, only `AuthorTodayBooks` meets `AuthorToday`, and `BookRendere
 ## Before you change anything
 
 - The Xcode project is generated. Edit `project.yml`, then run `xcodegen generate`. Never hand-edit
-  `ATReader.xcodeproj`, because the next generate erases your changes.
+  `Librix.xcodeproj`, because the next generate erases your changes.
 - New files need no project edit, since `Code/` and `Tests/` are directory-globbed. A new *directory*
   outside those roots does.
 - Signing is manual everywhere and must stay that way. The team ID lives in the gitignored
@@ -50,7 +50,7 @@ its own.
 - `Scripts/app.sh clean` removes `build/`.
 
 Every run prints one line per phase and a final `RESULT` line, and writes the full log under
-`$TMPDIR/atreader-logs`. When the summary isn't enough, read that log instead of reaching for the
+`$TMPDIR/librix-logs`. When the summary isn't enough, read that log instead of reaching for the
 underlying tool.
 
 The script refuses to choose between several connected devices, so pass `--device-id` when more than one

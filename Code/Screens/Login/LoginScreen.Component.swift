@@ -51,7 +51,7 @@ enum LoginScreen {
                     .foregroundStyle(.tint)
                     .accessibilityHidden(true)
 
-                Text("ATReader")
+                Text("Librix")
                     .font(Design.Style.screenTitle)
 
                 Text("Read your author.today library")

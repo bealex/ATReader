@@ -18,8 +18,8 @@ wrong with it.
 the volume the file states, the title, what the shelf showed when the list was written, and what it
 should show. `SeriesTitlesTests` checks the shelf against the last column on every run.
 
-    TEST_RUNNER_AT_BACKUP=~/…/Backup/ATReader TEST_RUNNER_AT_TITLES_WRITE=1 \
-    Scripts/app.sh test --only ATReaderTests/SeriesTitlesTests
+    TEST_RUNNER_AT_BACKUP=~/…/Backup/Librix TEST_RUNNER_AT_TITLES_WRITE=1 \
+    Scripts/app.sh test --only LibrixTests/SeriesTitlesTests
 
 writes the list afresh, with the last column filled in from what the shelf shows now. Correct that
 column by hand; it is what the shelf is held to from then on.

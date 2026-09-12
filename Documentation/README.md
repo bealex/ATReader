@@ -1,6 +1,6 @@
 # Documentation
 
-What was learned building ATReader. The service has no official specification, so most of this exists
+What was learned building Librix. The service has no official specification, so most of this exists
 because it was worked out rather than looked up.
 
 | Document | Read it when |

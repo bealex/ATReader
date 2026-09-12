@@ -9,7 +9,7 @@ import DesignSystem
 import Foundation
 import Testing
 
-@testable import ATReader
+@testable import Librix
 
 /// Which bookmark a cover carries, where it stands, and the dates that decide both.
 ///

@@ -1,6 +1,6 @@
 # Third-party notices
 
-ATReader is MIT licensed. See [LICENSE](LICENSE). This file records everything else the project touches
+Librix is MIT licensed. See [LICENSE](LICENSE). This file records everything else the project touches
 and how its terms are met.
 
 ## Runtime dependencies

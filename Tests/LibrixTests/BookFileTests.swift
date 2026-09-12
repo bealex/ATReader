@@ -10,7 +10,7 @@ import BookStorage
 import Testing
 import UIKit
 
-@testable import ATReader
+@testable import Librix
 
 /// Getting a book off a file: out of an archive, and back out of the copy kept beside it.
 ///

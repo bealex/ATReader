@@ -9,7 +9,7 @@ import SwiftUI
 import Testing
 import UIKit
 
-@testable import ATReader
+@testable import Librix
 
 /// Draws pages to PNG so a change to the column can be looked at rather than argued about.
 ///

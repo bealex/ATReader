@@ -8,7 +8,7 @@ import BookRenderer
 import Foundation
 import Testing
 
-@testable import ATReader
+@testable import Librix
 
 /// Picking text off a drawn page.
 ///

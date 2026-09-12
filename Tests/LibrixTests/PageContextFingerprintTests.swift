@@ -8,7 +8,7 @@ import SwiftUI
 import Testing
 import UIKit
 
-@testable import ATReader
+@testable import Librix
 
 /// What a book's stored measurements are filed against.
 ///

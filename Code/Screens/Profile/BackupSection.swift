@@ -85,7 +85,7 @@ struct BackupSection: View {
                 Text("Backup"),
                 explanation: Text(
                     """
-                    A backup copies your whole library into an ATReader folder inside the one you chose: \
+                    A backup copies your whole library into a Librix folder inside the one you chose: \
                     the shelf, reading positions, saved chapters, and every book from a file or from Litres. \
                     The app writes one only when you ask, and rewrites a book's files only when they've \
                     changed.
