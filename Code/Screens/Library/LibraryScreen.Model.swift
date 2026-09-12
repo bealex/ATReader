@@ -219,6 +219,34 @@ extension LibraryScreen {
             }
         }
 
+        /// The writers the reader took off the Reading shelf, filed under the same key as their card.
+        ///
+        /// Only that shelf: a writer put aside is still theirs, and All books is where the reader looks
+        /// when they want everything.
+        private(set) var hiddenFromReading: Set<String> = Model.readHidden() {
+            didSet {
+                guard oldValue != hiddenFromReading else { return }
+
+                UserDefaults.standard.set(Array(hiddenFromReading), forKey: Self.hiddenFromReadingKey)
+                forgetFiling()
+            }
+        }
+
+        private static let hiddenFromReadingKey = "library.hiddenFromReading"
+
+        private static func readHidden() -> Set<String> {
+            Set(UserDefaults.standard.stringArray(forKey: hiddenFromReadingKey) ?? [])
+        }
+
+        /// Takes a writer off the Reading shelf, or puts them back on it.
+        func setHidden(_ hidden: Bool, author key: String) {
+            if hidden {
+                hiddenFromReading.insert(key)
+            } else {
+                hiddenFromReading.remove(key)
+            }
+        }
+
         private(set) var works: [Book] = [] {
             didSet {
                 refreshWriters()
@@ -297,6 +325,7 @@ extension LibraryScreen {
             _ = sameText
             _ = madeSeries
             _ = filter
+            _ = hiddenFromReading
             _ = authorNames
         }
 
@@ -820,6 +849,7 @@ extension LibraryScreen {
 
             return
                 cards
+                .filter { key, _ in filter != .reading || !hiddenFromReading.contains(key) }
                 .map { key, held in
                     AuthorShelf(
                         key: key,

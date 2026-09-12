@@ -1386,6 +1386,17 @@
         }
       }
     },
+    "Hide from Reading": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Скрыть из «Читаю»"
+          }
+        }
+      }
+    },
     "Hoefler Text": {
       "extractionState": "manual",
       "shouldTranslate": false
@@ -2229,7 +2240,7 @@
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Чтение"
+            "value": "Читаю"
           }
         }
       }
@@ -2704,6 +2715,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Показывать"
+          }
+        }
+      }
+    },
+    "Show in Reading": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Показать в «Читаю»"
           }
         }
       }

@@ -124,6 +124,12 @@ Only a series read to its last book counts as finished, so every card lands unde
 two. The count beside a filter is books rather than rows, since a series kept for one unread book
 brings the rest of itself along, and what helps is how much is left to read.
 
+A writer's own menu can take them off the Reading shelf, which is the one place a card is hidden by
+hand rather than by what has been read. They keep their card under the other filters, so All books
+stays the answer to where a book went, and the count is unmoved: it says how much is left to read,
+not how much is on screen. The set is kept per device, in user defaults under
+`library.hiddenFromReading`, filed under the same key the card is.
+
 The search tab draws the same shelves from the same model, and both read the store again whenever a
 book's page moves something under them: a series corrected, a book marked read, a book read.
 `BookInbox.libraryChanged()` says the shelf changed without a book landing, which is what tells the

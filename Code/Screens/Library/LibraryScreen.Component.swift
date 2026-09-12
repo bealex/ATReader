@@ -285,7 +285,22 @@ enum LibraryScreen {
                 Deed.act(work.title, systemImage: "book") { navigator.push(.work(id: work.id, title: work.title)) }
             }
 
-            return alone.isEmpty ? runs : runs + [ .menu(String(localized: "Books"), alone) ]
+            let books = alone.isEmpty ? runs : runs + [ .menu(String(localized: "Books"), alone) ]
+
+            return books + [ hiding(shelf: shelf) ]
+        }
+
+        /// Taking a writer off the Reading shelf. They keep their card everywhere else, so this says
+        /// what the reader is working through rather than what they own.
+        private func hiding(shelf: Model.AuthorShelf) -> Deed {
+            let hidden = model.hiddenFromReading.contains(shelf.key)
+
+            return .act(
+                hidden ? String(localized: "Show in Reading") : String(localized: "Hide from Reading"),
+                systemImage: hidden ? "eye" : "eye.slash"
+            ) {
+                model.setHidden(!hidden, author: shelf.key)
+            }
         }
 
         private func seriesDeeds(group: Model.Group) -> [Deed] {
