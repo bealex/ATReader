@@ -21,10 +21,18 @@ enum BookFormatting {
         return (value).formatted(.percent.precision(.fractionLength(0)))
     }
 
-    static func updated(_ date: Date?) -> String? {
+    /// When this copy last moved, in the words that fit where it came from: the service updates a
+    /// book, Litres hands one over, and a file is put on the device by the reader.
+    static func moved(_ date: Date?, origin: CoverOrigin?) -> String? {
         guard let date else { return nil }
 
-        return String(localized: "Updated \(date.formatted(.relative(presentation: .named)))")
+        let when = date.formatted(.relative(presentation: .named))
+
+        return switch origin {
+            case .litres: String(localized: "Downloaded \(when)")
+            case .file: String(localized: "Uploaded \(when)")
+            case .service, nil: String(localized: "Updated \(when)")
+        }
     }
 }
 

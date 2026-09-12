@@ -102,7 +102,7 @@ final class BookView: UIView {
             case let .book(work, _, _, marks):
                 // Printed first: what a cover's marks are set against is what its spine turned out to be.
                 reprint()
-                cover.show(work, marks: marks.with(isDark: isDark(of: work)))
+                cover.show(work, marks: marks)
             case let .gap(number):
                 let gaps = madeGaps()
 
@@ -144,11 +144,6 @@ final class BookView: UIView {
         guard case .book = contents?.stands else { return false }
 
         return true
-    }
-
-    /// Which way a book's own colour runs, so its cover's plate is set in what its spine was printed in.
-    private func isDark(of work: Book) -> Bool {
-        SpinePrint.isDark(of: work.id) ?? (traitCollection.userInterfaceStyle == .dark)
     }
 
     /// Gives up the pictures on their way, for a book that has left the screen or the shelf.
@@ -305,12 +300,17 @@ final class BookView: UIView {
     }
 
     /// What a reader who cannot see the shelf is told, which is what this place is showing: a book
-    /// standing on its edge says it has been read, and one taken down names itself.
+    /// standing on its edge gives its volume and whether it has been read, and one taken down names itself.
     override var accessibilityLabel: String? {
         get {
             switch contents?.stands {
                 case let .book(work, number, _, _):
                     guard held < Hinge.facing else { return work.title }
+                    guard
+                        work.isReadToTheEnd
+                    else {
+                        return number.map { String(localized: "Volume \($0), \(work.title)") } ?? work.title
+                    }
 
                     return number.map { String(localized: "Volume \($0), \(work.title), read") }
                         ?? String(localized: "\(work.title), read")
@@ -344,5 +344,43 @@ extension BookView: UIContextMenuInteractionDelegate {
         guard let menu = menu?() else { return nil }
 
         return UIContextMenuConfiguration(identifier: nil, previewProvider: nil) { _ in menu }
+    }
+
+    func contextMenuInteraction(
+        _ interaction: UIContextMenuInteraction,
+        previewForHighlightingMenuWithConfiguration configuration: UIContextMenuConfiguration
+    ) -> UITargetedPreview? {
+        lifted()
+    }
+
+    func contextMenuInteraction(
+        _ interaction: UIContextMenuInteraction,
+        previewForDismissingMenuWithConfiguration configuration: UIContextMenuConfiguration
+    ) -> UITargetedPreview? {
+        lifted()
+    }
+
+    /// The book lifted on its own shape rather than on the rounded box a menu lifts anything else on,
+    /// which on a spine a few points wide comes out as a lozenge.
+    private func lifted() -> UITargetedPreview? {
+        guard let contents, window != nil else { return nil }
+
+        let standing = held >= Hinge.facing
+        let width = standing ? contents.face : contents.edge
+        let box = CGRect(x: 0, y: bounds.height - contents.standing, width: width, height: contents.standing)
+        let shape = standing
+            ? CoverPrint.board(in: box)
+            : CGPath(
+                roundedRect: box,
+                cornerWidth: Design.Radius.spine,
+                cornerHeight: Design.Radius.spine,
+                transform: nil
+            )
+        let parameters = UIPreviewParameters()
+
+        parameters.backgroundColor = .clear
+        parameters.visiblePath = UIBezierPath(cgPath: shape)
+
+        return UITargetedPreview(view: self, parameters: parameters)
     }
 }

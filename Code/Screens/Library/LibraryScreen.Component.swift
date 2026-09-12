@@ -162,9 +162,6 @@ enum LibraryScreen {
         @Environment(Navigator.self)
         private var navigator
 
-        @Environment(BookOrigins.self)
-        private var origins
-
         @State
         private var reordering: Model.Group?
 
@@ -221,7 +218,8 @@ enum LibraryScreen {
                 onOpen: { work, face in open(work, from: face) },
                 onName: { author in chose(author: author) },
                 onTurn: { author in switchMode(series: author) },
-                bookMenu: { bookDeeds(work: $0).offered },
+                // Under the book's own name, so a menu pressed on a spine says which book it is of.
+                bookMenu: { bookDeeds(work: $0).offered(under: $0.title, and: $0.series) },
                 runMenu: { run in
                     shelves.flatMap(\.runs).first { $0.id == run }
                         .map { seriesDeeds(group: $0).offered } ?? nil
@@ -246,8 +244,7 @@ enum LibraryScreen {
                         },
                         alone: shelf.alone.flatMap { model.slots(of: $0) },
                         coverWidth: coverWidth,
-                        showsEveryCover: model.showsEveryCover(shelf.id),
-                        origin: { origins.origin(of: $0) }
+                        showsEveryCover: model.showsEveryCover(shelf.id)
                     )
                 )
             }
@@ -324,6 +321,11 @@ enum LibraryScreen {
 
         private func bookDeeds(work: Book) -> [Deed] {
             [
+                // Reaches a book standing on its edge, which a tap only turns round with its run.
+                .act(String(localized: "Read the book"), systemImage: "book") {
+                    Task { await model.takeDown(work) }
+                    navigator.push(.reader(.init(workId: work.id, title: work.title)))
+                },
                 // The way to the book's own page. A tap on a cover opens the book itself, so without
                 // this there is nothing left that reaches what the book is.
                 .act(String(localized: "Book details"), systemImage: "info.circle") {

@@ -34,13 +34,12 @@ struct ShelfTurnTests {
                 ShelfRun(
                     id: "run",
                     title: "Series",
-                    slots: works.map { .book($0, number: $0.id, title: "Title \($0.id)", isRead: true) }
+                    slots: works.map { .book($0, number: $0.id, title: "Title \($0.id)", isShelved: true) }
                 )
             ],
             alone: [],
             coverWidth: Design.Size.gridCover,
-            showsEveryCover: showsEveryCover,
-            origin: { _ in nil }
+            showsEveryCover: showsEveryCover
         )
     }
 

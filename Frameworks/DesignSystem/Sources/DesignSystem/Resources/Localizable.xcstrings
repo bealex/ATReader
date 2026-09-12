@@ -13,6 +13,17 @@
         }
       }
     },
+    "Explains this section": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Объясняет, о чём этот раздел"
+          }
+        }
+      }
+    },
     "Shortens the text": {
       "extractionState": "manual",
       "localizations": {

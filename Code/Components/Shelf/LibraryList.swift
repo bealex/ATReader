@@ -154,6 +154,22 @@ struct LibraryList: UIViewControllerRepresentable {
                     cell.card.show(card)
                 }
             }
+
+            guard let collection = controller?.collectionView else { return }
+
+            let kind = UICollectionView.elementKindSectionHeader
+
+            for index in collection.indexPathsForVisibleSupplementaryElements(ofKind: kind) {
+                guard
+                    case let .author(id) = source.sectionIdentifier(for: index.section),
+                    let card = list.cards.first(where: { $0.id == id }),
+                    let header = collection.supplementaryView(forElementKind: kind, at: index) as? AuthorHeaderView
+                else { continue }
+
+                dress(header, with: card, animated: turned)
+            }
+
+            markFloatingHeaders()
         }
 
         /// Carries one card to the height its books are turning towards, and everything below it along
@@ -219,7 +235,6 @@ struct LibraryList: UIViewControllerRepresentable {
             for card in list.cards {
                 var hasher = Hasher()
 
-                hasher.combine(card.name)
                 hasher.combine(typeSize)
                 ShelfView.shape(of: card.shelf, into: &hasher)
 
@@ -250,6 +265,25 @@ struct LibraryList: UIViewControllerRepresentable {
                 endsRefreshingOnRelease = true
             } else {
                 collection.refreshControl?.endRefreshing()
+            }
+        }
+
+        func scrollViewDidScroll(_ scrollView: UIScrollView) { markFloatingHeaders() }
+
+        /// Tells each header on screen whether it is pinned, which is whether the layout has moved it
+        /// down from where its section starts.
+        private func markFloatingHeaders() {
+            guard let collection = controller?.collectionView else { return }
+
+            let kind = UICollectionView.elementKindSectionHeader
+
+            for index in collection.indexPathsForVisibleSupplementaryElements(ofKind: kind) {
+                guard
+                    let header = collection.supplementaryView(forElementKind: kind, at: index) as? AuthorHeaderView,
+                    let first = collection.layoutAttributesForItem(at: IndexPath(item: 0, section: index.section))
+                else { continue }
+
+                header.isFloating = header.frame.maxY > first.frame.minY + Design.Stroke.hairline
             }
         }
 
@@ -334,23 +368,46 @@ struct LibraryList: UIViewControllerRepresentable {
                     // Given rather than measured. A cell that answers with its own height sends the
                     // layout round again to ask, and a height that is moving never gives the same
                     // answer twice: the collection view goes round until it trips over itself.
-                    return Self.section(height: .absolute(max(1, deep)))
+                    let section = Self.section(height: .absolute(max(1, deep)))
+                    let header = NSCollectionLayoutBoundarySupplementaryItem(
+                        layoutSize: NSCollectionLayoutSize(
+                            widthDimension: .fractionalWidth(1),
+                            heightDimension: .absolute(AuthorHeaderView.height)
+                        ),
+                        elementKind: UICollectionView.elementKindSectionHeader,
+                        alignment: .top
+                    )
+
+                    header.pinToVisibleBounds = true
+                    header.zIndex = 1
+                    section.boundarySupplementaryItems = [ header ]
+
+                    return section
             }
         }
 
+        /// A section of one item, inset from the list's sides by the item rather than the section, so a
+        /// pinned header can run the whole width and cover the books passing under it.
         private static func section(height: NSCollectionLayoutDimension) -> NSCollectionLayoutSection {
             let size = NSCollectionLayoutSize(widthDimension: .fractionalWidth(1), heightDimension: height)
-            let group = NSCollectionLayoutGroup.horizontal(
-                layoutSize: size,
-                subitems: [ NSCollectionLayoutItem(layoutSize: size) ]
+            let item = NSCollectionLayoutItem(layoutSize: size)
+
+            item.contentInsets = NSDirectionalEdgeInsets(
+                top: 0,
+                leading: Design.Space.extraLarge,
+                bottom: 0,
+                trailing: Design.Space.extraLarge
             )
-            let section = NSCollectionLayoutSection(group: group)
+
+            let section = NSCollectionLayoutSection(
+                group: NSCollectionLayoutGroup.horizontal(layoutSize: size, subitems: [ item ])
+            )
 
             section.contentInsets = NSDirectionalEdgeInsets(
                 top: 0,
-                leading: Design.Space.extraLarge,
-                bottom: Design.Space.large,
-                trailing: Design.Space.extraLarge
+                leading: 0,
+                bottom: Design.Space.extraLarge,
+                trailing: 0
             )
 
             return section
@@ -378,7 +435,22 @@ struct LibraryList: UIViewControllerRepresentable {
                 shown[id] = ShelfView.stance(of: contents.shelf)
             }
 
-            return UICollectionViewDiffableDataSource(collectionView: view) { view, index, section in
+            let header = UICollectionView.SupplementaryRegistration<AuthorHeaderView>(
+                elementKind: UICollectionView.elementKindSectionHeader
+            ) { [weak self] header, _, index in
+                guard
+                    let self,
+                    case let .author(id) = source?.sectionIdentifier(for: index.section),
+                    let contents = list.cards.first(where: { $0.id == id })
+                else { return }
+
+                dress(header, with: contents, animated: false)
+            }
+
+            let made = UICollectionViewDiffableDataSource<Section, Section>(collectionView: view) {
+                view,
+                index,
+                section in
                 switch section {
                     case let .author(id):
                         view.dequeueConfiguredReusableCell(using: card, for: index, item: id)
@@ -386,16 +458,26 @@ struct LibraryList: UIViewControllerRepresentable {
                         view.dequeueConfiguredReusableCell(using: nothing, for: index, item: section)
                 }
             }
+
+            made.supplementaryViewProvider = { view, _, index in
+                view.dequeueConfiguredReusableSupplementary(using: header, for: index)
+            }
+
+            return made
         }
 
         /// Everything a card does when it is touched, which the cell forgets whenever it is reused.
         private func dress(_ cell: AuthorCardCell, with contents: AuthorCardView.Contents) {
-            cell.card.onName = { [weak self] in self?.list.onName(contents.id) }
-            cell.card.nameMenu = { [weak self] in self?.list.authorMenu(contents.id) }
             cell.card.shelf.onToggle = { [weak self] in self?.list.onTurn(contents.id) }
             cell.card.shelf.onOpen = { [weak self] work, face in self?.list.onOpen(work, face) }
             cell.card.shelf.bookMenu = { [weak self] work in self?.list.bookMenu(work) }
             cell.card.shelf.runMenu = { [weak self] run in self?.list.runMenu(run) }
+        }
+
+        private func dress(_ header: AuthorHeaderView, with contents: AuthorCardView.Contents, animated: Bool) {
+            header.onToggle = { [weak self] in self?.list.onName(contents.id) }
+            header.menu = { [weak self] in self?.list.authorMenu(contents.id) }
+            header.show(name: contents.name, isOpen: contents.shelf.showsEveryCover, animated: animated)
         }
 
         private func apply(animated: Bool) {

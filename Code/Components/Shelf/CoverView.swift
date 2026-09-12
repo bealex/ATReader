@@ -13,20 +13,7 @@ import UIKit
 final class CoverView: UIView {
     /// What a cover shows besides the picture.
     struct Marks {
-        var progress: Double?
-        var isComplete = false
-        var origin: CoverOrigin?
-        var isOngoing = false
-        /// Which way the book's own colour runs, which is what its marks are set against.
-        var isDark = false
-
-        func with(isDark: Bool) -> Marks {
-            var marks = self
-
-            marks.isDark = isDark
-
-            return marks
-        }
+        var reading: ReadingMark?
     }
 
     /// The printed face, or the bare board standing in for it until the face arrives.
@@ -34,9 +21,14 @@ final class CoverView: UIView {
     /// What a book with no cover at all shows, and the marks over a face, each made the first time a
     /// book needs it: a card coming into view makes every book on it, and most need none of these.
     private var placeholder: UIImageView?
-    private var progress: UIImageView?
-    private var source: UIImageView?
-    private var ongoing: UIImageView?
+    /// The figure or glyph on the bookmark. The ribbon under it is part of the line's own shape.
+    private var figure: UIImageView?
+    /// The line read and the line of shade under it, cut to the board's shape the way everything else
+    /// printed on a cover is.
+    private var line: CAShapeLayer?
+    private var lineShade: CAShapeLayer?
+    /// The crease, laid again over everything drawn on the board after the face was printed.
+    private var binding: CALayer?
 
     private var marks = Marks()
     private var url: URL?
@@ -125,17 +117,7 @@ final class CoverView: UIView {
         placeholder?.frame = bounds
         placeholder?.preferredSymbolConfiguration = .init(pointSize: bounds.width * 0.3)
 
-        let inset = Design.Space.extraSmall
-        let mark = Design.Size.mark
-
-        progress?.frame = CGRect(
-            x: bounds.maxX - inset - mark,
-            y: bounds.maxY - inset - mark,
-            width: mark,
-            height: mark
-        )
-        source?.frame = CGRect(x: inset, y: inset, width: mark, height: mark)
-        ongoing?.frame = CGRect(x: inset, y: bounds.maxY - inset - mark, width: mark, height: mark)
+        placeReading()
 
         refreshFace()
     }
@@ -191,40 +173,82 @@ final class CoverView: UIView {
         )
     }
 
+    /// The line along the top edge and the bookmark at its end. The line runs from the cover's own edge
+    /// and is cut with the board, so it rounds where the board rounds.
+    private func placeReading() {
+        guard let reading = marks.reading, bounds.width > 0 else { return }
+
+        // Layers of its own rather than a view's: a path set on one animates unless it is told not to.
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        defer { CATransaction.commit() }
+
+        let board = CoverPrint.board(in: bounds)
+        let silhouette = BookmarkMark.silhouette(reached: reading.reached, across: bounds.width)
+        let shade = Design.Stroke.readingShade
+
+        line?.path = board.intersection(silhouette)
+        // The stroke as a shape of its own, so it can be cut with the board as everything else is. The
+        // half of it that falls inside the line is covered by the line itself.
+        lineShade?.path = board.intersection(
+            silhouette.copy(strokingWithWidth: shade * 2, lineCap: .butt, lineJoin: .miter, miterLimit: 10)
+        )
+        figure?.frame = CGRect(
+            x: BookmarkMark.offset(reached: reading.reached, across: bounds.width),
+            y: 0,
+            width: Design.Size.bookmark,
+            height: Design.Size.bookmarkHeight
+        )
+        binding?.frame = CGRect(x: 0, y: 0, width: CoverPrint.bindingWidth, height: BookmarkMark.depth)
+    }
+
     /// The marks over the face, which take the room's colours rather than the book's.
     private func paint() {
         let isDark = traitCollection.userInterfaceStyle == .dark
         let scheme =
             isDark ? UITraitCollection(userInterfaceStyle: .dark) : UITraitCollection(userInterfaceStyle: .light)
-        let neutral = UIColor(Design.Palette.neutral).resolvedColor(with: scheme)
-
         placeholder?.tintColor = UIColor.tertiaryLabel
 
-        if let read = marks.progress, read > 0 {
-            let progress = made(&progress)
+        if let reading = marks.reading {
+            let figure = made(&figure)
+            let line = madeLayer(&line) { CAShapeLayer() }
+            let shade = madeLayer(&lineShade) { CAShapeLayer() }
+            let crease = madeLayer(&binding) { CALayer() }
+            let print = CoverPrint.binding(isDark: isDark)
 
-            progress.image = MarkPrint.progress(read, isComplete: marks.isComplete, isDark: isDark)
-            progress.isHidden = false
+            figure.image = MarkPrint.face(reading.face)
+            figure.isHidden = false
+            line.fillColor = UIColor(reading.tint).resolvedColor(with: scheme).cgColor
+            line.isHidden = false
+            shade.fillColor = UIColor(BookmarkMark.shade).cgColor
+            shade.isHidden = false
+            crease.contents = print.cgImage
+            crease.contentsScale = print.scale
+            crease.isHidden = false
+
+            // The shade under the line, the figure on the ribbon, and the crease over all of it.
+            layer.insertSublayer(line, above: shade)
+            bringSubviewToFront(figure)
+            layer.insertSublayer(crease, above: figure.layer)
+            placeReading()
         } else {
-            progress?.isHidden = true
+            figure?.isHidden = true
+            line?.isHidden = true
+            lineShade?.isHidden = true
+            binding?.isHidden = true
         }
+    }
 
-        if let origin = marks.origin {
-            let source = made(&source)
+    /// One of the layers a cover makes only when it needs it, made now if it hasn't been.
+    private func madeLayer<Held: CALayer>(_ held: inout Held?, _ make: () -> Held) -> Held {
+        if let held { return held }
 
-            source.image = MarkPrint.circle(origin.systemImage, tint: neutral, isDark: isDark)
-            source.isHidden = false
-        } else {
-            source?.isHidden = true
-        }
+        let made = make()
 
-        if marks.isOngoing {
-            let ongoing = made(&ongoing)
+        layer.addSublayer(made)
+        held = made
+        setNeedsLayout()
 
-            ongoing.image = MarkPrint.circle("pencil", tint: neutral, isDark: isDark)
-            ongoing.isHidden = false
-        } else {
-            ongoing?.isHidden = true
-        }
+        return made
     }
 }

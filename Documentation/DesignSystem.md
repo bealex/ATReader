@@ -17,8 +17,8 @@ apply `Design` to the page.
 | --- | --- |
 | `Space` | Seven steps from 3 to 36, all multiples of `unit`. |
 | `Radius` | Three fixed, plus the barely-there `spine` and `cover`, which are cut nearly square. |
-| `Stroke` | The hairline, the line under a run on a shelf, and the ring. |
-| `Size` | Eight fixed dimensions, from an 18pt mark to a 120pt cover. |
+| `Stroke` | The hairline, the line under a run on a shelf, the ring, the reading line along a cover and the shade under it. |
+| `Size` | Fixed dimensions, from a 15pt bookmark to a 120pt cover. |
 | `Palette` | The five meanings, and the one opacity every tinted ground and edge is drawn at. |
 | `Surface` | Screen and card, slate greys in light mode and the system's in dark; fill, the edge colour, and `ground(_:)` for a tinted pill. |
 | `listOnScreen()` | A list on the screen colour rather than the system's white. |
@@ -29,6 +29,8 @@ apply `Design` to the page.
 | `barGlyph()` | An icon-only button in a bar: its type, and a hit area a finger can find. |
 | `RowStack` | Items side by side, all on one baseline. |
 | `DisclosureLabel` | A row that opens another screen through a button, with the chevron a `NavigationLink` would draw. |
+| `BookmarkMark` | A ribbon hanging from a cover's top edge with a figure or a glyph, and where along the edge it hangs. Its red is a ribbon's colour; its green and grey are `positive` and `neutral`. |
+| `ExplainedHeader` | A section header whose ⓘ, at its far end, opens a dialog explaining the section. |
 | `Callout` | A short aside: set to a width, scrolling once it outgrows its depth. |
 | `CalloutShape` | The card and its pointer as one path. |
 | `CalloutPlacement` | Which side of a thing an aside takes, and where it slides to. |
@@ -40,7 +42,7 @@ apply `Design` to the page.
 | `callout(over:item:ground:)` | Hangs an aside over something in a view's own space. |
 | `centredOnCapitals(of:)` | What a boxed label wears so it stands centred on the capitals of the text beside it. |
 | `LineGlyph` | A symbol set as text, so a row's baseline runs through it. |
-| `Board` | How a bound board takes the light at its edge and along its crease, in points. |
+| `Board` | How a bound board takes the light at its edge and along its crease, and the shelf's shadow over its foot, in points. |
 | `CoverHinge` | The few points of a cover nearest its binding, where the board bends. |
 | `Style.spine` | What is printed on a book's spine: under the smallest role, and narrowed. |
 | `Size.coverWidth(across:ideal:spacing:)` | The width that fits a whole number of covers into a row. |
@@ -225,8 +227,8 @@ splits along that line:
 
 | | Lives in | Examples |
 | --- | --- | --- |
-| Knows no domain | `DesignSystem` | `Pill`, `ProgressMark`, `CircleMark`, `FilterChip`, `RowStack`, `DisclosureLabel`, `FlowLayout`, `LoadingOverlay`, `ExpandableText`, `ShareSheet` |
-| Knows what a book is | `Code/Components` | `BookRow`, `WorkBadges`, `CoverImage`, `FileMark`, `LibraryMark` |
+| Knows no domain | `DesignSystem` | `Pill`, `ProgressMark`, `BookmarkMark`, `CircleMark`, `FilterChip`, `RowStack`, `DisclosureLabel`, `ExplainedHeader`, `FlowLayout`, `LoadingOverlay`, `ExpandableText`, `ShareSheet` |
+| Knows what a book is | `Code/Components` | `BookRow`, `ReadingMark`, `WorkBadges`, `CoverImage`, `FileMark`, `LibraryMark` |
 
 The second kind is built from the first and never redraws a shape the first already has. `FileMark` is
 a `CircleMark` with a glyph; `WorkBadges` is a row of `Pill`s that knows which facts a book carries.

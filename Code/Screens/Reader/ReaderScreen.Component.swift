@@ -470,26 +470,34 @@ enum ReaderScreen {
                     Image(systemName: "wifi.slash")
                         .foregroundStyle(.secondary)
                         .accessibilityLabel("Reading from this device")
+                        .offset(y: -Self.barRise)
                 }
             }
 
             ToolbarItem(placement: .topBarTrailing) {
                 Button("Contents", systemImage: "list.bullet") { isShowingContents = true }
                     .accessibilityHint("Shows the chapter list")
+                    .offset(y: -Self.barRise)
             }
 
             ToolbarItem(placement: .topBarTrailing) {
                 Button("Appearance", systemImage: "textformat.size") { isShowingSettings = true }
                     .accessibilityHint("Font, margins and page settings")
+                    .offset(y: -Self.barRise)
             }
 
             #if DEBUG
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Debug info", systemImage: "ladybug") { collectReport() }
                         .accessibilityHint("Collects the page, its settings and a picture of it")
+                        .offset(y: -Self.barRise)
                 }
             #endif
         }
+
+        /// How far the bar's own glyphs stand above where the bar would put them. Off the lattice by a
+        /// nudge on purpose: it is where they line up with the back button beside them.
+        private static let barRise = Design.Space.small - Design.Space.nudge
 
         #if DEBUG
             /// The page, what it was set with and a picture of it, zipped and offered to share.

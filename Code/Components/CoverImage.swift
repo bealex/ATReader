@@ -8,93 +8,139 @@ import BookStorage
 import DesignSystem
 import SwiftUI
 
-/// A book cover with a placeholder that keeps the layout stable while the image loads.
+/// A book cover, printed the way the shelf prints one: its artwork cut to the board, the board's edge,
+/// the crease it is bound along and the shade of the shelf at its foot.
 ///
-/// Backed by ``CoverCache`` rather than `AsyncImage`: covers are downsampled once and kept on disk, so
-/// scrolling back through a list costs nothing and a second launch shows them immediately.
+/// `CoverPrint` does the drawing, so a book on a page and the same book on the shelf are one picture
+/// rather than two drawings that have to be kept in step. Backed by ``CoverCache`` rather than
+/// `AsyncImage`: covers are downsampled once and kept on disk, so scrolling back through a list costs
+/// nothing and a second launch shows them immediately.
 struct CoverImage: View {
     let url: URL?
     var width: CGFloat = Design.Size.cover
-    /// How far into the book the reader is, drawn as a ring on the cover itself.
-    var progress: Double?
-    /// Which shelf the book came off, marked on the cover. Nothing marks nothing.
-    var origin: CoverOrigin?
-    /// True where the author is still writing it, which the cover says rather than the row: it is a
-    /// fact about the book, and the badges below are about the reader's standing in it.
-    var isOngoing = false
+    /// Where the reader is in the book: a line along the top edge and a bookmark hanging from it.
+    var reading: ReadingMark?
+
+    @Environment(\.colorScheme)
+    private var scheme
 
     @State
-    private var image: UIImage?
+    private var face: UIImage?
 
-    /// Drawn in the first frame when the cover is already decoded, so a view rebuilt under a new
-    /// identity — what a page turn does to the title page — doesn't blink through the placeholder.
-    private var cover: UIImage? { image ?? url.flatMap(CoverImages.image(for:)) }
+    /// The artwork this cover is of, which says what shape the board comes out.
+    private var artwork: UIImage? { url.flatMap(CoverImages.image(for:)) }
+
+    /// How tall the board stands: the artwork's own shape where it is at hand, and the commonest shape
+    /// until then, so a row doesn't jump when the picture lands.
+    private var height: CGFloat {
+        guard let artwork, artwork.size.width > 0 else { return Design.Size.coverHeight(width: width) }
+
+        return Design.Size.coverHeight(width: width, ratio: artwork.size.height / artwork.size.width)
+    }
 
     var body: some View {
         Group {
-            if let cover {
-                // Fitted, not filled: the service's covers are not all the same shape, and filling a
-                // box of one shape with an image of another cuts the edges off.
-                Image(uiImage: cover)
-                    .resizable().scaledToFit()
+            if let face {
+                Image(uiImage: face)
+                    .resizable()
                     .transition(.opacity)
             } else {
-                placeholder
-                    .frame(height: Design.Size.coverHeight(width: width))
+                // The bare board until this book's own face is printed, which is what the shelf stands.
+                Image(uiImage: CoverPrint.blank(isDark: scheme == .dark))
+                    .resizable()
+                    .overlay { if url == nil { emptyMark } }
             }
         }
-        .frame(width: width)
-        .overlay(CoverHinge())
-        .clipShape(.rect(cornerRadius: Design.Radius.cover))
-        .overlay {
-            RoundedRectangle(cornerRadius: Design.Radius.cover)
-                .strokeBorder(Design.Surface.edge, lineWidth: Design.Stroke.hairline)
-        }
-        .overlay(alignment: .bottomTrailing) {
-            if let progress, progress > 0 {
-                ProgressMark(progress: progress, isComplete: progress >= Book.readThreshold, ground: .artwork)
-                    .padding(Design.Space.extraSmall)
-            }
-        }
+        .frame(width: width, height: height)
         .overlay(alignment: .topLeading) {
-            if let origin {
-                SourceMark(origin: origin)
-                    .padding(Design.Space.extraSmall)
+            if let reading { mark(reading) }
+        }
+        // Over the mark: the binding's shadow falls on what is drawn on the board as it does on the artwork.
+        .overlay(alignment: .topLeading) {
+            if reading != nil {
+                Image(uiImage: CoverPrint.binding(isDark: scheme == .dark))
+                    .resizable()
+                    .frame(width: CoverPrint.bindingWidth, height: BookmarkMark.depth)
             }
         }
-        .overlay(alignment: .bottomLeading) {
-            if isOngoing {
-                OngoingMark()
-                    .padding(Design.Space.extraSmall)
-            }
-        }
+        // Cut with the board, which is square along its binding and rounded at its fore-edge.
+        .clipShape(CoverBoard())
         .accessibilityHidden(true)
         // What shape this cover turned out to be, for a shelf that has to give every book on it the
         // same slot. Nothing is reported until the picture is here to be measured.
-        .preference(key: CoverShape.self, value: cover.map { $0.size.height / $0.size.width } ?? 0)
-        .task(id: url) {
-            guard let url else { return image = nil }
-
-            // The shared cache is emptied when the app goes to the background, so what it holds is
-            // taken as this view's own rather than read through it each time it draws.
-            if let held = CoverImages.image(for: url) { return image = held }
-            guard let loaded = await CoverCache.shared.image(for: url) else { return }
-
-            CoverImages.remember(loaded, for: url)
-            withAnimation(.easeOut(duration: 0.15)) { image = loaded }
+        .preference(key: CoverShape.self, value: artwork.map { $0.size.height / $0.size.width } ?? 0)
+        .task(id: Printing(url: url, width: width, isDark: scheme == .dark)) {
+            await press(url)
         }
     }
 
-    private var placeholder: some View {
-        ZStack {
-            Rectangle()
-                .fill(Design.Surface.fill)
-
-            Image(systemName: "book.closed")
-                .font(.system(size: width * 0.3))
-                .foregroundStyle(.tertiary)
-        }
+    /// What a printed face is asked for. A cover is printed again when the book, its size or the room's
+    /// light changes, and at no other time.
+    private struct Printing: Equatable {
+        let url: URL?
+        let width: CGFloat
+        let isDark: Bool
     }
+
+    /// Prints this book's face, fetching the artwork if the device hasn't got it.
+    private func press(_ url: URL?) async {
+        guard let url else { return face = nil }
+
+        // The shared cache is emptied when the app goes to the background, so the picture is taken as
+        // this view's own rather than read through it each time it draws.
+        var found = CoverImages.image(for: url)
+
+        if found == nil { found = await CoverCache.shared.image(for: url) }
+
+        guard let held = found else { return }
+
+        CoverImages.remember(held, for: url)
+
+        let order = CoverPrint.Order(
+            url: url,
+            size: CGSize(
+                width: width,
+                height: Design.Size.coverHeight(width: width, ratio: held.size.height / held.size.width)
+            ),
+            isDark: scheme == .dark
+        )
+
+        guard let printed = await CoverPrint.printed(order) else { return }
+
+        withAnimation(.easeOut(duration: ArrivalMotion.fadeSeconds)) { face = printed }
+    }
+
+    /// How far the reader has got, as one shape: the line along the top edge and the bookmark at its
+    /// end, with a line of shade round the whole of it. Drawn inside the cover's own shape, so it is
+    /// cut where the cover is.
+    private func mark(_ reading: ReadingMark) -> some View {
+        let silhouette = ReadingSilhouette(reached: reading.reached)
+
+        return ZStack(alignment: .topLeading) {
+            // Under the shape rather than round it: the half of the stroke that falls inside is covered.
+            silhouette
+                .stroke(BookmarkMark.shade, lineWidth: Design.Stroke.readingShade * 2)
+
+            silhouette
+                .fill(reading.tint)
+
+            BookmarkFace(reading.face)
+                .offset(x: BookmarkMark.offset(reached: reading.reached, across: width))
+        }
+        .frame(width: width, height: BookmarkMark.depth, alignment: .topLeading)
+    }
+
+    /// What a book with no artwork at all shows, on the bare board.
+    private var emptyMark: some View {
+        Image(systemName: "book.closed")
+            .font(.system(size: width * 0.3))
+            .foregroundStyle(.tertiary)
+    }
+}
+
+/// The shape a board is cut to, for clipping anything laid over one.
+struct CoverBoard: Shape {
+    func path(in rect: CGRect) -> Path { Path(CoverPrint.board(in: rect)) }
 }
 
 /// A book that came from a file rather than from the service.
@@ -120,22 +166,6 @@ enum CoverOrigin: Equatable {
             case .litres: String(localized: "Litres")
             case .file: String(localized: "A file on this device")
         }
-    }
-}
-
-/// Where a book came from, as a mark on its cover.
-struct SourceMark: View {
-    let origin: CoverOrigin
-
-    var body: some View {
-        CircleMark(systemImage: origin.systemImage)
-    }
-}
-
-/// A book its author is still writing, as a mark on its cover.
-struct OngoingMark: View {
-    var body: some View {
-        CircleMark(systemImage: "pencil")
     }
 }
 

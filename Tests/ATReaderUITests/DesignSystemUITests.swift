@@ -38,6 +38,18 @@ final class DesignSystemUITests: XCTestCase {
         XCTAssertTrue(card.waitForNonExistence(timeout: 5), "the aside stayed open")
     }
 
+    /// What a cover comes out as, for a person to look at: the board's own cut, the crease along its
+    /// binding, the shade at its foot and whatever the reader has got through. The screenshot goes to
+    /// `Fixtures/Reports/shelf`.
+    func testACoverIsPrintedTheWayTheShelfPrintsOne() throws {
+        // By its own caption: a specimen is a stack, which carries no element of its own to look for.
+        _ = scrolledTo(app.staticTexts["Cover"])
+        // The press works in the background, and a cover photographed before it lands is a bare board.
+        Thread.sleep(forTimeInterval: 2)
+
+        try report(XCUIScreen.main.screenshot(), named: "covers.png")
+    }
+
     /// The catalogue is one long column, and a specimen below the fold has to be scrolled into reach.
     private func scrolledTo(_ element: XCUIElement) -> XCUIElement {
         for _ in 0 ..< 12 {

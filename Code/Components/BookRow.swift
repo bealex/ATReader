@@ -11,9 +11,6 @@ import SwiftUI
 
 /// A book as it appears in every list: cover, title, author and the reader's own position.
 struct BookRow: View {
-    @Environment(BookOrigins.self)
-    private var origins
-
     let work: Book
     var showsProgress = true
     /// Off where the list already groups by series, so the row doesn't repeat its own heading.
@@ -88,25 +85,22 @@ struct BookRow: View {
     }
 
     private var picture: some View {
-        CoverImage(
-            url: work.coverURL,
-            width: coverWidth,
-            progress: showsProgress ? work.readingProgress : nil,
-            origin: origins.origin(of: work.id),
-            isOngoing: work.isOngoing
-        )
-        .overlay(alignment: .topTrailing) {
-            if newChapters > 0 {
-                Text(newChapters, format: .number)
-                    .font(Design.Style.micro.bold())
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, Design.Space.small)
-                    .padding(.vertical, Design.Space.extraSmall)
-                    .background(Design.Palette.alert, in: .capsule)
-                    .offset(x: Design.Space.small, y: -Design.Space.small)
-                    .accessibilityHidden(true)
+        let reading = ReadingMark(work, showsProgress: showsProgress)
+
+        return CoverImage(url: work.coverURL, width: coverWidth, reading: reading)
+            // At the foot, since the top edge carries the bookmark.
+            .overlay(alignment: .bottomTrailing) {
+                if newChapters > 0 {
+                    Text(newChapters, format: .number)
+                        .font(Design.Style.micro.bold())
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, Design.Space.small)
+                        .padding(.vertical, Design.Space.extraSmall)
+                        .background(Design.Palette.alert, in: .capsule)
+                        .offset(x: Design.Space.small, y: Design.Space.small)
+                        .accessibilityHidden(true)
+                }
             }
-        }
     }
 
     private var accessibilityLabel: String {

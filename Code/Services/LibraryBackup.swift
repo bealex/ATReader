@@ -6,6 +6,7 @@
 import BookStorage
 import Foundation
 import OSLog
+import UIKit
 
 /// The library, kept in a folder the reader picked, and put back from it.
 ///
@@ -23,15 +24,16 @@ final class LibraryBackup {
     }
 
     private(set) var stage: Stage = .idle
-    /// What the chosen folder is called, for a reader who wants to know where their books went.
-    private(set) var folderName: String?
+    /// Where the chosen folder is, as the Files app would name it, for a reader who wants to know where
+    /// their books went: "iCloud Drive/Books/Backup".
+    private(set) var folderPath: String?
     /// When the folder was last written to, as the backup itself says.
     private(set) var writtenAt: Date?
     /// How much the backup in the folder holds.
     private(set) var bytes: Int64?
 
     var isWorking: Bool { stage == .working }
-    var hasFolder: Bool { folderName != nil }
+    var hasFolder: Bool { folderPath != nil }
 
     @ObservationIgnored
     private let logger = Logger(subsystem: "com.lonelybytes.atreader", category: "backup")
@@ -60,9 +62,14 @@ final class LibraryBackup {
         }
     }
 
+    /// Whether this is the folder already chosen.
+    func isCurrent(_ folder: URL) -> Bool {
+        resolved()?.standardizedFileURL == folder.standardizedFileURL
+    }
+
     func forget() {
         UserDefaults.standard.removeObject(forKey: Self.key)
-        folderName = nil
+        folderPath = nil
         writtenAt = nil
         bytes = nil
         stage = .idle
@@ -135,10 +142,28 @@ final class LibraryBackup {
         return folder
     }
 
-    private func refresh() {
-        guard let folder = resolved() else { return folderName = nil }
+    /// The folder's path from the root the Files app shows it under, or the whole path where that root
+    /// can't be told from the URL.
+    private static func readablePath(of folder: URL) -> String {
+        let parts = folder.standardizedFileURL.pathComponents
+        let roots = [
+            ("com~apple~CloudDocs", "iCloud Drive"),
+            ("File Provider Storage", String(localized: "On My \(UIDevice.current.model)")),
+        ]
 
-        folderName = folder.lastPathComponent
+        for (marker, root) in roots {
+            guard let index = parts.lastIndex(of: marker) else { continue }
+
+            return ([ root ] + parts[(index + 1)...]).joined(separator: "/")
+        }
+
+        return folder.path
+    }
+
+    private func refresh() {
+        guard let folder = resolved() else { return folderPath = nil }
+
+        folderPath = Self.readablePath(of: folder)
 
         let scoped = folder.startAccessingSecurityScopedResource()
 

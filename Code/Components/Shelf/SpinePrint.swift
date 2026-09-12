@@ -120,7 +120,8 @@ enum SpinePrint {
         if let held = blanks[isDark] { return held }
 
         let held = Design.Radius.spine + 1 / density
-        let size = CGSize(width: Design.Size.spine, height: held * 2 + 1)
+        let foot = max(held, CoverPrint.footReach)
+        let size = CGSize(width: Design.Size.spine, height: held + foot + 1)
         let bounds = CGRect(origin: .zero, size: size)
         let colours = SpineInk(isDark: isDark)
         let format = UIGraphicsImageRendererFormat()
@@ -135,8 +136,9 @@ enum SpinePrint {
             context.fill(bounds)
             curve(in: bounds, colours: colours, context: context)
             binding(in: bounds, colours: colours, density: density, context: context)
+            CoverPrint.foot(in: bounds, scheme: isDark ? .dark : .light, context: context)
         }
-        .resizableImage(withCapInsets: UIEdgeInsets(top: held, left: 0, bottom: held, right: 0), resizingMode: .stretch)
+        .resizableImage(withCapInsets: UIEdgeInsets(top: held, left: 0, bottom: foot, right: 0), resizingMode: .stretch)
 
         blanks[isDark] = drawn
         return drawn
@@ -178,6 +180,7 @@ enum SpinePrint {
             cg.fill(bounds)
             curve(in: bounds, colours: colours, context: cg)
             binding(in: bounds, colours: colours, density: density, context: cg)
+            CoverPrint.foot(in: bounds, scheme: order.isDark ? .dark : .light, context: cg)
             writing(order, in: bounds, colours: colours, context: cg)
         }
 

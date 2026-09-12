@@ -51,6 +51,9 @@ enum SearchScreen {
         @Environment(Navigator.self)
         private var navigator
 
+        @Environment(BookInbox.self)
+        private var inbox
+
         @State
         private var source: Source = .library
 
@@ -90,6 +93,14 @@ enum SearchScreen {
             .onChange(of: sorting) { Task { await runSearch(again: true) } }
             .onAppear {
                 if feed == nil { feed = CatalogFeed(client: session.client) }
+            }
+            // The shelves here are the library's own, and a book's page can move one under them:
+            // correcting a series, marking a book read, or reading it.
+            .onChange(of: inbox.importedAt) { _, _ in
+                Task { await library.refreshFromStore() }
+            }
+            .onChange(of: navigator.returnedAt) { _, _ in
+                Task { await library.refreshFromStore() }
             }
         }
 

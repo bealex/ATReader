@@ -22,8 +22,6 @@ final class ShelfView: UIView {
         let coverWidth: CGFloat
         /// True while every book stands as a cover, false while the ones read stand as spines.
         let showsEveryCover: Bool
-        /// Where a book came from, which the shelf is told rather than working out.
-        let origin: (Int) -> CoverOrigin?
     }
 
     /// One place on the shelf: a slot and the run it stands in.
@@ -334,9 +332,9 @@ final class ShelfView: UIView {
     }
 
     private static func standsAsCover(_ slot: SeriesSlot, in contents: Contents) -> Bool {
-        guard case let .book(_, _, _, isRead) = slot else { return contents.showsEveryCover }
+        guard case let .book(_, _, _, isShelved) = slot else { return contents.showsEveryCover }
 
-        return contents.showsEveryCover || !isRead
+        return contents.showsEveryCover || !isShelved
     }
 
     private static func width(of slot: SeriesSlot, in contents: Contents) -> CGFloat {
@@ -449,17 +447,7 @@ final class ShelfView: UIView {
     private static func stands(_ slot: SeriesSlot, in contents: Contents) -> BookView.Contents.Stands {
         switch slot {
             case let .book(work, number, title, _):
-                .book(
-                    work,
-                    number: number,
-                    title: title,
-                    marks: CoverView.Marks(
-                        progress: work.readingProgress,
-                        isComplete: (work.readingProgress ?? 0) >= Book.readThreshold,
-                        origin: contents.origin(work.id),
-                        isOngoing: work.isOngoing
-                    )
-                )
+                .book(work, number: number, title: title, marks: CoverView.Marks(reading: ReadingMark(work)))
             case let .missing(number):
                 .gap(number)
         }

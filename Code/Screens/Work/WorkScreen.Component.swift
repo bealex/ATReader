@@ -34,6 +34,17 @@ enum WorkScreen {
         @State
         private var model: Model?
 
+        @State
+        private var isEditingSeries = false
+
+        /// The width the screen was given, which the cover takes its own share of.
+        @State
+        private var across: CGFloat = 0
+
+        /// How much of the screen the cover stands across. A share rather than a size: a book's page
+        /// opens on its cover, and the cover is as large as the screen allows.
+        private static let coverShare: CGFloat = 0.3
+
         var body: some View {
             ScrollView {
                 if let model {
@@ -41,13 +52,37 @@ enum WorkScreen {
                 }
             }
             .background(Design.Surface.screen)
-            .navigationTitle(title)
+            // No title in the bar: the book names itself under its cover, and the bar would say it twice.
+            .navigationTitle("")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar(.hidden, for: .tabBar)
             .toolbar {
+                ToolbarItem(placement: .topBarTrailing) { readButton }
+
+                // Last in the bar, as a menu of everything else always is.
                 if model?.isLocal == true {
                     ToolbarItem(placement: .topBarTrailing) { fileMenu }
                 }
+            }
+            .confirmationDialog(
+                "Delete this book?",
+                isPresented: $isConfirmingDelete,
+                titleVisibility: .visible
+            ) {
+                Button("Delete", role: .destructive) {
+                    Task {
+                        await model?.deleteLocalBook()
+                        dismiss()
+                    }
+                }
+                Button("Keep", role: .cancel) {}
+            } message: {
+                Text("Its text is on this device only. You would need the file again to read it.")
+            }
+            .onGeometryChange(for: CGFloat.self) {
+                $0.size.width
+            } action: {
+                across = $0
             }
             // One file, not several: this replaces one book rather than adding to the shelf.
             .fileImporter(isPresented: $isPickingFile, allowedContentTypes: LocalBookFiles.fileTypes) { result in
@@ -77,13 +112,8 @@ enum WorkScreen {
                 if let summary = model.summary {
                     heading(model, work: summary)
                     actions(model, summary: summary)
-                    if let draft = model.seriesDraft {
-                        section("Series and volume") {
-                            SeriesInlineEditor(draft: draft, writersSeries: model.writersSeries) { edit in
-                                Task { await model.setSeries(edit) }
-                            }
-                        }
-                    }
+
+                    if let draft = model.seriesDraft { filing(model, draft: draft, work: summary) }
                 }
 
                 if let annotation = model.summary?.annotation, !annotation.isEmpty {
@@ -96,8 +126,6 @@ enum WorkScreen {
                 if !model.tags.isEmpty {
                     section("Tags") { tagCloud(model.tags) }
                 }
-
-                section("Where it came from") { origin(model) }
 
                 if !model.chapters.isEmpty {
                     contentsSection(model)
@@ -116,21 +144,17 @@ enum WorkScreen {
             .frame(maxWidth: .infinity, alignment: .leading)
         }
 
+        /// The cover alone across the top, and under it what the book calls itself.
         private func heading(_ model: Model, work: Book) -> some View {
-            HStack(alignment: .top, spacing: Design.Space.extraLarge) {
-                CoverImage(
-                    url: work.coverURL,
-                    width: Design.Size.coverLarge,
-                    progress: work.readingProgress,
-                    origin: model.origin,
-                    isOngoing: work.isOngoing
-                )
-                .overlay(alignment: .topTrailing) {
-                    // A book from a file is on no service shelf, so it carries no shelf mark.
-                    if !model.isLocal { libraryMark(model) }
-                }
+            VStack(spacing: Design.Space.extraLarge) {
+                CoverImage(url: work.coverURL, width: across * Self.coverShare, reading: ReadingMark(work))
+                    // At the foot, since the top edge carries the bookmark. A book from a file is on no
+                    // service shelf, so it carries no shelf mark.
+                    .overlay(alignment: .bottomTrailing) {
+                        if !model.isLocal { libraryMark(model) }
+                    }
 
-                VStack(alignment: .leading, spacing: Design.Space.small) {
+                VStack(spacing: Design.Space.small) {
                     RowStack {
                         if let number = model.seriesNumber { SeriesNumber(number: number, beside: .title3) }
 
@@ -143,11 +167,82 @@ enum WorkScreen {
                         .font(Design.Style.label)
                         .foregroundStyle(.secondary)
 
-                    statistics(work, costsMoney: model.isLockedByPrice)
+                    statistics(work, costsMoney: model.isLockedByPrice, origin: model.origin)
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
+                .multilineTextAlignment(.center)
                 .accessibilityElement(children: .combine)
             }
+            .frame(maxWidth: .infinity)
+        }
+
+        /// The one thing the page is for, in the bar: a book with nothing to read carries none.
+        @ViewBuilder
+        private var readButton: some View {
+            if let model, let summary = model.summary, let chapterId = model.resumeChapterId {
+                Button(summary.hasStartedReading ? "Continue" : "Read") {
+                    navigator.push(.reader(.init(workId: model.workId, title: summary.title, chapterId: chapterId)))
+                }
+                .accessibilityIdentifier("work.read")
+                .accessibilityHint("Opens the reader")
+            }
+        }
+
+        /// What the book is filed under: its series, its volume and where this copy came from. Each
+        /// stands at what the app uses now, with what the book itself says under it where the reader
+        /// has said otherwise.
+        private func filing(_ model: Model, draft: SeriesCorrection.Draft, work: Book) -> some View {
+            let standing = SeriesStanding(draft)
+
+            // The volume the shelf gives it where the book states none: a numbering read off the
+            // titles of a series is still the volume this book is.
+            let volume = standing.volume ?? model.seriesNumber.map { Text($0, format: .number) }
+
+            return card {
+                VStack(alignment: .leading, spacing: Design.Space.medium) {
+                    fact("Series", standing.series ?? Text("No series"), was: standing.ownSeries)
+                    fact("Volume", volume ?? Text("No volume"), was: standing.ownVolume)
+
+                    Button {
+                        isEditingSeries = true
+                    } label: {
+                        Text("Edit")
+                            .fontWeight(.medium)
+                            .padding(.horizontal, Design.Space.medium)
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .padding(.top, Design.Space.small)
+                    .accessibilityIdentifier("work.series.edit")
+                    .accessibilityHint("Sets the series and volume this book is filed under")
+                }
+            }
+            .sheet(isPresented: $isEditingSeries) {
+                SeriesEditor(work: work, writersSeries: model.writersSeries) { edit in
+                    Task { await model.setSeries(edit) }
+                }
+            }
+        }
+
+        /// One line of that: what it stands at, and in small under it what the book says where the
+        /// reader has overruled it.
+        private func fact(_ title: LocalizedStringKey, _ value: Text, was: Text?) -> some View {
+            LabeledContent {
+                VStack(alignment: .trailing, spacing: Design.Space.nudge) {
+                    value
+
+                    if let was {
+                        was
+                            .font(Design.Style.caption)
+                            .foregroundStyle(.tertiary)
+                    }
+                }
+            } label: {
+                Text(title)
+                    .foregroundStyle(.secondary)
+            }
+            .font(Design.Style.item)
+            .accessibilityElement(children: .combine)
         }
 
         private func libraryMark(_ model: Model) -> some View {
@@ -166,32 +261,19 @@ enum WorkScreen {
             )
         }
 
-        private func statistics(_ work: Book, costsMoney: Bool) -> some View {
-            BookBadges(work: work, showsProgress: true, showsUpdated: true, costsMoney: costsMoney)
+        private func statistics(_ work: Book, costsMoney: Bool, origin: CoverOrigin) -> some View {
+            BookBadges(work: work, showsProgress: true, showsUpdated: true, costsMoney: costsMoney, origin: origin)
                 .padding(.top, Design.Space.extraSmall)
         }
 
         @ViewBuilder
         private func actions(_ model: Model, summary: Book) -> some View {
-            if let chapterId = model.resumeChapterId {
-                Button {
-                    navigator.push(.reader(.init(workId: model.workId, title: summary.title, chapterId: chapterId)))
-                } label: {
-                    Label(summary.hasStartedReading ? "Continue reading" : "Read", systemImage: "book.fill")
-                        .actionLabel()
-                }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.small)
-                .accessibilityIdentifier("work.read")
-                .accessibilityHint("Opens the reader")
-            } else if !model.isLoading {
+            if model.resumeChapterId == nil, !model.isLoading {
                 Text("No chapters available to read.")
                     .font(Design.Style.caption)
                     .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
-
-            if model.isLocal { deleteButton(model) }
         }
 
         /// Reading an imported book's file again, for a book that predates something the parser has
@@ -214,67 +296,20 @@ enum WorkScreen {
                     }
                     .accessibilityIdentifier("work.reimport")
                 }
+
+                // An imported book's text is on this device and nowhere else, so taking it off is a
+                // deletion rather than clearing a shelf, and it asks first.
+                Button(role: .destructive) {
+                    isConfirmingDelete = true
+                } label: {
+                    Label("Delete this book", systemImage: "trash")
+                }
+                .accessibilityIdentifier("work.delete")
+                .accessibilityHint("Removes the book and its text from this device")
             } label: {
                 Image(systemName: "ellipsis.circle")
             }
             .accessibilityLabel("Book actions")
-            .accessibilityHint("Reads this book’s file again, keeping your place")
-        }
-
-        /// An imported book's text is on this device and nowhere else, so taking it off is a deletion
-        /// rather than clearing a shelf, and it asks first.
-        private func deleteButton(_ model: Model) -> some View {
-            Button(role: .destructive) {
-                isConfirmingDelete = true
-            } label: {
-                Label("Delete this book", systemImage: "trash")
-                    .actionLabel()
-            }
-            .buttonStyle(.bordered)
-            .controlSize(.small)
-            .padding(.top, Design.Space.medium)
-            .accessibilityIdentifier("work.delete")
-            .accessibilityHint("Removes the book and its text from this device")
-            .confirmationDialog(
-                "Delete this book?",
-                isPresented: $isConfirmingDelete,
-                titleVisibility: .visible
-            ) {
-                Button("Delete", role: .destructive) {
-                    Task {
-                        await model.deleteLocalBook()
-                        dismiss()
-                    }
-                }
-                Button("Keep", role: .cancel) {}
-            } message: {
-                Text("Its text is on this device only. You would need the file again to read it.")
-            }
-        }
-
-        /// Which shelf this copy came off, and when it arrived.
-        ///
-        /// A book off a file or bought elsewhere is on no service shelf, so the device's own record is
-        /// the only thing that can say where it came from.
-        private func origin(_ model: Model) -> some View {
-            VStack(alignment: .leading, spacing: Design.Space.small) {
-                Label(model.origin.name, systemImage: model.origin.systemImage)
-                    .font(Design.Style.item)
-
-                if let record = model.provenance {
-                    Text("Added \(record.importedAt.formatted(date: .abbreviated, time: .omitted))")
-                        .font(Design.Style.caption)
-                        .foregroundStyle(.secondary)
-
-                    if let updated = record.sourceUpdatedAt, record.source.isService {
-                        Text("Changed there \(updated.formatted(date: .abbreviated, time: .omitted))")
-                            .font(Design.Style.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .accessibilityElement(children: .combine)
         }
 
         private func tagCloud(_ tags: [String]) -> some View {
@@ -297,10 +332,6 @@ enum WorkScreen {
                 VStack(alignment: .leading, spacing: 0) {
                     ForEach(model.chapters) { chapter in
                         chapterRow(model, chapter: chapter)
-
-                        if chapter.id != model.chapters.last?.id {
-                            Divider()
-                        }
                     }
                 }
             }
@@ -334,29 +365,34 @@ enum WorkScreen {
             }
         }
 
+        /// A chapter, with how far the reader got through it standing where a list's bullet would, on
+        /// the first line of its title.
         private func chapterLabel(
             _ chapter: BookChapter,
             marker: ChapterMarker?,
             state: Model.ChapterState = .unread
         ) -> some View {
-            HStack {
+            RowStack(spacing: Design.Space.medium) {
+                Group {
+                    if let marker {
+                        LineGlyph(systemImage: marker.systemImage)
+                            .font(Design.Style.caption)
+                            .foregroundStyle(
+                                marker == .paid ? AnyShapeStyle(Design.Palette.caution) : AnyShapeStyle(.tertiary)
+                            )
+                    } else {
+                        ProgressMark(progress: state.progress, isComplete: state == .read)
+                            .centredOnCapitals(of: .callout)
+                    }
+                }
+                .frame(width: Design.Size.mark)
+
                 Text(chapter.displayTitle)
                     .font(Design.Style.item)
                     .foregroundStyle(marker == nil ? .primary : .secondary)
                     .frame(maxWidth: .infinity, alignment: .leading)
-
-                if let marker {
-                    Image(systemName: marker.systemImage)
-                        .font(Design.Style.caption)
-                        .foregroundStyle(
-                            marker == .paid ? AnyShapeStyle(Design.Palette.caution) : AnyShapeStyle(.tertiary)
-                        )
-                        .accessibilityHidden(true)
-                } else {
-                    ProgressMark(progress: state.progress, isComplete: state == .read)
-                }
             }
-            .padding(.vertical, Design.Space.medium)
+            .padding(.vertical, Design.Space.small)
             .contentShape(.rect)
             .accessibilityLabel(label(chapter, marker: marker, state: state))
         }
@@ -377,17 +413,23 @@ enum WorkScreen {
             }
         }
 
-        @ViewBuilder
         private func section(_ title: LocalizedStringKey, @ViewBuilder content: () -> some View) -> some View {
-            VStack(alignment: .leading, spacing: Design.Space.medium) {
-                Text(title)
-                    .font(Design.Style.heading)
+            card {
+                VStack(alignment: .leading, spacing: Design.Space.medium) {
+                    Text(title)
+                        .font(Design.Style.heading)
 
-                content()
+                    content()
+                }
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(Design.Space.large)
-            .background(Design.Surface.card, in: .rect(cornerRadius: Design.Radius.medium))
+        }
+
+        /// The ground every block on this page stands on.
+        private func card(@ViewBuilder content: () -> some View) -> some View {
+            content()
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(Design.Space.large)
+                .background(Design.Surface.card, in: .rect(cornerRadius: Design.Radius.medium))
         }
     }
 

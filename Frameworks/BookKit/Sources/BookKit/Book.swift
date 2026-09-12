@@ -40,9 +40,16 @@ public struct Book: Codable, Identifiable, Hashable, Sendable {
     public let lastReadTime: Date?
     public let lastChapterId: Int?
     public var libraryState: BookShelf?
+    /// When this device last saw the reader get to the end of it.
+    public var readAt: Date?
+    /// When it was last put out as a cover: arriving in the library, or asked for by name.
+    public var takenDownAt: Date?
 
     /// Where "read to the end" starts. The service's character offset rarely lands on the last one.
     public static let readThreshold = 0.995
+
+    /// How long a book stays out as a cover after it's read through, arrives, or is asked for.
+    public static let standingOut: TimeInterval = 24 * 60 * 60
 
     public init(
         id: Int,
@@ -64,7 +71,9 @@ public struct Book: Codable, Identifiable, Hashable, Sendable {
         hasStartedReading: Bool = false,
         lastReadTime: Date? = nil,
         lastChapterId: Int? = nil,
-        libraryState: BookShelf? = nil
+        libraryState: BookShelf? = nil,
+        readAt: Date? = nil,
+        takenDownAt: Date? = nil
     ) {
         self.id = id
         self.title = title
@@ -86,6 +95,8 @@ public struct Book: Codable, Identifiable, Hashable, Sendable {
         self.lastReadTime = lastReadTime
         self.lastChapterId = lastChapterId
         self.libraryState = libraryState
+        self.readAt = readAt
+        self.takenDownAt = takenDownAt
     }
 
     /// The author is still adding chapters.
@@ -102,6 +113,24 @@ public struct Book: Codable, Identifiable, Hashable, Sendable {
 
     /// Read as far as the book goes, with the author still writing it.
     public var isCaughtUp: Bool { isOngoing && isReadToTheEnd }
+
+    /// Started and not yet read to the end.
+    public var isBeingRead: Bool { (readingProgress ?? 0) > 0 && !isReadToTheEnd }
+
+    /// Read to the end within the last day.
+    public func isJustRead(at now: Date = .now) -> Bool { isReadToTheEnd && Self.isRecent(readAt, at: now) }
+
+    /// Put out as a cover within the last day.
+    public func isJustTakenDown(at now: Date = .now) -> Bool { Self.isRecent(takenDownAt, at: now) }
+
+    /// Finished reading, and more than a day ago: until then a book still counts as being read.
+    public func isDone(at now: Date = .now) -> Bool { isFinishedReading && !isJustRead(at: now) }
+
+    private static func isRecent(_ moment: Date?, at now: Date) -> Bool {
+        guard let moment else { return false }
+
+        return now.timeIntervalSince(moment) < standingOut
+    }
 
     public var isPaid: Bool { status == .sales || status == .subscription }
 
@@ -147,7 +176,9 @@ public struct Book: Codable, Identifiable, Hashable, Sendable {
             hasStartedReading: hasStartedReading,
             lastReadTime: lastReadTime,
             lastChapterId: lastChapterId,
-            libraryState: libraryState
+            libraryState: libraryState,
+            readAt: readAt,
+            takenDownAt: takenDownAt
         )
     }
 
@@ -181,7 +212,9 @@ public struct Book: Codable, Identifiable, Hashable, Sendable {
             hasStartedReading: hasStartedReading || previous.hasStartedReading,
             lastReadTime: lastReadTime ?? previous.lastReadTime,
             lastChapterId: lastChapterId ?? previous.lastChapterId,
-            libraryState: libraryState ?? previous.libraryState
+            libraryState: libraryState ?? previous.libraryState,
+            readAt: readAt ?? previous.readAt,
+            takenDownAt: takenDownAt ?? previous.takenDownAt
         )
     }
 }

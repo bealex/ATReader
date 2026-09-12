@@ -141,7 +141,7 @@ private struct DrawnBook: UIViewRepresentable {
                 Specimen.book,
                 number: 3,
                 title: "Second Winter",
-                marks: CoverView.Marks(progress: 0.47, origin: .service)
+                marks: CoverView.Marks(reading: ReadingMark(Specimen.book))
             ),
             edge: edge,
             face: width,
@@ -224,7 +224,7 @@ private struct DrawnLibrary: View {
 /// Everything the catalogue's books are. Invented, and obviously so: nothing the service returned ever
 /// goes in the repository.
 @MainActor
-private enum Specimen {
+enum Specimen {
     /// A cover invented on the spot, so a spine has something to be a blur of and a cover something to
     /// be a picture of. Nothing the service returned ever goes in the repository, this included.
     static let artwork = URL(filePath: "/specimen/cover")
@@ -268,7 +268,8 @@ private enum Specimen {
         coverURL: artwork,
         annotation: nil,
         seriesTitle: "Name of the series",
-        textLength: 700_000
+        textLength: 700_000,
+        readingProgress: 0.47
     )
 
     /// Two authors, so a list of them has something to lay out.
@@ -290,17 +291,16 @@ private enum Specimen {
                         id: "one",
                         title: "Name of the series",
                         slots: [
-                            .book(volume(1, length: 300_000), number: 1, title: "First Winter", isRead: true),
-                            .book(volume(2, length: 700_000), number: 2, title: "Second Winter", isRead: true),
+                            .book(volume(1, length: 300_000), number: 1, title: "First Winter", isShelved: true),
+                            .book(volume(2, length: 700_000), number: 2, title: "Second Winter", isShelved: true),
                             .missing(3),
-                            .book(volume(4, length: 1_200_000), number: 4, title: "Fourth Winter", isRead: false),
+                            .book(volume(4, length: 1_200_000), number: 4, title: "Fourth Winter", isShelved: false),
                         ]
                     )
                 ],
-                alone: [ .book(volume(5, length: 500_000), number: nil, title: "On Its Own", isRead: true) ],
+                alone: [ .book(volume(5, length: 500_000), number: nil, title: "On Its Own", isShelved: true) ],
                 coverWidth: Design.Size.gridCover,
-                showsEveryCover: showsEveryCover,
-                origin: { _ in .service }
+                showsEveryCover: showsEveryCover
             )
         )
     }

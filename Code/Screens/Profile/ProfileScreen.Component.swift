@@ -99,7 +99,7 @@ enum ProfileScreen {
             )
         }
 
-        /// The service: who is signed in, what its shelf shows, and the way out.
+        /// The service: who is signed in and the way out, and what its shelf shows.
         private var authorToday: some View {
             Section {
                 if let user = session.user { profileRow(user) }
@@ -109,21 +109,11 @@ enum ProfileScreen {
                 }
                 .accessibilityIdentifier("profile.showsLikes")
                 .accessibilityHint("Shows how many readers liked each book")
-
-                Button(role: .destructive) {
-                    isConfirmingSignOut = true
-                } label: {
-                    Label("Sign out", systemImage: "rectangle.portrait.and.arrow.right")
-                }
-                .accessibilityIdentifier("profile.signOut")
-                .accessibilityHint("Removes the stored token and returns to the sign-in screen")
             } header: {
                 Text(verbatim: "Author.Today")
             } footer: {
-                footer(
-                    Text("How many people liked a book, on its row and its page."),
-                    Text("Your token is kept in the device keychain and removed when you sign out.")
-                )
+                // Kept to one literal: splitting it would stop it being a localizable key.
+                Text("Books you are reading are checked daily; new chapters download and badge the icon.")
             }
         }
 
@@ -150,12 +140,17 @@ enum ProfileScreen {
 
                 LitresRows { Task { await refreshStats() } }
             } header: {
-                Text("Other sources")
-            } footer: {
-                footer(
-                    Text("An FB2 file is read onto the shelf and kept on this device alone."),
-                    Text(
-                        "Your books come across once. Litres isn't watched afterwards, and the session ends when they arrive."
+                ExplainedHeader(
+                    Text("Other sources"),
+                    explanation: Text(
+                        """
+                        Books from an FB2 file or from Litres live on this device alone, along with the files \
+                        they came in. Clearing downloads doesn't touch them, because nothing could send them \
+                        again. Back them up to keep a copy.
+
+                        Litres books come across once. The app doesn't check the service again, and the \
+                        session ends when they arrive.
+                        """
                     )
                 )
             }
@@ -176,18 +171,19 @@ enum ProfileScreen {
                     RowStack(spacing: Design.Space.medium) {
                         Text(cacheSize, format: .byteCount(style: .file))
 
-                        Button("Clear", role: .destructive) {
+                        Button(role: .destructive) {
                             isConfirmingClear = true
+                        } label: {
+                            Image(systemName: "xmark.circle.fill")
                         }
-                        .buttonStyle(.bordered)
-                        .controlSize(.small)
+                        .buttonStyle(.borderless)
                         .tint(Design.Palette.alert)
                         .accessibilityLabel("Clear downloads")
                         .accessibilityIdentifier("profile.clearDownloads")
                         .accessibilityHint("Removes chapters stored for offline reading")
                     }
                 } label: {
-                    Label("Downloaded books", systemImage: "arrow.down.circle")
+                    Label("Books", systemImage: "arrow.down.circle")
                 }
                 .accessibilityElement(children: .contain)
 
@@ -209,21 +205,29 @@ enum ProfileScreen {
                 #endif
             } header: {
                 Text("Other")
-            } footer: {
-                // Kept to one literal: splitting it would stop it being a localizable key.
-                Text("Books you are reading are checked daily; new chapters download and badge the icon.")
             }
         }
 
-        /// Two notes under one section, one after the other.
-        private func footer(_ first: Text, _ second: Text) -> some View {
-            VStack(alignment: .leading, spacing: Design.Space.small) {
-                first
-                second
-            }
-        }
-
+        /// Who is signed in, and the way out, centred on the avatar.
         private func profileRow(_ user: UserInfo) -> some View {
+            HStack(spacing: Design.Space.medium) {
+                account(user)
+
+                Button(role: .destructive) {
+                    isConfirmingSignOut = true
+                } label: {
+                    Image(systemName: "rectangle.portrait.and.arrow.right")
+                }
+                .buttonStyle(.borderless)
+                .tint(Design.Palette.alert)
+                .accessibilityLabel("Sign out")
+                .accessibilityIdentifier("profile.signOut")
+                .accessibilityHint("Removes the stored token and returns to the sign-in screen")
+            }
+            .padding(.vertical, Design.Space.small)
+        }
+
+        private func account(_ user: UserInfo) -> some View {
             HStack(spacing: Design.Space.large) {
                 avatar(user)
 
@@ -248,7 +252,6 @@ enum ProfileScreen {
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .padding(.vertical, Design.Space.small)
             .accessibilityElement(children: .combine)
             .accessibilityLabel("Signed in as \(user.displayName)")
         }

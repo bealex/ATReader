@@ -124,6 +124,11 @@ Only a series read to its last book counts as finished, so every card lands unde
 two. The count beside a filter is books rather than rows, since a series kept for one unread book
 brings the rest of itself along, and what helps is how much is left to read.
 
+The search tab draws the same shelves from the same model, and both read the store again whenever a
+book's page moves something under them: a series corrected, a book marked read, a book read.
+`BookInbox.libraryChanged()` says the shelf changed without a book landing, which is what tells the
+library to read the store rather than follow a book it has already taken in.
+
 The library state the service keeps is left doing the one job it does honestly: whether a book is in the
 library at all. The book page adds or removes it, a long press in the list removes it, and nothing else
 writes it.
@@ -169,8 +174,16 @@ answers. An empty name takes the book out of every series, a volume of nought gi
 what the book says" deletes the row. A series name the reader wrote files its books by the name alone,
 whoever wrote them, and offers "Break up this series", which clears the name again.
 
-A book marked read or unread turns between cover and spine on its own hinge, the way a whole card does.
-A book that leaves a card fades where it stood while the rest close up.
+A menu pressed on a book lifts it on its own shape, the board's outline or the spine's, given to the
+menu as a preview of its own. The rounded box a menu lifts anything else on comes out as a lozenge on
+something a few points wide. `SpineMenuUITests` photographs both.
+
+A book stands as a cover while it's in play: part read, still being written, or within a day of being
+read to the end, arriving in the library, or being opened with "Read the book" from its menu. Otherwise
+it stands on its edge. The store dates those days in `read_at` and `taken_down_at`. The first library a
+device loads arrives undated, or all of it would stand out at once, and a Litres book that arrives read
+isn't dated as read. A book changing stance turns on its own hinge, the way a whole card does, and one
+that leaves a card fades where it stood while the rest close up.
 
 A row has two tap targets: the cover opens the book, and everything else opens its page. Gestures rather
 than a button and a link, because the cover sits inside the row's own target and the inner gesture is
@@ -197,15 +210,27 @@ showing, since a fold would hide the books the reader is reaching for.
 
 The plus button reads an FB2 file into the library. See [LocalBooks.md](LocalBooks.md).
 
-How far the reader has got is a ring on the cover, always 30pt across whatever the cover's size, with
-a tick in place of the figure once the book has been read to its end.
+Where the reader is in a book is a line along the top of its cover and a bookmark hanging from it:
+`ReadingMark` decides which, `BookmarkMark` draws it. Part read, the line runs as far as they've got and
+a red bookmark carries the percentage. A book still being written gets a grey bookmark with a pencil,
+at the start before it's opened and at the end once it's caught up, and a finished book read in the
+last day gets a green one with a tick. Anything else carries none. The line runs from the cover's own
+edge and is cut with the board, so it rounds where the board rounds. The line and the bookmark are one
+shape, with a white line of shade run round the whole of it, which lifts it off the artwork; the
+binding's own shadow falls across all three. A cover carries no other mark.
 
 ### How the shelf is drawn
 
 The library is a `UICollectionView` and everything on it is drawn by hand. `LibraryList` holds the
 collection view with a section per author, `AuthorCardView` is the cell, and inside it a `ShelfView`
-stands books where `ShelfLayout` puts them. The SwiftUI left around the list owns the sheets and the
-alert.
+stands books where `ShelfLayout` puts them. The author's name is the section's `AuthorHeaderView`,
+pinned to the top while their books scroll under it, with a chevron that turns the bookcase round.
+While pinned it joins the list's top edge effect through `UIScrollEdgeElementContainerInteraction`, so
+the blur under the navigation bar carries on under the name and the two read as one bar. A material
+of its own came out nearly white against the bar's grey. `HeaderMaterialUITests` compares a strip of
+each on the invented library. The
+cell is inset from the list's sides by the item rather than the section, so the header can run the full
+width and cover what passes beneath it. The SwiftUI left around the list owns the sheets and the alert.
 
 Two things needed it. A book that lands in a different row when a run refolds is the same book, and only
 a layout owning every book on the card can say so: as separate SwiftUI rows it was one book leaving and
@@ -221,8 +246,9 @@ between where the card was and where it is going, and the turn's clock invalidat
 
 Nothing on the shelf is drawn while it scrolls:
 
-- **Every picture is printed once.** A cover is `CoverPrint`, its artwork cut to the board with the
-  edge and crease on it, so no cover carries a mask; a spine is `SpinePrint`; the bookcase is
+- **Every picture is printed once.** A cover is `CoverPrint`: its artwork cut to the board, with the
+  edge, the crease and the shelf's shadow at its foot printed in, so no cover carries a mask; a spine
+  is `SpinePrint`, shadowed the same way; the bookcase is
   `BookcasePrint`, a point-wide lid and row for each slot height, stretched across the card by layers
   that share them, with its rounded corners laid on as caps in the screen colour.
 - **A book shows a stand-in until its picture is at hand.** The bare board and the bare spine are one
@@ -282,10 +308,24 @@ sitting still while the books either side of it move.
 
 ### The book page
 
+The page opens on the cover alone, centred across a third of the screen, with the book's name, its
+writer and its badges under it. The bar carries no title, since the book names itself there, and the
+one thing the page is for, "Continue", is a bar button rather than a block in the column. A menu at
+the far end of the bar holds what only an imported book can do: reading its file again, and deleting it.
+
+What the book is filed under is one block: its series and its volume, each standing at what the app
+uses, with what the book itself says in small underneath where the reader has overruled it, and an
+"Edit" button that opens the editor. A volume the book states none of falls back to the one the shelf
+reads off the titles of its series, so the block and the shelf agree. Where the copy came from is a
+badge beside the date one, and the date is worded for it: the service updates a book, Litres hands one
+over, and a file is put on the device by the reader.
+
 The chapter list is a checklist. The device keeps one reading position per book, so the rest is
 arithmetic on the chapter order: everything before the chapter it names has been read, the chapter
 itself is filled as far as the position goes, and the rest are untouched. A chapter that costs money
-carries a `$` in place of its mark, and the ones without it in a paid book are the free ones.
+carries a `$` in place of its mark, and the ones without it in a paid book are the free ones. The mark
+stands to the left of the title, on its first line, where a list's bullet would, and the rows are set
+apart by their own spacing rather than by rules.
 
 Whether a book still has to be bought is read off what is locked rather than off `isPurchased`: the
 service leaves that field out for a guest, and a missing field is not a "no". A sold book with a

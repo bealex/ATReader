@@ -358,10 +358,9 @@ enum DesignSystemScreen {
                             ProgressMark(progress: 0.99, isComplete: false, ground: .artwork)
                             ProgressMark(progress: 1, isComplete: true, ground: .artwork)
                             ProgressMark(progress: 0.47, isComplete: false)
-                            SourceMark(origin: .service)
-                            SourceMark(origin: .litres)
-                            SourceMark(origin: .file)
-                            OngoingMark()
+                            BookmarkMark(.figure(47), tint: BookmarkMark.reading)
+                            BookmarkMark(.glyph("checkmark"), tint: BookmarkMark.read)
+                            BookmarkMark(.glyph("pencil"), tint: BookmarkMark.waiting)
                             LibraryMark(inLibrary: true)
                             LibraryMark(inLibrary: false)
                         }
@@ -480,6 +479,13 @@ enum DesignSystemScreen {
                         }
                     }
 
+                    specimen("Explained header") {
+                        ExplainedHeader(
+                            Text(verbatim: "Section title"),
+                            explanation: Text(verbatim: "What the section is for, in a dialog.")
+                        )
+                    }
+
                     specimen("Loading card") {
                         LoadingCard(title: "Building the chart…", label: "Loading top books")
                             .frame(maxWidth: .infinity)
@@ -487,18 +493,21 @@ enum DesignSystemScreen {
                             .background(Design.Surface.screen, in: .rect(cornerRadius: Design.Radius.medium))
                     }
 
-                    specimen("Cover, with nothing loaded") {
+                    // Printed by the same press the shelf uses, so a cover on a page and the same
+                    // cover on the shelf are one picture: the board's cut, its crease, and the shelf's
+                    // shade at its foot. The last is a book whose artwork nobody has loaded.
+                    specimen("Cover") {
                         HStack(alignment: .top, spacing: Design.Space.medium) {
-                            CoverImage(
-                                url: nil,
-                                width: Design.Size.rowCover,
-                                progress: 0.47,
-                                origin: .litres,
-                                isOngoing: true
-                            )
-                            CoverImage(url: nil, width: Design.Size.rowCover, origin: .service)
+                            ForEach(Self.readingSpecimens.indices, id: \.self) { index in
+                                CoverImage(
+                                    url: Specimen.artwork,
+                                    width: Design.Size.rowCover,
+                                    reading: ReadingMark(Self.readingSpecimens[index])
+                                )
+                            }
                             CoverImage(url: nil, width: Design.Size.rowCover)
                         }
+                        .task { Specimen.paint() }
                     }
                 }
             }
@@ -564,6 +573,28 @@ enum DesignSystemScreen {
         // MARK: - The tables themselves
 
         /// Invented, and obviously so. Nothing the service returned ever goes in the repository.
+        /// A book for each bookmark: part read, not started while still being written, read as far as
+        /// it goes, and a finished one read just now.
+        private static let readingSpecimens = [
+            specimenBook(progress: 0.47, isFinished: false),
+            specimenBook(progress: 0, isFinished: false),
+            specimenBook(progress: 1, isFinished: false),
+            specimenBook(progress: 1, isFinished: true, readAt: .now),
+        ]
+
+        private static func specimenBook(progress: Double, isFinished: Bool, readAt: Date? = nil) -> Book {
+            Book(
+                id: 1,
+                title: "Title",
+                authorLine: "Author Name",
+                coverURL: nil,
+                annotation: nil,
+                isFinished: isFinished,
+                readingProgress: progress,
+                readAt: readAt
+            )
+        }
+
         private static let placeholder = Book(
             id: 1,
             title: "Title of the book, long enough that it runs to a second line",

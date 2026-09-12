@@ -59,7 +59,8 @@ struct ShelfRun: Identifiable {
 
 /// One place in a series: a book the reader holds, or a volume they don't.
 enum SeriesSlot: Identifiable {
-    case book(Book, number: Int?, title: String, isRead: Bool)
+    /// `isShelved` stands the book on its edge while its run shows only what's in play.
+    case book(Book, number: Int?, title: String, isShelved: Bool)
     case missing(Int)
 
     var id: String {

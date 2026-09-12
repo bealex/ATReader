@@ -22,6 +22,8 @@ struct BookBadges: View {
     /// Overrides what the row itself can work out, for a screen that knows better. The book page can
     /// see which chapters are closed; a list has only what the book says about itself.
     var costsMoney: Bool?
+    /// Where this copy came from, for a screen that says so. A list leaves it out.
+    var origin: CoverOrigin?
 
     var body: some View {
         FlowLayout {
@@ -40,8 +42,12 @@ struct BookBadges: View {
                 Pill(title: likes, systemImage: "heart.fill", label: likes)
             }
 
-            if showsUpdated, let updated = BookFormatting.updated(work.lastUpdateTime) {
-                Pill(title: updated, systemImage: "clock", label: updated)
+            if showsUpdated, let moved = BookFormatting.moved(work.lastUpdateTime, origin: origin) {
+                Pill(title: moved, systemImage: "clock", label: moved)
+            }
+
+            if let origin {
+                Pill(title: origin.name, systemImage: origin.systemImage, label: origin.name)
             }
         }
     }

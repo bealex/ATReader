@@ -180,7 +180,7 @@ final class LitresSync {
         // A book bought and brought across is one the reader has already been through, so it arrives
         // read. Only on the way in: a book being brought across again because the service edited it
         // keeps whatever the reader has since done with it.
-        await store.store(progress: 1, workId: installed.id)
+        await store.store(progress: 1, workId: installed.id, dated: false)
         report.added += 1
         broughtAcross += 1
     }

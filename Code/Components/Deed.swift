@@ -58,6 +58,14 @@ extension [Deed] {
 
     /// Nothing to press is no menu at all, rather than an empty one nothing can be done in.
     var offered: UIMenu? { isEmpty ? nil : menu }
+
+    /// The list under a heading saying what it acts on, which a context menu stands above it and
+    /// nobody can press.
+    func offered(under title: String, and subtitle: String? = nil) -> UIMenu? {
+        guard !isEmpty else { return nil }
+
+        return UIMenu(title: title, subtitle: subtitle, children: map(\.element))
+    }
 }
 
 private extension Deed {

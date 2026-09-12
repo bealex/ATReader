@@ -33,6 +33,18 @@ public enum Board {
             (lip(scheme).opacity(0), 7),
         ]
     }
+
+    /// The foot of a board, in the shadow of the shelf it stands on: darkest at the bottom edge and
+    /// fading upwards, in points from that edge.
+    public static func foot(_ scheme: ColorScheme) -> [(colour: Color, at: CGFloat)] {
+        let depth = scheme == .dark ? 0.75 : 0.55
+
+        return [
+            (.black.opacity(depth), 0),
+            (.black.opacity(depth * 0.4), Design.Space.medium),
+            (.black.opacity(0), Design.Space.extraLarge),
+        ]
+    }
 }
 
 /// The few points of a cover nearest the hinge, where the board bends into its binding.

@@ -184,8 +184,8 @@ extension LibraryScreen {
 
             func includes(_ work: Book) -> Bool {
                 switch self {
-                    case .reading: !work.isFinishedReading
-                    case .finished: work.isFinishedReading
+                    case .reading: !work.isDone()
+                    case .finished: work.isDone()
                     case .everything: true
                 }
             }
@@ -198,8 +198,8 @@ extension LibraryScreen {
             /// where the reader had got to. Only a series read to its last book is finished.
             func includes(_ works: [Book]) -> Bool {
                 switch self {
-                    case .reading: works.contains { !$0.isFinishedReading }
-                    case .finished: !works.isEmpty && works.allSatisfy(\.isFinishedReading)
+                    case .reading: works.contains { !$0.isDone() }
+                    case .finished: !works.isEmpty && works.allSatisfy { $0.isDone() }
                     case .everything: true
                 }
             }
@@ -657,12 +657,17 @@ extension LibraryScreen {
             }
         }
 
-        /// True where the reader is done with this book and nothing new has arrived in it.
+        /// True where a book stands on its edge: written to its end, nothing new in it, not part read,
+        /// and not out as a cover for the day after it was read through, arrived or was asked for.
         ///
-        /// Read to the end of a book still being written doesn't count: the next chapter is what the
-        /// reader is waiting for, and a folded row is the wrong place to be told it landed.
-        func isBehindTheReader(_ work: Book) -> Bool {
-            work.isFinishedReading && newChapters(for: work.id) == 0
+        /// A book still being written never is: the next chapter is what the reader is waiting for, and
+        /// a folded row is the wrong place to be told it landed.
+        func isShelved(_ work: Book) -> Bool {
+            work.isComplete
+                && newChapters(for: work.id) == 0
+                && !work.isBeingRead
+                && !work.isJustRead()
+                && !work.isJustTakenDown()
         }
 
         /// One series as a card's run: its books in the order they stand in, and whatever numbering
@@ -995,7 +1000,7 @@ extension LibraryScreen {
             group.rows.map { row in
                 switch row {
                     case let .book(work, number, title):
-                        .book(work, number: number, title: title, isRead: isBehindTheReader(work))
+                        .book(work, number: number, title: title, isShelved: isShelved(work))
                     case let .missing(number):
                         .missing(number)
                 }
@@ -1272,6 +1277,8 @@ extension LibraryScreen {
         /// which means putting the position at the end of the last chapter it has.
         func markAsRead(_ work: Book) async {
             if let index = works.firstIndex(where: { $0.id == work.id }) {
+                if !works[index].isReadToTheEnd { works[index].readAt = .now }
+
                 works[index].readingProgress = 1
             }
 
@@ -1309,6 +1316,13 @@ extension LibraryScreen {
                 chapterProgress: 1,
                 sessionId: nil
             )
+        }
+
+        /// Puts a book out as a cover for the next day, for a reader about to open it.
+        func takeDown(_ work: Book) async {
+            if let index = works.firstIndex(where: { $0.id == work.id }) { works[index].takenDownAt = .now }
+
+            await store.takeDown(workId: work.id)
         }
 
         /// The book's chapters as the device has them, fetched if it has none.

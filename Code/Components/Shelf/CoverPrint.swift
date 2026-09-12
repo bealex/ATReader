@@ -59,7 +59,7 @@ enum CoverPrint {
 
         let creased = Board.crease(.light).last?.at ?? 0
         let corner = max(Design.Radius.cover, Design.Radius.foreEdge)
-        let insets = UIEdgeInsets(top: corner, left: creased, bottom: corner, right: corner)
+        let insets = UIEdgeInsets(top: corner, left: creased, bottom: max(corner, footReach), right: corner)
         let size = CGSize(width: insets.left + insets.right + 1, height: insets.top + insets.bottom + 1)
         let drawn = draw(size: size, artwork: nil, isDark: isDark, density: SpinePrint.density)
             .resizableImage(withCapInsets: insets, resizingMode: .stretch)
@@ -67,6 +67,40 @@ enum CoverPrint {
         blanks[isDark] = drawn
         return drawn
     }
+
+    /// The crease on its own, for laying over whatever is drawn on a cover after its face was printed:
+    /// a binding's shadow falls on the reading line and the bookmark as it does on the artwork.
+    ///
+    /// As short as the lattice goes and stretched down whatever it is laid over, since nothing in a
+    /// crease changes along the binding.
+    @MainActor
+    static func binding(isDark: Bool) -> UIImage {
+        if let held = bindings[isDark] { return held }
+
+        let scheme = UITraitCollection(userInterfaceStyle: isDark ? .dark : .light)
+        let size = CGSize(width: bindingWidth, height: Design.Space.nudge)
+        let format = UIGraphicsImageRendererFormat()
+
+        format.scale = SpinePrint.density
+
+        let drawn = UIGraphicsImageRenderer(size: size, format: format).image { drawn in
+            crease(
+                in: CGRect(origin: .zero, size: size),
+                scheme: isDark ? .dark : .light,
+                traits: scheme,
+                context: drawn.cgContext
+            )
+        }
+
+        bindings[isDark] = drawn
+        return drawn
+    }
+
+    /// How far in from the bound edge the crease reaches.
+    static var bindingWidth: CGFloat { Board.crease(.light).last?.at ?? 0 }
+
+    @MainActor
+    private static var bindings: [Bool: UIImage] = [:]
 
     /// The face for this order, from memory or drawn in the background on the artwork this device holds
     /// or fetches. Nothing where there is no artwork to draw, or the asking was given up.
@@ -144,7 +178,33 @@ enum CoverPrint {
             context.strokePath()
 
             crease(in: bounds, scheme: isDark ? .dark : .light, traits: scheme, context: context)
+            foot(in: bounds, scheme: isDark ? .dark : .light, context: context)
         }
+    }
+
+    /// How far up a board the shelf's shadow reaches, which a stretched stand-in has to hold unstretched.
+    static var footReach: CGFloat { Board.foot(.light).last?.at ?? 0 }
+
+    /// The shadow of the shelf over the foot of a board, inside whatever the context is clipped to.
+    static func foot(in bounds: CGRect, scheme: ColorScheme, context: CGContext) {
+        let stops = Board.foot(scheme)
+
+        guard
+            footReach > 0,
+            bounds.height > footReach,
+            let gradient = CGGradient(
+                colorsSpace: CGColorSpaceCreateDeviceRGB(),
+                colors: stops.map { UIColor($0.colour).cgColor } as CFArray,
+                locations: stops.map { $0.at / footReach }
+            )
+        else { return }
+
+        context.drawLinearGradient(
+            gradient,
+            start: CGPoint(x: bounds.midX, y: bounds.maxY),
+            end: CGPoint(x: bounds.midX, y: bounds.maxY - footReach),
+            options: []
+        )
     }
 
     /// Where a picture goes to fill a box without changing shape, cut evenly off both sides.

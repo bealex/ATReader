@@ -68,13 +68,28 @@ and the two directories say what moved.
 
 ## UI tests
 
-Three suites, deliberately layered by what they need:
+Layered by what they need:
 
 | Suite | Needs | Covers |
 | --- | --- | --- |
 | `CatalogUITests` | nothing (guest token) | search, author scope, charts + period filter, opening a book, reading a decrypted chapter, chapter list, typography, page turns by tap and swipe, the controls toggle |
 | `LoginUITests` | credentials, optional | field validation, service error for bad credentials, a real end-to-end sign-in |
 | `LibraryUITests` | a token | library list, the filter, profile and sign-out |
+| `HeaderMaterialUITests` | nothing (invented library) | a pinned author's name stands on the same ground as the bar above it |
+| `SpineMenuUITests` | nothing (invented library) | a menu lifts a spine and a cover on the book's own shape |
+| `DesignSystemUITests` | nothing (catalogue) | an aside in the column and hung on a point, and what a cover comes out as |
+
+### The invented library
+
+`-at-ui-test-guest -at-demo-library YES` opens a made-up library with no account and no network:
+invented writers, titles and covers, painted on the device. `launchDemoLibrary()` opens it and waits
+for the shelf. That is what lets a shelf test run anywhere, and nothing the service returned goes near
+the repository.
+
+Screenshots for a person to look at afterwards go through `report(_:named:)`, which files them under the
+gitignored `Fixtures/Reports/shelf`. `HeaderMaterialUITests` also measures: it averages a strip of the
+bar and a strip of the header under it and fails if they are more than 8 apart out of 255, which is how
+a header that had drifted to near-white was caught.
 
 Suites needing an account `XCTSkip` without one, so a run with no credentials is still green.
 `CatalogUITests` needs no account, but its chapter-reading tests do need `.env`. Without it the app

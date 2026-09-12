@@ -222,6 +222,17 @@
       "extractionState": "manual",
       "shouldTranslate": false
     },
+    "A backup copies your whole library into an ATReader folder inside the one you chose: the shelf, reading positions, saved chapters, and every book from a file or from Litres. The app writes one only when you ask, and rewrites a book's files only when they've changed.\n\nRestoring replaces everything on this device with what the folder holds, so you lose anything added since that backup. Pick a folder in iCloud Drive and the library survives losing the device.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Резервная копия переносит всю библиотеку в папку ATReader внутри выбранной вами: полку, позиции чтения, сохранённые главы и все книги из файлов и с Литреса. Приложение записывает её только по вашей просьбе, а файлы книги переписывает, только если они изменились.\n\nВосстановление заменяет всё на этом устройстве содержимым папки, и всё добавленное после этой копии пропадёт. Если выбрать папку в iCloud Drive, библиотека переживёт потерю устройства."
+          }
+        }
+      }
+    },
     "A file on this device": {
       "extractionState": "manual",
       "localizations": {
@@ -332,17 +343,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Все жанры"
-          }
-        }
-      }
-    },
-    "An FB2 file is read onto the shelf and kept on this device alone.": {
-      "extractionState": "manual",
-      "localizations": {
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Файл FB2 попадает на полку и хранится только на этом устройстве."
           }
         }
       }
@@ -531,6 +531,17 @@
         }
       }
     },
+    "Books from an FB2 file or from Litres live on this device alone, along with the files they came in. Clearing downloads doesn't touch them, because nothing could send them again. Back them up to keep a copy.\n\nLitres books come across once. The app doesn't check the service again, and the session ends when they arrive.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Книги из файлов FB2 и с Литреса хранятся только на этом устройстве, вместе с файлами, в которых пришли. Очистка загрузок их не затрагивает: прислать их заново неоткуда. Сделайте резервную копию, чтобы их не потерять.\n\nКниги с Литреса переносятся один раз. Приложение больше не обращается к сервису, а сессия заканчивается вместе с переносом."
+          }
+        }
+      }
+    },
     "Books you are reading are checked daily; new chapters download and badge the icon.": {
       "extractionState": "manual",
       "localizations": {
@@ -538,17 +549,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Книги, которые вы читаете, проверяются ежедневно; новые главы скачиваются и попадают на значок."
-          }
-        }
-      }
-    },
-    "Books you imported live only on this device. A folder in iCloud Drive keeps a copy.": {
-      "extractionState": "manual",
-      "localizations": {
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Загруженные вами книги есть только на этом устройстве. Папка в iCloud Drive хранит их копию."
           }
         }
       }
@@ -689,13 +689,13 @@
         }
       }
     },
-    "Clear": {
+    "Chooses another folder": {
       "extractionState": "manual",
       "localizations": {
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Очистить"
+            "value": "Выбирает другую папку"
           }
         }
       }
@@ -828,6 +828,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Оглавление"
+          }
+        }
+      }
+    },
+    "Continue": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Продолжить"
           }
         }
       }
@@ -1008,13 +1019,13 @@
         }
       }
     },
-    "Downloaded books": {
+    "Downloaded %@": {
       "extractionState": "manual",
       "localizations": {
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Загруженные книги"
+            "value": "Скачано %@"
           }
         }
       }
@@ -1059,6 +1070,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Каждый ряд сохраняет свой порядок, а идут они друг за другом в порядке выбора."
+          }
+        }
+      }
+    },
+    "Edit": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Изменить"
           }
         }
       }
@@ -1173,13 +1195,13 @@
         }
       }
     },
-    "Folder": {
+    "Folder:": {
       "extractionState": "manual",
       "localizations": {
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Папка"
+            "value": "Папка:"
           }
         }
       }
@@ -1375,17 +1397,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Объединяет две серии или два написания имени"
-          }
-        }
-      }
-    },
-    "How many people liked a book, on its row and its page.": {
-      "extractionState": "manual",
-      "localizations": {
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Сколько людей оценило книгу, в списке и на её странице."
           }
         }
       }
@@ -1889,6 +1900,17 @@
         }
       }
     },
+    "On My %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "На %@"
+          }
+        }
+      }
+    },
     "Ongoing": {
       "extractionState": "manual",
       "localizations": {
@@ -2168,6 +2190,17 @@
         }
       }
     },
+    "Read the book": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Читать книгу"
+          }
+        }
+      }
+    },
     "Read your author.today library": {
       "extractionState": "manual",
       "localizations": {
@@ -2333,13 +2366,13 @@
         }
       }
     },
-    "Restore from this folder": {
+    "Restore books from backup": {
       "extractionState": "manual",
       "localizations": {
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Восстановить из папки"
+            "value": "Восстановить книги из резервной копии"
           }
         }
       }
@@ -2605,6 +2638,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Задаёт шрифт для чтения"
+          }
+        }
+      }
+    },
+    "Sets the series and volume this book is filed under": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Задаёт серию и том, под которыми стоит книга"
           }
         }
       }
@@ -3016,6 +3060,17 @@
         }
       }
     },
+    "The backup in the current folder stays there, and nothing is written to it from now on.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Резервная копия в текущей папке останется на месте, но больше в неё ничего записываться не будет."
+          }
+        }
+      }
+    },
     "The books go back to whatever the service and their own files say they belong to.": {
       "extractionState": "manual",
       "localizations": {
@@ -3170,6 +3225,17 @@
         }
       }
     },
+    "Uploaded %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Загружено %@"
+          }
+        }
+      }
+    },
     "Use a different account": {
       "extractionState": "manual",
       "localizations": {
@@ -3177,6 +3243,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Ввести другой логин"
+          }
+        }
+      }
+    },
+    "Use another folder?": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Использовать другую папку?"
           }
         }
       }
@@ -3232,6 +3309,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Номер"
+          }
+        }
+      }
+    },
+    "Volume %lld, %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Том %1$lld, %2$@"
           }
         }
       }
@@ -3313,13 +3401,13 @@
         }
       }
     },
-    "Working…": {
+    "Working:": {
       "extractionState": "manual",
       "localizations": {
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Выполняется…"
+            "value": "Выполняется:"
           }
         }
       }
@@ -3379,13 +3467,13 @@
         }
       }
     },
-    "Your books come across once. Litres isn't watched afterwards, and the session ends when they arrive.": {
+    "Yes, use the new one": {
       "extractionState": "manual",
       "localizations": {
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Книги переносятся один раз. Литрес потом не отслеживается, а сессия заканчивается вместе с переносом."
+            "value": "Да, использовать новую"
           }
         }
       }
@@ -3397,17 +3485,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Ваши книги"
-          }
-        }
-      }
-    },
-    "Your token is kept in the device keychain and removed when you sign out.": {
-      "extractionState": "manual",
-      "localizations": {
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Токен хранится в связке ключей устройства и удаляется при выходе."
           }
         }
       }

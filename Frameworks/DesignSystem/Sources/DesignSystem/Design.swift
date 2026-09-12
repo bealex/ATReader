@@ -52,12 +52,18 @@ public enum Design {
         /// The line under a run of books on a shelf, a shade over a hairline so it reads across the plank.
         public static let bracket = hairline * 1.3
         public static let ring = Space.unit
+        /// The reading line along the top of a cover, and the line of shade under it.
+        public static let readingLine = Space.extraSmall
+        public static let readingShade = hairline * 2
     }
 
     public enum Size {
         /// Every circular mark on a cover. Small on purpose: a mark is a footnote beside the
         /// artwork rather than a second subject.
         public static let mark = Space.unit * 6
+        /// A bookmark hanging on a cover: a narrow ribbon, taller than it is wide.
+        public static let bookmark = Space.unit * 5
+        public static let bookmarkHeight = Space.unit * 7
         public static let control = Space.unit * 12
         /// The smallest thing a finger should have to find.
         public static let touch = Space.unit * 15

@@ -223,63 +223,42 @@ struct SeriesEditor: View {
     }
 }
 
-/// The same fields on the book's own page, saved with a button that shows once something changed.
-struct SeriesInlineEditor: View {
-    let draft: SeriesCorrection.Draft
-    let writersSeries: [String]
-    let onSave: (SQLiteBookStore.SeriesEdit?) -> Void
+/// What a book's series and volume stand at now, and what the book itself says where the reader has
+/// overruled it.
+///
+/// Each is nothing at all where there is none: a book in no series, a book with no volume, or a book
+/// the reader has left as it came.
+struct SeriesStanding {
+    let series: Text?
+    let ownSeries: Text?
+    let volume: Text?
+    let ownVolume: Text?
 
-    @State
-    private var choice = SeriesChoice()
+    init(_ draft: SeriesCorrection.Draft) {
+        let ownName = Self.name(draft.ownSeries)
+        let ownNumber = Self.number(draft.ownVolume)
+        let setName = draft.edit.flatMap { Self.name($0.series) }
+        let setNumber = draft.edit.flatMap { Self.number($0.volume) }
+        // Set at all, which is not the same as set to something: an empty one means no series.
+        let namesOwn = draft.edit?.series == nil
+        let numbersOwn = draft.edit?.volume == nil
 
-    private var saved: SeriesChoice { SeriesChoice(draft.edit) }
-
-    var body: some View {
-        let fields = SeriesFields(choice: $choice, draft: draft)
-
-        VStack(alignment: .leading, spacing: Design.Space.medium) {
-            fields.name
-
-            Divider()
-
-            fields.volume
-
-            Divider()
-
-            HStack(spacing: Design.Space.medium) {
-                if !writersSeries.isEmpty {
-                    Menu {
-                        ForEach(writersSeries, id: \.self) { series in
-                            Button {
-                                choice.name = series
-                                choice.namesOwn = false
-                            } label: {
-                                Text(verbatim: series)
-                            }
-                        }
-                    } label: {
-                        Label("This writer’s series", systemImage: "list.bullet")
-                    }
-                }
-
-                Spacer()
-
-                if choice != saved {
-                    Button("Cancel") { choice = saved }
-                        .buttonStyle(.bordered)
-
-                    Button("Save") { onSave(choice.edit) }
-                        .buttonStyle(.borderedProminent)
-                        .accessibilityIdentifier("series.save")
-                }
-            }
-            .controlSize(.small)
-
-            SeriesFootnote()
-                .font(Design.Style.caption)
-                .foregroundStyle(.secondary)
-        }
-        .onAppear { choice = saved }
-        .onChange(of: draft) { _, _ in choice = saved }
+        series = (namesOwn ? ownName : setName).map { Text(verbatim: $0) }
+        volume = (numbersOwn ? ownNumber : setNumber).map { Text($0, format: .number) }
+        // Only where the reader's differs from the book's own: saying the same thing twice says nothing.
+        ownSeries =
+            namesOwn || setName == ownName
+            ? nil
+            : ownName.map { Text("From the book: \($0)") } ?? Text("From the book: no series")
+        ownVolume =
+            numbersOwn || setNumber == ownNumber
+            ? nil
+            : ownNumber.map { Text("From the book: \($0)") } ?? Text("From the book: no volume")
     }
+
+    /// A series nobody named is no series, whether it came as nothing or as an empty line.
+    private static func name(_ value: String?) -> String? { value.flatMap { $0.isEmpty ? nil : $0 } }
+
+    /// Volume nought is the shelf's way of saying a book states none.
+    private static func number(_ value: Int?) -> Int? { value.flatMap { $0 > 0 ? $0 : nil } }
 }

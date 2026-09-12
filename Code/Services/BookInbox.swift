@@ -37,8 +37,12 @@ final class BookInbox {
     /// Says the shelf has changed, for a part of the app that changed it without coming through here.
     ///
     /// A synchronisation writes straight to the store, and a screen showing the shelf has no other way
-    /// to learn that its books have moved under it.
-    func libraryChanged() { importedAt = .now }
+    /// to learn that its books have moved under it. No book landed, so the last one to land is cleared:
+    /// a shelf told otherwise would follow a book it has already taken in instead of reading the store.
+    func libraryChanged() {
+        lastAccepted = nil
+        importedAt = .now
+    }
 
     private let store: SQLiteBookStore
     private let processor: BookProcessor

@@ -69,10 +69,13 @@ public actor SQLiteBookStore {
         let query =
             shelf == nil
             ? """
-            SELECT payload, reading_progress FROM work
+            SELECT payload, reading_progress, read_at, taken_down_at FROM work
             WHERE library_state IS NOT NULL ORDER BY last_read_time DESC
             """
-            : "SELECT payload, reading_progress FROM work WHERE library_state = ? ORDER BY last_read_time DESC"
+            : """
+            SELECT payload, reading_progress, read_at, taken_down_at FROM work
+            WHERE library_state = ? ORDER BY last_read_time DESC
+            """
 
         guard let statement = Statement(open(), query) else { return [] }
 
@@ -86,6 +89,8 @@ public actor SQLiteBookStore {
             guard var summary = decode(Book.self, statement.string(0)) else { continue }
 
             summary.readingProgress = progress(statement.number(1), or: summary.readingProgress)
+            summary.readAt = statement.date(2)
+            summary.takenDownAt = statement.date(3)
             result.append(filed(summary, by: custom, edits: edits))
         }
 
@@ -93,7 +98,7 @@ public actor SQLiteBookStore {
     }
 
     public func book(id: Int) -> StoredBook? {
-        let query = "SELECT payload, tags, reading_progress FROM work WHERE id = ?"
+        let query = "SELECT payload, tags, reading_progress, read_at, taken_down_at FROM work WHERE id = ?"
 
         guard let statement = Statement(open(), query) else { return nil }
 
@@ -102,6 +107,8 @@ public actor SQLiteBookStore {
         guard statement.step(), var summary = decode(Book.self, statement.string(0)) else { return nil }
 
         summary.readingProgress = progress(statement.number(2), or: summary.readingProgress)
+        summary.readAt = statement.date(3)
+        summary.takenDownAt = statement.date(4)
         return StoredBook(
             summary: filed(summary, by: customSeries(), edits: seriesEdits()),
             tags: decode([ String ].self, statement.string(1)) ?? []
@@ -142,10 +149,36 @@ public actor SQLiteBookStore {
     private func progress(_ stored: Double?, or reported: Double?) -> Double? { stored ?? reported }
 
     /// Records where this device believes the reader has got to in a book, `0…1`.
-    public func store(progress: Double, workId: Int) {
-        guard let statement = Statement(open(), "UPDATE work SET reading_progress = ? WHERE id = ?") else { return }
+    ///
+    /// Getting to the end dates the book as just read, unless `dated` is false: a book that arrives
+    /// already read wasn't read just now.
+    public func store(progress: Double, workId: Int, dated: Bool = true) {
+        // Every expression in the SET reads the row as it was, so the crossing is judged on the old figure.
+        let query = """
+            UPDATE work SET
+                read_at = CASE
+                    WHEN ?3 = 1 AND ?1 >= ?4 AND COALESCE(reading_progress, 0) < ?4 THEN ?5
+                    ELSE read_at
+                END,
+                reading_progress = ?1
+            WHERE id = ?2
+            """
+
+        guard let statement = Statement(open(), query) else { return }
 
         statement.bind(1, min(1, max(0, progress)))
+        statement.bind(2, workId)
+        statement.bind(3, dated ? 1 : 0)
+        statement.bind(4, Book.readThreshold)
+        statement.bind(5, Date.now.timeIntervalSince1970)
+        statement.execute()
+    }
+
+    /// Puts a book out as a cover for the next day, as a reader asking for it by name does.
+    public func takeDown(workId: Int) {
+        guard let statement = Statement(open(), "UPDATE work SET taken_down_at = ? WHERE id = ?") else { return }
+
+        statement.bind(1, Date.now.timeIntervalSince1970)
         statement.bind(2, workId)
         statement.execute()
     }
@@ -185,13 +218,17 @@ public actor SQLiteBookStore {
         statement.execute()
     }
 
-    public func store(books: [Book]) {
+    public func store(books: [Book]) { store(books, arrivingAt: .now) }
+
+    /// Stores books, dating any that has just come into the library with `arrival`, which is nothing
+    /// for a library arriving whole.
+    private func store(_ books: [Book], arrivingAt arrival: Date?) {
         let query = """
             INSERT INTO work (
                 id, title, author, library_state, last_read_time, reading_progress, updated_at, payload,
-                is_finished, finished_when_added, finished_at
+                is_finished, finished_when_added, finished_at, taken_down_at
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(id) DO UPDATE SET
                 title = excluded.title,
                 author = excluded.author,
@@ -207,6 +244,12 @@ public actor SQLiteBookStore {
                 finished_at = CASE
                     WHEN excluded.is_finished = 0 THEN NULL
                     ELSE COALESCE(work.finished_at, excluded.finished_at)
+                END,
+                -- A book the reader only looked at arrives when it reaches a shelf, not when it was seen.
+                taken_down_at = CASE
+                    WHEN work.library_state IS NULL AND excluded.library_state IS NOT NULL
+                        THEN COALESCE(excluded.taken_down_at, work.taken_down_at)
+                    ELSE work.taken_down_at
                 END
             """
 
@@ -220,12 +263,13 @@ public actor SQLiteBookStore {
                 // Merged rather than replaced: the shelf and a book's own details each leave out what
                 // the other carries, and the payload is one column holding both.
                 let merged = storedWork(work.id, using: lookup).map(work.merged) ?? work
+                let shelf = merged.libraryState.flatMap { $0 == BookShelf.none ? nil : $0.rawValue }
 
                 statement.reset()
                 statement.bind(1, merged.id)
                 statement.bind(2, merged.title)
                 statement.bind(3, merged.authorLine)
-                statement.bind(4, merged.libraryState.flatMap { $0 == BookShelf.none ? nil : $0.rawValue })
+                statement.bind(4, shelf)
                 statement.bind(5, merged.lastReadTime?.timeIntervalSince1970)
                 statement.bind(6, merged.readingProgress)
                 statement.bind(7, Date.now.timeIntervalSince1970)
@@ -233,6 +277,7 @@ public actor SQLiteBookStore {
                 statement.bind(9, merged.isComplete ? 1 : 0)
                 statement.bind(10, merged.isComplete ? 1 : 0)
                 statement.bind(11, merged.isComplete ? Date.now.timeIntervalSince1970 : nil)
+                statement.bind(12, shelf == nil ? nil : arrival?.timeIntervalSince1970)
                 statement.execute()
             }
         }
@@ -250,7 +295,8 @@ public actor SQLiteBookStore {
 
     /// Replaces the shelves wholesale, so a book removed on another device stops showing up here.
     public func replaceLibrary(with works: [Book]) {
-        store(books: works)
+        // The first library a device sees has been the reader's all along, so none of it has just arrived.
+        store(works, arrivingAt: hasLibrary() ? .now : nil)
 
         let ids = works.map { String($0.id) }.joined(separator: ",")
         // Books imported from a file are on no shelf the service knows, so they sit outside this.
@@ -261,6 +307,14 @@ public actor SQLiteBookStore {
                 AND id NOT IN (SELECT work_id FROM local_book)
             """
         )
+    }
+
+    private func hasLibrary() -> Bool {
+        guard
+            let statement = Statement(open(), "SELECT 1 FROM work WHERE library_state IS NOT NULL LIMIT 1")
+        else { return false }
+
+        return statement.step()
     }
 
     // MARK: - Series the reader made
@@ -971,6 +1025,7 @@ public actor SQLiteBookStore {
         createCoverShapeTable()
         createAuthorAliasTable()
         addCompletionColumns()
+        addReadingDates()
         addProvenanceColumns()
         repairProgress()
         markServiceBooksRead()
@@ -1023,6 +1078,15 @@ public actor SQLiteBookStore {
 
         let ids = complete.map(String.init).joined(separator: ",")
         execute("UPDATE work SET is_finished = 1, finished_when_added = 1 WHERE id IN (\(ids))")
+    }
+
+    /// Adds the columns that date a book's last reading and its last time out as a cover. Everything
+    /// already here has neither, which leaves it standing wherever its progress puts it.
+    private func addReadingDates() {
+        guard !workColumns().contains("read_at") else { return }
+
+        execute("ALTER TABLE work ADD COLUMN read_at REAL")
+        execute("ALTER TABLE work ADD COLUMN taken_down_at REAL")
     }
 
     private func workColumns() -> Set<String> { columns(of: "work") }
@@ -1232,7 +1296,9 @@ public actor SQLiteBookStore {
                 payload TEXT NOT NULL,
                 is_finished INTEGER NOT NULL DEFAULT 0,
                 finished_when_added INTEGER NOT NULL DEFAULT 0,
-                finished_at REAL
+                finished_at REAL,
+                read_at REAL,
+                taken_down_at REAL
             )
             """
         )
