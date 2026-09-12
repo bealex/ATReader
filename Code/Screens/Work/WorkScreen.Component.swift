@@ -148,11 +148,6 @@ enum WorkScreen {
         private func heading(_ model: Model, work: Book) -> some View {
             VStack(spacing: Design.Space.extraLarge) {
                 CoverImage(url: work.coverURL, width: across * Self.coverShare, reading: ReadingMark(work))
-                    // At the foot, since the top edge carries the bookmark. A book from a file is on no
-                    // service shelf, so it carries no shelf mark.
-                    .overlay(alignment: .bottomTrailing) {
-                        if !model.isLocal { libraryMark(model) }
-                    }
 
                 VStack(spacing: Design.Space.small) {
                     RowStack {
@@ -243,22 +238,6 @@ enum WorkScreen {
             }
             .font(Design.Style.item)
             .accessibilityElement(children: .combine)
-        }
-
-        private func libraryMark(_ model: Model) -> some View {
-            Button {
-                Task { await model.setInLibrary(!model.isInLibrary) }
-            } label: {
-                LibraryMark(inLibrary: model.isInLibrary)
-                    .padding(Design.Space.extraSmall)
-            }
-            .buttonStyle(.plain)
-            .disabled(model.isUpdatingLibrary)
-            .accessibilityIdentifier("work.library")
-            .accessibilityLabel(model.isInLibrary ? "In your library" : "Add to library")
-            .accessibilityHint(
-                model.isInLibrary ? "Removes the book from your library" : "Adds the book to your library"
-            )
         }
 
         private func statistics(_ work: Book, costsMoney: Bool, origin: CoverOrigin) -> some View {
