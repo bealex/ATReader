@@ -1,6 +1,7 @@
 {
   "sourceLanguage": "en",
   "strings": {
+    "": {},
     "%@ points": {
       "extractionState": "manual",
       "localizations": {
@@ -1577,6 +1578,17 @@
         }
       }
     },
+    "Litres answered %lld.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Литрес ответил %lld."
+          }
+        }
+      }
+    },
     "Litres answered with a challenge rather than an answer.": {
       "extractionState": "manual",
       "localizations": {
@@ -1584,6 +1596,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Литрес ответил проверкой вместо ответа."
+          }
+        }
+      }
+    },
+    "Litres answered with something unexpected.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Литрес ответил неожиданным образом."
           }
         }
       }

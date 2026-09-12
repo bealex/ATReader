@@ -265,6 +265,17 @@
         }
       }
     },
+    "Unknown author": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Автор неизвестен"
+          }
+        }
+      }
+    },
     "We emailed you a verification code.": {
       "extractionState": "manual",
       "localizations": {
