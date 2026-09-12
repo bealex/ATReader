@@ -136,20 +136,23 @@ public struct PageTurnView<Page: View>: View {
 
     public var body: some View {
         ZStack {
-            if let turn, let lower = lowerIndex(turn), let upper = upperIndex(turn) {
-                let covered = coverage(turn)
+            // One slot for the page standing still and for the page being turned away from, which are
+            // the same page. Built in two places, it was built again as a turn began and again as it
+            // ended, and a page built again has lost whatever it had loaded: the title page's cover
+            // came back in from nothing on every turn.
+            let beneath = turn.flatMap(lowerIndex) ?? index
+            let covered = turn.map(coverage) ?? 0
 
-                page(lower)
-                    .scaleEffect(1 - Self.recession * covered)
-                    .overlay(Color.black.opacity(Self.dimming * covered).accessibilityHidden(true))
+            page(beneath)
+                .scaleEffect(1 - Self.recession * covered)
+                .overlay(Color.black.opacity(Self.dimming * covered).accessibilityHidden(true))
 
+            if let turn, let upper = upperIndex(turn) {
                 page(upper)
                     .background(Color.clear)
                     .compositingGroup()
                     .shadow(color: .black.opacity(0.35), radius: 14, x: -5, y: 0)
                     .offset(x: offset(turn))
-            } else {
-                page(index)
             }
         }
         .offset(x: overscroll)
