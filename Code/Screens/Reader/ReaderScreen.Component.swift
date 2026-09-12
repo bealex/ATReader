@@ -197,7 +197,7 @@ enum ReaderScreen {
                 onPageTap: { point in show(value.note(at: point)) },
                 onPickOut: { start, finish in value.pickOut(from: start, to: finish) },
                 onPickedOut: { withAnimation(CalloutMotion.showing) { picked = value.picked } },
-                isChoosing: value.picked != nil,
+                isCovered: value.picked != nil || note != nil,
                 onMiddleTap: toggleChrome,
                 onTurnStarted: {
                     hideChrome()

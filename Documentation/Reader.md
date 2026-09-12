@@ -309,11 +309,14 @@ own place, fires while the finger is still down so the words light up under it r
 up, and is set not to cancel the touches around it. It hangs on the window, the one view certain to see
 every touch, and ignores a press that began outside the page.
 
-**The page holds still while text is picked.** Three things had to be told so: the drag that turns a
-page, the end of that drag, and the tap zones. A turn already under way is dropped when a press takes
-hold, since a finger can cover the eight points that start one inside the time a press takes to be
-held. With something picked, the layer over the page answers taps and the page ignores them, or a tap
-would put the aside away and turn the page in one go.
+**The page holds still while anything covers it**: words being picked, the aside offered for them, or
+a note. `PageTurnView.isCovered` tells four things so: the drag that turns a page, the end of that
+drag, the tap zones and the press. The layer an aside lays over the page answers taps, and the page
+ignores them too, or one tap would put the aside away and turn the page as well. The press has to be
+told because it hangs on the window and hears a finger held on the aside itself. Only a press's start
+is refused, since the words it's picking cover the page as soon as it begins. A turn already under way
+is dropped when a press takes hold, because a finger can cover the eight points that start one inside
+the time a press takes to be held.
 
 Lifting the finger opens a `Callout` over the words: look up, translate, copy. The paint under them is
 `Design.Surface.picked`, and the page ticks as it goes: firmer for the first word, lighter for each one

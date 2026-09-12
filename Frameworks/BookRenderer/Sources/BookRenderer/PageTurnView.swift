@@ -32,9 +32,9 @@ public struct PageTurnView<Page: View>: View {
     /// stops turning for as long as this is going on.
     public var onPickOut: (CGPoint, CGPoint) -> Void = { _, _ in }
     public var onPickedOut: () -> Void = {}
-    /// True while text is picked out and something is being decided about it. The page holds still:
-    /// a finger moving over a page in this state is working on the words, not asking for the next one.
-    public var isChoosing = false
+    /// True while something stands over the page, an aside or words being picked out for one. The page
+    /// then takes no turn, tap or press of its own: every touch belongs to what is over it.
+    public var isCovered = false
     /// A tap in the dead zone between the two turning thirds.
     public var onMiddleTap: () -> Void = {}
     /// The moment a turn takes hold, by tap or by finger.
@@ -53,7 +53,7 @@ public struct PageTurnView<Page: View>: View {
         onPageTap: @escaping (CGPoint) -> Bool = { _ in false },
         onPickOut: @escaping (CGPoint, CGPoint) -> Void = { _, _ in },
         onPickedOut: @escaping () -> Void = {},
-        isChoosing: Bool = false,
+        isCovered: Bool = false,
         onMiddleTap: @escaping () -> Void = {},
         onTurnStarted: @escaping () -> Void = {},
         @ViewBuilder page: @escaping (Int) -> Page
@@ -67,7 +67,7 @@ public struct PageTurnView<Page: View>: View {
         self.onPageTap = onPageTap
         self.onPickOut = onPickOut
         self.onPickedOut = onPickedOut
-        self.isChoosing = isChoosing
+        self.isCovered = isCovered
         self.onMiddleTap = onMiddleTap
         self.onTurnStarted = onTurnStarted
         self.page = page
@@ -160,9 +160,9 @@ public struct PageTurnView<Page: View>: View {
         // Watched rather than caught: everything else on the page still answers its own taps.
         .overlay { press }
         .onTapGesture(coordinateSpace: .local) { location in
-            // With something picked out, the layer over the page answers taps and the page holds its
-            // place. A tap here as well would put the aside away and turn the page in one go.
-            guard !isChoosing else { return }
+            // The layer over the page answers this tap. Taking it here too would put the aside away and
+            // turn the page in one go.
+            guard !isCovered else { return }
             // Something on the page itself answers first. A note's marker is far smaller than the
             // zone it stands in, so the zones would swallow every tap meant for one.
             guard !onPageTap(location) else { return }
@@ -192,6 +192,9 @@ public struct PageTurnView<Page: View>: View {
     private var press: some View {
         PagePressGesture(
             onBegan: { point in
+                // The recognizer hangs on the window, so it hears a press on an aside as well.
+                guard !isCovered else { return }
+
                 isPickingOut = true
                 heldAt = point
                 // A turn may already be under way: a finger can travel the eight points that start one
@@ -216,9 +219,9 @@ public struct PageTurnView<Page: View>: View {
     private var drag: some Gesture {
         DragGesture(minimumDistance: 8)
             .onChanged { value in
-                // A finger picking text out, or moving over a page with something already picked, is
-                // not turning it however far it travels.
-                guard !isPickingOut, !isChoosing else { return }
+                // A finger picking text out, or moving over a covered page, is not turning it however
+                // far it travels.
+                guard !isPickingOut, !isCovered else { return }
 
                 let translation = value.translation.width
 
@@ -256,7 +259,7 @@ public struct PageTurnView<Page: View>: View {
                 withAnimation(.easeInOut(duration: Self.grabDuration)) { progress = target }
             }
             .onEnded { value in
-                guard !isPickingOut, !isChoosing else { return releaseOverscroll() }
+                guard !isPickingOut, !isCovered else { return releaseOverscroll() }
                 guard let turn else { return releaseOverscroll() }
 
                 let translation = value.translation.width
