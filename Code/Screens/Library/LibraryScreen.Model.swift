@@ -1303,8 +1303,7 @@ extension LibraryScreen {
             }
         }
 
-        /// Marks a book read through: the ring fills, and the book page's chapter marks fill with it,
-        /// which means putting the position at the end of the last chapter it has.
+        /// Marks a book read through: the ring fills and the book page's chapter marks fill with it.
         func markAsRead(_ work: Book) async {
             if let index = works.firstIndex(where: { $0.id == work.id }) {
                 if !works[index].isReadToTheEnd { works[index].readAt = .now }
@@ -1326,17 +1325,11 @@ extension LibraryScreen {
             }
 
             guard let last = await contents(of: work.id).last(where: \.isReadable) else { return }
-
-            let isLocalBook = isLocal(work)
-
-            await store.store(position: .init(
-                workId: work.id,
-                chapterId: last.id,
-                // Past the end when the chapter's length is unknown; the reader clamps to its last page.
-                characterOffset: last.textLength ?? .max,
-                updatedAt: .now
-            ))
-            guard !isLocalBook else { return }
+            // Where the reader stopped is theirs, and marking a book read says nothing about it. This
+            // used to put the position at the end of the last chapter so the chapter marks would fill,
+            // which threw away the place they had actually reached: a book marked read from the first
+            // page reopened at the last. The marks read the book's own progress instead.
+            guard !isLocal(work) else { return }
 
             // The service stores no progress it is sent, so this is a courtesy rather than the record.
             try? await session.client.updateProgress(

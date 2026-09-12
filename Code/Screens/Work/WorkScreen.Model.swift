@@ -115,6 +115,10 @@ extension WorkScreen {
         }
 
         func state(of chapter: BookChapter) -> ChapterState {
+            // A book read through is read through, whatever place the reader left in it. The two are
+            // separate: one is what they did with the book, the other is where they are in it.
+            if summary?.isReadToTheEnd == true { return .read }
+
             guard
                 let currentId = positionChapterId,
                 let current = chapters.firstIndex(where: { $0.id == currentId }),

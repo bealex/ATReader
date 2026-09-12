@@ -138,9 +138,68 @@ public enum FB2Parser {
                 seriesOrder: seriesOrder,
                 cover: cover,
                 images: images,
-                sections: sections.map(carryingNotes),
+                sections: Self.cutAtHeadings(sections).map(carryingNotes),
                 identifier: documentId
             )
+        }
+
+        /// A book that keeps its whole text in one section, cut at the headings inside it.
+        ///
+        /// Some files mark their chapters with sections and some with headings, and one that does
+        /// neither is a single chapter however long it runs. That is worth avoiding: a chapter holding
+        /// a whole book is set from scratch every time the book is opened.
+        ///
+        /// Only where there is one section to begin with, so a book that already says where its
+        /// chapters are is left alone. A heading of nothing but marks is a break between scenes and no
+        /// place to start a chapter, which is most of what these headings turn out to be.
+        private static func cutAtHeadings(_ sections: [ParsedBook.Section]) -> [ParsedBook.Section] {
+            guard sections.count == 1, let whole = sections.first else { return sections }
+
+            let pieces = whole.html.components(separatedBy: "<h2>")
+
+            guard pieces.count > 1 else { return sections }
+
+            var cut: [ParsedBook.Section] = []
+
+            for (index, piece) in pieces.enumerated() {
+                // The first piece is whatever stood before any heading, and keeps the book's own title.
+                guard
+                    index > 0
+                else {
+                    if !piece.isEmpty { cut.append(made(title: whole.title, html: piece)) }
+
+                    continue
+                }
+
+                let parts = piece.components(separatedBy: "</h2>")
+                let heading = parts.first.map(stripped) ?? ""
+                let body = parts.dropFirst().joined(separator: "</h2>")
+
+                // A heading with nothing to read in it is a scene break. It stays where it stood.
+                guard
+                    heading.contains(where: { $0.isLetter || $0.isNumber })
+                else {
+                    cut = cut.isEmpty
+                        ? [ made(title: whole.title, html: "<h2>" + piece) ]
+                        : cut.dropLast() + [ made(title: cut.last?.title, html: (cut.last?.html ?? "") + "<h2>" + piece) ]
+                    continue
+                }
+
+                cut.append(made(title: heading, html: body))
+            }
+
+            return cut.count > 1 ? cut : sections
+        }
+
+        private static func made(title: String?, html: String) -> ParsedBook.Section {
+            ParsedBook.Section(title: title, html: html, textLength: stripped(html).count)
+        }
+
+        /// The words of a fragment, with its markup off, for weighing how long a piece runs.
+        private static func stripped(_ html: some StringProtocol) -> String {
+            String(html)
+                .replacingOccurrences(of: "<[^>]+>", with: "", options: .regularExpression)
+                .trimmingCharacters(in: .whitespacesAndNewlines)
         }
 
         /// A chapter with the notes its own text points at written under it.
