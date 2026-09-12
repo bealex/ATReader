@@ -40,6 +40,8 @@ enum CatalogueSearchScreen {
             }
             .navigationTitle("OPDS library")
             .navigationBarTitleDisplayMode(.inline)
+            // A hit is read rather than typed over, so the keyboard goes as soon as the list moves.
+            .scrollDismissesKeyboard(.immediately)
             .overlay {
                 if model.isLoading { ProgressView().controlSize(.large) }
             }
