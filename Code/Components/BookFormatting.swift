@@ -72,4 +72,35 @@ extension BookChapter {
 
         return title
     }
+
+    /// How deep this stands. A book that said nothing about its own structure is all one level.
+    var contentsLevel: Int { max(1, level ?? 1) }
+}
+
+extension [BookChapter] {
+    /// What each of these is called in a contents list.
+    ///
+    /// A piece the book named keeps its name. One it did not is called by what it is and which one it
+    /// is: the pieces a chapter is cut into are counted within that chapter rather than through the
+    /// whole book, so the first under every heading is the first.
+    func contentsNames() -> [String] {
+        var counted = 0
+
+        return map { chapter in
+            if let title = chapter.title, !title.isEmpty {
+                counted = 0
+                return title
+            }
+
+            guard
+                chapter.contentsLevel > 1
+            else {
+                counted = 0
+                return chapter.displayTitle
+            }
+
+            counted += 1
+            return String(localized: "Piece \(counted)")
+        }
+    }
 }

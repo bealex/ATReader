@@ -811,8 +811,11 @@ enum ReaderScreen {
         var body: some View {
             NavigationStack {
                 List {
-                    ForEach(model.readableChapters) { chapter in
-                        chapterRow(chapter)
+                    let chapters = model.readableChapters
+                    let names = chapters.contentsNames()
+
+                    ForEach(Array(chapters.enumerated()), id: \.element.id) { place, chapter in
+                        chapterRow(chapter, named: names[place])
 
                         ForEach(model.bookmarks(inChapter: chapter.id)) { mark in
                             bookmarkRow(mark)
@@ -829,7 +832,7 @@ enum ReaderScreen {
             }
         }
 
-        private func chapterRow(_ chapter: BookChapter) -> some View {
+        private func chapterRow(_ chapter: BookChapter, named name: String) -> some View {
             Button(
                 action: {
                     isPresented = false
@@ -837,7 +840,10 @@ enum ReaderScreen {
                 },
                 label: {
                     HStack {
-                        Text(chapter.displayTitle)
+                        Text(name)
+                            // What a book marked inside a chapter stands under it, so the shape of the
+                            // book is in the list rather than only its pieces.
+                            .padding(.leading, Design.Space.large * CGFloat(chapter.contentsLevel - 1))
                             .frame(maxWidth: .infinity, alignment: .leading)
 
                         if chapter.id == model.currentChapterId {
@@ -852,8 +858,8 @@ enum ReaderScreen {
             .buttonStyle(.plain)
             .accessibilityLabel(
                 chapter.id == model.currentChapterId
-                    ? "\(chapter.displayTitle), currently reading"
-                    : chapter.displayTitle
+                    ? "\(name), currently reading"
+                    : name
             )
             .accessibilityHint("Opens the chapter")
         }

@@ -2323,6 +2323,17 @@
         }
       }
     },
+    "Piece %lld": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Часть %lld"
+          }
+        }
+      }
+    },
     "Portrait only": {
       "extractionState": "manual",
       "localizations": {

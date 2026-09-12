@@ -16,11 +16,15 @@ public struct ParsedBook: Sendable {
         public let html: String
         /// Characters of text, which is what a book's reading progress is weighed in.
         public let textLength: Int
+        /// How deep this stands in the book: one for a part or a chapter the file names outright, more
+        /// for anything marked inside one. What the contents indents by.
+        public let level: Int
 
-        public init(title: String?, html: String, textLength: Int) {
+        public init(title: String?, html: String, textLength: Int, level: Int = 1) {
             self.title = title
             self.html = html
             self.textLength = textLength
+            self.level = level
         }
     }
 

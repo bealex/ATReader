@@ -143,30 +143,35 @@ public enum FB2Parser {
             )
         }
 
-        /// A book that keeps its whole text in one section, cut at the headings inside it.
+        /// A book cut into the pieces its own headings mark, the finest divisions it gives.
         ///
-        /// Some files mark their chapters with sections and some with headings, and one that does
-        /// neither is a single chapter however long it runs. That is worth avoiding: a chapter holding
-        /// a whole book is set from scratch every time the book is opened.
+        /// Some files mark their chapters with sections, some with headings inside one section, and
+        /// some mark nothing at all. Where a section carries headings, those are divisions the book
+        /// itself made, and they are what the reader is given: a chapter holding a whole book is
+        /// composed from scratch every time it is opened, and a contents list of one line says nothing.
         ///
-        /// Only where there is one section to begin with, so a book that already says where its
-        /// chapters are is left alone. A heading of nothing but marks is a break between scenes and no
-        /// place to start a chapter, which is most of what these headings turn out to be.
+        /// A heading of nothing but marks names nothing, so the piece it opens carries no title. It is
+        /// still a piece, and the contents calls it what it is rather than giving it a name it never
+        /// had. Every piece cut out of a section stands one level below it.
         private static func cutAtHeadings(_ sections: [ParsedBook.Section]) -> [ParsedBook.Section] {
-            guard sections.count == 1, let whole = sections.first else { return sections }
+            sections.flatMap(cut(_:))
+        }
 
+        private static func cut(_ whole: ParsedBook.Section) -> [ParsedBook.Section] {
             let pieces = whole.html.components(separatedBy: "<h2>")
 
-            guard pieces.count > 1 else { return sections }
+            guard pieces.count > 1 else { return [ whole ] }
 
             var cut: [ParsedBook.Section] = []
 
             for (index, piece) in pieces.enumerated() {
-                // The first piece is whatever stood before any heading, and keeps the book's own title.
+                // The first piece is whatever stood before any heading, and keeps the section's title.
                 guard
                     index > 0
                 else {
-                    if !piece.isEmpty { cut.append(made(title: whole.title, html: piece)) }
+                    if !stripped(piece).isEmpty {
+                        cut.append(made(title: whole.title, html: piece, level: whole.level))
+                    }
 
                     continue
                 }
@@ -174,25 +179,16 @@ public enum FB2Parser {
                 let parts = piece.components(separatedBy: "</h2>")
                 let heading = parts.first.map(stripped) ?? ""
                 let body = parts.dropFirst().joined(separator: "</h2>")
+                let named = heading.contains(where: { $0.isLetter || $0.isNumber }) ? heading : nil
 
-                // A heading with nothing to read in it is a scene break. It stays where it stood.
-                guard
-                    heading.contains(where: { $0.isLetter || $0.isNumber })
-                else {
-                    cut = cut.isEmpty
-                        ? [ made(title: whole.title, html: "<h2>" + piece) ]
-                        : cut.dropLast() + [ made(title: cut.last?.title, html: (cut.last?.html ?? "") + "<h2>" + piece) ]
-                    continue
-                }
-
-                cut.append(made(title: heading, html: body))
+                cut.append(made(title: named, html: body, level: whole.level + 1))
             }
 
-            return cut.count > 1 ? cut : sections
+            return cut.count > 1 ? cut : [ whole ]
         }
 
-        private static func made(title: String?, html: String) -> ParsedBook.Section {
-            ParsedBook.Section(title: title, html: html, textLength: stripped(html).count)
+        private static func made(title: String?, html: String, level: Int = 1) -> ParsedBook.Section {
+            ParsedBook.Section(title: title, html: html, textLength: stripped(html).count, level: level)
         }
 
         /// The words of a fragment, with its markup off, for weighing how long a piece runs.

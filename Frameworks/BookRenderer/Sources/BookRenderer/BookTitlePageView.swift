@@ -64,6 +64,8 @@ public struct BookTitlePageView: View {
         .padding(.top, safeArea.top)
         .padding(.bottom, safeArea.bottom)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(seriesTitle.map { "\(title), \(author), \($0)" } ?? "\(title), \(author)")
+        // Joined rather than interpolated into a key: what a title page says is the book's own words,
+        // and a comma between them is not something to translate.
+        .accessibilityLabel(Text(verbatim: [ title, author, seriesTitle ].compactMap { $0 }.joined(separator: ", ")))
     }
 }

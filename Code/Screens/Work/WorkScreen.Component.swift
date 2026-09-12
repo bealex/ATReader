@@ -309,20 +309,22 @@ enum WorkScreen {
         private func contentsSection(_ model: Model) -> some View {
             section("Contents") {
                 VStack(alignment: .leading, spacing: 0) {
-                    ForEach(model.chapters) { chapter in
-                        chapterRow(model, chapter: chapter)
+                    let names = model.chapters.contentsNames()
+
+                    ForEach(Array(model.chapters.enumerated()), id: \.element.id) { place, chapter in
+                        chapterRow(model, chapter: chapter, named: names[place])
                     }
                 }
             }
         }
 
         @ViewBuilder
-        private func chapterRow(_ model: Model, chapter: BookChapter) -> some View {
+        private func chapterRow(_ model: Model, chapter: BookChapter, named name: String) -> some View {
             if chapter.isReadable, let summary = model.summary {
                 Button {
                     navigator.present(.reader(.init(workId: model.workId, title: summary.title, chapterId: chapter.id)))
                 } label: {
-                    chapterLabel(chapter, marker: nil, state: model.state(of: chapter))
+                    chapterLabel(chapter, named: name, marker: nil, state: model.state(of: chapter))
                 }
                 .buttonStyle(.plain)
 
@@ -332,7 +334,7 @@ enum WorkScreen {
             } else {
                 // In a book that has to be bought, a chapter is closed because it costs money rather
                 // than because it isn't finished. The ones without a mark are the free ones.
-                chapterLabel(chapter, marker: model.isLockedByPrice ? .paid : .locked)
+                chapterLabel(chapter, named: name, marker: model.isLockedByPrice ? .paid : .locked)
             }
         }
 
@@ -373,6 +375,7 @@ enum WorkScreen {
         /// the first line of its title.
         private func chapterLabel(
             _ chapter: BookChapter,
+            named name: String,
             marker: ChapterMarker?,
             state: Model.ChapterState = .unread
         ) -> some View {
@@ -391,29 +394,31 @@ enum WorkScreen {
                 }
                 .frame(width: Design.Size.mark)
 
-                Text(chapter.displayTitle)
+                Text(name)
+                    // What a book marked inside a chapter stands under it.
+                    .padding(.leading, Design.Space.large * CGFloat(chapter.contentsLevel - 1))
                     .font(Design.Style.item)
                     .foregroundStyle(marker == nil ? .primary : .secondary)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
             .padding(.vertical, Design.Space.small)
             .contentShape(.rect)
-            .accessibilityLabel(label(chapter, marker: marker, state: state))
+            .accessibilityLabel(label(named: name, marker: marker, state: state))
         }
 
-        private func label(_ chapter: BookChapter, marker: ChapterMarker?, state: Model.ChapterState) -> String {
+        private func label(named name: String, marker: ChapterMarker?, state: Model.ChapterState) -> String {
             switch marker {
-                case .paid: return String(localized: "\(chapter.displayTitle), paid")
-                case .locked: return String(localized: "\(chapter.displayTitle), locked")
+                case .paid: return String(localized: "\(name), paid")
+                case .locked: return String(localized: "\(name), locked")
                 case .none: break
             }
 
             switch state {
-                case .unread: return chapter.displayTitle
-                case .read: return String(localized: "\(chapter.displayTitle), read")
+                case .unread: return name
+                case .read: return String(localized: "\(name), read")
                 case let .reading(progress):
                     let percent = BookFormatting.progress(progress) ?? ""
-                    return String(localized: "\(chapter.displayTitle), \(percent) read")
+                    return String(localized: "\(name), \(percent) read")
             }
         }
 

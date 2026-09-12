@@ -15,6 +15,9 @@ public struct BookChapter: Codable, Sendable, Identifiable, Hashable {
     public let publishTime: Date?
     public let lastModificationTime: Date?
     public let textLength: Int?
+    /// How deep the chapter stands in the book's own structure, where the book gave one: one for a
+    /// part or a chapter it names outright, more for anything marked inside one.
+    public let level: Int?
     public let isAvailable: Bool?
 
     public init(
@@ -26,7 +29,8 @@ public struct BookChapter: Codable, Sendable, Identifiable, Hashable {
         publishTime: Date? = nil,
         lastModificationTime: Date? = nil,
         textLength: Int?,
-        isAvailable: Bool? = nil
+        isAvailable: Bool? = nil,
+        level: Int? = nil
     ) {
         self.id = id
         self.workId = workId
@@ -36,6 +40,7 @@ public struct BookChapter: Codable, Sendable, Identifiable, Hashable {
         self.publishTime = publishTime
         self.lastModificationTime = lastModificationTime
         self.textLength = textLength
+        self.level = level
         self.isAvailable = isAvailable
     }
 

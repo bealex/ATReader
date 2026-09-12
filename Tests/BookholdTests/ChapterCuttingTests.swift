@@ -42,11 +42,13 @@ struct ChapterCuttingTests {
 
         #expect(read.sections.count == 3)
         #expect(read.sections.map(\.title) == [ nil, "Первая", "Вторая" ])
+        #expect(read.sections.map(\.level) == [ 1, 2, 2 ])
     }
 
-    /// A heading of nothing but marks is a break between scenes, and no place to start a chapter.
+    /// A heading of nothing but marks still divides the book. It names nothing, so the piece it opens
+    /// carries no title, and the contents calls it what it is.
     @Test
-    func leavesABookWhoseHeadingsAreSceneBreaks() throws {
+    func cutsAtHeadingsThatNameNothing() throws {
         let read = try book("""
             <section>
               <p>Раз.</p>
@@ -57,20 +59,21 @@ struct ChapterCuttingTests {
             </section>
             """)
 
-        #expect(read.sections.count == 1)
-        // The breaks stay where they stood, as subtitles in the one chapter's own text.
-        #expect(read.sections.first?.html.contains("<h2>***</h2>") == true)
+        #expect(read.sections.count == 3)
+        #expect(read.sections.map(\.title) == [ nil, nil, nil ])
+        // A piece cut out of a section stands one level below it.
+        #expect(read.sections.map(\.level) == [ 1, 2, 2 ])
     }
 
-    /// A file that already says where its chapters are is left alone.
+    /// A file that names its chapters keeps those names, and what is marked inside one stands under it.
     @Test
-    func leavesABookThatHasSections() throws {
+    func cutsInsideASectionWithoutLosingItsName() throws {
         let read = try book("""
             <section><title><p>Одна</p></title><p>Раз.</p><subtitle>Внутри</subtitle><p>Ещё.</p></section>
             <section><title><p>Другая</p></title><p>Два.</p></section>
             """)
 
-        #expect(read.sections.count == 2)
-        #expect(read.sections.map(\.title) == [ "Одна", "Другая" ])
+        #expect(read.sections.map(\.title) == [ "Одна", "Внутри", "Другая" ])
+        #expect(read.sections.map(\.level) == [ 1, 2, 1 ])
     }
 }

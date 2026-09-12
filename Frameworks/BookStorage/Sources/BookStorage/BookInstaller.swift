@@ -127,7 +127,8 @@ public enum BookInstaller {
                 workId: workId,
                 title: section.title,
                 sortOrder: index,
-                textLength: section.textLength
+                textLength: section.textLength,
+                level: section.level
             )
         }
     }
