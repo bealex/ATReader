@@ -68,12 +68,15 @@ public enum BookInstaller {
         let summary = summary(book, workId: workId, coverURL: cover, existing: await store.book(id: workId)?.summary)
 
         let contents = chapters(book, workId: workId)
+        // Read before the chapters are replaced, and put back after: see `placeInTheBook`.
+        let place = await placeInTheBook(workId: workId, store: store)
 
         await store.store(book: summary, tags: [])
         await store.store(chapters: contents, workId: workId)
         // A corrected file can be shorter than the one it replaces, and the chapters it dropped would
         // otherwise stay in the contents.
         await store.removeChapters(workId: workId, keeping: contents.map(\.id))
+        await carry(place, into: contents, workId: workId, store: store)
 
         for (index, section) in book.sections.enumerated() {
             await store.store(
@@ -117,6 +120,48 @@ public enum BookInstaller {
             try LocalBookFiles.keep(data, workId: workId)
         } catch {
             logger.error("keeping the file failed: \(error.localizedDescription, privacy: .public)")
+        }
+    }
+
+    /// Where the reader stands, counted from the first character of the book rather than of a chapter.
+    ///
+    /// Taken before a file is read again, because reading it again may cut it into different pieces. A
+    /// position is kept against a chapter's id, and those are made from the chapter's place in the
+    /// book: cut the book differently and the old id names a different piece, at an offset that piece
+    /// may not even reach.
+    private static func placeInTheBook(workId: Int, store: SQLiteBookStore) async -> Int? {
+        guard let position = await store.position(workId: workId) else { return nil }
+
+        let chapters = await store.chapters(workId: workId)
+
+        guard let index = chapters.firstIndex(where: { $0.id == position.chapterId }) else { return nil }
+
+        let before = chapters.prefix(index).reduce(0) { $0 + ($1.textLength ?? 0) }
+
+        return before + position.characterOffset
+    }
+
+    /// Puts the reader back at that character, in whichever piece now holds it.
+    private static func carry(_ place: Int?, into chapters: [BookChapter], workId: Int, store: SQLiteBookStore) async {
+        guard let place, let last = chapters.last else { return }
+
+        var passed = 0
+
+        for chapter in chapters {
+            let length = chapter.textLength ?? 0
+
+            // The last piece takes anything past the end, which is where a book read to its end sits.
+            if place < passed + length || chapter.id == last.id {
+                await store.store(position: .init(
+                    workId: workId,
+                    chapterId: chapter.id,
+                    characterOffset: max(0, min(place - passed, length)),
+                    updatedAt: .now
+                ))
+                return
+            }
+
+            passed += length
         }
     }
 
