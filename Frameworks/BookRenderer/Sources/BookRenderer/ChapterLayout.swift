@@ -4,6 +4,7 @@
 //
 
 import BookKit
+import CryptoKit
 import CoreText
 import SwiftUI
 import UIKit
@@ -127,6 +128,8 @@ public final class ChapterLayout {
     /// What the previous chapter already used on this chapter's first page, when the chapter runs on
     /// from it rather than starting a page of its own.
     public let startOffset: CGFloat
+    /// Where columns already broken into lines are kept, where there is anywhere to keep them.
+    private let columns: (any ColumnStore)?
 
     /// The character range each page covers, so a reading position survives a change of font.
     public private(set) var pageRanges: [NSRange] = []
@@ -147,10 +150,17 @@ public final class ChapterLayout {
         var imagePadding: CGFloat = 0
     }
 
-    init(chapterId: Int, text: ChapterPagination.TypesetText, context: Context, startOffset: CGFloat = 0) {
+    init(
+        chapterId: Int,
+        text: ChapterPagination.TypesetText,
+        context: Context,
+        startOffset: CGFloat = 0,
+        columns: (any ColumnStore)? = nil
+    ) {
         self.chapterId = chapterId
         self.context = context
         self.startOffset = max(0, startOffset)
+        self.columns = columns
         self.headingLength = text.headingLength
         self.text = text.attributed
     }
@@ -165,6 +175,7 @@ public final class ChapterLayout {
         heading: ChapterHeading,
         context: Context,
         startOffset: CGFloat = 0,
+        columns: (any ColumnStore)? = nil,
         onProgress: (@MainActor (Double) -> Void)? = nil
     ) async -> ChapterLayout {
         // The pictures are read off the device before anything is measured: a line as deep as a plate
@@ -188,7 +199,8 @@ public final class ChapterLayout {
             chapterId: chapterId,
             text: typesetting(),
             context: context,
-            startOffset: startOffset
+            startOffset: startOffset,
+            columns: columns
         )
         await layout.build(typesetting: { typesetting().attributed }, onProgress: onProgress)
         return layout
@@ -203,13 +215,19 @@ public final class ChapterLayout {
     ) async {
         guard context.isUsable, text.length > 0 else { return }
 
-        lines = await ColumnComposer.compose(
-            paragraphs: ColumnComposer.paragraphs(in: text),
-            typesetting: typesetting,
-            headingLength: headingLength,
-            size: context.textSize,
-            onProgress: isLong ? onProgress : nil
-        )
+        if let kept = await keptLines() {
+            lines = kept
+        } else {
+            lines = await ColumnComposer.compose(
+                paragraphs: ColumnComposer.paragraphs(in: text),
+                typesetting: typesetting,
+                headingLength: headingLength,
+                size: context.textSize,
+                onProgress: isLong ? onProgress : nil
+            )
+            await keep(lines)
+        }
+
         dropTheAirAtTheTop()
         composePages()
         pageRanges = pages.map { page in
@@ -217,6 +235,46 @@ public final class ChapterLayout {
             let last = lines[page.lines.upperBound - 1].characters
             return NSRange(location: first.location, length: last.location + last.length - first.location)
         }
+    }
+
+    /// The lines this chapter was broken into last time, where they were broken for this text at this
+    /// setting. Nothing else will do: the whole point of them is that they are what would be composed.
+    private func keptLines() async -> [ColumnComposer.Line]? {
+        guard
+            let columns,
+            let kept = await columns.column(chapterId: chapterId, fingerprint: keptUnder)
+        else {
+            return nil
+        }
+        guard
+            let unpacked = try? (kept as NSData).decompressed(using: .zlib) as Data,
+            let column = try? JSONDecoder().decode(ColumnComposer.Column.self, from: unpacked),
+            !column.lines.isEmpty
+        else { return nil }
+
+        return column.lines
+    }
+
+    private func keep(_ lines: [ColumnComposer.Line]) async {
+        guard let columns, !lines.isEmpty, ColumnComposer.isKeepable(lines) else { return }
+        guard
+            let written = try? JSONEncoder().encode(ColumnComposer.Column(lines: lines)),
+            let squeezed = try? (written as NSData).compressed(using: .zlib) as Data
+        else { return }
+
+        await columns.store(column: squeezed, chapterId: chapterId, fingerprint: keptUnder)
+    }
+
+    /// What a kept column is filed against: the setting it was broken for, and the text it was broken
+    /// from. The setting carries the rules version, so a change to how a line is broken throws away
+    /// every column kept under the old rules rather than drawing yesterday's lines.
+    private var keptUnder: String {
+        var hasher = SHA256()
+
+        hasher.update(data: Data(context.fingerprint.utf8))
+        hasher.update(data: Data(text.string.utf8))
+
+        return hasher.finalize().map { String(format: "%02x", $0) }.joined()
     }
 
     /// Cuts the air above the chapter's first line back where the chapter starts a page of its own.

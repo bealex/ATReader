@@ -14,7 +14,7 @@ import UIKit
 /// The three move together rather than in turn. Each has its own ceiling and all three reach theirs at
 /// the same moment, so a line with few gaps leans on its letters and a line with many leans on its gaps
 /// without either being settled in advance.
-public struct LineFill: Sendable {
+public struct LineFill: Sendable, Codable {
     /// Added to every gap the line may open, on top of the tracking the gap already takes.
     public var perGap: CGFloat = 0
     /// Tracking added between every pair of characters, the held gap aside.

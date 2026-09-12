@@ -475,6 +475,25 @@ stays a guess.
 Because a page can show a chapter that hasn't arrived yet, the model's layout cache is observed, not
 ignored: a neighbour landing has to redraw the page already on screen.
 
+## Keeping the lines
+
+Breaking a chapter into lines is the expensive half of opening a book, and it depends on the text and
+the setting rather than on where the chapter starts on its page. So the lines are what is kept, in
+`chapter_column`, and cutting them into pages is done afresh every time and costs little.
+
+A column is filed under a hash of the setting's fingerprint and the chapter's own text. The
+fingerprint carries `ChapterLayout.rulesVersion`, so a change to where a line may break throws away
+every column broken under the old rules instead of drawing yesterday's lines. The rows are written as
+zlib-compressed JSON by `ColumnCoding`.
+
+A chapter carrying a picture is composed the long way and nothing is kept: what such a line holds is a
+decoded image, and writing one down would put the picture in the database twice.
+
+`ColumnCacheTests` sets a chapter twice and compares the second run to the first line for line, then
+shortens the kept column to prove the second run is set from it rather than composed again and
+happening to agree. A mistake here reads as text laid out subtly wrong, never as a crash, so the check
+has to be that exact.
+
 ## The page
 
 A page fills the screen. There is no navigation bar and no strip below the text: the book's title and

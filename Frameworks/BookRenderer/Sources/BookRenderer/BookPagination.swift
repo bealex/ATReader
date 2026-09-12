@@ -42,7 +42,7 @@ public final class BookPagination {
     public let context: ChapterLayout.Context
 
     private let workId: Int
-    private let store: any PlacementStore & PreparedChapterStore
+    private let store: any PlacementStore & PreparedChapterStore & ColumnStore
     /// The setting these measurements were made at, and the only one they are good for.
     private let style: String
 
@@ -60,7 +60,11 @@ public final class BookPagination {
     /// the chain no longer stands for everything that came first.
     private var chained = true
 
-    private init(workId: Int, context: ChapterLayout.Context, store: any PlacementStore & PreparedChapterStore) {
+    private init(
+        workId: Int,
+        context: ChapterLayout.Context,
+        store: any PlacementStore & PreparedChapterStore & ColumnStore
+    ) {
         self.workId = workId
         self.context = context
         self.store = store
@@ -71,7 +75,7 @@ public final class BookPagination {
     public static func make(
         workId: Int,
         context: ChapterLayout.Context,
-        store: any PlacementStore & PreparedChapterStore
+        store: any PlacementStore & PreparedChapterStore & ColumnStore
     ) -> BookPagination {
         BookPagination(workId: workId, context: context, store: store)
     }
@@ -181,7 +185,8 @@ public final class BookPagination {
             content: text,
             heading: heading,
             context: context,
-            startOffset: offset
+            startOffset: offset,
+            columns: store
         )
 
         // The free space was measured before the heading was set into it, and a heading stands far
@@ -195,7 +200,8 @@ public final class BookPagination {
                 content: text,
                 heading: heading,
                 context: context,
-                startOffset: 0
+                startOffset: 0,
+                columns: store
             )
         }
 

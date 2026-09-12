@@ -924,6 +924,43 @@ public actor SQLiteBookStore {
         recomputeProgress(workId: position.workId)
     }
 
+    // MARK: - Chapters already broken into lines
+
+    /// The lines a chapter was broken into, where they were broken for this text at this setting.
+    public func column(chapterId: Int, fingerprint: String) -> Data? {
+        let query = "SELECT lines FROM chapter_column WHERE chapter_id = ? AND fingerprint = ?"
+
+        guard let statement = Statement(open(), query) else { return nil }
+
+        statement.bind(1, chapterId)
+        statement.bind(2, fingerprint)
+
+        guard statement.step() else { return nil }
+
+        return statement.data(0)
+    }
+
+    /// Keeps one layout a chapter. A reader who changes the type has a different one, and what was
+    /// kept for the setting before it will not be wanted again.
+    public func store(column: Data, chapterId: Int, fingerprint: String) {
+        let query = """
+            INSERT INTO chapter_column (chapter_id, fingerprint, lines, stored_at)
+            VALUES (?, ?, ?, ?)
+            ON CONFLICT(chapter_id) DO UPDATE SET
+                fingerprint = excluded.fingerprint,
+                lines = excluded.lines,
+                stored_at = excluded.stored_at
+            """
+
+        guard let statement = Statement(open(), query) else { return }
+
+        statement.bind(1, chapterId)
+        statement.bind(2, fingerprint)
+        statement.bind(3, column)
+        statement.bind(4, Date.now.timeIntervalSince1970)
+        statement.execute()
+    }
+
     // MARK: - Bookmarks
 
     /// Every mark in a book, in the order the chapters stand and then down each chapter.
@@ -1084,6 +1121,7 @@ public actor SQLiteBookStore {
         createSeriesEditTable()
         createLocalBookTable()
         createBookmarkTable()
+        createColumnTable()
         createContentTable()
         createPlacementTable()
         createCoverShapeTable()
@@ -1397,6 +1435,19 @@ public actor SQLiteBookStore {
         execute("CREATE INDEX IF NOT EXISTS body_by_work ON chapter_body (work_id)")
     }
 
+    private func createColumnTable() {
+        execute(
+            """
+            CREATE TABLE IF NOT EXISTS chapter_column (
+                chapter_id INTEGER PRIMARY KEY,
+                fingerprint TEXT NOT NULL,
+                lines BLOB NOT NULL,
+                stored_at REAL NOT NULL
+            )
+            """
+        )
+    }
+
     private func createBookmarkTable() {
         execute(
             """
@@ -1588,6 +1639,14 @@ public actor SQLiteBookStore {
             return sqlite3_bind_text(handle, index, value, -1, Self.transient) == SQLITE_OK
         }
 
+        func bind(_ index: Int32, _ value: Data?) -> Bool {
+            guard let value else { return sqlite3_bind_null(handle, index) == SQLITE_OK }
+
+            return value.withUnsafeBytes { bytes in
+                sqlite3_bind_blob(handle, index, bytes.baseAddress, Int32(bytes.count), Self.transient) == SQLITE_OK
+            }
+        }
+
         /// True when the step produced a row.
         func step() -> Bool { sqlite3_step(handle) == SQLITE_ROW }
 
@@ -1610,6 +1669,12 @@ public actor SQLiteBookStore {
             guard sqlite3_column_type(handle, column) != SQLITE_NULL else { return nil }
 
             return Date(timeIntervalSince1970: sqlite3_column_double(handle, column))
+        }
+
+        func data(_ column: Int32) -> Data? {
+            guard let bytes = sqlite3_column_blob(handle, column) else { return nil }
+
+            return Data(bytes: bytes, count: Int(sqlite3_column_bytes(handle, column)))
         }
 
         func string(_ column: Int32) -> String? {

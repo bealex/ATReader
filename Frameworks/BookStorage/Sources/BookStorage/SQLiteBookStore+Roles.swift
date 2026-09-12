@@ -10,4 +10,4 @@ import BookKit
 /// One SQLite file answers all of them, but nothing outside takes the whole forty-method surface: the
 /// typesetter asks for bodies and prepared text, the paginator for hashes and placements. What a type
 /// declares it needs is what a reader of that type has to understand.
-extension SQLiteBookStore: ChapterBodyStore, PreparedChapterStore, PlacementStore {}
+extension SQLiteBookStore: ChapterBodyStore, PreparedChapterStore, PlacementStore, ColumnStore {}

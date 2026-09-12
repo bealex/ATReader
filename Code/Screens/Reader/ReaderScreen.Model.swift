@@ -892,6 +892,7 @@ extension ReaderScreen {
                 heading: ChapterHeading.make(position: position, title: title),
                 context: context,
                 startOffset: startOffset,
+                columns: store,
                 onProgress: reportsProgress ? report : nil
             )
 
