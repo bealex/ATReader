@@ -9,7 +9,7 @@ import PackageDescription
 let package = Package(
     name: "BookFormats",
     defaultLocalization: "en",
-    platforms: [ .iOS("27.0"), .macOS(.v15) ],
+    platforms: [ .iOS("26.0"), .macOS(.v15) ],
     products: [
         .library(name: "BookFormats", targets: [ "BookFormats" ])
     ],

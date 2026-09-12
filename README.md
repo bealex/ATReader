@@ -49,7 +49,7 @@ journal under [Documentation/History/](Documentation/History). Start at
 
 ```
 Librix/
-├── Code/                     # the app (SwiftUI, iOS 27)
+├── Code/                     # the app (SwiftUI, iOS 26)
 │   ├── App/                  # entry point, root screen, routing
 │   ├── Components/           # shared row/cover views, the drawn page, the page turn
 │   ├── Screens/              # one folder per screen: <Name>.Model.swift + <Name>.Component.swift
