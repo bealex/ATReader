@@ -8,7 +8,7 @@ import DesignSystem
 import Testing
 import UIKit
 
-@testable import Librix
+@testable import Bookhold
 
 /// A shelf turning its books from their spines to their covers.
 ///

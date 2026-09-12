@@ -5,7 +5,7 @@
 
 import Testing
 
-@testable import Librix
+@testable import Bookhold
 
 /// Where a page falls in the whole book.
 ///

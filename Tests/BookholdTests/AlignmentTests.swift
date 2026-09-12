@@ -9,7 +9,7 @@ import SwiftUI
 import Testing
 import UIKit
 
-@testable import Librix
+@testable import Bookhold
 
 /// Justification is settled per language, so the setting only reaches the page if the chapter's
 /// language is recognised first.

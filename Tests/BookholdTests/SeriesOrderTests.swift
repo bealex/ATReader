@@ -8,7 +8,7 @@ import BookStorage
 import Foundation
 import Testing
 
-@testable import Librix
+@testable import Bookhold
 
 /// Where a book's volume number comes from, and what it may not be.
 ///

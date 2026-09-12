@@ -222,13 +222,13 @@
       "extractionState": "manual",
       "shouldTranslate": false
     },
-    "A backup copies your whole library into a Librix folder inside the one you chose: the shelf, reading positions, saved chapters, and every book from a file or from Litres. The app writes one only when you ask, and rewrites a book's files only when they've changed.\n\nRestoring replaces everything on this device with what the folder holds, so you lose anything added since that backup. Pick a folder in iCloud Drive and the library survives losing the device.": {
+    "A backup copies your whole library into a Bookhold folder inside the one you chose: the shelf, reading positions, saved chapters, and every book from a file or from Litres. The app writes one only when you ask, and rewrites a book's files only when they've changed.\n\nRestoring replaces everything on this device with what the folder holds, so you lose anything added since that backup. Pick a folder in iCloud Drive and the library survives losing the device.": {
       "extractionState": "manual",
       "localizations": {
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Резервная копия переносит всю библиотеку в папку Librix внутри выбранной вами: полку, позиции чтения, сохранённые главы и все книги из файлов и с Литреса. Приложение записывает её только по вашей просьбе, а файлы книги переписывает, только если они изменились.\n\nВосстановление заменяет всё на этом устройстве содержимым папки, и всё добавленное после этой копии пропадёт. Если выбрать папку в iCloud Drive, библиотека переживёт потерю устройства."
+            "value": "Резервная копия переносит всю библиотеку в папку Bookhold внутри выбранной вами: полку, позиции чтения, сохранённые главы и все книги из файлов и с Литреса. Приложение записывает её только по вашей просьбе, а файлы книги переписывает, только если они изменились.\n\nВосстановление заменяет всё на этом устройстве содержимым папки, и всё добавленное после этой копии пропадёт. Если выбрать папку в iCloud Drive, библиотека переживёт потерю устройства."
           }
         }
       }
@@ -243,10 +243,6 @@
           }
         }
       }
-    },
-    "Librix": {
-      "extractionState": "manual",
-      "shouldTranslate": false
     },
     "Add a book from a file": {
       "extractionState": "manual",
@@ -508,6 +504,10 @@
           }
         }
       }
+    },
+    "Bookhold": {
+      "extractionState": "manual",
+      "shouldTranslate": false
     },
     "Books": {
       "extractionState": "manual",

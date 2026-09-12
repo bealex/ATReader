@@ -11,7 +11,7 @@ import BookStorage
 import Testing
 import UIKit
 
-@testable import Librix
+@testable import Bookhold
 
 /// An illustrated FB2 taken all the way through: read in, written out, laid out and drawn.
 ///
@@ -20,7 +20,7 @@ import UIKit
 /// pictures are written, one PNG per theme, for looking at.
 ///
 ///     TEST_RUNNER_AT_TEST_BOOK=~/Books/illustrated.fb2 \
-///     TEST_RUNNER_AT_RENDER_DIR=$PWD/build/renders Scripts/app.sh test --only LibrixTests
+///     TEST_RUNNER_AT_RENDER_DIR=$PWD/build/renders Scripts/app.sh test --only BookholdTests
 @MainActor
 struct IllustratedBookTests {
     private static var path: String? { ProcessInfo.processInfo.environment["AT_TEST_BOOK"] }

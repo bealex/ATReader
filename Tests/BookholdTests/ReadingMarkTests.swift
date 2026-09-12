@@ -9,7 +9,7 @@ import DesignSystem
 import Foundation
 import Testing
 
-@testable import Librix
+@testable import Bookhold
 
 /// Which bookmark a cover carries, where it stands, and the dates that decide both.
 ///

@@ -8,7 +8,7 @@ import BookStorage
 import Foundation
 import Testing
 
-@testable import Librix
+@testable import Bookhold
 
 /// What a series card puts on its shelf, and which of the two ways it stands.
 ///

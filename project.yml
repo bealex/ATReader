@@ -1,4 +1,4 @@
-name: Librix
+name: Bookhold
 
 options:
   bundleIdPrefix: com.lonelybytes
@@ -10,8 +10,8 @@ options:
   knownRegions: [ en, ru, Base ]
 
 configFiles:
-  Debug: Librix.xcconfig
-  Release: Librix.xcconfig
+  Debug: Bookhold.xcconfig
+  Release: Bookhold.xcconfig
 
 packages:
   AuthorToday:
@@ -32,7 +32,7 @@ packages:
     path: Frameworks/Litres
 
 targets:
-  Librix:
+  Bookhold:
     type: application
     platform: iOS
     sources:
@@ -78,7 +78,7 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.lonelybytes.atreader
-        PRODUCT_NAME: Librix
+        PRODUCT_NAME: Bookhold
         MARKETING_VERSION: "1.0"
         CURRENT_PROJECT_VERSION: "1"
         SWIFT_VERSION: "6.0"
@@ -106,7 +106,7 @@ targets:
     info:
       path: Code/Info.plist
       properties:
-        CFBundleDisplayName: Librix
+        CFBundleDisplayName: Bookhold
         CFBundleShortVersionString: "$(MARKETING_VERSION)"
         CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
         UILaunchScreen:
@@ -155,13 +155,13 @@ targets:
         BGTaskSchedulerPermittedIdentifiers:
           - com.lonelybytes.atreader.refresh
 
-  LibrixTests:
+  BookholdTests:
     type: bundle.unit-test
     platform: iOS
     sources:
-      - path: Tests/LibrixTests
+      - path: Tests/BookholdTests
     dependencies:
-      - target: Librix
+      - target: Bookhold
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.lonelybytes.atreader.tests
@@ -170,33 +170,33 @@ targets:
         CODE_SIGN_IDENTITY: "-"
         GENERATE_INFOPLIST_FILE: "YES"
 
-  LibrixUITests:
+  BookholdUITests:
     type: bundle.ui-testing
     platform: iOS
     sources:
-      - path: Tests/LibrixUITests
+      - path: Tests/BookholdUITests
     dependencies:
-      - target: Librix
+      - target: Bookhold
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.lonelybytes.atreader.uitests
         SWIFT_VERSION: "6.0"
         CODE_SIGN_STYLE: Manual
         CODE_SIGN_IDENTITY: "-"
-        TEST_TARGET_NAME: Librix
+        TEST_TARGET_NAME: Bookhold
         GENERATE_INFOPLIST_FILE: "YES"
 
 schemes:
-  Librix:
+  Bookhold:
     build:
       targets:
-        Librix: all
-        LibrixTests: [ test ]
-        LibrixUITests: [ test ]
+        Bookhold: all
+        BookholdTests: [ test ]
+        BookholdUITests: [ test ]
     run:
       config: Debug
     test:
       config: Debug
       targets:
-        - LibrixTests
-        - LibrixUITests
+        - BookholdTests
+        - BookholdUITests

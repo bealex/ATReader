@@ -20,7 +20,7 @@ Headers this client sends:
 | --- | --- | --- |
 | `Authorization` | `Bearer <token>`, or `Bearer guest` when signed out | yes |
 | `X-AT-Certificate` | uppercase-hex SHA-1 of the client certificate string | yes, to read chapters |
-| `User-Agent` | `Librix/<version> (build <n>; iOS <n>)` | no |
+| `User-Agent` | `Bookhold/<version> (build <n>; iOS <n>)` | no |
 | `Content-Type` | `application/json` | on POST |
 
 `X-AT-Certificate` is the one that matters, though not as authentication. Requests succeed without it;

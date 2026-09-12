@@ -9,7 +9,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
-	<string>Librix</string>
+	<string>Bookhold</string>
 	<key>CFBundleDocumentTypes</key>
 	<array>
 		<dict>

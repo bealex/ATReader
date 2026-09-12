@@ -60,12 +60,12 @@ final class SessionStore {
         ))
     }
 
-    /// Names this app and its version, e.g. `Librix/1.0 (build 1; iOS 27.0)`.
+    /// Names this app and its version, e.g. `Bookhold/1.0 (build 1; iOS 27.0)`.
     static func makeUserAgent() -> String {
         let bundle = Bundle.main
         let version = bundle.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.0"
         let build = bundle.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "1"
-        return "Librix/\(version) (build \(build); iOS \(UIDevice.current.systemVersion))"
+        return "Bookhold/\(version) (build \(build); iOS \(UIDevice.current.systemVersion))"
     }
 
     /// False when this build has no service constants — the reader says so rather than failing oddly.

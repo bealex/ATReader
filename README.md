@@ -1,4 +1,4 @@
-# Librix
+# Bookhold
 
 > **This is not a real project.** It's a test app, built for the fun of working through it with a
 > coding agent. It's for personal use only and isn't ready for publishing. Treat it as an experiment
@@ -48,7 +48,7 @@ journal under [Documentation/History/](Documentation/History). Start at
 ## Layout
 
 ```
-Librix/
+Bookhold/
 ├── Code/                     # the app (SwiftUI, iOS 26)
 │   ├── App/                  # entry point, root screen, routing
 │   ├── Components/           # shared row/cover views, the drawn page, the page turn
@@ -58,8 +58,8 @@ Librix/
 │   └── Resources/            # Localizable.xcstrings (en source, ru translation)
 ├── Frameworks/
 │   └── AuthorToday/          # the API client, as a standalone SwiftPM package
-├── Tests/LibrixTests/        # the app's own suites: typesetting, import, images
-├── Tests/LibrixUITests/      # XCUITest suites
+├── Tests/BookholdTests/      # the app's own suites: typesetting, import, images
+├── Tests/BookholdUITests/    # XCUITest suites
 ├── Fixtures/                 # book text kept out of git; see Fixtures/README.md
 ├── Documentation/            # how the app works now, plus a dated journal under History/
 ├── Scripts/                  # format / lint / check wrappers
@@ -83,10 +83,10 @@ Scripts/app.sh deploy --device      # build, install and launch on a connected d
 Scripts/app.sh test --unit          # package unit tests
 
 # UI tests (the catalogue suite runs against the live service with a guest token)
-Scripts/app.sh test --only LibrixUITests/CatalogUITests
+Scripts/app.sh test --only BookholdUITests/CatalogUITests
 ```
 
-Every run prints a line per phase and keeps the full log under `$TMPDIR/librix-logs`.
+Every run prints a line per phase and keeps the full log under `$TMPDIR/bookhold-logs`.
 
 The signed-in suites read credentials from the environment so none are committed:
 `AT_TEST_LOGIN`, `AT_TEST_PASSWORD`, `AT_TEST_CODE` (two-factor), `AT_TEST_TOKEN`.
@@ -109,7 +109,7 @@ cp .env.example .env
 `Scripts/gen-signing.sh` turns the two signing ones into `Local.xcconfig` before each build, which it
 must do there rather than in a build phase: a project-level xcconfig is read before any phase runs.
 
-`Librix.xcconfig` is committed, defaults both to empty and includes `Local.xcconfig` if it is there,
+`Bookhold.xcconfig` is committed, defaults both to empty and includes `Local.xcconfig` if it is there,
 so a fresh clone builds for the Simulator with no local setup. Neither the team ID nor the profile name
 is committed, and neither is the file they are written to.
 
@@ -138,7 +138,7 @@ certificate the request claims, so without it a chapter arrives intact but undec
 | --- | --- | --- |
 | `Authorization` | `Bearer <token>`, or `Bearer guest` when signed out | yes |
 | `X-AT-Certificate` | uppercase hex SHA-1 of the app certificate | yes, to read chapters |
-| `User-Agent` | `Librix/<version> (build <n>; iOS <n>)` | no |
+| `User-Agent` | `Bookhold/<version> (build <n>; iOS <n>)` | no |
 
 Endpoints in use: `account/login-by-password`, `account/current-user`, `account/refresh-token`,
 `account/user-library`, `account/update-library-state`, `catalog/search`, `work/genres`,

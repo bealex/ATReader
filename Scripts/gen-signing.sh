@@ -3,7 +3,7 @@
 # gen-signing.sh — turn the signing values in the gitignored `.env` into `Local.xcconfig`.
 #
 # Signing is manual and its two values are nobody's to publish, so they live in `.env` beside the
-# service constants and this script writes the xcconfig that `Librix.xcconfig` includes. Both files
+# service constants and this script writes the xcconfig that `Bookhold.xcconfig` includes. Both files
 # are gitignored. Missing values are not an error: a simulator build needs neither.
 #
 # It has to run before xcodebuild rather than as a build phase, because a project-level xcconfig is

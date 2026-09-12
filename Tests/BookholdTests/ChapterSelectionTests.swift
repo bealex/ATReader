@@ -8,7 +8,7 @@ import BookRenderer
 import Foundation
 import Testing
 
-@testable import Librix
+@testable import Bookhold
 
 /// Picking text off a drawn page.
 ///

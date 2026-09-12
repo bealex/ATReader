@@ -7,7 +7,7 @@ import BookKit
 import Testing
 import UIKit
 
-@testable import Librix
+@testable import Bookhold
 
 /// Spines printed away from the main actor, which is where a whole library's worth of them are printed.
 ///

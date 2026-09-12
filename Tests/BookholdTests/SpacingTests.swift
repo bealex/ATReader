@@ -8,7 +8,7 @@ import BookRenderer
 import Testing
 import UIKit
 
-@testable import Librix
+@testable import Bookhold
 
 /// How far apart a justified line may set its words.
 ///

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# app.sh — build, deploy and test Librix from one command.
+# app.sh — build, deploy and test Bookhold from one command.
 #
 # Each run writes its full log to a file under $TMPDIR and prints only a short summary: one line per
 # phase, the first errors where a phase failed, and a final RESULT line meant to be parsed rather than
@@ -19,7 +19,7 @@
 #            everything else about Debug), -v, --verbose (stream the log too), -h, --help
 #
 # Test options, all of which are xcodebuild's and so imply the app UI tests:
-#   --only SPEC     Run one target, suite or case, as LibrixUITests/CatalogUITests. Repeatable.
+#   --only SPEC     Run one target, suite or case, as BookholdUITests/CatalogUITests. Repeatable.
 #   --build-only    Build the tests without running them.
 #   --no-build      Run tests already built by --build-only, reusing that build.
 #
@@ -30,8 +30,8 @@
 set -uo pipefail
 
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-SCHEME="Librix"
-PROJECT="$REPO/Librix.xcodeproj"
+SCHEME="Bookhold"
+PROJECT="$REPO/Bookhold.xcodeproj"
 FRAMEWORKS="$REPO/Frameworks"
 DD="$REPO/build/dd"
 MAX_ERRORS=12
@@ -134,7 +134,7 @@ if [ "$TEST_ACTION" != test ] || [ ${#ONLY[@]} -gt 0 ]; then
 fi
 
 LOG_DIR="${TMPDIR:-/tmp}"
-LOG_DIR="${LOG_DIR%/}/librix-logs"
+LOG_DIR="${LOG_DIR%/}/bookhold-logs"
 mkdir -p "$LOG_DIR" || die "cannot create $LOG_DIR"
 LOG="$LOG_DIR/$COMMAND-$(date +%Y%m%d-%H%M%S).log"
 : >"$LOG"
@@ -233,7 +233,7 @@ resolve_device() {
   return 0
 }
 
-# project.yml is the source of truth and Librix.xcodeproj is its output, so a spec newer than the
+# project.yml is the source of truth and Bookhold.xcodeproj is its output, so a spec newer than the
 # project means the project is stale.
 #
 # So does a file having been added or removed: the spec globs Code/ and Tests/, and the glob is expanded

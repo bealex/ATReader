@@ -8,7 +8,7 @@ import BookRenderer
 import SwiftUI
 import UIKit
 
-@testable import Librix
+@testable import Bookhold
 
 /// A page taken off a device, at the settings it was read at.
 ///

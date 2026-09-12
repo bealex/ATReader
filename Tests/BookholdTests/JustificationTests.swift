@@ -9,7 +9,7 @@ import SwiftUI
 import Testing
 import UIKit
 
-@testable import Librix
+@testable import Bookhold
 
 /// What a justified column promises: a paragraph is one paragraph however its markup is written, every
 /// line inside it reaches the measure, and only the line that ends it stops short.

@@ -158,7 +158,7 @@ final class CalloutMotionUITests: XCTestCase {
         }
     }
 
-    private static let reports = "/Users/alex/Programming/LonelyBytes/Librix/Fixtures/Reports/motion"
+    private static let reports = "/Users/alex/Programming/LonelyBytes/Bookhold/Fixtures/Reports/motion"
 
     private func report(_ title: String, _ boxes: [CGRect], settled: CGRect) {
         print(String(format: "CALLOUT-MOTION %@ (settled w=%.0f h=%.0f)", title, settled.width, settled.height))

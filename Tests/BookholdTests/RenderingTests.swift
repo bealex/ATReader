@@ -9,7 +9,7 @@ import SwiftUI
 import Testing
 import UIKit
 
-@testable import Librix
+@testable import Bookhold
 
 /// What must hold of a set page whatever it is set with.
 ///

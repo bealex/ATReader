@@ -8,7 +8,7 @@ import BookKit
 import Foundation
 import Testing
 
-@testable import Librix
+@testable import Bookhold
 
 /// Notes read out of a file, which keeps them in a body of their own at the end.
 ///

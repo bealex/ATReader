@@ -6,7 +6,7 @@
 import Testing
 import UIKit
 
-@testable import Librix
+@testable import Bookhold
 
 /// What must hold of a page a reader reported as badly set.
 ///

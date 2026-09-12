@@ -8,7 +8,7 @@ import BookStorage
 import SwiftUI
 
 @main
-struct LibrixApp: App {
+struct BookholdApp: App {
     @UIApplicationDelegateAdaptor(AppDelegate.self)
     private var appDelegate
 

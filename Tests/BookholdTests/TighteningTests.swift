@@ -9,7 +9,7 @@ import SwiftUI
 import Testing
 import UIKit
 
-@testable import Librix
+@testable import Bookhold
 
 /// A paragraph a fraction wider than the measure is closed up to fit, rather than broken with a hyphen
 /// that strands the tail of a word on a line of its own.

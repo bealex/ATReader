@@ -10,7 +10,7 @@ import SwiftUI
 import Testing
 import UIKit
 
-@testable import Librix
+@testable import Bookhold
 
 /// What a picture is made of, and what the page does with it.
 ///

@@ -11,7 +11,7 @@ import SwiftUI
 import Testing
 import UIKit
 
-@testable import Librix
+@testable import Bookhold
 
 /// A chapter may finish the page the one before it ended on, but only if it brings a few lines of
 /// itself along. A heading with nothing under it, or a line or two, is a title stranded at the foot of

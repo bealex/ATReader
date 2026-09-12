@@ -1,6 +1,6 @@
 # Third-party notices
 
-Librix is MIT licensed. See [LICENSE](LICENSE). This file records everything else the project touches
+Bookhold is MIT licensed. See [LICENSE](LICENSE). This file records everything else the project touches
 and how its terms are met.
 
 ## Runtime dependencies

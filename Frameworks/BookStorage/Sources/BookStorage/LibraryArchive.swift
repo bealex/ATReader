@@ -51,7 +51,7 @@ public enum LibraryArchive {
     /// The app keeps to one folder of its own inside whatever the reader picked, so a backup can sit
     /// beside their own files without burying them.
     public static func home(in folder: URL) -> URL {
-        folder.appendingPathComponent("Librix", isDirectory: true)
+        folder.appendingPathComponent("Bookhold", isDirectory: true)
     }
 
     private static func database(in folder: URL) -> URL { home(in: folder).appendingPathComponent("library.sqlite") }

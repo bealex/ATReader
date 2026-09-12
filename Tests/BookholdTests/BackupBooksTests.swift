@@ -10,7 +10,7 @@ import Foundation
 import SQLite3
 import Testing
 
-@testable import Librix
+@testable import Bookhold
 
 /// Every book in a library backup, read in and measured the way the reader measures one.
 ///
@@ -20,10 +20,10 @@ import Testing
 /// it is measured, so a layout that never returns names its chapter. `AT_BACKUP_ONLY` narrows the run to
 /// a comma-separated list of file names and work ids.
 ///
-///     TEST_RUNNER_AT_BACKUP=~/…/Backup/Librix \
+///     TEST_RUNNER_AT_BACKUP=~/…/Backup/Bookhold \
 ///     TEST_RUNNER_AT_BACKUP_SETTINGS=~/Downloads/reader-… \
 ///     TEST_RUNNER_AT_BACKUP_LOG=$PWD/build/backup.log \
-///     Scripts/app.sh test --only LibrixTests/BackupBooksTests
+///     Scripts/app.sh test --only BookholdTests/BackupBooksTests
 @MainActor
 struct BackupBooksTests {
     private static var environment: [String: String] { ProcessInfo.processInfo.environment }
