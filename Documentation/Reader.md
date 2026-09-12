@@ -99,12 +99,13 @@ side and nothing added, since the hyphen is already there.
 
 Two things follow from putting characters into the text:
 
-- **Positions are counted without them.** A soft hyphen lands roughly every eight characters, so a
-  position that counted them would move the moment the alignment changed. `ChapterLayout` converts
-  both ways at its edge, and the rest of the app only ever sees offsets into the text as it arrived.
+- **Positions are counted without them.** A soft hyphen lands roughly every eight characters, and the
+  marks are the typesetter's rather than the book's, so a position that counted them would not answer
+  to the text as it was written. `ChapterLayout` converts both ways at its edge, and the rest of the
+  app only ever sees offsets into the text as it arrived.
 - **The work happens once.** Marking a chapter costs about as much as laying it out, so it runs in the
   same detached task that parses it, not on every re-pagination. `ChapterContent` carries the marked
-  paragraphs beside the plain ones and the layout picks by alignment.
+  paragraphs beside the plain ones, and the layout sets from the marked ones whatever the alignment.
 
 A line broken at a soft hyphen counts as a hyphenated line for the page rules, which is what keeps a
 hyphen off the foot of a page. The page's accessibility label strips them.
@@ -181,7 +182,8 @@ Filling is most of what a line costs, but four other things are priced against i
   sixth of the measure reads as a mistake, so the line above it gives a word down.
 
 Ragged-right paragraphs go through the same breaker with the levers switched off, so the edge is as
-even as the words allow and no line is stretched to make it so.
+even as the words allow and no line is stretched to make it so. They're hyphenated like any other
+setting, a word that breaks shortening the rag.
 
 ## Pictures
 

@@ -170,9 +170,9 @@ public final class ChapterLayout {
         // The pictures are read off the device before anything is measured: a line as deep as a plate
         // cannot be set without knowing how deep the plate is.
         let images = await BookImages.shared.prepare(sources: content.imageSources)
-        // Justified setting takes every break the dictionary offers; ragged-right needs no filling, so it
-        // is set as it was written.
-        let paragraphs = context.style.justifies(content.language) ? content.hyphenated : content.paragraphs
+        // Both settings take every break the dictionary offers: a hyphen evens a ragged edge as surely as
+        // it fills a justified line.
+        let paragraphs = content.hyphenated
         let language = content.language
         let style = context.style
         let typesetting: @Sendable () -> ChapterPagination.TypesetText = {
