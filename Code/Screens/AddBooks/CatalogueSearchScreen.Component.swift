@@ -63,7 +63,9 @@ enum CatalogueSearchScreen {
         /// What is being looked for, and the asking itself.
         ///
         /// Nothing is searched for until the button is pressed. A catalogue is somebody else's server
-        /// and often a slow one, and a search for every letter typed is a search for every letter typed.
+        /// and often a slow one, and a search for every letter typed is a search for every letter
+        /// typed. While one is running the whole section is held still, and the button is where the
+        /// waiting is shown, since that is where the reader last looked.
         private var asking: some View {
             Section {
                 Picker("What to look for", selection: $scope) {
@@ -72,20 +74,36 @@ enum CatalogueSearchScreen {
                     }
                 }
                 .pickerStyle(.segmented)
+                .disabled(model.isLoading)
                 .accessibilityIdentifier("opds.scope")
 
-                TextField(scope.prompt, text: $term)
-                    .autocorrectionDisabled()
-                    .accessibilityIdentifier("opds.term")
-                    .onSubmit { ask() }
+                HStack(spacing: Design.Space.medium) {
+                    TextField(scope.prompt, text: $term)
+                        .autocorrectionDisabled()
+                        .disabled(model.isLoading)
+                        .accessibilityIdentifier("opds.term")
+                        .onSubmit { ask() }
 
-                Button("Search", systemImage: "magnifyingglass", action: ask)
-                    .disabled(term.trimmingCharacters(in: .whitespaces).isEmpty || model.isLoading)
-                    .accessibilityIdentifier("opds.search")
+                    if model.isLoading {
+                        ProgressView()
+                    } else {
+                        Button(action: ask) {
+                            Image(systemName: "magnifyingglass")
+                        }
+                        .buttonStyle(.borderless)
+                        .disabled(isBlank)
+                        .accessibilityLabel("Search")
+                        .accessibilityIdentifier("opds.search")
+                    }
+                }
             }
         }
 
+        private var isBlank: Bool { term.trimmingCharacters(in: .whitespaces).isEmpty }
+
         private func ask() {
+            guard !isBlank, !model.isLoading else { return }
+
             let term = term
             let address = address
 
