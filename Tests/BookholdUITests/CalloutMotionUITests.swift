@@ -27,6 +27,10 @@ final class CalloutMotionUITests: XCTestCase {
     func testAnAsideGrowsOutOfItsPointAndBouncesOnTheWayOut() throws {
         let opener = scrolledTo(app.buttons["catalog.callout.low"])
         let card = app.descendants(matching: .any)["catalog.callout.presented"]
+        // The panel the aside is hung on, which is exactly what its scrim falls over.
+        let panel = app.otherElements["catalog.callout.panel"].frame
+        // A corner of that panel no aside reaches, where how far the scrim has come can be read.
+        let corner = CGPoint(x: panel.minX + Self.corner, y: panel.maxY - Self.corner)
 
         // Where it ends up, which is what every frame is measured against, and the patch of screen to
         // look at. Read once it has settled, when the card is certain to be there to ask.
@@ -50,7 +54,7 @@ final class CalloutMotionUITests: XCTestCase {
         Thread.sleep(forTimeInterval: 6)
 
         let settled = try XCTUnwrap(
-            measure(watch(count: 1), field: field, against: bare).first,
+            measure(watch(count: 1), field: field, against: bare, scrim: panel, readAt: corner).first,
             "the settled aside could not be measured"
         )
 
@@ -69,8 +73,8 @@ final class CalloutMotionUITests: XCTestCase {
         save(coming, named: "coming-out", field: field)
         save(going, named: "going-back", field: field)
 
-        let out = measure(coming, field: field, against: bare)
-        let back = measure(going, field: field, against: bare)
+        let out = measure(coming, field: field, against: bare, scrim: panel, readAt: corner)
+        let back = measure(going, field: field, against: bare, scrim: panel, readAt: corner)
 
         report("coming out", out, settled: settled)
         report("going back", back, settled: settled)
@@ -110,8 +114,15 @@ final class CalloutMotionUITests: XCTestCase {
         (0 ..< count).compactMap { _ in screen() }
     }
 
-    /// How much of the field each frame covers: everything in it that the bare page does not have.
-    private func measure(_ frames: [Shot], field: CGRect, against bare: Shot) -> [CGRect] {
+    /// How much of the field each frame covers: everything in it the bare page does not have, once
+    /// the scrim the aside laid over the panel is taken off the comparison.
+    private func measure(
+        _ frames: [Shot],
+        field: CGRect,
+        against bare: Shot,
+        scrim: CGRect,
+        readAt corner: CGPoint
+    ) -> [CGRect] {
         frames.compactMap { frame in
             let scaled = CGRect(
                 x: field.minX * frame.scale,
@@ -119,9 +130,25 @@ final class CalloutMotionUITests: XCTestCase {
                 width: field.width * frame.scale,
                 height: field.height * frame.scale
             )
+            let covered = CGRect(
+                x: scrim.minX * frame.scale,
+                y: scrim.minY * frame.scale,
+                width: scrim.width * frame.scale,
+                height: scrim.height * frame.scale
+            )
+            let dimming = frame.reader.dimming(
+                at: CGPoint(x: corner.x * frame.scale, y: corner.y * frame.scale),
+                against: bare.reader
+            )
 
             guard
-                let box = frame.reader.bounds(differingFrom: bare.reader, tolerance: 12, inside: scaled)
+                let box = frame.reader.bounds(
+                    differingFrom: bare.reader,
+                    dimmedBy: dimming,
+                    under: covered,
+                    tolerance: 12,
+                    inside: scaled
+                )
             else { return CGRect.zero }
 
             return CGRect(
@@ -159,6 +186,9 @@ final class CalloutMotionUITests: XCTestCase {
     }
 
     private static let reports = "/Users/alex/Programming/LonelyBytes/Bookhold/Fixtures/Reports/motion"
+
+    /// How far into the panel's corner the scrim is read, clear of anything drawn on it.
+    private static let corner: CGFloat = 6
 
     private func report(_ title: String, _ boxes: [CGRect], settled: CGRect) {
         print(String(format: "CALLOUT-MOTION %@ (settled w=%.0f h=%.0f)", title, settled.width, settled.height))

@@ -54,6 +54,9 @@ extension ReaderScreen {
         /// True when the last request to the service failed and the reader is running off the device.
         private(set) var isOffline = false
 
+        /// The stretches of this book the reader marked.
+        private(set) var bookmarks: [Bookmark] = []
+
         /// How far a long chapter has got through being laid out, `0…1`. Short chapters never set it:
         /// they are done before a reader could read a progress bar.
         private(set) var paginationProgress: Double?
@@ -257,6 +260,78 @@ extension ReaderScreen {
 
         func clearPicked() { picked = nil }
 
+        // MARK: - Bookmarks
+
+        /// What the page shows, chapter by chapter. A page carries two stretches where a chapter runs
+        /// on from the end of the one before it.
+        private var displayedRanges: [(chapterId: Int, start: Int, end: Int)] {
+            guard case let .text(pieces) = page(at: currentPage) else { return [] }
+
+            return pieces.map { piece in
+                let start = piece.layout.characterOffset(ofPage: piece.page)
+                let end =
+                    piece.page + 1 < piece.layout.pageCount
+                    ? piece.layout.characterOffset(ofPage: piece.page + 1)
+                    : piece.layout.sourceLength
+
+                return (piece.layout.chapterId, start, max(end, start + 1))
+            }
+        }
+
+        /// The marks the page in front of the reader stands on.
+        var bookmarksOnPage: [Bookmark] {
+            let ranges = displayedRanges
+
+            return bookmarks.filter { mark in
+                ranges.contains { mark.overlaps(chapterId: $0.chapterId, from: $0.start, to: $0.end) }
+            }
+        }
+
+        var isPageBookmarked: Bool { !bookmarksOnPage.isEmpty }
+
+        /// Marks what the reader can see, or clears every mark it stands on.
+        func toggleBookmark() {
+            let standing = bookmarksOnPage
+
+            guard standing.isEmpty else { return remove(standing) }
+
+            let made = displayedRanges.map {
+                Bookmark(
+                    workId: workId,
+                    chapterId: $0.chapterId,
+                    startOffset: $0.start,
+                    endOffset: $0.end,
+                    createdAt: .now
+                )
+            }
+
+            bookmarks.append(contentsOf: made)
+
+            Task { [store] in
+                for mark in made { await store.store(bookmark: mark) }
+            }
+        }
+
+        func remove(_ marks: [Bookmark]) {
+            let taken = Set(marks.map(\.id))
+
+            bookmarks.removeAll { taken.contains($0.id) }
+
+            Task { [store] in
+                for mark in marks { await store.remove(bookmark: mark) }
+            }
+        }
+
+        /// A chapter's own marks, in the order they stand in it.
+        func bookmarks(inChapter id: Int) -> [Bookmark] {
+            bookmarks.filter { $0.chapterId == id }.sorted { $0.startOffset < $1.startOffset }
+        }
+
+        /// How long a chapter's text runs, for saying how far into it a mark stands.
+        func length(ofChapter id: Int) -> Int? {
+            layouts[id]?.sourceLength ?? chapters.first { $0.id == id }?.textLength
+        }
+
         // MARK: - The notes the text points at
 
         /// A note the reader went for, and where the marker they went for stands on the page.
@@ -453,6 +528,7 @@ extension ReaderScreen {
 
             book = await store.book(id: workId)?.summary
             chapters = await store.chapters(workId: workId)
+            bookmarks = await store.bookmarks(workId: workId)
             let position = await store.position(workId: workId)
 
             if !chapters.isEmpty { openTarget(position: position) }

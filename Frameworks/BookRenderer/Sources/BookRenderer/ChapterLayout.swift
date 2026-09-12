@@ -98,7 +98,7 @@ public final class ChapterLayout {
     /// Measurements are kept against the setting they were made at, and the setting alone says nothing
     /// about the rules that read it. Without this, changing how far a mark hangs would leave every book
     /// on the device showing the breaks an older layout chose.
-    public nonisolated static let rulesVersion = "12"
+    public nonisolated static let rulesVersion = "17"
 
     public enum Rules {
         /// Lines that have to follow a heading rather than leaving it stranded at the foot of a page.
@@ -210,12 +210,30 @@ public final class ChapterLayout {
             size: context.textSize,
             onProgress: isLong ? onProgress : nil
         )
+        dropTheAirAtTheTop()
         composePages()
         pageRanges = pages.map { page in
             let first = lines[page.lines.lowerBound].characters
             let last = lines[page.lines.upperBound - 1].characters
             return NSRange(location: first.location, length: last.location + last.length - first.location)
         }
+    }
+
+    /// Cuts the air above the chapter's first line back where the chapter starts a page of its own.
+    ///
+    /// A title keeps its air by standing in it, and at the head of a page there is nothing above it to
+    /// stand clear of: the twelve lines a chapter keeps would push its title a third of the way down
+    /// its own opening page. Two are left, so the title is not hard against the top edge. A chapter
+    /// that runs on from the one before it keeps every bit of its air, which is the point of having it.
+    private func dropTheAirAtTheTop() {
+        guard startOffset == 0, let first = lines.indices.first, lines[first].titleAir > 0 else { return }
+
+        let kept = min(lines[first].titleAir, TitleBlock.atTheTopOfAPage * context.style.pageLine)
+        let dropped = lines[first].titleAir - kept
+
+        lines[first].height -= dropped
+        lines[first].baseline -= dropped
+        lines[first].titleAir = kept
     }
 
     // MARK: - Cutting the column into pages
@@ -350,6 +368,11 @@ public final class ChapterLayout {
         // A widow: the last line of a paragraph, alone at the top of the next one.
         if following.endsParagraph, !following.startsParagraph { broken += 1 }
 
+        // A title stands in its own air, and at the head of a page that air falls off the top with
+        // nothing left to say. Only a title given enough of it to notice: the smallest levels keep a
+        // single line, which is no loss.
+        if following.titleAir >= context.style.pageLine * 3 { broken += 1 }
+
         // A heading belongs with the text it introduces.
         if headingStranded(breakingAt: limit, from: start) { broken += 1 }
 
@@ -430,6 +453,8 @@ public final class ChapterLayout {
         public var isHeading: Bool
         /// The line is a picture rather than text, and the width is the picture's.
         public var isImage: Bool
+        /// Where the line's baseline sits below its own top, the air above it included.
+        public var baseline: CGFloat
     }
 
     /// The lines that fall on one page, in the order they were set.
@@ -454,7 +479,8 @@ public final class ChapterLayout {
             endsParagraph: line.endsParagraph,
             isJustified: line.isJustified,
             isHeading: line.isHeading,
-            isImage: line.image != nil
+            isImage: line.image != nil,
+            baseline: line.baseline
         )
     }
 
@@ -485,6 +511,9 @@ public final class ChapterLayout {
         let laidOut = laidOutOffset(offset)
         return pageRanges.firstIndex { NSLocationInRange(laidOut, $0) } ?? max(0, min(offset, pageCount - 1))
     }
+
+    /// How far the chapter's own text runs, counted the way a reading position is.
+    public var sourceLength: Int { sourceOffset((text.string as NSString).length) }
 
     public func characterOffset(ofPage index: Int) -> Int {
         pageRanges.indices.contains(index) ? sourceOffset(pageRanges[index].location) : 0

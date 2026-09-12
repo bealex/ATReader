@@ -28,45 +28,63 @@ public extension ChapterContent {
         }.value
     }
 
-    /// One paragraph as the typesetter left it, with its note markers put back where they now stand.
+    /// One paragraph as the typesetter left it, with everything it points at put back where it stands.
     private static func setting(_ paragraph: Paragraph, as text: String) -> Paragraph {
-        Paragraph(
+        let places = positions(in: text)
+
+        return Paragraph(
             id: paragraph.id,
             text: text,
             isCentered: paragraph.isCentered,
             imageSource: paragraph.imageSource,
-            notes: placed(paragraph.notes, in: text)
+            titleLevel: paragraph.titleLevel,
+            notes: paragraph.notes.compactMap { mark in
+                moved(mark.location, mark.length, among: places).map {
+                    NoteMark(location: $0.location, length: $0.length, noteId: mark.noteId)
+                }
+            },
+            scripts: paragraph.scripts.compactMap { mark in
+                moved(mark.location, mark.length, among: places).map {
+                    ScriptMark(location: $0.location, length: $0.length, place: mark.place)
+                }
+            }
         )
     }
 
-    /// Where a paragraph's note markers land once the typesetter has been through its text.
+    /// Where the characters the text arrived with ended up once the typesetter had been through it.
     ///
     /// Binding and hyphenation both put characters in — word joiners and soft hyphens — so a mark
     /// counted straight through would drift a little further with every one of them. Counting only
-    /// the characters the text arrived with puts each marker back where it was.
-    private static func placed(_ marks: [NoteMark], in text: String) -> [NoteMark] {
-        guard !marks.isEmpty else { return [] }
-
+    /// the characters the text came with puts each one back where it was.
+    private static func positions(in text: String) -> [Int] {
         let string = text as NSString
-        var positions: [Int] = []
+        var places: [Int] = []
 
-        positions.reserveCapacity(string.length)
+        places.reserveCapacity(string.length)
 
         for index in 0 ..< string.length {
             let unit = string.character(at: index)
             let isFormat = Unicode.Scalar(unit).map { $0.properties.generalCategory == .format } ?? false
 
-            if !isFormat { positions.append(index) }
+            if !isFormat { places.append(index) }
         }
 
-        return marks.compactMap { mark in
-            let last = mark.location + mark.length - 1
+        return places
+    }
 
-            guard mark.location < positions.count, last < positions.count, last >= mark.location else { return nil }
+    /// One mark's stretch, moved to where those characters now stand.
+    private static func moved(
+        _ location: Int,
+        _ length: Int,
+        among places: [Int]
+    ) -> (location: Int, length: Int)? {
+        let last = location + length - 1
 
-            let start = positions[mark.location]
-            return NoteMark(location: start, length: positions[last] + 1 - start, noteId: mark.noteId)
-        }
+        guard location < places.count, last < places.count, last >= location else { return nil }
+
+        let start = places[location]
+
+        return (start, places[last] + 1 - start)
     }
 
     private static func language(of paragraphs: [Paragraph]) -> String? {

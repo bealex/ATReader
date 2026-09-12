@@ -175,7 +175,7 @@ enum WorkScreen {
         private var readButton: some View {
             if let model, let summary = model.summary, let chapterId = model.resumeChapterId {
                 Button(summary.hasStartedReading ? "Continue" : "Read") {
-                    navigator.push(.reader(.init(workId: model.workId, title: summary.title, chapterId: chapterId)))
+                    navigator.present(.reader(.init(workId: model.workId, title: summary.title, chapterId: chapterId)))
                 }
                 .accessibilityIdentifier("work.read")
                 .accessibilityHint("Opens the reader")
@@ -320,16 +320,41 @@ enum WorkScreen {
         private func chapterRow(_ model: Model, chapter: BookChapter) -> some View {
             if chapter.isReadable, let summary = model.summary {
                 Button {
-                    navigator.push(.reader(.init(workId: model.workId, title: summary.title, chapterId: chapter.id)))
+                    navigator.present(.reader(.init(workId: model.workId, title: summary.title, chapterId: chapter.id)))
                 } label: {
                     chapterLabel(chapter, marker: nil, state: model.state(of: chapter))
                 }
                 .buttonStyle(.plain)
+
+                ForEach(model.bookmarks(inChapter: chapter.id)) { mark in
+                    bookmarkRow(model, mark: mark, summary: summary)
+                }
             } else {
                 // In a book that has to be bought, a chapter is closed because it costs money rather
                 // than because it isn't finished. The ones without a mark are the free ones.
                 chapterLabel(chapter, marker: model.isLockedByPrice ? .paid : .locked)
             }
+        }
+
+        /// A mark under its chapter, which opens the book where it stands.
+        private func bookmarkRow(_ model: Model, mark: Bookmark, summary: Book) -> some View {
+            Button {
+                navigator.present(.reader(.init(workId: model.workId, title: summary.title, chapterId: mark.chapterId)))
+            } label: {
+                BookmarkLabel(share: mark.share(ofChapterLength: chapterLength(model, of: mark.chapterId)))
+                    .padding(.vertical, Design.Space.small)
+            }
+            .buttonStyle(.plain)
+            .accessibilityHint("Opens the book here")
+            .contextMenu {
+                Button("Remove bookmark", systemImage: "bookmark.slash", role: .destructive) {
+                    model.remove(bookmark: mark)
+                }
+            }
+        }
+
+        private func chapterLength(_ model: Model, of id: Int) -> Int? {
+            model.chapters.first { $0.id == id }?.textLength
         }
 
         private enum ChapterMarker {

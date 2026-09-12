@@ -26,12 +26,18 @@ enum LibraryScreen {
         @State
         private var merging: MergeKind?
 
+        @State
+        private var isAddingBooks = false
+
         var body: some View {
             Shelves(model: model, search: nil, empty: emptyShelf)
                 .background(Design.Surface.screen)
                 .navigationTitle(Text("Library"))
                 .navigationSubtitle(Text(model.filter.title))
                 .toolbar { bar }
+                .sheet(isPresented: $isAddingBooks) {
+                    AddBooksScreen.Component(isPresented: $isAddingBooks)
+                }
                 .overlay {
                     // The shelf first, so a full one never waits on whether the library is loading.
                     if model.works.isEmpty && model.isLoading {
@@ -79,6 +85,10 @@ enum LibraryScreen {
         @ToolbarContentBuilder
         private var bar: some ToolbarContent {
             ToolbarItemGroup(placement: .topBarTrailing) {
+                Button("Add books", systemImage: "plus") { isAddingBooks = true }
+                    .accessibilityIdentifier("library.add")
+                    .accessibilityHint("Every way a book gets onto this device")
+
                 Menu {
                     DeedMenu(deeds: mergeDeeds())
                 } label: {
@@ -330,8 +340,8 @@ enum LibraryScreen {
         }
 
         /// Opening a book off the shelf, which it grows out of: the very board its artwork is on.
-        private func open(_ work: Book, from face: UIView) {
-            navigator.push(.reader(.init(workId: work.id, title: work.title)), from: face)
+        private func open(_ work: Book, from face: @escaping @MainActor @Sendable (BookZoom) -> UIView?) {
+            navigator.present(.reader(.init(workId: work.id, title: work.title)), from: face)
         }
 
         private func bookDeeds(work: Book) -> [Deed] {
@@ -339,7 +349,7 @@ enum LibraryScreen {
                 // Reaches a book standing on its edge, which a tap only turns round with its run.
                 .act(String(localized: "Read the book"), systemImage: "book") {
                     Task { await model.takeDown(work) }
-                    navigator.push(.reader(.init(workId: work.id, title: work.title)))
+                    navigator.present(.reader(.init(workId: work.id, title: work.title)))
                 },
                 // The way to the book's own page. A tap on a cover opens the book itself, so without
                 // this there is nothing left that reaches what the book is.

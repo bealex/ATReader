@@ -156,7 +156,7 @@ public struct PageTurnView<Page: View>: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .contentShape(.rect)
         .onGeometryChange(for: CGFloat.self, of: { $0.size.width }, action: { width = max(1, $0) })
-        .gesture(drag)
+        .overlay { drag }
         // Watched rather than caught: everything else on the page still answers its own taps.
         .overlay { press }
         .onTapGesture(coordinateSpace: .local) { location in
@@ -216,9 +216,9 @@ public struct PageTurnView<Page: View>: View {
         )
     }
 
-    private var drag: some Gesture {
-        DragGesture(minimumDistance: 8)
-            .onChanged { value in
+    private var drag: some View {
+        PageDragGesture(
+            onChanged: { value in
                 // A finger picking text out, or moving over a covered page, is not turning it however
                 // far it travels.
                 guard !isPickingOut, !isCovered else { return }
@@ -257,8 +257,8 @@ public struct PageTurnView<Page: View>: View {
                 guard isGrabbing(at: value.time) else { return progress = target }
 
                 withAnimation(.easeInOut(duration: Self.grabDuration)) { progress = target }
-            }
-            .onEnded { value in
+            },
+            onEnded: { value in
                 guard !isPickingOut, !isCovered else { return releaseOverscroll() }
                 guard let turn else { return releaseOverscroll() }
 
@@ -268,6 +268,7 @@ public struct PageTurnView<Page: View>: View {
                 let velocity = turn == .forward ? -(predicted - translation) : (predicted - translation)
                 finish(turn, committing: commits(travelled: travelled, velocity: velocity))
             }
+        )
     }
 
     /// Whether the turn lands.
@@ -286,7 +287,7 @@ public struct PageTurnView<Page: View>: View {
     ///
     /// The page is held ``grip`` inside its own leading edge, so the finger sits on the page it is
     /// pulling rather than pushing one along from a distance.
-    private func forwardProgress(_ value: DragGesture.Value) -> CGFloat {
+    private func forwardProgress(_ value: PageDrag) -> CGFloat {
         min(1, max(0, 1 - (value.location.x - Self.grip) / width))
     }
 

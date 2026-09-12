@@ -26,6 +26,21 @@ extension WorkScreen {
         private(set) var shortTitle: String?
         private(set) var details: WorkDetails?
         private(set) var chapters: [BookChapter] = []
+
+        /// The stretches of this book the reader marked, set out under the chapters they stand in.
+        private(set) var bookmarks: [Bookmark] = []
+
+        /// A chapter's own marks, in the order they stand in it.
+        func bookmarks(inChapter id: Int) -> [Bookmark] {
+            bookmarks.filter { $0.chapterId == id }.sorted { $0.startOffset < $1.startOffset }
+        }
+
+        func remove(bookmark: Bookmark) {
+            bookmarks.removeAll { $0.id == bookmark.id }
+
+            Task { [store] in await store.remove(bookmark: bookmark) }
+        }
+
         private(set) var tags: [String] = []
         private(set) var isLoading = false
         private(set) var errorMessage: String?
@@ -166,10 +181,12 @@ extension WorkScreen {
             let stored = await store.book(id: workId)
             let storedChapters = await store.chapters(workId: workId)
             let storedPosition = await store.position(workId: workId)
+            let storedBookmarks = await store.bookmarks(workId: workId)
             let record = await store.localBook(workId: workId)
 
             if position != storedPosition { position = storedPosition }
             if chapters != storedChapters { chapters = storedChapters }
+            if bookmarks != storedBookmarks { bookmarks = storedBookmarks }
             if provenance != record { provenance = record }
 
             guard let stored else { return }

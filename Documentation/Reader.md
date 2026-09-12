@@ -273,6 +273,18 @@ same way a reading position is counted.
 `ParagraphRuler` measures the real attributed text rather than a font of its own, so a marker set
 smaller measures smaller and the lines around it are filled to the width they actually take.
 
+### Figures off the line
+
+A formula writes `CH<sub>3</sub>OH`, and the page used to read it as `CH3OH`, because the markup is
+flattened with one pass that strips every tag. `<sub>` and `<sup>` are fenced first, with private-use
+characters the stripper has no opinion about, and read back out of the flat text as ranges. So the
+characters the text arrived with are the characters that come out, and every reading position stays
+where it was.
+
+`ChapterContent` moves those ranges when binding and hyphenation put characters in, the way it moves a
+note's marker, and `ChapterPagination` sets them at the marker's size. `ScriptMarker` says how far one
+drops below the line; a lifted one takes `NoteMarker.rise`, and both signs are the flipped matrix's.
+
 ### Tapping one
 
 A marker is two or three points across, and it stands inside the third of the page that turns it. So
@@ -291,6 +303,20 @@ those marks fall off the edge.
 
 Drawn text is invisible to VoiceOver and a marker cannot be touched there, so the page offers its notes
 as actions of its own instead.
+
+## Bookmarks
+
+A bookmark is a stretch of a chapter rather than a point in it: what a reader marks is what they can
+see, and a page set in one face is a different page set in another. The bar's own button marks what
+is on the screen, or clears every mark the page stands on, and a page carrying two chapters marks
+both stretches.
+
+A mark stopping exactly where the next page begins belongs to the page before it. Counted the other
+way, every page would open showing itself already marked.
+
+They stand under their chapters in the contents and in the book's details, with how far into the
+chapter each one is, and open the book where they stand. `LocalStore` is where they live, like
+everything else the reader does.
 
 ## Picking text off the page
 
@@ -320,6 +346,24 @@ is refused, since the words it's picking cover the page as soon as it begins. A 
 is dropped when a press takes hold, because a finger can cover the eight points that start one inside
 the time a press takes to be held.
 
+The page answers sideways drags and hands on the rest. A screen pushed with a zoom transition is
+closed by dragging it back down, which is the drag that turns a page, so the turn is
+`PageDragGesture`: a pan of UIKit's that fails on a drag up or down the page before it begins, which
+is what leaves that drag to the transition. SwiftUI's `DragGesture` could not, since it recognises in
+every direction and takes the touch at eight points, and the book could never be closed by dragging
+it. The recognizer hangs on the window as the press does, so it also asks whether anything is
+presented over the page before taking a touch.
+
+The transition answers only a drag going down. Its dismissal takes one in any direction by default,
+so a drag in from the leading edge closed the book instead of turning back a page; `Navigator` gives
+every zoomed screen an `interactiveDismissShouldBegin` that asks for down.
+
+The reader is presented over the app rather than pushed into it, so there is no stack under it to
+answer for: no tab bar to take away on the way in and hand back on the way out, and no navigation bar
+belonging to the screen underneath. Re-laying all of that out in the middle of the zoom is what the
+transition used to jump on. The reader carries a stack of its own for its bar, and a Close button,
+since a presented screen has no back button.
+
 Lifting the finger opens a `Callout` over the words: look up, translate, copy. The paint under them is
 `Design.Surface.picked`, and the page ticks as it goes: firmer for the first word, lighter for each one
 taken in after it, softer again when the aside arrives.
@@ -335,7 +379,33 @@ possible. None of these is allowed at a break:
 - a hyphen at the foot of a page,
 - an orphan: a paragraph's first line alone at the bottom,
 - a widow: a paragraph's last line alone at the top of the next page,
-- a heading with fewer than two lines of its chapter under it.
+- a heading with fewer than two lines of its chapter under it,
+- a break between scenes at the head of a page.
+
+Titles stand in air, and `TitleBlock` says how much. Titles that touch are one block however many
+levels they carry, the block takes the air of the biggest title in it, and the air goes round the
+outside rather than between its lines: twelve lines above a first-level title, six above a subtitle,
+three above a third-level one and a single line above anything smaller. A block given three lines or
+more is parted from the text under it by two; one given less is not, since a gap under a title and
+none above it would read as belonging to the text that follows.
+
+Counted in lines of the page rather than in the gap paragraphs take between them, because that gap is
+a fraction of the reader's line spacing and comes to nothing at a tight setting.
+
+A chapter's own heading is the first-level title of the block it opens, so it takes the twelve. Where
+the chapter starts a page, all but two lines of that are cut: there is nothing above it there to stand
+clear of, twelve would push the heading a third of the way down its own opening page, and none would
+leave it hard against the top edge. `ChapterLayout` does the cutting, since only it knows where the
+chapter begins. For the same reason no page may open on a title standing in three lines or
+more: the air would fall off the top with nothing left to say, so the break goes before the air.
+
+A break between scenes is a row of stars, which books write as a subtitle and which is set as one.
+The level comes from the markup and only from the markup: `BookHTML` reads it off a heading element,
+and `FB2Parser` writes a file's `<subtitle>` out as one. What a paragraph holds is never asked, since
+a paragraph is centred for all sorts of reasons and an epigraph is not a title.
+
+A book filed before that was written carries its subtitles as centred paragraphs, and its breaks
+stand in no air until the file it came from is read again.
 
 The breaks are chosen for the chapter at once rather than a page at a time. Filling each page in turn
 and handing whatever a rule rejects to the next one meant that wherever a rule bit, that one page paid
@@ -452,9 +522,9 @@ Taps that arrive while a turn is still animating are queued instead of dropped, 
 as each turn commits, running faster while it has a backlog. A burst of taps stacks pages through and
 settles where the reader asked.
 
-The system's swipe-from-the-edge-to-go-back gesture is switched off here, because it competes with
-swiping back a page. SwiftUI has no modifier for that without also hiding the back button, so
-`backSwipeDisabled()` reaches the enclosing `UINavigationController` and re-enables it on the way out.
+The system's swipe-from-the-edge-to-go-back gesture never reaches the page, since the reader is
+presented rather than pushed and the stack it would belong to is behind it. A drag in from the leading
+edge turns back a page, like any other sideways drag.
 
 ## The controls
 

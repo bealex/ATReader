@@ -29,7 +29,7 @@ struct LibraryList: UIViewControllerRepresentable {
 
     let cards: [AuthorCardView.Contents]
     let chrome: Chrome
-    let onOpen: (Book, UIView) -> Void
+    let onOpen: (Book, @escaping @MainActor @Sendable (BookZoom) -> UIView?) -> Void
     /// A tap on the author's name, which turns their shelf round or picks every book of theirs out.
     let onName: (String) -> Void
     /// A tap on a book standing on its edge, which turns the shelf it is on.

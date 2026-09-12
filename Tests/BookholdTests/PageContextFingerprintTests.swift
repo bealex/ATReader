@@ -42,7 +42,7 @@ struct PageContextFingerprintTests {
     func isTheStringEveryStoredMeasurementIsFiledAgainst() {
         #expect(
             Self.context.fingerprint
-                == "12|serif|regular|19.0|7.0|0.0|true|false|24.0|390.0x844.0|59.0,0.0,34.0,0.0"
+                == "17|serif|regular|19.0|7.0|0.0|true|false|24.0|390.0x844.0|59.0,0.0,34.0,0.0"
         )
     }
 

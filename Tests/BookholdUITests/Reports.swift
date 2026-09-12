@@ -7,6 +7,28 @@ import XCTest
 
 extension XCTestCase {
     /// Opens the invented library, which needs no account, and waits for it to be drawn.
+    /// Waits for something to become true, asking often, rather than sleeping for a fixed spell.
+    ///
+    /// A sleep long enough to be safe on a slow run is time every fast run pays as well, and these
+    /// waits were most of what the reader's tests spent their time on.
+    func waitUntil(
+        _ what: String,
+        within seconds: TimeInterval = 20,
+        file: StaticString = #filePath,
+        line: UInt = #line,
+        _ condition: () -> Bool
+    ) {
+        let deadline = Date().addingTimeInterval(seconds)
+
+        while Date() < deadline {
+            if condition() { return }
+
+            Thread.sleep(forTimeInterval: 0.05)
+        }
+
+        XCTFail("never \(what)", file: file, line: line)
+    }
+
     func launchDemoLibrary() throws -> XCUIApplication {
         let app = XCUIApplication()
 

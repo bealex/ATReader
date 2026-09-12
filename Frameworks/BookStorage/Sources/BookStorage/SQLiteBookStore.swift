@@ -924,6 +924,65 @@ public actor SQLiteBookStore {
         recomputeProgress(workId: position.workId)
     }
 
+    // MARK: - Bookmarks
+
+    /// Every mark in a book, in the order the chapters stand and then down each chapter.
+    public func bookmarks(workId: Int) -> [Bookmark] {
+        let query = """
+            SELECT chapter_id, start_offset, end_offset, created_at FROM bookmark
+            WHERE work_id = ? ORDER BY chapter_id, start_offset
+            """
+
+        guard let statement = Statement(open(), query) else { return [] }
+
+        statement.bind(1, workId)
+
+        var found: [Bookmark] = []
+
+        while statement.step() {
+            found.append(Bookmark(
+                workId: workId,
+                chapterId: statement.integer(0),
+                startOffset: statement.integer(1),
+                endOffset: statement.integer(2),
+                createdAt: statement.date(3) ?? .now
+            ))
+        }
+
+        return found
+    }
+
+    /// Puts a mark in, or moves the end of the one already beginning there.
+    public func store(bookmark: Bookmark) {
+        let query = """
+            INSERT INTO bookmark (work_id, chapter_id, start_offset, end_offset, created_at)
+            VALUES (?, ?, ?, ?, ?)
+            ON CONFLICT(work_id, chapter_id, start_offset) DO UPDATE SET
+                end_offset = excluded.end_offset,
+                created_at = excluded.created_at
+            """
+
+        guard let statement = Statement(open(), query) else { return }
+
+        statement.bind(1, bookmark.workId)
+        statement.bind(2, bookmark.chapterId)
+        statement.bind(3, bookmark.startOffset)
+        statement.bind(4, bookmark.endOffset)
+        statement.bind(5, bookmark.createdAt.timeIntervalSince1970)
+        statement.execute()
+    }
+
+    public func remove(bookmark: Bookmark) {
+        let query = "DELETE FROM bookmark WHERE work_id = ? AND chapter_id = ? AND start_offset = ?"
+
+        guard let statement = Statement(open(), query) else { return }
+
+        statement.bind(1, bookmark.workId)
+        statement.bind(2, bookmark.chapterId)
+        statement.bind(3, bookmark.startOffset)
+        statement.execute()
+    }
+
     // MARK: - Copying the whole thing
 
     /// Writes a clean copy of the store to a file of its own.
@@ -1024,6 +1083,7 @@ public actor SQLiteBookStore {
 
         createSeriesEditTable()
         createLocalBookTable()
+        createBookmarkTable()
         createContentTable()
         createPlacementTable()
         createCoverShapeTable()
@@ -1335,6 +1395,22 @@ public actor SQLiteBookStore {
             """
         )
         execute("CREATE INDEX IF NOT EXISTS body_by_work ON chapter_body (work_id)")
+    }
+
+    private func createBookmarkTable() {
+        execute(
+            """
+            CREATE TABLE IF NOT EXISTS bookmark (
+                work_id INTEGER NOT NULL,
+                chapter_id INTEGER NOT NULL,
+                start_offset INTEGER NOT NULL,
+                end_offset INTEGER NOT NULL,
+                created_at REAL NOT NULL,
+                PRIMARY KEY (work_id, chapter_id, start_offset)
+            )
+            """
+        )
+        execute("CREATE INDEX IF NOT EXISTS bookmark_by_work ON bookmark (work_id)")
     }
 
     private func createPositionTable() {

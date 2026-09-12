@@ -420,7 +420,9 @@ public enum FB2Parser {
                     } else {
                         append(text, centered: Self.centeredParents.contains(where: path.contains))
                     }
-                case "subtitle", "text-author":
+                case "subtitle":
+                    append(text, centered: true, titleLevel: 2)
+                case "text-author":
                     append(text, centered: true)
                 default: break
             }
@@ -439,7 +441,7 @@ public enum FB2Parser {
             open[open.count - 1].title = line
         }
 
-        private func append(_ raw: String, centered: Bool) {
+        private func append(_ raw: String, centered: Bool, titleLevel: Int? = nil) {
             guard !open.isEmpty, let line = raw.trimmed.nilWhenEmpty else { return }
 
             // A run of blank lines is a scene break, which this reader draws the way the service's own
@@ -452,11 +454,17 @@ public enum FB2Parser {
 
             let body = anchors.isEmpty ? Self.escaped(line) : Self.escaped(raw, marking: anchors).trimmed
 
-            open[open.count - 1].lines.append(
-                centered
-                    ? "<p style=\"text-align:center\">\(body)</p>"
-                    : "<p>\(body)</p>"
-            )
+            // A title is written as a heading, which is what carries its level across to the reader.
+            // Everything else is a paragraph, centred or not as the file said.
+            if let titleLevel {
+                open[open.count - 1].lines.append("<h\(titleLevel)>\(body)</h\(titleLevel)>")
+            } else {
+                open[open.count - 1].lines.append(
+                    centered
+                        ? "<p style=\"text-align:center\">\(body)</p>"
+                        : "<p>\(body)</p>"
+                )
+            }
             open[open.count - 1].length += line.count
         }
 

@@ -71,9 +71,12 @@ struct RunOnTests {
     }
 
     /// Given real room, a chapter is allowed to share the page.
+    ///
+    /// Real room is more than it was: a chapter's heading is the first-level title of its block and
+    /// stands in twelve lines of air, so most of a page has to be free before any of its text lands.
     @Test
     func aDeepGapLetsTheChapterRunOn() async {
-        let layout = await layout(startOffset: Self.context.textSize.height * 0.45)
+        let layout = await layout(startOffset: Self.context.textSize.height * 0.15)
 
         #expect(layout.bodyLineCount(onPage: 0) >= BookPagination.runOnLineMinimum)
     }
@@ -105,6 +108,10 @@ struct RunOnTests {
 
     /// Where that wrong offset came from: reading ahead of the pass. An unmeasured chapter has no
     /// placement at all, so the reader has nothing to lay it out from until the pass reaches it.
+    ///
+    /// What the place turns out to be is `aDeepGapLetsTheChapterRunOn`'s business. A heading stands in
+    /// twelve lines of air, so whether a chapter this short runs on depends on where the one before it
+    /// happened to stop, which is not what this is asking about.
     @Test
     func aChapterThePassHasNotReachedHasNoPlaceYet() async {
         let chapters = Self.book(of: 3)
@@ -117,7 +124,7 @@ struct RunOnTests {
 
         await pagination.measure(chapters: chapters, through: chapters.count, content: Self.content)
 
-        #expect(pagination.runsOn(chapters[1].id), "and the place it turns out to have is not the top of a page")
+        #expect(pagination.placement(of: chapters[1].id) != nil, "the pass reached it and still gave it no place")
     }
 
     /// Chapters short enough that each one leaves room for the next on its last page.
@@ -127,8 +134,11 @@ struct RunOnTests {
         }
     }
 
+    /// Chapters of a few lines each, so one ends high enough on its page for the next to follow it.
+    /// A heading stands in twelve lines of air, so a chapter that ends much below the first third of
+    /// a page leaves nowhere for the next one to begin.
     private static let content: BookPagination.ContentProvider = { _ in
-        await ChapterContent.prepare(html: "<p>\(JustificationTests.words(40))</p>")
+        await ChapterContent.prepare(html: "<p>\(JustificationTests.words(12))</p>")
     }
 
     /// A pass over a store with nothing in it, so every chapter is measured rather than read back.

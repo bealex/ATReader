@@ -275,8 +275,35 @@ Nothing is built until the cover shapes are read back. A book whose shape nobody
 for the commonest one, so a shelf laid out before that read lands stands every book at the wrong height
 and shuffles the lot when it arrives.
 
-A book is zoomed into out of the very board its artwork is on. The shelf hands that view over and
-`Navigator` gives it to the pushed screen as its `preferredTransition`, so nothing stands in for it.
+A book is zoomed into out of the very board its artwork is on, and what the shelf hands over for that
+is **a plain view standing where the face is drawn, not the face panel itself**. A panel is stood by
+its own top left corner and turned by a 3D transform, which is exactly the case where UIKit leaves
+`frame` undefined, and a frame is the one thing a transition asks for: the zoom grew the book out of
+somewhere the artwork was not, and shrank it back there. `BookView.faceToGrowFrom()` hands over an anchor
+that carries no transform, sits at the face's own rectangle, and has the whole cover printed into it:
+a zoom shrinks the screen into what its source view is showing, so an empty one leaves it shrinking
+into nothing, and a cover is its artwork plus the line read, the ribbon and the crease. The picture is
+taken when the transition asks rather than kept up to date, which is twice in its life. The anchor
+stands behind the panel that draws the same thing, and goes when a book turns edge-on.
+
+**The shelf hands over a way of finding that board rather than the board itself**, because the transition asks again on the way out: while the
+book is open the shelf may lay itself out afresh around whatever the reading changed, and the view that
+was tapped can by then be the wrong size, or belong to another book, its cell having been reused.
+The shelf hands that view over and
+`Navigator` gives it to the screen as its `preferredTransition`, so nothing stands in for it.
+Dragging a zoomed screen closes it again, held to a drag going down the screen by
+`interactiveDismissShouldBegin`, since the reader turns its pages with the sideways ones.
+
+The reader is **presented** rather than pushed, which the same transition does either way. A pushed
+screen has to take the tab bar away on the way in and give it back on the way out, and the stack's own
+bar with it, all of it re-laying out while the zoom runs. A presented one covers them, so nothing
+underneath moves. Everything else is still pushed.
+
+**Over full screen, not full screen.** A full-screen presentation takes the presenting view out of the
+window, so the shelf spends the whole reading session off it: its cells are built again and its spines
+printed again only once the reader is gone, and all of that lands in the single frame after the zoom
+ends. That is the jump the transition had, and it belongs to the shelf rather than to the transition.
+Left in the window, the shelf keeps up while it is covered and is already right when it is uncovered.
 
 Menus are described once, as `Deed` values, because the shelf sets them out in UIKit and the rows still
 set them out in SwiftUI. Written twice they would drift, and the reader would find a different menu
@@ -348,6 +375,18 @@ Search and the charts hit the same endpoint with different queries, so they shar
 It de-duplicates by id across pages, since the service occasionally repeats an entry near a page
 boundary, tracks `isLastPage`, and rolls the page number back if a page fails so a retry doesn't skip
 content.
+
+
+### Adding books
+
+`AddBooksScreen` is where a book gets onto the device, opened from the library's own bar: a file, the
+Litres shelf, an OPDS catalogue, or the service's own search. The sources are a list rather than one
+flow, since they differ in what they can offer. A catalogue hands over a file; the service keeps its
+books and hands over a page.
+
+`OPDS` speaks the catalogue protocol and nothing else: Foundation and `XMLParser`. It asks a catalogue
+where its query goes, walks the tree of sections its root advertises, and reads the acquisition links
+at the end of them. Nothing about any one server is written into it.
 
 ## The reader
 

@@ -82,13 +82,14 @@ public enum Design {
         /// How far a cover is thrown out of focus behind a spine. Enough that no part of the picture
         /// is legible, since what is wanted is its colour.
         public static let spineBlur = Space.unit * 4
-        /// How wide an aside stands beside what it belongs to, and how deep before it scrolls.
+        /// How wide an aside stands beside what it belongs to.
         ///
         /// Narrow on purpose. An aside nearly as wide as the screen has nowhere to go, so it is
         /// clamped to the middle and points at whatever happens to be under it.
         public static let callout = Space.unit * 104
         /// What is left for an aside's own content once its padding is off.
         public static let calloutText = callout - Space.extraLarge * 2
+        /// How deep an aside stands where nothing has told it what room it has.
         public static let calloutDepth = Space.unit * 64
 
         /// A glyph inside a circular mark, sized to the mark rather than to a text style.
@@ -162,6 +163,10 @@ public enum Design {
         #endif
 
         public static let edge = Color.primary.opacity(Palette.veil)
+
+        /// What everything behind an aside is dropped to. Black whatever the page is set in, since a
+        /// scrim is shade rather than a colour of its own.
+        public static let dim = Color.black.opacity(Palette.veil * 2)
 
         /// The paint under words a reader has picked out, in whatever colour the words are set in.
         public static func picked(_ foreground: Color) -> Color {

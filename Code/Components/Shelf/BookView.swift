@@ -13,6 +13,16 @@ import UIKit
 /// The two panels are hinged along the spine's outer edge and projected from one eye, which `Hinge`
 /// works out. Every frame of the turn is worked out from the number itself, since halfway between two
 /// projections is not the projection of half a turn.
+/// Where a zoom into a book has got to, so the book can show the right thing at each point.
+enum BookZoom {
+    /// The zoom is running, in either direction.
+    case running
+    /// It has arrived, and the reader is covering the shelf.
+    case covered
+    /// It has come back, and the book is the book again.
+    case done
+}
+
 final class BookView: UIView {
     /// Everything about one place on the shelf this view has to be told.
     struct Contents {
@@ -55,11 +65,57 @@ final class BookView: UIView {
     var onTap: (() -> Void)?
     var menu: (() -> UIMenu?)?
 
-    /// The board this book's artwork is on, which a zoom into it grows out of.
-    var face: UIView { facePanel }
+    /// The board a zoom grows out of, and what the book shows while that zoom runs.
+    ///
+    /// Not the panel itself. A panel is stood by its own top left corner and turned by a transform,
+    /// which is what makes a frame meaningless, and a frame is the one thing a transition asks for: it
+    /// grew the book out of somewhere the artwork was not and shrank it back there. The anchor carries
+    /// no transform, stands at the face's own rectangle, and has the whole cover printed into it,
+    /// since a zoom shrinks the screen into what its source view is showing.
+    ///
+    /// While the zoom runs the anchor stands in for the book and the panels are taken down; once the
+    /// reader covers the shelf the book shows nothing at all; when the zoom has come back the panels
+    /// take over again. Both swaps are invisible, each side showing the same cover in the same place,
+    /// and the last one leaves no frame with neither on it.
+    @discardableResult
+    func face(during zoom: BookZoom) -> UIView {
+        switch zoom {
+            case .running:
+                zoomImage.image = cover.picture()
+                show(panels: false, anchor: true)
+            case .covered:
+                show(panels: false, anchor: false)
+            case .done:
+                show(panels: true, anchor: false)
+        }
+
+        return zoomAnchor
+    }
+
+    /// Both sides at once and without animating either, so nothing is caught half way.
+    private func show(panels: Bool, anchor: Bool) {
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+
+        edgePanel.alpha = panels ? 1 : 0
+        facePanel.alpha = panels ? 1 : 0
+        zoomAnchor.alpha = anchor ? 1 : 0
+
+        CATransaction.commit()
+    }
+
+    private let zoomAnchor = UIView()
+    /// What the anchor shows: the cover printed whole, taken when a transition asks for it.
+    private let zoomImage = UIImageView()
 
     override init(frame: CGRect) {
         super.init(frame: frame)
+
+        zoomAnchor.isUserInteractionEnabled = false
+        zoomAnchor.alpha = 0
+        zoomImage.contentMode = .scaleToFill
+        zoomAnchor.addSubview(zoomImage)
+        addSubview(zoomAnchor)
 
         for panel in [ edgePanel, facePanel ] {
             panel.layer.anchorPoint = .zero
@@ -96,6 +152,8 @@ final class BookView: UIView {
 
     /// What stands here, and how. Told again for the same one, it keeps its turn.
     func show(_ contents: Contents) {
+        // Whatever a zoom left this view showing, a cell given a book to stand is showing the book.
+        show(panels: true, anchor: false)
         self.contents = contents
 
         switch contents.stands {
@@ -178,6 +236,8 @@ final class BookView: UIView {
 
         stand(edgePanel, at: CGPoint(x: 0, y: top), size: CGSize(width: contents.edge, height: contents.standing))
         stand(facePanel, at: CGPoint(x: 0, y: top), size: CGSize(width: contents.face, height: contents.standing))
+        zoomAnchor.frame = CGRect(x: 0, y: top, width: contents.face, height: contents.standing)
+        zoomImage.frame = zoomAnchor.bounds
         spine.frame = edgePanel.bounds
         cover.frame = facePanel.bounds
         gaps?.edge.frame = edgePanel.bounds

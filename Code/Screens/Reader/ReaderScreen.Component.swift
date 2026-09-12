@@ -74,58 +74,63 @@ enum ReaderScreen {
         @ScaledMetric(relativeTo: .caption2)
         private var runningHeadSize: CGFloat = 18.7
 
+        @Environment(\.dismiss)
+        private var dismiss
+
         var body: some View {
-            Group {
-                if let model {
-                    page(model)
-                } else {
-                    Color.clear
+            // A stack of the reader's own. It is presented over the app rather than pushed into it,
+            // so there is no other one to draw its bar.
+            NavigationStack {
+                Group {
+                    if let model {
+                        page(model)
+                    } else {
+                        Color.clear
+                    }
                 }
-            }
-            .background(settings.theme.background.ignoresSafeArea())
-            // Nothing but the controls. The page names the book at its own head, so a title in the
-            // bar says it twice.
-            .navigationTitle("")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar(.hidden, for: .tabBar)
-            // The system's own bar, so its buttons sit and size themselves the way they do elsewhere.
-            .toolbar(isChromeHidden ? .hidden : .visible, for: .navigationBar)
-            // The page's colour behind the bar, with a shadow to part it from the page: the running
-            // head passes under it, and glass would show that through.
-            .readerBarAppearance(
-                background: settings.theme.background,
-                colorScheme: settings.theme.colorScheme,
-                isVisible: !isChromeHidden
-            )
-            .toolbar { controls }
-            .backSwipeDisabled()
-            .statusBarHidden(isChromeHidden)
-            .sheet(isPresented: $isShowingSettings) { SettingsSheet() }
-            #if DEBUG
-                .sheet(item: $report) { ShareSheet(url: $0.url) }
-            #endif
-            .sheet(isPresented: $isShowingContents) {
-                if let model {
-                    ContentsSheet(model: model, isPresented: $isShowingContents)
+                .background(settings.theme.background.ignoresSafeArea())
+                // Nothing but the controls. The page names the book at its own head, so a title in the
+                // bar says it twice.
+                .navigationTitle("")
+                .navigationBarTitleDisplayMode(.inline)
+                // The system's own bar, so its buttons sit and size themselves the way they do elsewhere.
+                .toolbar(isChromeHidden ? .hidden : .visible, for: .navigationBar)
+                // The page's colour behind the bar, with a shadow to part it from the page: the running
+                // head passes under it, and glass would show that through.
+                .readerBarAppearance(
+                    background: settings.theme.background,
+                    colorScheme: settings.theme.colorScheme,
+                    isVisible: !isChromeHidden
+                )
+                .toolbar { controls }
+                .statusBarHidden(isChromeHidden)
+                .sheet(isPresented: $isShowingSettings) { SettingsSheet() }
+                #if DEBUG
+                    .sheet(item: $report) { ShareSheet(url: $0.url) }
+                #endif
+                .sheet(isPresented: $isShowingContents) {
+                    if let model {
+                        ContentsSheet(model: model, isPresented: $isShowingContents)
+                    }
                 }
-            }
-            .onAppear {
-                if model == nil {
-                    model = Model(
-                        workId: workId,
-                        workTitle: title,
-                        initialChapterId: initialChapterId,
-                        session: session
-                    )
+                .onAppear {
+                    if model == nil {
+                        model = Model(
+                            workId: workId,
+                            workTitle: title,
+                            initialChapterId: initialChapterId,
+                            session: session
+                        )
+                    }
                 }
+                .task { await model?.loadIfNeeded() }
+                // Where the reader stopped is worth writing the moment they stop: an app on its way to
+                // the background will not run a task that is still waiting.
+                .onChange(of: scenePhase) { _, phase in
+                    if phase != .active { model?.flushPosition() }
+                }
+                .onDisappear { model?.flushPosition() }
             }
-            .task { await model?.loadIfNeeded() }
-            // Where the reader stopped is worth writing the moment they stop: an app on its way to
-            // the background will not run a task that is still waiting.
-            .onChange(of: scenePhase) { _, phase in
-                if phase != .active { model?.flushPosition() }
-            }
-            .onDisappear { model?.flushPosition() }
         }
 
         @ViewBuilder
@@ -465,6 +470,15 @@ enum ReaderScreen {
         /// The bar's own controls. Back and the chapter's name come from the navigation stack.
         @ToolbarContentBuilder
         private var controls: some ToolbarContent {
+            // The way out, since a presented screen has no back button of its own. The glyph is the
+            // gesture: a drag down the page does the same thing.
+            ToolbarItem(placement: .topBarLeading) {
+                Button("Close", systemImage: "chevron.down") { dismiss() }
+                    .accessibilityIdentifier("reader.close")
+                    .accessibilityHint("Closes the book")
+                    .offset(y: -Self.barRise)
+            }
+
             if model?.isOffline == true {
                 ToolbarItem(placement: .topBarTrailing) {
                     Image(systemName: "wifi.slash")
@@ -472,6 +486,19 @@ enum ReaderScreen {
                         .accessibilityLabel("Reading from this device")
                         .offset(y: -Self.barRise)
                 }
+            }
+
+            ToolbarItem(placement: .topBarTrailing) {
+                let isMarked = model?.isPageBookmarked == true
+
+                Button(
+                    isMarked ? "Remove bookmark" : "Add bookmark",
+                    systemImage: isMarked ? "bookmark.fill" : "bookmark"
+                ) {
+                    model?.toggleBookmark()
+                }
+                .accessibilityHint("Marks the page, or clears the marks on it")
+                .offset(y: -Self.barRise)
             }
 
             ToolbarItem(placement: .topBarTrailing) {
@@ -783,33 +810,14 @@ enum ReaderScreen {
 
         var body: some View {
             NavigationStack {
-                List(model.readableChapters) { chapter in
-                    Button(
-                        action: {
-                            isPresented = false
-                            model.open(chapterId: chapter.id)
-                        },
-                        label: {
-                            HStack {
-                                Text(chapter.displayTitle)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
+                List {
+                    ForEach(model.readableChapters) { chapter in
+                        chapterRow(chapter)
 
-                                if chapter.id == model.currentChapterId {
-                                    Image(systemName: "book.fill")
-                                        .foregroundStyle(.tint)
-                                        .accessibilityHidden(true)
-                                }
-                            }
-                            .contentShape(.rect)
+                        ForEach(model.bookmarks(inChapter: chapter.id)) { mark in
+                            bookmarkRow(mark)
                         }
-                    )
-                    .buttonStyle(.plain)
-                    .accessibilityLabel(
-                        chapter.id == model.currentChapterId
-                            ? "\(chapter.displayTitle), currently reading"
-                            : chapter.displayTitle
-                    )
-                    .accessibilityHint("Opens the chapter")
+                    }
                 }
                 .navigationTitle("Contents")
                 .navigationBarTitleDisplayMode(.inline)
@@ -817,6 +825,58 @@ enum ReaderScreen {
                     ToolbarItem(placement: .confirmationAction) {
                         Button("Close") { isPresented = false }
                     }
+                }
+            }
+        }
+
+        private func chapterRow(_ chapter: BookChapter) -> some View {
+            Button(
+                action: {
+                    isPresented = false
+                    model.open(chapterId: chapter.id)
+                },
+                label: {
+                    HStack {
+                        Text(chapter.displayTitle)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+
+                        if chapter.id == model.currentChapterId {
+                            Image(systemName: "book.fill")
+                                .foregroundStyle(.tint)
+                                .accessibilityHidden(true)
+                        }
+                    }
+                    .contentShape(.rect)
+                }
+            )
+            .buttonStyle(.plain)
+            .accessibilityLabel(
+                chapter.id == model.currentChapterId
+                    ? "\(chapter.displayTitle), currently reading"
+                    : chapter.displayTitle
+            )
+            .accessibilityHint("Opens the chapter")
+        }
+
+        /// A mark under the chapter it stands in, and how far into that chapter it is.
+        private func bookmarkRow(_ mark: Bookmark) -> some View {
+            Button(
+                action: {
+                    isPresented = false
+                    model.open(chapterId: mark.chapterId, anchor: .offset(mark.startOffset))
+                },
+                label: {
+                    BookmarkLabel(share: mark.share(ofChapterLength: model.length(ofChapter: mark.chapterId)))
+                }
+            )
+            .buttonStyle(.plain)
+            .accessibilityHint("Opens the book here")
+            .swipeActions(edge: .trailing) {
+                Button("Remove", systemImage: "bookmark.slash", role: .destructive) { model.remove([ mark ]) }
+            }
+            .contextMenu {
+                Button("Remove bookmark", systemImage: "bookmark.slash", role: .destructive) {
+                    model.remove([ mark ])
                 }
             }
         }

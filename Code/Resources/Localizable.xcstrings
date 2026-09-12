@@ -234,6 +234,17 @@
         }
       }
     },
+    "A book from a file lives on this device alone, along with the file it came in.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Книга из файла живёт только на этом устройстве, вместе с файлом, из которого пришла."
+          }
+        }
+      }
+    },
     "A file on this device": {
       "extractionState": "manual",
       "localizations": {
@@ -252,6 +263,28 @@
           "stringUnit": {
             "state": "translated",
             "value": "Добавить книгу из файла"
+          }
+        }
+      }
+    },
+    "Add bookmark": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Добавить закладку"
+          }
+        }
+      }
+    },
+    "Add books": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Добавить книги"
           }
         }
       }
@@ -510,6 +543,17 @@
       "extractionState": "manual",
       "shouldTranslate": false
     },
+    "Bookmark": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Закладка"
+          }
+        }
+      }
+    },
     "Books": {
       "extractionState": "manual",
       "localizations": {
@@ -528,6 +572,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Книги с %1$lld по %2$lld, прочитаны"
+          }
+        }
+      }
+    },
+    "Books are searched for one at a time. A library's book comes across as a file; the service keeps its own and hands over its page.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Книги ищутся по одной. Книга из библиотеки приходит файлом; сервис держит свои у себя и открывает их страницу."
           }
         }
       }
@@ -605,6 +660,28 @@
           "stringUnit": {
             "state": "translated",
             "value": "Отмена"
+          }
+        }
+      }
+    },
+    "Catalogue": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Каталог"
+          }
+        }
+      }
+    },
+    "Catalogue address": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Адрес каталога"
           }
         }
       }
@@ -741,6 +818,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Закрыть"
+          }
+        }
+      }
+    },
+    "Closes the book": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Закрывает книгу"
           }
         }
       }
@@ -1141,6 +1229,17 @@
         }
       }
     },
+    "Every way a book gets onto this device": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Все способы добавить книгу на это устройство"
+          }
+        }
+      }
+    },
     "Everything on this device is replaced by what the folder holds. Anything added since that backup is lost.": {
       "extractionState": "manual",
       "localizations": {
@@ -1192,6 +1291,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Прочитано"
+          }
+        }
+      }
+    },
+    "First letters": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Первые буквы"
           }
         }
       }
@@ -1295,6 +1405,17 @@
         }
       }
     },
+    "Found": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Найдено"
+          }
+        }
+      }
+    },
     "Found: %@": {
       "extractionState": "manual",
       "localizations": {
@@ -1302,6 +1423,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Найдено: %@"
+          }
+        }
+      }
+    },
+    "From a catalogue": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Из каталога"
           }
         }
       }
@@ -1346,6 +1478,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Из книги: без номера"
+          }
+        }
+      }
+    },
+    "From this device": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "С этого устройства"
           }
         }
       }
@@ -1611,6 +1754,17 @@
         }
       }
     },
+    "Litres books come across once. The session ends when they arrive.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Книги из Литреса переносятся один раз. Сессия заканчивается, когда они придут."
+          }
+        }
+      }
+    },
     "Loading book": {
       "extractionState": "manual",
       "localizations": {
@@ -1728,6 +1882,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Отметить прочитанной"
+          }
+        }
+      }
+    },
+    "Marks the page, or clears the marks on it": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Отмечает страницу или снимает отметки с неё"
           }
         }
       }
@@ -1890,6 +2055,17 @@
         }
       }
     },
+    "Nothing found": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ничего не найдено"
+          }
+        }
+      }
+    },
     "Nothing here yet": {
       "extractionState": "manual",
       "localizations": {
@@ -1919,6 +2095,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Понятно"
+          }
+        }
+      }
+    },
+    "OPDS library": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Библиотека OPDS"
           }
         }
       }
@@ -1974,6 +2161,28 @@
           "stringUnit": {
             "state": "translated",
             "value": "Открывает книгу на последней прочитанной главе"
+          }
+        }
+      }
+    },
+    "Opens the book here": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Открывает книгу здесь"
+          }
+        }
+      }
+    },
+    "Opens the book’s page": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Открывает страницу книги"
           }
         }
       }
@@ -2323,6 +2532,28 @@
         }
       }
     },
+    "Remove": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Убрать"
+          }
+        }
+      }
+    },
+    "Remove bookmark": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Убрать закладку"
+          }
+        }
+      }
+    },
     "Remove from library": {
       "extractionState": "manual",
       "localizations": {
@@ -2533,6 +2764,28 @@
         }
       }
     },
+    "Search an OPDS library": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Искать в библиотеке OPDS"
+          }
+        }
+      }
+    },
+    "Search author.today": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Искать на author.today"
+          }
+        }
+      }
+    },
     "Search your library": {
       "extractionState": "manual",
       "localizations": {
@@ -2540,6 +2793,28 @@
           "stringUnit": {
             "state": "translated",
             "value": "Поиск по библиотеке"
+          }
+        }
+      }
+    },
+    "Searches a library you give the address of": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ищет в библиотеке, адрес которой вы укажете"
+          }
+        }
+      }
+    },
+    "Searches the service's catalogue": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ищет в каталоге сервиса"
           }
         }
       }
@@ -2760,6 +3035,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Показывать лайки"
+          }
+        }
+      }
+    },
+    "Show more": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Показать ещё"
           }
         }
       }
@@ -3017,6 +3303,28 @@
         }
       }
     },
+    "That address answered with something else": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "По этому адресу ответил не каталог"
+          }
+        }
+      }
+    },
+    "That address doesn't look right": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Адрес выглядит неверным"
+          }
+        }
+      }
+    },
     "That archive has no book in it.": {
       "extractionState": "manual",
       "localizations": {
@@ -3105,6 +3413,17 @@
         }
       }
     },
+    "The address of a library that speaks OPDS. It is remembered for next time.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Адрес библиотеки, которая понимает OPDS. Он запоминается до следующего раза."
+          }
+        }
+      }
+    },
     "The backup in the current folder stays there, and nothing is written to it from now on.": {
       "extractionState": "manual",
       "localizations": {
@@ -3156,6 +3475,39 @@
           "stringUnit": {
             "state": "translated",
             "value": "У этой книги пока нет доступных глав."
+          }
+        }
+      }
+    },
+    "This catalogue offers no FB2 for that book": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "В этом каталоге нет FB2 для этой книги"
+          }
+        }
+      }
+    },
+    "This catalogue offers no search": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Этот каталог не поддерживает поиск"
+          }
+        }
+      }
+    },
+    "This catalogue offers nothing of that kind": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "В этом каталоге нет такого раздела"
           }
         }
       }
@@ -3244,6 +3596,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Автор неизвестен"
+          }
+        }
+      }
+    },
+    "Unsupported": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Не поддерживается"
           }
         }
       }
@@ -3420,6 +3783,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Насыщенность"
+          }
+        }
+      }
+    },
+    "What to look for": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Что искать"
           }
         }
       }

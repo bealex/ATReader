@@ -20,8 +20,12 @@
 #
 # Test options, all of which are xcodebuild's and so imply the app UI tests:
 #   --only SPEC     Run one target, suite or case, as BookholdUITests/CatalogUITests. Repeatable.
+#   --parallel      Run test classes at once, across simulator clones xcodebuild makes itself.
 #   --build-only    Build the tests without running them.
 #   --no-build      Run tests already built by --build-only, reusing that build.
+#
+# Two runs at once need separate derived data, or each fails the other's build: pass it as DD=...,
+# for example `DD=build/dd-ui Scripts/app.sh test --ui`.
 #
 # Release signs with the development profile, there being no distribution one yet, so it installs on a
 # device. `--optimized` compiles Debug at speed instead, keeping the Debug configuration otherwise.
@@ -33,7 +37,9 @@ REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SCHEME="Bookhold"
 PROJECT="$REPO/Bookhold.xcodeproj"
 FRAMEWORKS="$REPO/Frameworks"
-DD="$REPO/build/dd"
+# Overridable so two runs can be given separate derived data and not tread on each other. One run's
+# build under another's feet fails it in ways that read as real test failures.
+DD="${DD:-$REPO/build/dd}"
 MAX_ERRORS=12
 
 COMMAND=""
@@ -49,6 +55,8 @@ TEST_ACTION="test"
 # package target as well, which rejects a profile outright.
 SIGNING=()
 ONLY=()
+PARALLEL=0
+PARALLEL_FLAGS=()
 VERBOSE=0
 
 usage() {
@@ -86,6 +94,7 @@ while [ $# -gt 0 ]; do
     --release) CONFIG="Release" ;;
     --unit) TESTS="unit" ;;
     --ui) TESTS="ui" ;;
+    --parallel) PARALLEL=1 ;;
     --build-only) TEST_ACTION="build-for-testing" ;;
     --no-build) TEST_ACTION="test-without-building" ;;
     --only)
@@ -126,6 +135,10 @@ while [ $# -gt 0 ]; do
 done
 
 [ -n "$COMMAND" ] || die "no command given (try --help)"
+
+if [ "$PARALLEL" -eq 1 ]; then
+  PARALLEL_FLAGS=(-parallel-testing-enabled YES)
+fi
 
 if [ "$TEST_ACTION" != test ] || [ ${#ONLY[@]} -gt 0 ]; then
   [ "$COMMAND" = test ] || die "--only, --build-only and --no-build belong to the test command"
@@ -373,7 +386,8 @@ cmd_test() {
     export TEST_RUNNER_AT_TITLES="$REPO/Fixtures/Titles"
     local label="test · app UI · $CONFIG"
     [ "$TEST_ACTION" = test ] || label="$label · $TEST_ACTION"
-    xcode_build "id=$SIM_ID" "$label" "$TEST_ACTION" ${ONLY[@]+"${ONLY[@]}"} ${SIGNING[@]+"${SIGNING[@]}"} || rc=1
+    xcode_build "id=$SIM_ID" "$label" "$TEST_ACTION" \
+      ${ONLY[@]+"${ONLY[@]}"} ${PARALLEL_FLAGS[@]+"${PARALLEL_FLAGS[@]}"} ${SIGNING[@]+"${SIGNING[@]}"} || rc=1
   fi
   test_totals
   return "$rc"

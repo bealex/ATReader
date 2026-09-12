@@ -5,10 +5,17 @@
 
 import SwiftUI
 
+/// How deep an aside may stand, set by whoever hangs it from the room it has there.
+public extension EnvironmentValues {
+    @Entry
+    var calloutDepth: CGFloat = Design.Size.calloutDepth
+}
+
 /// A short aside, shown beside the thing it belongs to: a note, a gloss, a definition.
 ///
-/// Wide enough to read a sentence across and no wider, and it scrolls once it outgrows its depth, so a
-/// long aside stays an aside instead of becoming a screen.
+/// Wide enough to read a sentence across and no wider, and as deep as what it says. It scrolls only
+/// once that outgrows the room it was given, so a long aside stays an aside instead of becoming a
+/// screen.
 ///
 /// What names the aside stands apart from what it says, above a rule: a note opening with the same
 /// figure that called it up reads as though the figure were the first word of the note.
@@ -24,6 +31,13 @@ public struct Callout<Content: View>: View {
     public var onClose: (() -> Void)?
 
     private let content: Content
+
+    @Environment(\.calloutDepth)
+    private var room
+
+    /// How deep what it says came out, once there has been a layout to measure.
+    @State
+    private var depth: CGFloat?
 
     public init(
         title: String? = nil,
@@ -98,12 +112,13 @@ public struct Callout<Content: View>: View {
             .padding(.horizontal, Design.Space.extraLarge)
             .padding(.top, Design.Space.large)
             .padding(.bottom, Design.Space.extraLarge)
+            .onGeometryChange(for: CGFloat.self, of: { $0.size.height }, action: { depth = $0 })
         }
         .scrollBounceBehavior(.basedOnSize)
-        // A width it is set to rather than one it may take: a popover asks its content how large it is,
-        // and content that would fit anything is given the least it can be shown in.
-        .frame(width: Design.Size.callout)
-        .frame(maxHeight: Design.Size.calloutDepth)
+        // Both set rather than taken: a scroll view fills whatever it is offered, so an aside of two
+        // lines would stand as deep as the room it was hung in. It takes the depth its own words
+        // measured, and only where those outgrow the room is it held back to the room and scrolls.
+        .frame(width: Design.Size.callout, height: depth.map { min($0, room) })
         // Lifted off whatever it covers: an aside the same colour as the page behind it reads as a
         // hole in that page rather than as something standing over it. Rounded to the same corner the
         // shape behind it carries, so a card standing on that shape doesn't square off its corners.
@@ -361,9 +376,9 @@ struct CalloutOverlay<Content: View>: View {
             )
 
             ZStack {
-                // A layer to tap away on. Anything less than a colour takes no touches at all.
-                Color.black
-                    .opacity(0.001)
+                // Everything behind an aside is dropped back, so what was asked about is what is lit.
+                // The layer is also what the aside is tapped away on.
+                Design.Surface.dim
                     .contentShape(.rect)
                     .onTapGesture(perform: dismiss)
                     .accessibilityIdentifier("callout.scrim")
@@ -371,6 +386,7 @@ struct CalloutOverlay<Content: View>: View {
                     .opacity(reach)
 
                 placed(placement, in: geometry.size)
+                    .environment(\.calloutDepth, room(for: placement, in: geometry))
             }
             .ignoresSafeArea(.container, edges: coversSafeArea ? .all : [])
         }
@@ -396,6 +412,19 @@ struct CalloutOverlay<Content: View>: View {
             .padding(.bottom, placement.pointsDown ? max(0, size.height - placement.along) : 0)
             .padding(.top, placement.pointsDown ? 0 : max(0, placement.along))
             .frame(maxHeight: .infinity, alignment: placement.pointsDown ? .bottom : .top)
+    }
+
+    /// How deep the card may stand: from the edge its pointer sits on to the far side of what it
+    /// covers, less the pointer itself and the margin every aside keeps off that edge.
+    ///
+    /// The inset is the notch's or the home indicator's, which a view reaching past the safe area
+    /// still has to keep its words clear of.
+    private func room(for placement: CalloutPlacement, in geometry: GeometryProxy) -> CGFloat {
+        let insets = geometry.safeAreaInsets
+        let along = placement.pointsDown ? placement.along : geometry.size.height - placement.along
+        let clearance = placement.pointsDown ? insets.top : insets.bottom
+
+        return max(0, along - CalloutShape.pointer.height - Design.Space.large - clearance)
     }
 
     /// The corner of the card its pointer stands at, which is what it grows out of and shrinks back

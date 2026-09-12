@@ -58,6 +58,9 @@ enum DesignSystemScreen {
                 .padding(Design.Space.large)
             }
             .frame(width: Design.Size.callout, height: Design.Size.calloutDepth)
+            // Named so a test can tell the panel an aside dims from the page around it.
+            .accessibilityElement(children: .contain)
+            .accessibilityIdentifier("catalog.callout.panel")
             .callout(over: highBox, item: $highAside, ground: Self.asideGround) { held in
                 presented(held) { highAside = nil }
             }

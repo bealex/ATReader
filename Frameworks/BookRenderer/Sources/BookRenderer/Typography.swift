@@ -13,13 +13,17 @@ import Foundation
 /// with a dash; English is easier on short words but keeps an abbreviation with the name it belongs to.
 /// The way to say so is a no-break space, put in before the text is laid out.
 public enum Typography {
-    /// Bumped whenever a rule here changes what a chapter's prepared text comes out as.
+    /// Bumped whenever anything changes what a chapter's prepared paragraphs come out carrying.
     ///
     /// Prepared text is kept against a hash of the chapter's source, so a chapter whose source hasn't
-    /// moved is never set again. A change to these rules moves the output without moving the source,
-    /// and nothing in the source would ever say so. This is what tells the store that everything it
-    /// holds was made by an older typesetter and has to be made again.
-    public static let version = "6"
+    /// moved is never set again. A change here moves the output without moving the source, and nothing
+    /// in the source would ever say so. This is what tells the store that everything it holds was made
+    /// by an older typesetter and has to be made again.
+    ///
+    /// A rule in this file is one reason. A new field on `Paragraph` is another, and the easier one to
+    /// forget: the title levels were added without this moving, so every chapter already on a device
+    /// went on being read back with no levels on it and the air around its titles never appeared.
+    public static let version = "9"
 
     /// A space that cannot be broken at, and that still stretches when a line is justified.
     ///

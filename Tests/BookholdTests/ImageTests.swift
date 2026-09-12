@@ -276,9 +276,12 @@ struct ImageTests {
         let below = context.textRect.maxY - plate.upperBound
 
         #expect(below > 1)
-        // Not exactly equal: the blank line under a heading stands above the picture and belongs to the
-        // heading, so what is over the plate runs a little deeper than what is under it.
-        #expect(abs(above - below) < 35)
+        // Not exactly equal: the gap under a heading stands above the picture and belongs to the
+        // heading's own block, so what is over the plate runs deeper than what is under it by about
+        // the two lines that gap runs to.
+        let line = context.style.font.lineHeight + context.style.lineSpacing
+
+        #expect(abs(above - below) < line * TitleBlock.gap(after: TitleBlock.air(forLevel: 1)) + 15)
     }
 
     /// A picture with nothing behind it takes no room, rather than leaving a gap where it would be.

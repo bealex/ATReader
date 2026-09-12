@@ -31,7 +31,7 @@ apply `Design` to the page.
 | `DisclosureLabel` | A row that opens another screen through a button, with the chevron a `NavigationLink` would draw. |
 | `BookmarkMark` | A ribbon hanging from a cover's top edge with a figure or a glyph, and where along the edge it hangs. Its red is a ribbon's colour; its green and grey are `positive` and `neutral`. |
 | `ExplainedHeader` | A section header whose ⓘ, at its far end, opens a dialog explaining the section. |
-| `Callout` | A short aside: set to a width, scrolling once it outgrows its depth. |
+| `Callout` | A short aside: set to a width, as deep as what it says. |
 | `CalloutShape` | The card and its pointer as one path. |
 | `CalloutPlacement` | Which side of a thing an aside takes, and where it slides to. |
 | `CalloutMotion` | How an aside comes and goes. |
@@ -124,6 +124,18 @@ cast by both.
 Placement is arithmetic in `CalloutPlacement`, checked in `CalloutPlacementTests` rather than through a
 screen. The card is stood by carving a region with padding and aligning it against the pointer's edge,
 so nothing needs to measure how tall it came out.
+
+**It is as deep as what it says.** A scroll view fills whatever it is offered, so an aside of two lines
+used to stand as deep as the room it was hung in. The content measures itself and the card is set to
+that, held back only where it outgrows the room the overlay hands down as `calloutDepth`: from the edge
+the pointer sits on to the far side of what the aside covers, less the pointer and the margin every
+aside keeps off that edge. Only then does it scroll.
+
+**What stands behind it is dropped back.** `Design.Surface.dim` is the layer the aside is tapped away
+on, and it darkens whatever it covers in every mode, since a scrim is shade rather than a colour. It
+comes up and goes with `reach`, like the card itself. It also changed how the motion test reads the
+screen: every pixel under the scrim differs from the bare page, so `CalloutMotionUITests` predicts the
+scrim from one corner of the panel it falls over and measures what the card alone put there.
 
 ### Coming and going
 

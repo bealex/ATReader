@@ -20,9 +20,6 @@ enum ProfileScreen {
         private var inbox
 
         @State
-        private var isPickingFile = false
-
-        @State
         private var isConfirmingSignOut = false
 
         @Environment(ShelfSettings.self)
@@ -56,7 +53,6 @@ enum ProfileScreen {
             List {
                 Group {
                     authorToday
-                    otherSources
                     BackupSection()
                     other
                 }
@@ -116,45 +112,6 @@ enum ProfileScreen {
             } footer: {
                 // Kept to one literal: splitting it would stop it being a localizable key.
                 Text("Books you are reading are checked daily; new chapters download and badge the icon.")
-            }
-        }
-
-        /// Books from anywhere but the service: a file, or the reader's Litres shelf.
-        private var otherSources: some View {
-            Section {
-                Button {
-                    isPickingFile = true
-                } label: {
-                    Label("Add a book from a file", systemImage: "plus")
-                }
-                .disabled(inbox.isImporting)
-                .accessibilityIdentifier("profile.add")
-                .accessibilityHint("Reads an FB2 file into your library")
-                .fileImporter(
-                    isPresented: $isPickingFile,
-                    allowedContentTypes: LocalBookFiles.fileTypes,
-                    allowsMultipleSelection: true
-                ) { result in
-                    guard case let .success(urls) = result else { return }
-
-                    Task { await inbox.accept(urls) }
-                }
-
-                LitresRows { Task { await refreshStats() } }
-            } header: {
-                ExplainedHeader(
-                    Text("Other sources"),
-                    explanation: Text(
-                        """
-                        Books from an FB2 file or from Litres live on this device alone, along with the files \
-                        they came in. Clearing downloads doesn't touch them, because nothing could send them \
-                        again. Back them up to keep a copy.
-
-                        Litres books come across once. The app doesn't check the service again, and the \
-                        session ends when they arrive.
-                        """
-                    )
-                )
             }
         }
 

@@ -81,6 +81,9 @@ private struct ReaderBarAppearance: UIViewControllerRepresentable {
         /// Held from the moment the bar is taken over, because a controller on its way out of the stack
         /// has already lost sight of its navigation controller and would restore nothing.
         private weak var takenBar: UINavigationBar?
+        /// The stack itself, held for the same reason the bar is: on the way out this controller has
+        /// already lost sight of it.
+        private weak var takenStack: UINavigationController?
         private weak var takenWindow: UIWindow?
 
         /// The stack's own view and the window, which show at the corners where the page's rounding
@@ -108,6 +111,7 @@ private struct ReaderBarAppearance: UIViewControllerRepresentable {
         override func viewDidAppear(_ animated: Bool) {
             super.viewDidAppear(animated)
             isOnScreen = true
+            takenStack = navigationController
             apply(background: background, style: style)
         }
 
@@ -123,6 +127,22 @@ private struct ReaderBarAppearance: UIViewControllerRepresentable {
             super.viewDidDisappear(animated)
             isOnScreen = false
             restore()
+            showTheBarAgain()
+        }
+
+        /// Hands the stack's bar back to whatever is on screen now.
+        ///
+        /// A reader puts the bar away while it reads, and SwiftUI gives it back when the screen it was
+        /// hidden by goes through the pop it knows about. A book dragged shut goes out through the zoom
+        /// transition's own interaction instead, and the screen underneath came back bare.
+        private func showTheBarAgain() {
+            guard let stack = takenStack ?? navigationController else { return }
+
+            takenStack = nil
+
+            guard stack.isNavigationBarHidden else { return }
+
+            stack.setNavigationBarHidden(false, animated: false)
         }
 
         func apply(background: UIColor?, style: UIUserInterfaceStyle) {

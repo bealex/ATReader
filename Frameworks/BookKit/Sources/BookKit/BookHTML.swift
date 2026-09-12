@@ -38,6 +38,29 @@ public struct NoteMark: Codable, Sendable, Hashable {
     public var range: NSRange { NSRange(location: location, length: length) }
 }
 
+/// A stretch of a paragraph set off the line: a formula's lowered figure, or a lifted one.
+///
+/// Counted the way a note marker is, in the characters the text arrived with, so a reading position
+/// means the same whether or not the typesetter has been through it.
+public struct ScriptMark: Codable, Sendable, Hashable {
+    public enum Place: String, Codable, Sendable {
+        case below
+        case above
+    }
+
+    public let location: Int
+    public let length: Int
+    public let place: Place
+
+    public init(location: Int, length: Int, place: Place) {
+        self.location = location
+        self.length = length
+        self.place = place
+    }
+
+    public var range: NSRange { NSRange(location: location, length: length) }
+}
+
 /// One laid-out block of a chapter: a paragraph of text, or a picture standing on its own.
 public struct Paragraph: Codable, Sendable, Identifiable, Hashable {
     public let id: Int
@@ -48,15 +71,29 @@ public struct Paragraph: Codable, Sendable, Identifiable, Hashable {
     /// lays the chapter out decides what a source resolves to, and drops the block where nothing
     /// answers to it.
     public let imageSource: String?
+    /// What level of title this block is, or nothing where it is ordinary text. One is the biggest.
+    public let titleLevel: Int?
     /// The note markers standing in this paragraph, in the order they stand in it.
     public let notes: [NoteMark]
+    /// The stretches of it set off the line, in the order they stand in it.
+    public let scripts: [ScriptMark]
 
-    public init(id: Int, text: String, isCentered: Bool, imageSource: String? = nil, notes: [NoteMark] = []) {
+    public init(
+        id: Int,
+        text: String,
+        isCentered: Bool,
+        imageSource: String? = nil,
+        titleLevel: Int? = nil,
+        notes: [NoteMark] = [],
+        scripts: [ScriptMark] = []
+    ) {
         self.id = id
         self.text = text
         self.isCentered = isCentered
         self.imageSource = imageSource
+        self.titleLevel = titleLevel
         self.notes = notes
+        self.scripts = scripts
     }
 
     public init(from decoder: any Decoder) throws {
@@ -66,8 +103,11 @@ public struct Paragraph: Codable, Sendable, Identifiable, Hashable {
         text = try container.decode(String.self, forKey: .text)
         isCentered = try container.decode(Bool.self, forKey: .isCentered)
         imageSource = try container.decodeIfPresent(String.self, forKey: .imageSource)
+        titleLevel = try container.decodeIfPresent(Int.self, forKey: .titleLevel)
         // A chapter prepared before notes were read carries none, and is still good text.
         notes = try container.decodeIfPresent([ NoteMark ].self, forKey: .notes) ?? []
+        // As with the notes: a chapter prepared before these were read carries none.
+        scripts = try container.decodeIfPresent([ ScriptMark ].self, forKey: .scripts) ?? []
     }
 
     public var isImage: Bool { imageSource != nil }
@@ -92,6 +132,33 @@ private typealias HTMLRange = Range<String.Index>
 /// Chapter bodies use a small, predictable subset — `<p>`, `<br>`, `<span>`, emphasis and the odd `<img>` —
 /// so a targeted pass beats pulling in a full HTML stack, and it keeps the work off the main actor.
 public enum BookHTML {
+    /// What level of title a block is, or nothing where it is ordinary text.
+    ///
+    /// The markup says, and only the markup. A paragraph is centred for all sorts of reasons, so what
+    /// one holds is never asked: a row of stars is a title because the book wrote it as one, not
+    /// because of the characters in it.
+    private static func titleLevel(inside attributes: String) -> Int? {
+        guard let found = attributes.range(of: "data-title=\"[1-6]\"", options: .regularExpression) else { return nil }
+
+        return Int(attributes[found].suffix(2).prefix(1))
+    }
+
+    /// Rewrites `<h1>`…`<h6>` as paragraphs carrying their level, so one walk reads the whole body.
+    private static func levelling(_ html: String) -> String {
+        var result = html.replacingOccurrences(
+            of: "<h([1-6])(\\s[^>]*)?>",
+            with: "<p data-title=\"$1\" style=\"text-align:center\"$2>",
+            options: [ .regularExpression, .caseInsensitive ]
+        )
+
+        result = result.replacingOccurrences(
+            of: "</h[1-6]\\s*>",
+            with: "</p>",
+            options: [ .regularExpression, .caseInsensitive ]
+        )
+        return result
+    }
+
     /// A chapter's blocks alone, for text that carries no notes worth showing: an annotation, a blurb.
     public static func paragraphs(from html: String) -> [Paragraph] { chapter(from: html).paragraphs }
 
@@ -240,6 +307,7 @@ public enum BookHTML {
     /// The marker keeps exactly the characters the text gave it. A reading position is an offset into
     /// this text, so a renumbered marker would move the reader's place in every book on the device.
     public static func chapter(from html: String) -> ChapterMarkup {
+        let html = levelling(html)
         let bodies = noteBodies(among: referencedIds(in: html), in: html)
         let body = removing(bodies.values.map(\.range), from: html)
         let blocks = blocks(in: body)
@@ -260,7 +328,14 @@ public enum BookHTML {
 
                     guard !read.text.isEmpty else { continue }
 
-                    result.append(Paragraph(id: index, text: read.text, isCentered: centered, notes: read.marks))
+                    result.append(Paragraph(
+                        id: index,
+                        text: read.text,
+                        isCentered: centered,
+                        titleLevel: titleLevel(inside: attributes),
+                        notes: read.marks,
+                        scripts: read.scripts
+                    ))
                     index += 1
             }
         }
@@ -283,10 +358,17 @@ public enum BookHTML {
     /// because no book contains one and neither step touches them.
     private static let markerOpen: Character = "\u{E000}"
     private static let markerClose: Character = "\u{E001}"
+    /// The same trick for the stretches a formula sets off the line: a fence the tag stripper leaves
+    /// alone, read back out once the markup is gone.
+    private static let scriptFences: [(open: Character, close: Character, place: ScriptMark.Place)] = [
+        ("\u{E002}", "\u{E003}", .below),
+        ("\u{E004}", "\u{E005}", .above),
+    ]
 
     private struct ReadText {
         var text: String
         var marks: [NoteMark]
+        var scripts: [ScriptMark] = []
     }
 
     /// One paragraph's text, with the note markers in it found and placed.
@@ -295,6 +377,7 @@ public enum BookHTML {
         paragraph: Int,
         notes: inout [String: BookNote]
     ) -> ReadText {
+        let fragment = fencingScripts(in: fragment)
         var fenced = ""
         var ids: [String] = []
         var cursor = fragment.startIndex
@@ -328,15 +411,46 @@ public enum BookHTML {
 
         fenced += fragment[cursor...]
 
-        guard !ids.isEmpty else { return ReadText(text: plainText(from: fenced), marks: []) }
+        let flattened = plainText(from: fenced)
 
-        return placing(ids, in: plainText(from: fenced), notes: &notes)
+        guard !ids.isEmpty || flattened.contains(where: isFence) else { return ReadText(text: flattened, marks: []) }
+
+        return placing(ids, in: flattened, notes: &notes)
+    }
+
+    private static func isFence(_ character: Character) -> Bool {
+        scriptFences.contains { $0.open == character || $0.close == character }
+    }
+
+    /// Fences `<sub>` and `<sup>` before the markup is flattened, so where they stood is still known
+    /// afterwards. The fences are private-use characters, which the tag stripper has no opinion about.
+    private static func fencingScripts(in fragment: String) -> String {
+        var result = fragment
+
+        for fence in scriptFences {
+            let name = fence.place == .below ? "sub" : "sup"
+
+            result = result.replacingOccurrences(
+                of: "<\(name)(\\s[^>]*)?>",
+                with: String(fence.open),
+                options: [ .regularExpression, .caseInsensitive ]
+            )
+            result = result.replacingOccurrences(
+                of: "</\(name)\\s*>",
+                with: String(fence.close),
+                options: [ .regularExpression, .caseInsensitive ]
+            )
+        }
+
+        return result
     }
 
     /// Reads the fenced markers back out of the flattened text, and records where each one landed.
     private static func placing(_ ids: [String], in text: String, notes: inout [String: BookNote]) -> ReadText {
         var result = ""
         var marks: [NoteMark] = []
+        var scripts: [ScriptMark] = []
+        var opened: [ScriptMark.Place: Int] = [:]
         var length = 0
         var start: Int?
         var marker = ""
@@ -360,13 +474,27 @@ public enum BookHTML {
                     }
                     start = nil
                 default:
+                    if let fence = scriptFences.first(where: { $0.open == character }) {
+                        opened[fence.place] = length
+                        continue
+                    }
+
+                    if let fence = scriptFences.first(where: { $0.close == character }) {
+                        if let from = opened[fence.place], length > from {
+                            scripts.append(ScriptMark(location: from, length: length - from, place: fence.place))
+                        }
+
+                        opened[fence.place] = nil
+                        continue
+                    }
+
                     result.append(character)
                     length += character.utf16.count
                     if start != nil { marker.append(character) }
             }
         }
 
-        return ReadText(text: result, marks: marks)
+        return ReadText(text: result, marks: marks, scripts: scripts)
     }
 
     /// A note that opens by repeating its own figure, with that figure taken off.

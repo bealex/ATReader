@@ -165,6 +165,9 @@ public final class ColumnComposer {
         /// The line ends in the middle of a word, so a hyphen stands at the end of it.
         var endsWithHyphen: Bool
         var isHeading: Bool
+        /// The line opens a title block, and how much air stands above it. No page may open on one
+        /// that carries any, since the air would fall off the top and say nothing.
+        var titleAir: CGFloat
         var isJustified: Bool
         /// How deep the line stands, the space under it included.
         var height: CGFloat
@@ -354,6 +357,7 @@ public final class ColumnComposer {
             endsParagraph: true,
             endsWithHyphen: false,
             isHeading: false,
+            titleAir: 0,
             isJustified: false,
             height: size.height + spacing,
             baseline: 0,
@@ -372,9 +376,11 @@ public final class ColumnComposer {
             endsParagraph: true,
             endsWithHyphen: false,
             isHeading: isHeading,
+            titleAir: ruler.paragraphSpacingBefore,
             isJustified: false,
-            height: ruler.font.lineHeight + ruler.lineSpacing + ruler.paragraphSpacing,
-            baseline: ruler.font.ascender,
+            height: ruler.font.lineHeight + ruler.lineSpacing + ruler.paragraphSpacingBefore
+                + ruler.paragraphSpacing,
+            baseline: ruler.font.ascender + ruler.paragraphSpacingBefore,
             origin: 0,
             width: 0
         )
@@ -633,9 +639,15 @@ public final class ColumnComposer {
             endsParagraph: piece.isLast,
             endsWithHyphen: piece.hyphenates,
             isHeading: isHeading,
+            titleAir: piece.start == 0 ? ruler.paragraphSpacingBefore : 0,
             isJustified: piece.isJustified,
-            height: ruler.font.lineHeight + ruler.lineSpacing + (piece.isLast ? ruler.paragraphSpacing : 0),
-            baseline: ruler.font.ascender,
+            height: ruler.font.lineHeight + ruler.lineSpacing
+                + (piece.start == 0 ? ruler.paragraphSpacingBefore : 0)
+                + (piece.isLast ? ruler.paragraphSpacing : 0),
+            // The air above the line is part of its height, so the baseline has to clear it as well:
+            // a page draws each line at its own baseline and then steps on by its height, and air the
+            // baseline knows nothing about all falls under the words instead of over them.
+            baseline: ruler.font.ascender + (piece.start == 0 ? ruler.paragraphSpacingBefore : 0),
             origin: origin,
             width: width,
             setting: drawn == nil ? nil : setting,

@@ -3,6 +3,7 @@
 //  Licensed under the MIT License. See LICENSE in the repository root.
 //
 
+import BookKit
 import CoreText
 import UIKit
 
@@ -47,4 +48,26 @@ public enum NoteMarker {
     /// A superscript digit is two or three points across and no finger finds that. The target is
     /// widened about the marker's own middle, which is what makes one tappable without moving it.
     static let target: CGFloat = 30
+}
+
+/// How a formula's lowered and lifted figures are set.
+///
+/// The same size as a note's marker, since both are figures beside the words rather than words, and
+/// the same restraint about how far they go: the column takes its line height from the body font, so
+/// one climbing past the body's own ascent would foul the line above it.
+public enum ScriptMarker {
+    /// How far below the line a lowered figure sits, as a share of the type size. Shorter than the
+    /// lift above it, because the line below is closer than the line above.
+    public static let drop = 0.14
+
+    /// What a figure's `.baselineOffset` is set to against a given type size.
+    ///
+    /// The page draws through a flipped text matrix, so CoreText's own upwards is the page's
+    /// downwards: lifting a figure takes a negative offset and dropping one takes a positive.
+    public static func baselineOffset(_ place: ScriptMark.Place, forFontSize size: Double) -> Double {
+        switch place {
+            case .below: size * drop
+            case .above: -size * NoteMarker.rise
+        }
+    }
 }

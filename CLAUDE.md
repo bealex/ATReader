@@ -3,7 +3,7 @@
 An iOS reader client for [author.today](https://author.today): sign in, read your library, search the
 catalogue, follow the charts.
 
-Eight modules. Seven packages under `Frameworks/` hold everything that isn't a screen, and `Code/` holds
+Nine modules. Eight packages under `Frameworks/` hold everything that isn't a screen, and `Code/` holds
 the screens, the session and the wiring between them.
 
 ```
@@ -15,6 +15,7 @@ BookRenderer       typography, pagination, the page.    → BookKit
 AuthorTodayBooks   the service's shapes as one Book.    → BookKit, AuthorToday
 AuthorToday        HTTP, models, decryption.
 Litres             signing in, the reader's own shelf, downloads. Foundation only.
+OPDS               searching a catalogue, and the file behind a hit. Foundation only.
 Code/              screens, session, sweep, composition.
 ```
 
@@ -48,6 +49,27 @@ its own.
   `--only SPEC` runs a single target or suite, and `--build-only` with `--no-build` splits building the
   tests from running them.
 - `Scripts/app.sh clean` removes `build/`.
+
+**Run the tests in the background and keep working.** A suite takes minutes, so start it in the
+background and spend the wait on documentation, a deslop pass, a commit, or the next piece of the
+task.
+
+What may not fill that wait is another build against the same derived data: `build`, `deploy` and a
+second `test` all use `build/dd`, and one building under another fails it in ways that read as real
+failures. There are two ways round it, and editing files rather than compiling them is always safe.
+
+- `DD=build/dd-something` gives a run derived data of its own, which is what lets two invocations
+  overlap. A build from nothing takes about half a minute, so a second path costs little.
+- `--parallel` runs a suite's classes at once on simulator clones. **It does not work here**: the
+  tests that import a book (`BookFileTests`, `BookmarkUITests`) share that state and fail under it,
+  and cloning cost ten minutes against one for the same suites run in order. Making them safe to run
+  at once is a job of its own.
+
+**Where the time actually goes**, measured rather than guessed: a build from empty derived data is
+26 seconds, the 227 unit tests run in 15, and the four reader UI tests take 75 because each launches
+the app and waits for the library. Nothing is slow about compiling. A run that takes minutes is
+booting a simulator or cloning one, so the thing to keep warm is the simulator, and the thing to
+avoid is cloning it.
 
 Every run prints one line per phase and a final `RESULT` line, and writes the full log under
 `$TMPDIR/bookhold-logs`. When the summary isn't enough, read that log instead of reaching for the

@@ -30,6 +30,8 @@ public struct ParagraphRuler {
     public let firstLineIndent: CGFloat
     public let lineSpacing: CGFloat
     public let paragraphSpacing: CGFloat
+    /// The air the paragraph keeps above itself, which only its first line carries.
+    public let paragraphSpacingBefore: CGFloat
     let breaks: [Break]
 
     public let spaceWidth: CGFloat
@@ -65,6 +67,7 @@ public struct ParagraphRuler {
         self.firstLineIndent = style?.firstLineHeadIndent ?? 0
         self.lineSpacing = style?.lineSpacing ?? 0
         self.paragraphSpacing = style?.paragraphSpacing ?? 0
+        self.paragraphSpacingBefore = style?.paragraphSpacingBefore ?? 0
 
         let skeleton = Self.skeleton(of: string, range: range)
         let piece = Self.visibleText(of: text, range: range, runs: skeleton.visibleRuns)

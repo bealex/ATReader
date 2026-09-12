@@ -60,11 +60,79 @@ final class Navigator {
         screen.hidesBottomBarWhenPushed = true
 
         if let source {
-            screen.preferredTransition = .zoom { _ in source }
+            screen.preferredTransition = .zoom(options: Self.zoom) { _ in source }
         }
 
         controller.pushViewController(screen, animated: true)
     }
+
+    /// Opens a screen over everything, growing it out of `source` where one is given.
+    ///
+    /// Presented rather than pushed, for a screen that wants the whole window. A pushed one has to
+    /// take the tab bar away on the way in and give it back on the way out, and the stack's own bar
+    /// with it, and the reader was left re-laying all of that out in the middle of the zoom: that is
+    /// the jump the transition had. A presented screen covers them instead, so nothing underneath
+    /// moves at all.
+    func present(_ route: AppRoute, from source: (@MainActor @Sendable (BookZoom) -> UIView?)? = nil) {
+        guard let controller, let dressing else { return }
+
+        let screen = PresentedScreen(rootView: dressing.dress(AppRouteDestination(route: route).environment(self)))
+
+        // Over, not simply full screen. A full-screen presentation takes the presenting view out of
+        // the window, so a shelf spends the whole reading session off it: its cells are built again
+        // and its spines printed again only once the reader has gone, which lands as one frame of
+        // everything moving at the end of the zoom. Left in the window, the shelf keeps up while it
+        // is covered and is already right when it is uncovered.
+        screen.modalPresentationStyle = .overFullScreen
+
+        // Asked afresh each time, on the way in and on the way out. A shelf lays itself out again
+        // around whatever the reading changed, so the board a book stood on when it opened is the
+        // wrong size by the time the book closes, and the zoom landed on one and left the other.
+        if let source {
+            screen.preferredTransition = .zoom(options: Self.zoom) { _ in source(.running) }
+            // The book is taken down once the reader is over it and put back when the zoom has
+            // finished bringing it home, so it is never standing there behind its own transition.
+            screen.onArrived = { source(.covered) }
+            screen.onGone = { source(.done) }
+        }
+
+        controller.present(screen, animated: true)
+    }
+
+    /// A presented screen that says when it has arrived and when it has gone.
+    ///
+    /// A dismissal begun by dragging is nobody's to call, so there is no completion to hang this on:
+    /// the screen's own life is what reports it. A drag let go half way brings `viewDidAppear` round
+    /// again, which is the answer wanted there too.
+    private final class PresentedScreen<Content: View>: UIHostingController<Content> {
+        var onArrived: (@MainActor () -> Void)?
+        var onGone: (@MainActor () -> Void)?
+
+        override func viewDidAppear(_ animated: Bool) {
+            super.viewDidAppear(animated)
+            onArrived?()
+        }
+
+        override func viewDidDisappear(_ animated: Bool) {
+            super.viewDidDisappear(animated)
+            onGone?()
+        }
+    }
+
+    /// A zoomed screen is closed by dragging it back down, and only down.
+    ///
+    /// The dismissal answers a drag in any direction by default, and the reader turns its pages with
+    /// the sideways ones: a drag in from the leading edge closed the book instead of turning back a
+    /// page. Everything the screen has no use for is still the transition's.
+    private static let zoom: UIViewController.Transition.ZoomOptions = {
+        let options = UIViewController.Transition.ZoomOptions()
+
+        options.interactiveDismissShouldBegin = { interaction in
+            interaction.willBegin && interaction.velocity.dy > abs(interaction.velocity.dx)
+        }
+
+        return options
+    }()
 
     fileprivate func cameBack() { returnedAt = .now }
 }

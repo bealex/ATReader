@@ -30,6 +30,8 @@ packages:
     path: Frameworks/AuthorTodayBooks
   Litres:
     path: Frameworks/Litres
+  OPDS:
+    path: Frameworks/OPDS
 
 targets:
   Bookhold:
@@ -75,6 +77,8 @@ targets:
         product: AuthorTodayBooks
       - package: Litres
         product: Litres
+      - package: OPDS
+        product: OPDS
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.lonelybytes.atreader

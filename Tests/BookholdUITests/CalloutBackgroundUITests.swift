@@ -192,6 +192,66 @@ struct PixelReader {
         return CGRect(x: left, y: top, width: right - left, height: bottom - top)
     }
 
+    /// The box around everything a picture has and a bare page has not, once the bare page is
+    /// darkened the way the aside's scrim darkened it.
+    ///
+    /// An aside drops everything behind it back, so every pixel under the scrim differs from the bare
+    /// page and a plain comparison measures the scrim rather than the card. Predicting the scrim
+    /// instead leaves only what the card itself put there.
+    func bounds(
+        differingFrom bare: PixelReader,
+        dimmedBy factor: CGFloat,
+        under scrim: CGRect,
+        tolerance: Int,
+        inside region: CGRect
+    ) -> CGRect? {
+        var left = width
+        var right = -1
+        var top = height
+        var bottom = -1
+
+        let fromX = max(0, Int(region.minX))
+        let toX = min(width, Int(region.maxX))
+        let fromY = max(0, Int(region.minY))
+        let toY = min(height, Int(region.maxY))
+
+        for row in stride(from: fromY, to: toY, by: 2) {
+            for column in stride(from: fromX, to: toX, by: 2) {
+                let point = CGPoint(x: column, y: row)
+
+                guard
+                    let here = colour(atX: point.x, y: point.y),
+                    let there = bare.colour(atX: point.x, y: point.y)
+                else { continue }
+
+                let expected = scrim.contains(point) ? there.dimmed(by: factor) : there
+
+                guard here.distance(to: expected) > tolerance else { continue }
+
+                left = min(left, column)
+                right = max(right, column)
+                top = min(top, row)
+                bottom = max(bottom, row)
+            }
+        }
+
+        guard right >= left, bottom >= top else { return nil }
+
+        return CGRect(x: left, y: top, width: right - left, height: bottom - top)
+    }
+
+    /// How far a scrim has come, read off a point on the page no aside ever covers: what is left of
+    /// the bare page's light there.
+    func dimming(at point: CGPoint, against bare: PixelReader) -> CGFloat {
+        guard
+            let here = colour(atX: point.x, y: point.y),
+            let there = bare.colour(atX: point.x, y: point.y),
+            there.light > 0
+        else { return 1 }
+
+        return min(1, CGFloat(here.light) / CGFloat(there.light))
+    }
+
     func colour(atX x: CGFloat, y: CGFloat) -> Pixel? {
         let column = Int(x)
         let row = Int(y)
@@ -210,6 +270,18 @@ struct Pixel: CustomStringConvertible, Equatable {
     let blue: UInt8
 
     var description: String { "\(red),\(green),\(blue)" }
+
+    /// How much light the pixel carries, which is all a black scrim changes.
+    var light: Int { Int(red) + Int(green) + Int(blue) }
+
+    /// The pixel with a share of its light taken away, as a black scrim over it would leave it.
+    func dimmed(by factor: CGFloat) -> Pixel {
+        Pixel(
+            red: UInt8(clamping: Int((CGFloat(red) * factor).rounded())),
+            green: UInt8(clamping: Int((CGFloat(green) * factor).rounded())),
+            blue: UInt8(clamping: Int((CGFloat(blue) * factor).rounded()))
+        )
+    }
 
     /// How far apart two colours stand, as the largest difference in any one channel.
     func distance(to other: Pixel) -> Int {

@@ -36,7 +36,12 @@ final class ShelfView: UIView {
     /// Called on every frame of a turn, for whatever has to follow the shelf as it changes height.
     var onFrame: (() -> Void)?
     /// A book being opened, and the face it grows out of.
-    var onOpen: ((Book, UIView) -> Void)?
+    /// Opening a book, and how to find the face it is standing on at the moment anyone asks.
+    ///
+    /// A closure rather than the view itself: a zoom asks for the source again on the way out, and by
+    /// then the shelf may have laid itself out afresh around whatever the reading changed. The view
+    /// that was tapped is the wrong size by then, or belongs to another book entirely.
+    var onOpen: ((Book, @escaping @MainActor @Sendable (BookZoom) -> UIView?) -> Void)?
     var bookMenu: ((Book) -> UIMenu?)?
     var runMenu: ((String) -> UIMenu?)?
 
@@ -472,9 +477,9 @@ final class ShelfView: UIView {
             onToggle?()
             return
         }
-        guard let standing = books[place.id] else { return }
+        guard books[place.id] != nil else { return }
 
-        onOpen?(work, standing.face)
+        onOpen?(work) { [weak self] zoom in self?.books[place.id]?.face(during: zoom) }
     }
 
     private func menu(at place: Place) -> UIMenu? {

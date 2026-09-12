@@ -60,6 +60,13 @@ public struct ChapterTextStyle: Equatable, Sendable {
 
     public var font: UIFont { face.font(size: fontSize, weight: weight.uiWeight) }
 
+    /// How deep one line of the page runs, which is what air around a title is counted in.
+    ///
+    /// One definition, since it is written down in one place and cut back in another: a title's air is
+    /// laid out here and trimmed by `ChapterLayout` where the title opens a page, and the two counting
+    /// lines differently left the trim taking more than it was asked for.
+    public var pageLine: CGFloat { font.lineHeight + lineSpacing }
+
     public var palette: PagePalette {
         PagePalette(foreground: textColor, background: backgroundColor, isMonochrome: monochromeImages)
     }
@@ -138,6 +145,10 @@ public enum ChapterPagination {
         append(heading, to: result, style: style)
         let headingLength = result.length
         let paragraphs = withoutRepeatedHeading(paragraphs, heading: heading)
+        // Read once for the whole chapter: a paragraph's air depends on the titles it stands among.
+        let levels = paragraphs.map(\.titleLevel)
+        let opening = TitleBlock.opening(levels)
+        let closing = TitleBlock.closing(levels)
 
         for (index, paragraph) in paragraphs.enumerated() {
             let suffix = index == paragraphs.count - 1 ? "" : "\n"
@@ -152,11 +163,15 @@ public enum ChapterPagination {
                 continue
             }
 
-            let isCentered = paragraph.isCentered
+            // A title stands in the middle of the measure whether or not the book said so: left where
+            // the paragraphs are, it reads as a line of text that lost its words.
+            let isCentered = paragraph.isCentered || levels[index] != nil
+            let air = Self.spacing(at: index, opening: opening, closing: closing, style: style, font: font)
             let paragraphStyle = NSMutableParagraphStyle()
             paragraphStyle.alignment = isCentered ? .center : bodyAlignment
             paragraphStyle.lineSpacing = style.lineSpacing
-            paragraphStyle.paragraphSpacing = style.lineSpacing * 0.8
+            paragraphStyle.paragraphSpacing = air.after
+            paragraphStyle.paragraphSpacingBefore = air.before
             paragraphStyle.firstLineHeadIndent = isCentered || !style.indentsParagraphs ? 0 : font.pointSize
             paragraphStyle.lineBreakMode = .byWordWrapping
             // Hyphenation, from the system's dictionary for the language the run carries. Without it a
@@ -183,9 +198,54 @@ public enum ChapterPagination {
             let start = result.length
             result.append(NSAttributedString(string: paragraph.text + suffix, attributes: attributes))
             mark(paragraph.notes, in: result, from: start, style: style)
+            raise(paragraph.scripts, in: result, from: start, style: style)
         }
 
         return TypesetText(attributed: result, headingLength: headingLength)
+    }
+
+    /// How deep the gap under a paragraph runs, and how much air stands above it.
+    ///
+    /// A title block stands in air worked out from the biggest title in it, and is parted from the
+    /// text under it by the same measure. Everything else takes the gap paragraphs take between them.
+    private static func spacing(
+        at index: Int,
+        opening: [Int?],
+        closing: [Bool],
+        style: ChapterTextStyle,
+        font: UIFont
+    ) -> (before: CGFloat, after: CGFloat) {
+        let gap = style.lineSpacing * 0.8
+        let line = style.pageLine
+        let air = opening[index].map { TitleBlock.air(forLevel: $0) } ?? 0
+
+        return (air * line, closing[index] ? gap + TitleBlock.gap(after: air) * line : gap)
+    }
+
+    /// Sets the stretches a formula drops below the line or lifts above it.
+    private static func raise(
+        _ scripts: [ScriptMark],
+        in text: NSMutableAttributedString,
+        from start: Int,
+        style: ChapterTextStyle
+    ) {
+        guard !scripts.isEmpty else { return }
+
+        let font = style.face.font(size: style.fontSize * NoteMarker.scale, weight: style.weight.uiWeight)
+
+        for script in scripts {
+            let range = NSRange(location: start + script.location, length: script.length)
+
+            guard NSMaxRange(range) <= text.length else { continue }
+
+            text.addAttributes(
+                [
+                    .font: font,
+                    .baselineOffset: ScriptMarker.baselineOffset(script.place, forFontSize: style.fontSize),
+                ],
+                range: range
+            )
+        }
     }
 
     /// Sets a paragraph's note markers as references rather than as digits that wandered into the words.
@@ -309,13 +369,23 @@ public enum ChapterPagination {
         return [ .languageIdentifier: language ]
     }
 
+    /// A chapter's own heading, which is the first-level title of the block it opens.
+    ///
+    /// The air above it is dropped where the chapter starts a page, since air at the head of a page
+    /// says nothing. `ChapterLayout` does that, because only it knows where the chapter begins.
     private static func append(_ heading: ChapterHeading, to text: NSMutableAttributedString, style: ChapterTextStyle) {
         guard !heading.isEmpty else { return }
+
+        let line = style.pageLine
+        let above = TitleBlock.air(forLevel: 1) * line
+        let below = TitleBlock.gap(after: TitleBlock.air(forLevel: 1)) * line
+        let hasTitle = heading.title?.isEmpty == false
 
         if let number = heading.number {
             let paragraphStyle = NSMutableParagraphStyle()
             paragraphStyle.alignment = .center
-            paragraphStyle.paragraphSpacing = style.fontSize * 0.4
+            paragraphStyle.paragraphSpacingBefore = above
+            paragraphStyle.paragraphSpacing = hasTitle ? style.fontSize * 0.4 : below
 
             text.append(NSAttributedString(
                 string: number.uppercased() + "\n",
@@ -332,6 +402,8 @@ public enum ChapterPagination {
             let paragraphStyle = NSMutableParagraphStyle()
             paragraphStyle.alignment = .center
             paragraphStyle.lineSpacing = style.lineSpacing * 0.5
+            paragraphStyle.paragraphSpacingBefore = heading.number == nil ? above : 0
+            paragraphStyle.paragraphSpacing = below
 
             text.append(NSAttributedString(
                 string: title + "\n",
@@ -342,12 +414,6 @@ public enum ChapterPagination {
                 ]
             ))
         }
-
-        // A blank line of its own, so the body starts clear of the heading whatever the line spacing is.
-        let spacer = NSMutableParagraphStyle()
-        spacer.paragraphSpacing = 0
-        let spacerFont = style.face.font(size: style.fontSize * 0.7, weight: style.weight.uiWeight)
-        text.append(NSAttributedString(string: "\n", attributes: [ .font: spacerFont, .paragraphStyle: spacer ]))
     }
 
     private static func bold(_ font: UIFont) -> UIFont {

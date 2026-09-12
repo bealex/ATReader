@@ -36,6 +36,19 @@ final class CoverView: UIView {
     private var shown: CoverPrint.Order?
     private var loading: (order: CoverPrint.Order, task: Task<Void, Never>)?
 
+    /// The whole face as one picture: the artwork, the line read, the ribbon and the crease over it.
+    ///
+    /// Taken when someone asks rather than kept up to date, since the only thing that wants it is a
+    /// transition, twice in its life. The layer is rendered rather than the hierarchy drawn, so it
+    /// answers the same whether or not the book is on screen at the time.
+    func picture() -> UIImage? {
+        guard bounds.width > 0, bounds.height > 0 else { return nil }
+
+        return UIGraphicsImageRenderer(bounds: bounds).image { context in
+            layer.render(in: context.cgContext)
+        }
+    }
+
     /// Whether the face can be seen. A book standing on its edge has no use for its cover's picture, so
     /// nothing is decoded or drawn for it until it turns.
     var wantsArtwork = false {
