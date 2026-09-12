@@ -182,6 +182,23 @@ extension ReaderScreen {
 
         private func textIndex(for page: Int) -> Int { page - titlePageCount }
 
+        /// Where the reader is, as an offset to keep.
+        ///
+        /// The title page stands before the chapter's own text and has no offset in it, and the offset
+        /// that stands for the start of that text is the page after it. So it is kept as one below the
+        /// start, an offset never being negative otherwise: kept as nought, a book closed on its title
+        /// page reopened on the page after it, every time.
+        private var storedOffset: Int {
+            let page = textIndex(for: currentPage)
+
+            guard page >= 0 else { return Self.titlePageOffset }
+
+            return layout?.characterOffset(ofPage: page) ?? 0
+        }
+
+        /// What the title page is kept as, being the one page with no text of its own behind it.
+        static let titlePageOffset = -1
+
         /// True when this chapter begins part-way down the page the one before it ended on.
         private var runsOnFromPrevious: Bool { (layout?.startOffset ?? 0) > 0 }
 
@@ -772,7 +789,10 @@ extension ReaderScreen {
                 case .lastOfItsOwn:
                     currentPage = max(0, pageCount - 1 - (nextRunsOn ? 1 : 0))
                 case let .offset(offset):
-                    currentPage = built.pageIndex(containing: offset) + titlePageCount
+                    currentPage =
+                        offset < 0
+                        ? 0
+                        : built.pageIndex(containing: offset) + titlePageCount
             }
 
             isLoading = false
@@ -923,7 +943,7 @@ extension ReaderScreen {
         private func savePosition() {
             guard let layout, let chapterId = currentChapterId else { return }
 
-            let offset = layout.characterOffset(ofPage: textIndex(for: currentPage))
+            let offset = storedOffset
             let overall = bookProgress
             positionSaver?.cancel()
             positionSaver = Task { [store, workId] in
@@ -952,7 +972,7 @@ extension ReaderScreen {
 
             guard let layout, let chapterId = currentChapterId else { return }
 
-            let offset = layout.characterOffset(ofPage: textIndex(for: currentPage))
+            let offset = storedOffset
             let overall = bookProgress
 
             Task { [store, workId] in
