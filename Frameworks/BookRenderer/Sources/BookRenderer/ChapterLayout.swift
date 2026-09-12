@@ -143,7 +143,7 @@ public final class ChapterLayout {
     private var drawnLines: [Int: CTLine] = [:]
 
     /// One page: the lines it carries and the space added to (or taken from) each gap between them.
-    struct Page {
+    struct Page: Sendable {
         var lines: Range<Int>
         var leading: CGFloat
         /// Air set above and below each picture on the page, which is what centres one in its space.
@@ -229,12 +229,11 @@ public final class ChapterLayout {
         }
 
         dropTheAirAtTheTop()
-        composePages()
-        pageRanges = pages.map { page in
-            let first = lines[page.lines.lowerBound].characters
-            let last = lines[page.lines.upperBound - 1].characters
-            return NSRange(location: first.location, length: last.location + last.length - first.location)
-        }
+
+        let cut = await cutter.away()
+
+        pages = cut.pages
+        pageRanges = cut.ranges
     }
 
     /// The lines this chapter was broken into last time, where they were broken for this text at this
@@ -296,196 +295,19 @@ public final class ChapterLayout {
 
     // MARK: - Cutting the column into pages
 
-    private func composePages() {
-        guard !lines.isEmpty else { return }
-
-        var start = 0
-
-        for limit in chooseBreaks() {
-            pages.append(Page(lines: start ..< limit, leading: 0))
-            start = limit
-        }
-
-        for index in pages.indices {
-            let spread = spacing(
-                for: pages[index],
-                available: height(ofPageAt: index),
-                endsTheChapter: index == pages.count - 1
-            )
-
-            pages[index].leading = spread.leading
-            pages[index].imagePadding = spread.imagePadding
-        }
+    /// The cut this chapter's column makes at the offset it starts from.
+    private var cutter: PageCutter {
+        PageCutter(
+            slugs: lines.map(\.slug),
+            depth: context.textSize.height,
+            startOffset: startOffset,
+            pageLine: context.style.pageLine,
+            referenceLineHeight: max(1, context.style.fontSize + context.style.lineSpacing)
+        )
     }
 
     private func height(ofPageAt index: Int) -> CGFloat {
         context.textSize.height - (index == 0 ? startOffset : 0)
-    }
-
-    /// The depth of a page starting on a given line. Only a chapter's first page is ever short, and only
-    /// where the chapter before it left it something.
-    private func capacity(startingAt line: Int) -> CGFloat {
-        context.textSize.height - (line == 0 ? startOffset : 0)
-    }
-
-    /// The depth of an ordinary line of the body, which is the unit a page's shortfall is counted in.
-    private var referenceLineHeight: CGFloat {
-        max(1, context.style.fontSize + context.style.lineSpacing)
-    }
-
-    /// Where every page of the chapter breaks, chosen so the pages come out the same depth.
-    ///
-    /// Filling each page in turn and handing whatever a rule rejects to the next one is what left a page
-    /// four lines short between two full ones: wherever the rule bit, that page paid all of it. So every
-    /// run of breaks is costed instead, a page's shortfall counted in lines and squared, and the cheapest
-    /// run wins. Squaring is what shares the loss out, since one line missing from each of four pages
-    /// costs a quarter of what four missing from one does.
-    ///
-    /// The rules are not traded against depth. Breaking one costs so much more than any unevenness that
-    /// they still decide where a page may break, and evenness only chooses among the breaks they allow.
-    private func chooseBreaks() -> [Int] {
-        let count = lines.count
-        var best = [Double](repeating: .infinity, count: count + 1)
-        var next = [Int](repeating: count, count: count + 1)
-        best[count] = 0
-
-        for start in stride(from: count - 1, through: 0, by: -1) {
-            let available = capacity(startingAt: start)
-            var used: CGFloat = 0
-            var limit = start + 1
-
-            while limit <= count {
-                used += lines[limit - 1].height
-                let squeeze = CGFloat(limit - start - 1) * Rules.tightening
-
-                // Nothing longer will fit. One line always may, so a line taller than the page still
-                // lands on one instead of leaving the chapter with nowhere to break.
-                if used > available + squeeze, limit > start + 1 { break }
-
-                let total = cost(from: start, to: limit, available: available, used: used) + best[limit]
-
-                if total < best[start] {
-                    best[start] = total
-                    next[start] = limit
-                }
-
-                limit += 1
-            }
-        }
-
-        var breaks: [Int] = []
-        var start = 0
-
-        while start < count {
-            let limit = next[start]
-
-            guard limit > start else { break }
-
-            breaks.append(limit)
-            start = limit
-        }
-
-        return breaks
-    }
-
-    /// What one page costs: the rules it breaks, and how far short of its measure it comes.
-    private func cost(from start: Int, to limit: Int, available: CGFloat, used: CGFloat) -> Double {
-        let count = limit - start
-        let endsTheChapter = limit == lines.count
-        var penalty = Double(brokenRules(breakingAt: limit, from: start)) * Rules.brokenRule
-
-        if count < Rules.minimumLines, !endsTheChapter { penalty += Rules.brokenRule }
-
-        guard
-            !endsTheChapter
-        else {
-            // A chapter ending in a line or two on a page of its own reads as a mistake, so the page
-            // before it is worth shortening to feed it.
-            return penalty + Double(max(0, Rules.shortLastPage + 1 - count)) * Rules.thinLastPage
-        }
-
-        let short = Double((available - used) / referenceLineHeight)
-        return penalty + short * short
-    }
-
-    /// How many of a compositor's rules breaking here would break.
-    private func brokenRules(breakingAt limit: Int, from start: Int) -> Int {
-        // The end of the chapter is where the text stops, not a break that has to answer for itself.
-        guard limit < lines.count else { return 0 }
-
-        let last = lines[limit - 1]
-        let following = lines[limit]
-        var broken = 0
-
-        // A page cannot end on a broken word.
-        if last.endsWithHyphen { broken += 1 }
-
-        // An orphan: the first line of a paragraph, alone at the foot of the page.
-        if last.startsParagraph, !last.endsParagraph { broken += 1 }
-
-        // A widow: the last line of a paragraph, alone at the top of the next one.
-        if following.endsParagraph, !following.startsParagraph { broken += 1 }
-
-        // A title stands in its own air, and at the head of a page that air falls off the top with
-        // nothing left to say. Only a title given enough of it to notice: the smallest levels keep a
-        // single line, which is no loss.
-        if following.titleAir >= context.style.pageLine * 3 { broken += 1 }
-
-        // A heading belongs with the text it introduces.
-        if headingStranded(breakingAt: limit, from: start) { broken += 1 }
-
-        return broken
-    }
-
-    /// True when the page ends on a heading, or with too little of its chapter under it.
-    private func headingStranded(breakingAt limit: Int, from start: Int) -> Bool {
-        let tail = max(start, limit - Rules.linesAfterHeading - 1) ..< limit
-
-        guard let heading = tail.last(where: { lines[$0].isHeading }) else { return false }
-
-        return limit - heading <= Rules.linesAfterHeading
-    }
-
-    /// Spreads what is left of the page between its lines, so every page comes down to the same depth
-    /// instead of leaving the hole a rule made at its foot.
-    ///
-    /// A page that ends a chapter keeps its ragged bottom: it stops where the chapter stops, and opening
-    /// its gaps would only put air between the last lines the reader sees.
-    /// Where a page's spare room goes: between its lines, and around the pictures standing on it.
-    private struct Spacing {
-        var leading: CGFloat = 0
-        var imagePadding: CGFloat = 0
-    }
-
-    private func spacing(for page: Page, available: CGFloat, endsTheChapter: Bool) -> Spacing {
-        let gaps = page.lines.count - 1
-        let used = page.lines.reduce(CGFloat(0)) { $0 + lines[$1].height }
-        let slack = available - used
-        // A page that ends a chapter keeps its ragged bottom: the text stops where the chapter stops,
-        // and opening its gaps would only put air between the last lines the reader sees. Everywhere
-        // else the lines take their share first, so a page of text carrying a picture comes down to the
-        // same depth as every other page.
-        let leading =
-            endsTheChapter || gaps <= 0
-            ? 0
-            : min(max(slack / CGFloat(gaps), -Rules.tightening), Rules.loosening)
-        let pictures = picturesTakingTheRoom(on: page, endsTheChapter: endsTheChapter)
-
-        guard pictures > 0, slack > 0 else { return Spacing(leading: leading) }
-
-        // Whatever no amount of leading could absorb is the pictures'.
-        return Spacing(leading: leading, imagePadding: (slack - leading * CGFloat(gaps)) / CGFloat(2 * pictures))
-    }
-
-    /// How many pictures share what the lines left behind.
-    ///
-    /// On a page that ends a chapter the spare room stands after the last line rather than being spread
-    /// through the page, so only a picture at the end of one has any of that room under it to be
-    /// centred in. A picture with the chapter's last words below it already sits where it belongs.
-    private func picturesTakingTheRoom(on page: Page, endsTheChapter: Bool) -> Int {
-        guard endsTheChapter else { return page.lines.count { lines[$0].image != nil } }
-
-        return page.lines.reversed().prefix { lines[$0].image != nil }.count
     }
 
     // MARK: - What the reader asks for

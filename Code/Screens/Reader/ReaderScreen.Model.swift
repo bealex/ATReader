@@ -61,6 +61,12 @@ extension ReaderScreen {
         /// they are done before a reader could read a progress bar.
         private(set) var paginationProgress: Double?
 
+        /// True from the tap that opens a book to its first page being set.
+        ///
+        /// Fetching a chapter and measuring the book behind it are two jobs to the reader's model and
+        /// one wait to whoever is waiting, so one card covers both.
+        var isOpening: Bool { paginationProgress != nil || (isLoading && layout == nil) }
+
         var currentPage = 0 {
             didSet {
                 guard currentPage != oldValue else { return }

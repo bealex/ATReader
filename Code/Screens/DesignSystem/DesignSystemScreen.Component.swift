@@ -489,6 +489,13 @@ enum DesignSystemScreen {
                         )
                     }
 
+                    specimen("Progress bar") {
+                        VStack(spacing: Design.Space.large) {
+                            ProgressBar(value: nil)
+                            ProgressBar(value: 0.35)
+                        }
+                    }
+
                     specimen("Loading card") {
                         LoadingCard(title: "Building the chart…", label: "Loading top books")
                             .frame(maxWidth: .infinity)

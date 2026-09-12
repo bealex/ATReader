@@ -139,36 +139,31 @@ enum ReaderScreen {
 
             pageArea($model)
                 .overlay {
-                    if let progress = model.paginationProgress {
-                        paginationCard(progress)
-                    } else if model.isLoading && model.layout == nil {
-                        LoadingOverlay(
-                            title: "Loading chapter…",
-                            label: "Loading chapter",
-                            background: settings.theme.background
-                        )
+                    if model.isOpening {
+                        openingCard(model.paginationProgress)
                     } else if let message = model.errorMessage, model.layout == nil {
                         ContentUnavailableView("Couldn’t open", systemImage: "book.closed", description: Text(message))
                     }
                 }
         }
 
-        /// What the reader sees while the book is being measured.
+        /// The one thing the reader sees between tapping a book and reading it.
+        ///
+        /// Fetching the chapter and measuring the book are one wait to whoever is waiting, so they get
+        /// one card: the bar runs on its own until the measuring can say how far along it is.
         ///
         /// On a card, because the first page it covers is the title page and a bar drawn straight onto
         /// the cover is unreadable. The page's own colours rather than a material, which would follow
         /// the system's light or dark instead of the theme the reader chose.
-        private func paginationCard(_ progress: Double) -> some View {
+        private func openingCard(_ progress: Double?) -> some View {
             VStack(spacing: 12) {
                 Text("Setting the pages…")
                     .font(.subheadline.weight(.medium))
                     .foregroundStyle(settings.theme.foreground)
 
-                ProgressView(value: progress)
-                    .progressViewStyle(.linear)
-                    .tint(settings.theme.foreground)
+                ProgressBar(value: progress, tint: settings.theme.foreground)
 
-                Text(progress.formatted(.percent.precision(.fractionLength(0))))
+                Text(progress?.formatted(.percent.precision(.fractionLength(0))) ?? " ")
                     .font(.caption.monospacedDigit())
                     .foregroundStyle(settings.theme.foreground.opacity(0.55))
             }
@@ -185,7 +180,7 @@ enum ReaderScreen {
             .accessibilityElement(children: .ignore)
             .accessibilityIdentifier("reader.pagination")
             .accessibilityLabel("Setting the pages")
-            .accessibilityValue(progress.formatted(.percent.precision(.fractionLength(0))))
+            .accessibilityValue(progress?.formatted(.percent.precision(.fractionLength(0))) ?? "")
         }
 
         @ViewBuilder

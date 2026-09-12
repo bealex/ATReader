@@ -370,8 +370,10 @@ taken in after it, softer again when the aside arrives.
 
 ## Cutting the column into pages
 
-`ColumnComposer` sets the chapter as a single column, and `ChapterLayout` cuts that column into pages
-line by line.
+`ColumnComposer` sets the chapter as a single column, and `PageCutter` cuts that column into pages
+line by line, away from the main actor. The search that chooses the breaks reads each line twenty-odd
+times, so it takes a flattened copy of the column, `PageCutter.Slug`, carrying a line's depth and the
+handful of things a rule asks about it and nothing that has to be reference-counted.
 
 Cutting by hand rather than flowing the text through page-sized containers is what makes the rules
 possible. None of these is allowed at a break:
@@ -477,9 +479,9 @@ ignored: a neighbour landing has to redraw the page already on screen.
 
 ## Keeping the lines
 
-Breaking a chapter into lines is the expensive half of opening a book, and it depends on the text and
-the setting rather than on where the chapter starts on its page. So the lines are what is kept, in
-`chapter_column`, and cutting them into pages is done afresh every time and costs little.
+Where a chapter's lines fall depends on the text and the setting, and not on where the chapter starts
+on its page. So the lines are what is kept, in `chapter_column`, and cutting them into pages is done
+afresh every time.
 
 A column is filed under a hash of the setting's fingerprint and the chapter's own text. The
 fingerprint carries `ChapterLayout.rulesVersion`, so a change to where a line may break throws away
