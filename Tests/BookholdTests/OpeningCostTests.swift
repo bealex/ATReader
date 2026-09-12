@@ -85,6 +85,10 @@ struct OpeningCostTests {
     }
 
     /// One pass over the whole book, timed and watched.
+    ///
+    /// A chapter per call, which is how the pass behind the reader measures, and the pass prepares its
+    /// own text, which is how the reader gives it to it. Preparing and measuring overlap, so the two
+    /// cannot be told apart here and the total is the honest number.
     private static func run(
         _ name: String,
         workId: Int,
@@ -96,25 +100,20 @@ struct OpeningCostTests {
         let pagination = BookPagination.make(workId: workId, context: context, store: store)
         let beat = Heartbeat()
         let started = ContinuousClock.now
-        var preparing = Duration.zero
-        var measuring = Duration.zero
         var slowest: (chapter: Int, took: Duration) = (0, .zero)
 
         beat.start()
 
-        for (index, chapter) in chapters.enumerated() {
-            let readying = ContinuousClock.now
-            let content = await processor.content(workId: workId, chapterId: chapter.id)
+        for index in chapters.indices {
+            let step = ContinuousClock.now
 
-            preparing += readying.duration(to: .now)
+            await pagination.measure(
+                chapters: chapters,
+                through: index + 1,
+                content: { await processor.content(workId: workId, chapterId: $0) }
+            )
 
-            let laying = ContinuousClock.now
-
-            await pagination.measure(chapters: chapters, through: index + 1, content: { _ in content })
-
-            let took = laying.duration(to: .now)
-
-            measuring += took
+            let took = step.duration(to: .now)
 
             if took > slowest.took { slowest = (index + 1, took) }
         }
@@ -126,7 +125,6 @@ struct OpeningCostTests {
         say(
             """
             \(name): \(show(total)) for \(chapters.count) chapters
-              preparing text \(show(preparing)), measuring \(show(measuring))
               slowest chapter \(slowest.chapter) at \(show(slowest.took))
               main actor held past 100ms \(beat.stalls) times, \(show(beat.blocked)) in all, \
             worst \(show(beat.worst))

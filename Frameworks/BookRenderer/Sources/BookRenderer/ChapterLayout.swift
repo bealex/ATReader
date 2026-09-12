@@ -127,7 +127,7 @@ public final class ChapterLayout {
 
     /// What the previous chapter already used on this chapter's first page, when the chapter runs on
     /// from it rather than starting a page of its own.
-    public let startOffset: CGFloat
+    public private(set) var startOffset: CGFloat
     /// Where columns already broken into lines are kept, where there is anywhere to keep them.
     private let columns: (any ColumnStore)?
 
@@ -141,6 +141,8 @@ public final class ChapterLayout {
     private(set) var pages: [Page] = []
     /// Each line's CoreText line, built the first time a page draws the line or looks into it.
     private var drawnLines: [Int: CTLine] = [:]
+    /// The break search's own table, kept so a chapter cut again at another offset is not searched twice.
+    private var breaks: PageCutter.Breaks?
 
     /// One page: the lines it carries and the space added to (or taken from) each gap between them.
     struct Page: Sendable {
@@ -229,9 +231,28 @@ public final class ChapterLayout {
         }
 
         dropTheAirAtTheTop()
+        await cutPages()
+    }
 
-        let cut = await cutter.away()
+    /// Cuts the chapter again for a different opening offset.
+    ///
+    /// Only the first page's depth turns on that offset, so the column stands, the search's table
+    /// stands, and all that is worked out again is where the first page ends.
+    public func recut(startOffset: CGFloat) async {
+        guard startOffset != self.startOffset, !lines.isEmpty else { return }
 
+        self.startOffset = startOffset
+        dropTheAirAtTheTop()
+        await cutPages()
+    }
+
+    private func cutPages() async {
+        let cutting = cutter
+        let known = breaks
+        let offset = startOffset
+        let (found, cut) = await cutting.away(from: offset, using: known)
+
+        breaks = found
         pages = cut.pages
         pageRanges = cut.ranges
     }
@@ -245,21 +266,29 @@ public final class ChapterLayout {
         else {
             return nil
         }
-        guard
-            let unpacked = try? (kept as NSData).decompressed(using: .zlib) as Data,
-            let column = try? JSONDecoder().decode(ColumnComposer.Column.self, from: unpacked),
-            !column.lines.isEmpty
-        else { return nil }
+
+        let column = await Task.detached(priority: .userInitiated) { () -> ColumnComposer.Column? in
+            guard let unpacked = try? (kept as NSData).decompressed(using: .zlib) as Data else { return nil }
+
+            return try? JSONDecoder().decode(ColumnComposer.Column.self, from: unpacked)
+        }.value
+
+        guard let column, !column.lines.isEmpty else { return nil }
 
         return column.lines
     }
 
     private func keep(_ lines: [ColumnComposer.Line]) async {
         guard let columns, !lines.isEmpty, ColumnComposer.isKeepable(lines) else { return }
-        guard
-            let written = try? JSONEncoder().encode(ColumnComposer.Column(lines: lines)),
-            let squeezed = try? (written as NSData).compressed(using: .zlib) as Data
-        else { return }
+
+        let column = ColumnComposer.Column(lines: lines)
+        let squeezed = await Task.detached(priority: .utility) { () -> Data? in
+            guard let written = try? JSONEncoder().encode(column) else { return nil }
+
+            return try? (written as NSData).compressed(using: .zlib) as Data
+        }.value
+
+        guard let squeezed else { return }
 
         await columns.store(column: squeezed, chapterId: chapterId, fingerprint: keptUnder)
     }
@@ -267,14 +296,14 @@ public final class ChapterLayout {
     /// What a kept column is filed against: the setting it was broken for, and the text it was broken
     /// from. The setting carries the rules version, so a change to how a line is broken throws away
     /// every column kept under the old rules rather than drawing yesterday's lines.
-    private var keptUnder: String {
+    private lazy var keptUnder: String = {
         var hasher = SHA256()
 
         hasher.update(data: Data(context.fingerprint.utf8))
         hasher.update(data: Data(text.string.utf8))
 
         return hasher.finalize().map { String(format: "%02x", $0) }.joined()
-    }
+    }()
 
     /// Cuts the air above the chapter's first line back where the chapter starts a page of its own.
     ///
@@ -295,12 +324,11 @@ public final class ChapterLayout {
 
     // MARK: - Cutting the column into pages
 
-    /// The cut this chapter's column makes at the offset it starts from.
+    /// This chapter's column, flattened to what the cutting reads.
     private var cutter: PageCutter {
         PageCutter(
             slugs: lines.map(\.slug),
             depth: context.textSize.height,
-            startOffset: startOffset,
             pageLine: context.style.pageLine,
             referenceLineHeight: max(1, context.style.fontSize + context.style.lineSpacing)
         )

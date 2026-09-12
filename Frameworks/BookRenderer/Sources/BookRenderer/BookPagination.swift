@@ -59,6 +59,14 @@ public final class BookPagination {
     /// False once a chapter turns up that can't be hashed. Nothing after it can be keyed either, since
     /// the chain no longer stands for everything that came first.
     private var chained = true
+    /// The next chapter's text, read while this one is being laid out.
+    ///
+    /// Preparing a chapter is parsing it and hyphenating it, and depends on nothing else in the book,
+    /// so doing it a chapter early costs nothing and takes it off what the reader waits for. It is
+    /// kept between calls because the pass behind the reader measures one chapter per call, and it is
+    /// only ever started behind a chapter that had to be laid out: a book reopened unchanged reads its
+    /// measurements back and must not touch its text at all.
+    private var readAhead: (chapter: Int, text: Task<ChapterContent?, Never>)?
 
     private init(
         workId: Int,
@@ -95,7 +103,7 @@ public final class BookPagination {
     public func measure(
         chapters: [BookChapter],
         through count: Int,
-        content: ContentProvider,
+        content: @escaping ContentProvider,
         onProgress: (@MainActor (Double) -> Void)? = nil
     ) async {
         guard context.isUsable else { return }
@@ -125,13 +133,25 @@ public final class BookPagination {
                 continue
             }
 
+            let waiting = readAhead?.chapter == chapter.id ? readAhead?.text : nil
+
+            readAhead = nil
+
+            let prepared = if let waiting { await waiting.value } else { await content(chapter.id) }
+
             guard
-                let text = await content(chapter.id)
+                let text = prepared
             else {
                 placements[chapter.id] = Placement(startOffset: startOffset, pageCount: 0)
                 startOffset = 0
                 chained = false
                 continue
+            }
+
+            if index + 1 < chapters.count {
+                let following = chapters[index + 1].id
+
+                readAhead = (following, Task { await content(following) })
             }
 
             chained = await fold(chapterId: chapter.id, known: hash, chained: chained)
@@ -180,13 +200,13 @@ public final class BookPagination {
     ) async -> CGFloat {
         let heading = ChapterHeading.make(position: position, title: chapter.title)
         var offset = startOffset
-        var layout = await ChapterLayout.make(
+        let layout = await ChapterLayout.make(
             chapterId: chapter.id,
             content: text,
             heading: heading,
             context: context,
             startOffset: offset,
-            columns: store
+            columns: ColumnsToRead(kept: store)
         )
 
         // The free space was measured before the heading was set into it, and a heading stands far
@@ -195,14 +215,7 @@ public final class BookPagination {
         // stranded at the foot, and takes a page of its own instead.
         if offset > 0, layout.bodyLineCount(onPage: 0) < Self.runOnLineMinimum {
             offset = 0
-            layout = await ChapterLayout.make(
-                chapterId: chapter.id,
-                content: text,
-                heading: heading,
-                context: context,
-                startOffset: 0,
-                columns: store
-            )
+            await layout.recut(startOffset: 0)
         }
 
         let next = Self.startOffset(after: layout, context: context)

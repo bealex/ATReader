@@ -38,35 +38,51 @@ struct PageCutter: Sendable {
     let slugs: [Slug]
     /// How deep a full page runs.
     let depth: CGFloat
-    /// What the chapter before this one already used on its first page.
-    let startOffset: CGFloat
     /// A line of the heading's own type, which is the air a title has to keep to be worth a page break.
     let pageLine: CGFloat
     /// The depth of an ordinary line of the body, which is the unit a page's shortfall is counted in.
     let referenceLineHeight: CGFloat
 
-    /// The cut, made off the main actor.
-    func away() async -> Cut {
-        guard !slugs.isEmpty else { return Cut() }
-
-        return await Task.detached(priority: .userInitiated) { cut() }.value
+    /// The cheapest run of breaks from each line of the chapter to its end, for every line but the first.
+    ///
+    /// Only a chapter's first page is ever short, and only where the chapter before it left it
+    /// something, so every row of the search but its first is the same wherever the chapter starts. A
+    /// chapter that runs on and turns out to need a page of its own is cut again from this rather than
+    /// searched a second time.
+    struct Breaks: Sendable {
+        fileprivate var best: [Double] = []
+        fileprivate var next: [Int] = []
     }
 
-    func cut() -> Cut {
+    /// The cut, made off the main actor, with the search's table to cut from again.
+    func away(from startOffset: CGFloat, using known: Breaks?) async -> (breaks: Breaks, cut: Cut) {
+        guard !slugs.isEmpty else { return (Breaks(), Cut()) }
+
+        return await Task.detached(priority: .userInitiated) {
+            let breaks = known ?? search()
+
+            return (breaks, cut(from: startOffset, using: breaks))
+        }.value
+    }
+
+    func cut(from startOffset: CGFloat, using breaks: Breaks) -> Cut {
         guard !slugs.isEmpty else { return Cut() }
 
         var cut = Cut()
         var start = 0
+        var limit = firstBreak(from: startOffset, using: breaks)
 
-        for limit in chooseBreaks() {
+        while start < slugs.count, limit > start {
             cut.pages.append(ChapterLayout.Page(lines: start ..< limit, leading: 0))
             start = limit
+            limit = breaks.next[start]
         }
 
         for index in cut.pages.indices {
+            let available = depth - (index == 0 ? startOffset : 0)
             let spread = spacing(
                 for: cut.pages[index],
-                available: height(ofPageAt: index),
+                available: available,
                 endsTheChapter: index == cut.pages.count - 1
             )
 
@@ -84,16 +100,6 @@ struct PageCutter: Sendable {
         return cut
     }
 
-    private func height(ofPageAt index: Int) -> CGFloat {
-        depth - (index == 0 ? startOffset : 0)
-    }
-
-    /// The depth of a page starting on a given line. Only a chapter's first page is ever short, and only
-    /// where the chapter before it left it something.
-    private func capacity(startingAt line: Int) -> CGFloat {
-        depth - (line == 0 ? startOffset : 0)
-    }
-
     // MARK: - Where the pages break
 
     /// Where every page of the chapter breaks, chosen so the pages come out the same depth.
@@ -106,7 +112,11 @@ struct PageCutter: Sendable {
     ///
     /// The rules are not traded against depth. Breaking one costs so much more than any unevenness that
     /// they still decide where a page may break, and evenness only chooses among the breaks they allow.
-    private func chooseBreaks() -> [Int] {
+    ///
+    /// The search runs back to the chapter's second line and stops. The first line is the only one whose
+    /// page can be short, so its row is worked out when the chapter is cut and the rest of the table
+    /// stands however the chapter opens.
+    func search() -> Breaks {
         typealias Rules = ChapterLayout.Rules
 
         let count = slugs.count
@@ -114,8 +124,7 @@ struct PageCutter: Sendable {
         var next = [Int](repeating: count, count: count + 1)
         best[count] = 0
 
-        for start in stride(from: count - 1, through: 0, by: -1) {
-            let available = capacity(startingAt: start)
+        for start in stride(from: count - 1, through: 1, by: -1) {
             var used: CGFloat = 0
             var limit = start + 1
 
@@ -125,9 +134,9 @@ struct PageCutter: Sendable {
 
                 // Nothing longer will fit. One line always may, so a line taller than the page still
                 // lands on one instead of leaving the chapter with nowhere to break.
-                if used > available + squeeze, limit > start + 1 { break }
+                if used > depth + squeeze, limit > start + 1 { break }
 
-                let total = cost(from: start, to: limit, available: available, used: used) + best[limit]
+                let total = cost(from: start, to: limit, available: depth, used: used) + best[limit]
 
                 if total < best[start] {
                     best[start] = total
@@ -138,19 +147,38 @@ struct PageCutter: Sendable {
             }
         }
 
-        var breaks: [Int] = []
-        var start = 0
+        return Breaks(best: best, next: next)
+    }
 
-        while start < count {
-            let limit = next[start]
+    /// Where the chapter's first page ends: the one row of the search that depends on how much of that
+    /// page the chapter before it already used.
+    private func firstBreak(from startOffset: CGFloat, using breaks: Breaks) -> Int {
+        typealias Rules = ChapterLayout.Rules
 
-            guard limit > start else { break }
+        let count = slugs.count
+        let available = depth - startOffset
+        var cheapest = Double.infinity
+        var chosen = count
+        var used: CGFloat = 0
+        var limit = 1
 
-            breaks.append(limit)
-            start = limit
+        while limit <= count {
+            used += slugs[limit - 1].height
+            let squeeze = CGFloat(limit - 1) * Rules.tightening
+
+            if used > available + squeeze, limit > 1 { break }
+
+            let total = cost(from: 0, to: limit, available: available, used: used) + breaks.best[limit]
+
+            if total < cheapest {
+                cheapest = total
+                chosen = limit
+            }
+
+            limit += 1
         }
 
-        return breaks
+        return chosen
     }
 
     /// What one page costs: the rules it breaks, and how far short of its measure it comes.

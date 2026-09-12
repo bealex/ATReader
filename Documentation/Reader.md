@@ -375,6 +375,12 @@ line by line, away from the main actor. The search that chooses the breaks reads
 times, so it takes a flattened copy of the column, `PageCutter.Slug`, carrying a line's depth and the
 handful of things a rule asks about it and nothing that has to be reference-counted.
 
+Only a chapter's first page is ever short, and only where the chapter before it left it something, so
+every row of the search but its first is the same wherever the chapter starts. `PageCutter.Breaks` is
+that table, and `ChapterLayout.recut(startOffset:)` cuts the chapter again from it. A chapter that
+tries to run on and turns out to need a page of its own is the case: it is cut twice and searched
+once.
+
 Cutting by hand rather than flowing the text through page-sized containers is what makes the rules
 possible. None of these is allowed at a break:
 
@@ -457,7 +463,10 @@ opened from the contents took a page of its own and then jumped up the page as s
 turned back into the chapter before it.
 
 So `BookPagination` measures the book in one pass, in order from its first chapter, and keeps only
-where each chapter starts and how far it runs. Every layout afterwards takes its offset from that pass,
+where each chapter starts and how far it runs. Preparing a chapter's text depends on nothing else in
+the book, so the pass reads the next chapter's while it lays this one out, and a book measured for the
+first time waits for one of the two rather than both. Only behind a chapter it had to lay out: a book
+reopened unchanged reads its measurements back and never touches its text. Every layout afterwards takes its offset from that pass,
 so a chapter sits in the same place however the reader reaches it. A chapter the pass hasn't reached
 has no offset to take, and isn't laid out at all until it does: the reader reads two chapters ahead,
 and one set from a guessed offset is drawn over the page it turns out to share. The pass throws each layout away as
@@ -490,6 +499,10 @@ zlib-compressed JSON by `ColumnCoding`.
 
 A chapter carrying a picture is composed the long way and nothing is kept: what such a line holds is a
 decoded image, and writing one down would put the picture in the database twice.
+
+Only the reader keeps columns. The pass that measures a book throws every layout away as it goes, so
+it is handed a `ColumnsToRead` and writes nothing: a column from it would be written once per chapter
+and read back for the one or two the reader goes on to open.
 
 `ColumnCacheTests` sets a chapter twice and compares the second run to the first line for line, then
 shortens the kept column to prove the second run is set from it rather than composed again and

@@ -3,6 +3,7 @@
 //  Licensed under the MIT License. See LICENSE in the repository root.
 //
 
+import BookKit
 import Foundation
 
 /// A composed column, written down so it need not be composed again.
@@ -102,7 +103,7 @@ extension ColumnComposer.Line.Setting: Codable {
 
 extension ColumnComposer {
     /// What the store holds for one chapter at one setting.
-    struct Column: Codable {
+    struct Column: Codable, Sendable {
         let lines: [Line]
     }
 
@@ -110,4 +111,20 @@ extension ColumnComposer {
     static func isKeepable(_ lines: [Line]) -> Bool {
         lines.allSatisfy { $0.image == nil }
     }
+}
+
+/// A view of a column store that gives back what is kept and keeps nothing itself.
+///
+/// The pass that measures a book throws every layout away as it goes, so a column written from it is
+/// one nobody is likely to ask for: it would be written once per chapter and read back only for the
+/// one or two chapters the reader goes on to open. Those are laid out by the reader itself, which
+/// keeps them.
+struct ColumnsToRead: ColumnStore {
+    let kept: any ColumnStore
+
+    func column(chapterId: Int, fingerprint: String) async -> Data? {
+        await kept.column(chapterId: chapterId, fingerprint: fingerprint)
+    }
+
+    func store(column: Data, chapterId: Int, fingerprint: String) async {}
 }

@@ -135,6 +135,36 @@ struct RunOnTests {
     }
 
     /// Chapters of a few lines each, so one ends high enough on its page for the next to follow it.
+    /// A chapter that turns out to need a page of its own is cut again rather than laid out again, and
+    /// the pages that come out have to be the pages a chapter laid out at that offset would have had.
+    ///
+    /// The search's table is reused across the two cuts, since only the first page's depth turns on
+    /// where the chapter starts. Getting that wrong would move page breaks rather than fail outright.
+    @Test
+    func aRecutChapterFallsWhereOneCutFromTheStartFalls() async throws {
+        let recut = await layout(startOffset: Self.context.textSize.height * 0.7)
+        let fresh = await layout(startOffset: 0)
+
+        await recut.recut(startOffset: 0)
+
+        #expect(recut.pageCount == fresh.pageCount)
+        #expect(recut.pageRanges == fresh.pageRanges)
+
+        let was = fresh.typesetLines
+        let now = recut.typesetLines
+
+        try #require(now.count == was.count)
+
+        for (index, line) in now.enumerated() {
+            #expect(line.text == was[index].text, "line \(index)")
+            #expect(line.height == was[index].height, "line \(index) height")
+        }
+
+        for page in 0 ..< fresh.pageCount {
+            #expect(recut.pageText(page) == fresh.pageText(page), "page \(page)")
+        }
+    }
+
     /// A heading stands in twelve lines of air, so a chapter that ends much below the first third of
     /// a page leaves nowhere for the next one to begin.
     private static let content: BookPagination.ContentProvider = { _ in
