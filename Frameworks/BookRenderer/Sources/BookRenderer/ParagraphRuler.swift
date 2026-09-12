@@ -212,9 +212,7 @@ public struct ParagraphRuler {
             visible,
             from: places[start],
             to: places[ending],
-            fill: fill,
-            holdsFirstGap: holdsFirstGap,
-            drawsHyphen: drawsHyphen
+            filling: Filling(fill: fill, holdsFirstGap: holdsFirstGap, drawsHyphen: drawsHyphen)
         )
     }
 
@@ -229,10 +227,15 @@ public struct ParagraphRuler {
             visibleText(of: text, range: setting.paragraph, runs: skeleton.visibleRuns),
             from: skeleton.places[setting.start],
             to: skeleton.places[setting.content],
-            fill: setting.fill,
-            holdsFirstGap: setting.holdsFirstGap,
-            drawsHyphen: setting.drawsHyphen
+            filling: Filling(fill: setting.fill, holdsFirstGap: setting.holdsFirstGap, drawsHyphen: setting.drawsHyphen)
         )
+    }
+
+    /// How a line is filled: what the column settled, and the two marks that go with it.
+    struct Filling {
+        let fill: LineFill
+        let holdsFirstGap: Bool
+        let drawsHyphen: Bool
     }
 
     /// Sets the visible characters from `first` to `last` as one line, filled as the column decided.
@@ -240,10 +243,10 @@ public struct ParagraphRuler {
         _ visible: NSAttributedString,
         from first: Int,
         to last: Int,
-        fill: LineFill,
-        holdsFirstGap: Bool,
-        drawsHyphen: Bool
+        filling: Filling
     ) -> CTLine? {
+        let (fill, holdsFirstGap, drawsHyphen) = (filling.fill, filling.holdsFirstGap, filling.drawsHyphen)
+
         guard last > first else { return nil }
 
         let piece = NSMutableAttributedString(

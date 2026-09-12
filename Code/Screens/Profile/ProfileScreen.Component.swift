@@ -84,6 +84,8 @@ enum ProfileScreen {
                 },
                 message: {
                     Text(
+                        // A localisation key: wrapped, it would be a different one.
+                        // swiftlint:disable:next line_length
                         "Chapters saved for reading offline are removed and downloaded again when you next open them. Books you imported are kept."
                     )
                 }

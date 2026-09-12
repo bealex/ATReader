@@ -52,6 +52,7 @@ enum Deed: Identifiable {
     }
 }
 
+@MainActor
 extension [Deed] {
     /// The list as UIKit sets it out.
     var menu: UIMenu { UIMenu(children: map(\.element)) }
@@ -68,6 +69,7 @@ extension [Deed] {
     }
 }
 
+@MainActor
 private extension Deed {
     var element: UIMenuElement {
         switch self {

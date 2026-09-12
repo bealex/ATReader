@@ -90,6 +90,7 @@ private struct OverrideField: View {
 }
 
 /// The two fields, set against what the book states itself.
+@MainActor
 private struct SeriesFields {
     @Binding
     var choice: SeriesChoice

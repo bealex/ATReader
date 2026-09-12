@@ -146,7 +146,7 @@ enum SpinePrint {
 
     /// How many pixels a point is here, which a press off the main actor is told rather than asks.
     @MainActor
-    static var density: CGFloat { UIScreen.main.scale }
+    static var density: CGFloat { UITraitCollection.current.displayScale }
 
     @MainActor
     static func held(_ order: Order) -> UIImage? { prints.object(forKey: key(order)) }
@@ -172,16 +172,16 @@ enum SpinePrint {
         format.scale = density
 
         let image = UIGraphicsImageRenderer(size: order.size, format: format).image { drawn in
-            let cg = drawn.cgContext
+            let context = drawn.cgContext
 
             UIBezierPath(roundedRect: bounds, cornerRadius: Design.Radius.spine).addClip()
             ground.draw(in: bounds)
             colours.wash.setFill()
-            cg.fill(bounds)
-            curve(in: bounds, colours: colours, context: cg)
-            binding(in: bounds, colours: colours, density: density, context: cg)
-            CoverPrint.foot(in: bounds, scheme: order.isDark ? .dark : .light, context: cg)
-            writing(order, in: bounds, colours: colours, context: cg)
+            context.fill(bounds)
+            curve(in: bounds, colours: colours, context: context)
+            binding(in: bounds, colours: colours, density: density, context: context)
+            CoverPrint.foot(in: bounds, scheme: order.isDark ? .dark : .light, context: context)
+            writing(order, in: bounds, colours: colours, context: context)
         }
 
         return Impression(image: image, isDark: colours.isDark)

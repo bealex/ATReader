@@ -141,7 +141,7 @@
             Shelf(
                 author: "Семён Буков",
                 series: "Рыжий кот",
-                books: (1 ... 3).map { volume in
+                books: (1 ... 3).map { (volume: Int) in
                     entry("Рыжий кот \(volume)", volume: volume, read: 1, length: 260_000, isLight: true)
                 }
             ),

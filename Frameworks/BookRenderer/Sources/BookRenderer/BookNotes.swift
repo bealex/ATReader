@@ -8,7 +8,7 @@ import UIKit
 
 public extension NSAttributedString.Key {
     /// The note a marker points at, carried by the characters that stand for it.
-    public static let bookNote = NSAttributedString.Key("ATBookNote")
+    static let bookNote = NSAttributedString.Key("ATBookNote")
 }
 
 /// A marker a finger found: the note it points at, and the box it stands in on the page.

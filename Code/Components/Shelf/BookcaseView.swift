@@ -273,12 +273,12 @@ enum BookcasePrint {
     /// One colour taken part of the way towards another.
     private static func mixed(_ colour: UIColor, with other: UIColor, by part: CGFloat) -> UIColor {
         let from = components(of: colour)
-        let to = components(of: other)
+        let onto = components(of: other)
 
         return UIColor(
-            red: from[0] + (to[0] - from[0]) * part,
-            green: from[1] + (to[1] - from[1]) * part,
-            blue: from[2] + (to[2] - from[2]) * part,
+            red: from[0] + (onto[0] - from[0]) * part,
+            green: from[1] + (onto[1] - from[1]) * part,
+            blue: from[2] + (onto[2] - from[2]) * part,
             alpha: from[3]
         )
     }

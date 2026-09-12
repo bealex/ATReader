@@ -180,8 +180,10 @@ public enum ZipArchive {
         let raw = data.subdata(in: (data.startIndex + offset) ..< (data.startIndex + offset + length))
         // Names are UTF-8 only where the member says so; the rest are an old single-byte encoding that
         // agrees with ASCII, which is all a `.fb2` suffix needs.
-        return String(data: raw, encoding: isUTF8 ? .utf8 : .isoLatin1)
-            ?? String(decoding: raw, as: UTF8.self)
+        // Latin-1 maps every byte, so the fallback always answers.
+        return String(bytes: raw, encoding: isUTF8 ? .utf8 : .isoLatin1)
+            ?? String(bytes: raw, encoding: .isoLatin1)
+            ?? ""
     }
 
     private static let localHeaderSignature = 0x0403_4B50

@@ -57,6 +57,7 @@ struct ReadingMark: Hashable {
         }
     }
 
+    @MainActor
     var tint: Color {
         switch kind {
             case .reading: BookmarkMark.reading

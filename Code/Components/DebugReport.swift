@@ -55,18 +55,18 @@ enum DebugReport {
         var coordinatorError: NSError?
         var result: Result<URL, Error>?
 
-        NSFileCoordinator().coordinate(readingItemAt: folder, options: .forUploading, error: &coordinatorError) {
-            source in
-            let destination = FileManager.default.temporaryDirectory.appendingPathComponent("\(name).zip")
+        NSFileCoordinator()
+            .coordinate(readingItemAt: folder, options: .forUploading, error: &coordinatorError) { source in
+                let destination = FileManager.default.temporaryDirectory.appendingPathComponent("\(name).zip")
 
-            do {
-                try? FileManager.default.removeItem(at: destination)
-                try FileManager.default.copyItem(at: source, to: destination)
-                result = .success(destination)
-            } catch {
-                result = .failure(error)
+                do {
+                    try? FileManager.default.removeItem(at: destination)
+                    try FileManager.default.copyItem(at: source, to: destination)
+                    result = .success(destination)
+                } catch {
+                    result = .failure(error)
+                }
             }
-        }
 
         if let coordinatorError { throw coordinatorError }
 

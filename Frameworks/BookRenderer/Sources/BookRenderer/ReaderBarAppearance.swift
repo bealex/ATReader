@@ -22,7 +22,7 @@ public extension View {
     /// applied by overriding the window, and leaving the reader reverts SwiftUI's own side of it without
     /// clearing the window's. The list underneath came back light while the bar and its search field
     /// stayed dark. An override with one owner and a definite end doesn't strand anything.
-    public func readerBarAppearance(background: Color, colorScheme: ColorScheme?, isVisible: Bool) -> some View {
+    func readerBarAppearance(background: Color, colorScheme: ColorScheme?, isVisible: Bool) -> some View {
         self.background(
             ReaderBarAppearance(
                 background: UIColor(background),
@@ -35,7 +35,7 @@ public extension View {
 }
 
 public extension UIUserInterfaceStyle {
-    public init(_ colorScheme: ColorScheme?) {
+    init(_ colorScheme: ColorScheme?) {
         switch colorScheme {
             case .light: self = .light
             case .dark: self = .dark
@@ -161,7 +161,7 @@ private struct ReaderBarAppearance: UIViewControllerRepresentable {
             // On screen, for the bar as much as for the window. An update landing during a pop would
             // otherwise take the bar back after it had been given up, with nothing left on the way out
             // to return it, and the screen underneath kept the reader's colour.
-            guard isOnScreen, let background, let navigationBar = navigationController?.navigationBar else { return }
+            guard isOnScreen, background != nil, let navigationBar = navigationController?.navigationBar else { return }
 
             takenBar = navigationBar
 

@@ -52,7 +52,7 @@ public struct PagePalette: Equatable {
 
 public extension NSAttributedString.Key {
     /// The picture a block stands for, on a block that is a picture rather than text.
-    public static let pageImage = NSAttributedString.Key("ATPageImage")
+    static let pageImage = NSAttributedString.Key("ATPageImage")
 }
 
 /// One picture from a book, decoded once and ready for a page to draw.

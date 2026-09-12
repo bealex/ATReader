@@ -9,7 +9,7 @@ import NaturalLanguage
 
 /// Everything that makes a ``ChapterContent``. Moves to BookRenderer with the typesetter.
 public extension ChapterContent {
-    public static func prepare(html: String) async -> ChapterContent {
+    static func prepare(html: String) async -> ChapterContent {
         await Task.detached(priority: .userInitiated) {
             let chapter = BookHTML.chapter(from: html)
             let paragraphs = chapter.paragraphs
@@ -84,7 +84,7 @@ public extension ChapterContent {
     }
 
     /// True where the sample carries more Cyrillic letters than Latin ones.
-    public static func isMostlyCyrillic(_ text: some StringProtocol) -> Bool {
+    static func isMostlyCyrillic(_ text: some StringProtocol) -> Bool {
         var cyrillic = 0
         var latin = 0
 

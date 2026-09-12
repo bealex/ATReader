@@ -709,9 +709,10 @@ enum ReaderScreen {
 
         /// A section's own name with the value its slider stands at, so a setting can be read as well
         /// as felt for.
-        private func setting(_ title: LocalizedStringKey, at value: Double, fraction: Int = 0) -> Text {
+        private func setting(_ title: LocalizedStringResource, at value: Double, fraction: Int = 0) -> Text {
             let points = value.formatted(.number.precision(.fractionLength(fraction)))
-            return Text(title) + Text(verbatim: " (\(String(localized: "\(points) pt")))")
+
+            return Text(verbatim: "\(String(localized: title)) (\(String(localized: "\(points) pt")))")
         }
 
         /// Alignment is set per language: a language's own typography decides whether justifying it

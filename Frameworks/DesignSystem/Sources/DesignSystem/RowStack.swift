@@ -46,7 +46,11 @@ private struct CapitalCentring: ViewModifier {
     private var typeSize
 
     func body(content: Content) -> some View {
-        content.alignmentGuide(.firstTextBaseline) { $0[VerticalAlignment.center] + capHeight / 2 }
+        // Read here rather than inside the guard: the guard is a Sendable closure, and this is the
+        // main actor's to know.
+        let height = capHeight
+
+        return content.alignmentGuide(.firstTextBaseline) { $0[VerticalAlignment.center] + height / 2 }
     }
 
     /// How tall the capitals of the style stand, at the reader's type size.
@@ -61,20 +65,22 @@ private struct CapitalCentring: ViewModifier {
     }
 
     #if canImport(UIKit)
+        /// SwiftUI's styles against UIKit's, which is a table rather than a decision.
+        private static let uiStyles: [Font.TextStyle: UIFont.TextStyle] = [
+            .largeTitle: .largeTitle,
+            .title: .title1,
+            .title2: .title2,
+            .title3: .title3,
+            .headline: .headline,
+            .subheadline: .subheadline,
+            .callout: .callout,
+            .footnote: .footnote,
+            .caption: .caption1,
+            .caption2: .caption2,
+        ]
+
         private static func uiStyle(_ style: Font.TextStyle) -> UIFont.TextStyle {
-            switch style {
-                case .largeTitle: .largeTitle
-                case .title: .title1
-                case .title2: .title2
-                case .title3: .title3
-                case .headline: .headline
-                case .subheadline: .subheadline
-                case .callout: .callout
-                case .footnote: .footnote
-                case .caption: .caption1
-                case .caption2: .caption2
-                default: .body
-            }
+            uiStyles[style] ?? .body
         }
     #endif
 }

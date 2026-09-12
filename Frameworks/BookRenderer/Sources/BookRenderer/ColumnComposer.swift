@@ -234,8 +234,7 @@ public final class ColumnComposer {
         paragraphs: [NSRange],
         typesetting: @escaping @Sendable () -> NSAttributedString,
         headingLength: Int,
-        measure: CGFloat,
-        depth: CGFloat,
+        size: CGSize,
         onProgress: (@MainActor (Double) -> Void)?
     ) async -> [Line] {
         let turns = stride(from: 0, to: paragraphs.count, by: paragraphsPerTurn).map { first in
@@ -251,7 +250,7 @@ public final class ColumnComposer {
             for _ in 0 ..< workers {
                 group.addTask {
                     let text = typesetting()
-                    let composer = ColumnComposer(measure: measure, depth: depth, headingLength: headingLength)
+                    let composer = ColumnComposer(measure: size.width, depth: size.height, headingLength: headingLength)
                     var done: [(turn: Int, lines: [Line])] = []
 
                     while let turn = tally.nextTurn(of: turns.count) {

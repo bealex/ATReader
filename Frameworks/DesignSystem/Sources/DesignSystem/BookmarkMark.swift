@@ -83,7 +83,7 @@ public struct BookmarkMark: View {
 
     /// How far the reading line runs across a cover of this width. It starts at the cover's own edge and
     /// is cut by the cover's shape, as everything else printed on the board is.
-    public static func line(reached: Double, across width: CGFloat) -> CGFloat {
+    nonisolated public static func line(reached: Double, across width: CGFloat) -> CGFloat {
         width * min(1, max(0, reached))
     }
 
@@ -94,14 +94,14 @@ public struct BookmarkMark: View {
     /// It stands further in at the start than at the end. A bookmark at the start has the whole cover
     /// behind it and room to spare; one at the end is as far along as the reader can get, and holding
     /// it further in would read as something still left.
-    public static func offset(reached: Double, across width: CGFloat) -> CGFloat {
+    nonisolated public static func offset(reached: Double, across width: CGFloat) -> CGFloat {
         let run = line(reached: reached, across: width)
         let last = max(first, width - Design.Size.bookmark - Design.Space.extraSmall)
 
         return max(first, min(run, last))
     }
 
-    private static let first = Design.Space.small
+    nonisolated private static let first = Design.Space.small
 }
 
 /// What a bookmark carries, set in white on the ribbon: a percentage, or a glyph.

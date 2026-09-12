@@ -114,7 +114,7 @@ public extension Typography {
     /// Every replacement is one character for one. A reading position is an offset into this text, so a
     /// substitution that changed its length would move the reader's place in every book on the device.
     /// That rules out folding `--` into an em dash, which is the one common repair this doesn't make.
-    public static func dashes(_ text: String, language: String?) -> String {
+    static func dashes(_ text: String, language: String?) -> String {
         guard text.contains(where: isDashLike) else { return text }
 
         let russian = isRussian(language)
@@ -177,7 +177,7 @@ public extension Typography {
     /// TextKit looks for its own break points and settles for far fewer than the dictionary offers, so a
     /// narrow justified column ends up with lines it stretches instead of lines it breaks. A soft hyphen
     /// is a break it always sees, and one it draws a hyphen at.
-    public static func hyphenated(_ text: String, language: String?) -> String {
+    static func hyphenated(_ text: String, language: String?) -> String {
         guard let locale = hyphenationLocale(language), !text.isEmpty else { return text }
 
         var result = ""

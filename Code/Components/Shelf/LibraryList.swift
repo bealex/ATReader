@@ -78,9 +78,10 @@ struct LibraryList: UIViewControllerRepresentable {
         private struct Carrying {
             let id: String
             let from: CGFloat
-            let to: CGFloat
+            let onto: CGFloat
             weak var card: AuthorCardView?
 
+            @MainActor
             var reached: CGFloat { card?.reached ?? 1 }
         }
 
@@ -184,7 +185,7 @@ struct LibraryList: UIViewControllerRepresentable {
             carrying = Carrying(
                 id: card.id,
                 from: standing ?? height(of: card.id, across: across) ?? 0,
-                to: measured[card.id]?.height ?? AuthorCardView.height(card, across: across),
+                onto: measured[card.id]?.height ?? AuthorCardView.height(card, across: across),
                 card: cell.card
             )
             cell.card.onFrame = { [weak self] in
@@ -213,7 +214,7 @@ struct LibraryList: UIViewControllerRepresentable {
         /// is turning, when it is somewhere between the two.
         private func height(of id: String, across: CGFloat) -> CGFloat? {
             if let carrying, carrying.id == id {
-                return carrying.from + (carrying.to - carrying.from) * carrying.reached
+                return carrying.from + (carrying.onto - carrying.from) * carrying.reached
             }
 
             if measuredAcross != across { measure(across: across) }
@@ -447,10 +448,9 @@ struct LibraryList: UIViewControllerRepresentable {
                 dress(header, with: contents, animated: false)
             }
 
-            let made = UICollectionViewDiffableDataSource<Section, Section>(collectionView: view) {
-                view,
-                index,
-                section in
+            typealias Cells = UICollectionViewDiffableDataSource<Section, Section>
+
+            let made = Cells(collectionView: view) { view, index, section in
                 switch section {
                     case let .author(id):
                         view.dequeueConfiguredReusableCell(using: card, for: index, item: id)

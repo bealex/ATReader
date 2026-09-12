@@ -136,6 +136,8 @@ struct BackupSection: View {
             },
             message: {
                 Text(
+                    // A localisation key: wrapped, it would be a different one.
+                    // swiftlint:disable:next line_length
                     "Everything on this device is replaced by what the folder holds. Anything added since that backup is lost."
                 )
             }

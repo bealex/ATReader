@@ -3,6 +3,10 @@
 //  Licensed under the MIT License. See LICENSE in the repository root.
 //
 
+// Every section of the store reaches the same private `execute`, `transaction`, `encode` and `decode`,
+// so splitting the file would mean opening all four to the rest of the module.
+// swiftlint:disable file_length
+
 import BookKit
 import Foundation
 import OSLog
@@ -223,39 +227,9 @@ public actor SQLiteBookStore {
     /// Stores books, dating any that has just come into the library with `arrival`, which is nothing
     /// for a library arriving whole.
     private func store(_ books: [Book], arrivingAt arrival: Date?) {
-        let query = """
-            INSERT INTO work (
-                id, title, author, library_state, last_read_time, reading_progress, updated_at, payload,
-                is_finished, finished_when_added, finished_at, taken_down_at
-            )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ON CONFLICT(id) DO UPDATE SET
-                title = excluded.title,
-                author = excluded.author,
-                library_state = excluded.library_state,
-                last_read_time = COALESCE(excluded.last_read_time, work.last_read_time),
-                reading_progress = COALESCE(work.reading_progress, excluded.reading_progress),
-                updated_at = excluded.updated_at,
-                payload = excluded.payload,
-                is_finished = excluded.is_finished,
-                -- finished_when_added is left alone: it records the state the book arrived in.
-                -- The stamp is the first completion this device saw, and is dropped if the author
-                -- reopens the book so a later completion dates itself again.
-                finished_at = CASE
-                    WHEN excluded.is_finished = 0 THEN NULL
-                    ELSE COALESCE(work.finished_at, excluded.finished_at)
-                END,
-                -- A book the reader only looked at arrives when it reaches a shelf, not when it was seen.
-                taken_down_at = CASE
-                    WHEN work.library_state IS NULL AND excluded.library_state IS NOT NULL
-                        THEN COALESCE(excluded.taken_down_at, work.taken_down_at)
-                    ELSE work.taken_down_at
-                END
-            """
-
         transaction {
             guard
-                let statement = Statement(open(), query),
+                let statement = Statement(open(), Self.storeQuery),
                 let lookup = Statement(open(), "SELECT payload FROM work WHERE id = ?")
             else { return }
 
@@ -282,6 +256,36 @@ public actor SQLiteBookStore {
             }
         }
     }
+
+    private static let storeQuery = """
+        INSERT INTO work (
+            id, title, author, library_state, last_read_time, reading_progress, updated_at, payload,
+            is_finished, finished_when_added, finished_at, taken_down_at
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET
+            title = excluded.title,
+            author = excluded.author,
+            library_state = excluded.library_state,
+            last_read_time = COALESCE(excluded.last_read_time, work.last_read_time),
+            reading_progress = COALESCE(work.reading_progress, excluded.reading_progress),
+            updated_at = excluded.updated_at,
+            payload = excluded.payload,
+            is_finished = excluded.is_finished,
+            -- finished_when_added is left alone: it records the state the book arrived in.
+            -- The stamp is the first completion this device saw, and is dropped if the author
+            -- reopens the book so a later completion dates itself again.
+            finished_at = CASE
+                WHEN excluded.is_finished = 0 THEN NULL
+                ELSE COALESCE(work.finished_at, excluded.finished_at)
+            END,
+            -- A book the reader only looked at arrives when it reaches a shelf, not when it was seen.
+            taken_down_at = CASE
+                WHEN work.library_state IS NULL AND excluded.library_state IS NOT NULL
+                    THEN COALESCE(excluded.taken_down_at, work.taken_down_at)
+                ELSE work.taken_down_at
+            END
+        """
 
     /// The book as the payload column already has it, read through a statement the caller reuses.
     private func storedWork(_ id: Int, using statement: Statement) -> Book? {
@@ -1139,6 +1143,7 @@ public actor SQLiteBookStore {
         guard !columns(of: "book_series_edit").isEmpty else { return }
 
         execute(
+            // swiftlint:disable:next line_length
             "INSERT OR IGNORE INTO book_series_override (work_id, series, volume) SELECT work_id, series, volume FROM book_series_edit"
         )
         execute("DROP TABLE book_series_edit")
@@ -1415,9 +1420,11 @@ public actor SQLiteBookStore {
         guard userVersion() < 4 else { return }
 
         execute(
+            // swiftlint:disable:next line_length
             "CREATE TABLE IF NOT EXISTS book_series_kept (work_id INTEGER PRIMARY KEY, series TEXT NOT NULL, sort_order INTEGER)"
         )
         execute(
+            // swiftlint:disable:next line_length
             "INSERT OR REPLACE INTO book_series_kept (work_id, series, sort_order) SELECT work_id, series, NULL FROM book_series"
         )
         execute("DROP TABLE book_series")

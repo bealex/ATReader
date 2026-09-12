@@ -207,8 +207,7 @@ public final class ChapterLayout {
             paragraphs: ColumnComposer.paragraphs(in: text),
             typesetting: typesetting,
             headingLength: headingLength,
-            measure: context.textSize.width,
-            depth: context.textSize.height,
+            size: context.textSize,
             onProgress: isLong ? onProgress : nil
         )
         composePages()
