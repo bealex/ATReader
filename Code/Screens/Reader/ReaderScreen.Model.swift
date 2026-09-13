@@ -806,8 +806,33 @@ extension ReaderScreen {
 
             guard let built else { return }
 
+            await layOutWhoeverSharesAPage(with: built)
             install(built, anchor: anchor)
             measureTheRest()
+        }
+
+        /// Lays out a neighbour that shares a page with this chapter, before the page is shown.
+        ///
+        /// A chapter running on into another's last page is part of that page rather than something to
+        /// read ahead for. Left to the prefetch, the page draws once without it and again when it
+        /// lands, so the missing half appears after the turn has settled.
+        ///
+        /// Only a neighbour that actually shares: one starting a page of its own is read ahead for as
+        /// before, and costs the reader nothing here.
+        private func layOutWhoeverSharesAPage(with built: ChapterLayout) async {
+            // The chapter being installed rather than the one still on screen: this runs before it is
+            // installed, so the reader's own layout is still the last one.
+            if built.startOffset > 0, let previous = previousChapter, layouts[previous.id] == nil {
+                await prepare(chapterId: previous.id)
+            }
+
+            guard
+                let next = nextChapter,
+                layouts[next.id] == nil,
+                (pagination?.placement(of: next.id)?.startOffset ?? 0) > 0
+            else { return }
+
+            await prepare(chapterId: next.id)
         }
 
         /// Measures as much of the book as it takes to put the reader on a page, and no more.
