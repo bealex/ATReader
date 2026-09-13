@@ -170,6 +170,28 @@ struct EpubFormatTests {
         #expect(!book.sections.contains { $0.title == "Golf" })
     }
 
+    @Test
+    func takesANoteFromTheBlockItsAnchorStandsBefore() throws {
+        // The shape books actually use: an empty anchor in a paragraph of its own, and the note in
+        // the one after it.
+        let chapter = "<h1>Papa</h1><p>Quebec<a href=\"second.xhtml#n1\">[2]</a> romeo.</p>"
+        let second = """
+            <h1>Hotel</h1>
+            <p><a id="n1"/></p>
+            <p class="footnote"><a href="first.xhtml#back">[2]</a> Sierra the note itself.</p>
+            """
+        let book = try EpubFormat.parse(Self.archive(first: chapter, second: second))
+        let read = BookHTML.chapter(from: book.sections[0].html)
+
+        #expect(read.notes.count == 1)
+        // The marker the note opens with is how it is named where it is shown, so it does not also
+        // stand at the head of its own words.
+        #expect(read.notes.values.first?.text == "Sierra the note itself.")
+        #expect(read.paragraphs.contains { $0.notes.count == 1 })
+        // A note is shown where it stands rather than turned to, so its marker is no link.
+        #expect(read.paragraphs.allSatisfy { $0.links.isEmpty })
+    }
+
     // MARK: - Which way the book reads
 
     @Test

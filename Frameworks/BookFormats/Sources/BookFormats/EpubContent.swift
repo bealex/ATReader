@@ -289,10 +289,19 @@ struct EpubContent {
             guard !words.isEmpty else { return }
 
             let opening = marker ?? ""
+            // Read before the line is written, since writing it gives the landing up.
+            let landed = landing
 
             content.html += line(opening + buffer.trimmed, in: frame)
 
             content.textLength += opening.count + words.count
+
+            // A block something points at is also the note it may turn out to be. Books mark a note
+            // with an empty anchor in a paragraph of its own and put the words in the next one, so the
+            // block that carries the landing is the one to keep rather than the one holding the id.
+            if let landed, words.count <= Self.longestNote {
+                content.marked[landed] = opening + words
+            }
 
             if frame.titleLevel != nil, content.heading == nil { content.heading = opening + words }
         }

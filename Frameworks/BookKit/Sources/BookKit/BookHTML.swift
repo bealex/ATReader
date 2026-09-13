@@ -718,11 +718,13 @@ public enum BookHTML {
     /// as well reads as though it were the note's first word. Only an exact repeat goes: a note that
     /// happens to begin with some other number keeps it.
     private static func withoutLeading(_ marker: String, in text: String) -> String {
-        let figure = marker.filter(\.isNumber)
+        // The marker as the text writes it, brackets and all, before its bare figure: a note opening
+        // "[2] …" repeats the whole marker rather than the number inside it.
+        let opening = text.hasPrefix(marker) ? marker : marker.filter(\.isNumber)
 
-        guard !figure.isEmpty, text.hasPrefix(figure) else { return text }
+        guard !opening.isEmpty, text.hasPrefix(opening) else { return text }
 
-        let rest = text.dropFirst(figure.count).drop { $0.isWhitespace || $0 == "." || $0 == ")" || $0 == "]" }
+        let rest = text.dropFirst(opening.count).drop { $0.isWhitespace || $0 == "." || $0 == ")" || $0 == "]" }
 
         return rest.isEmpty ? text : String(rest)
     }
