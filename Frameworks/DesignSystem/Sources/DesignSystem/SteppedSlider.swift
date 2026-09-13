@@ -72,7 +72,7 @@ public struct SteppedSlider: View {
 
     /// Held inside the range and on the step, so a tenth of a point added ten times is a point rather
     /// than a point and a hair.
-    private static func settled(_ value: Double, in range: ClosedRange<Double>, by step: Double) -> Double {
+    public static func settled(_ value: Double, in range: ClosedRange<Double>, by step: Double) -> Double {
         let stepped = step > 0 ? (value / step).rounded() * step : value
 
         return min(max(stepped, range.lowerBound), range.upperBound)

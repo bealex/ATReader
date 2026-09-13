@@ -15,10 +15,8 @@ enum RootScreen {
         @Environment(ReaderSettings.self)
         private var settings
 
-        /// What the system is showing, read here rather than in the reader: the reader holds its bar
-        /// and its status bar to the page's own colours, and would be reading back its own answer.
-        @Environment(\.colorScheme)
-        private var scheme
+        @Environment(\.scenePhase)
+        private var phase
 
         var body: some View {
             Group {
@@ -33,7 +31,16 @@ enum RootScreen {
                 #endif
             }
             .animation(.default, value: session.state)
-            .onChange(of: scheme, initial: true) { _, now in settings.systemIsDark = now == .dark }
+            // Not from this view's own colour scheme: the reader holds the window to the page's light
+            // or dark while a book is open, and every view in it then answers with the page.
+            .onChange(of: phase, initial: true) { _, now in
+                guard now == .active else { return }
+
+                settings.readTheSystem()
+            }
+            // And once the view is in a window, since a scene asked for before there is one answers
+            // nothing and the phase would not change again until the app had been away.
+            .onAppear { settings.readTheSystem() }
             .task {
                 guard case .restoring = session.state else { return }
 

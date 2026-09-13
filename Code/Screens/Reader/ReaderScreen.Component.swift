@@ -529,15 +529,17 @@ enum ReaderScreen {
 
         /// How far the bar's own glyphs stand above where the bar would put them. Off the lattice by a
         /// nudge on purpose: it is where they line up with the back button beside them.
+        private var barRise: CGFloat { Self.rise(over: runningHeadSize) }
+
         /// How far the bar's controls are lifted, so their middle lands on the middle of the running
         /// head drawn on the page. The bar centres its own contents on its height; the head sits its
         /// own inset below the safe area.
-        private var barRise: CGFloat { Self.barMiddle - (Self.headInset + runningHeadSize / 2) }
+        static func rise(over headSize: CGFloat) -> CGFloat { barMiddle - (headInset + headSize / 2) }
 
         /// The middle of the navigation bar, measured from the top of the safe area.
-        private static let barMiddle: CGFloat = 22
+        static let barMiddle: CGFloat = 22
         /// What the running head keeps between itself and the safe area.
-        private static let headInset: CGFloat = 4
+        static let headInset: CGFloat = 4
 
         #if DEBUG
             /// The page, what it was set with and a picture of it, zipped and offered to share.

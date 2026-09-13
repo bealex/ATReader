@@ -87,63 +87,63 @@ final class ReaderSettings {
     static let letterSpacingRange: ClosedRange<Double> = -0.5 ... 2
 
     var fontSize: Double {
-        didSet { UserDefaults.standard.set(fontSize, forKey: Keys.fontSize) }
+        didSet { defaults.set(fontSize, forKey: Keys.fontSize) }
     }
 
     var lineSpacing: Double {
-        didSet { UserDefaults.standard.set(lineSpacing, forKey: Keys.lineSpacing) }
+        didSet { defaults.set(lineSpacing, forKey: Keys.lineSpacing) }
     }
 
     /// Space added between letters, in points.
     var letterSpacing: Double {
-        didSet { UserDefaults.standard.set(letterSpacing, forKey: Keys.letterSpacing) }
+        didSet { defaults.set(letterSpacing, forKey: Keys.letterSpacing) }
     }
 
     /// Page inset in points, applied on every edge.
     var margins: Double {
-        didSet { UserDefaults.standard.set(margins, forKey: Keys.margins) }
+        didSet { defaults.set(margins, forKey: Keys.margins) }
     }
 
     var face: Face {
         didSet {
-            UserDefaults.standard.set(face.rawValue, forKey: Keys.face)
+            defaults.set(face.rawValue, forKey: Keys.face)
             // A face that hasn't got the weight in hand would silently draw another one.
             if !face.weights.contains(weight) { weight = .regular }
         }
     }
 
     var weight: Weight {
-        didSet { UserDefaults.standard.set(weight.rawValue, forKey: Keys.weight) }
+        didSet { defaults.set(weight.rawValue, forKey: Keys.weight) }
     }
 
     /// Russian sets well justified: its hyphenation dictionary is good and its words are long enough
     /// to fill a line. English justified in a narrow column pulls the words apart instead.
     var russianAlignment: Alignment {
-        didSet { UserDefaults.standard.set(russianAlignment.rawValue, forKey: Keys.russianAlignment) }
+        didSet { defaults.set(russianAlignment.rawValue, forKey: Keys.russianAlignment) }
     }
 
     /// Used for every language that isn't Russian.
     var englishAlignment: Alignment {
-        didSet { UserDefaults.standard.set(englishAlignment.rawValue, forKey: Keys.englishAlignment) }
+        didSet { defaults.set(englishAlignment.rawValue, forKey: Keys.englishAlignment) }
     }
 
     /// True where the page turns with the system: one theme for its light hours and another for its
     /// dark ones. Off, the page keeps one theme whatever the system is doing.
     var followsSystem: Bool {
-        didSet { UserDefaults.standard.set(followsSystem, forKey: Keys.followsSystem) }
+        didSet { defaults.set(followsSystem, forKey: Keys.followsSystem) }
     }
 
     var lightTheme: Theme {
-        didSet { UserDefaults.standard.set(lightTheme.rawValue, forKey: Keys.lightTheme) }
+        didSet { defaults.set(lightTheme.rawValue, forKey: Keys.lightTheme) }
     }
 
     var darkTheme: Theme {
-        didSet { UserDefaults.standard.set(darkTheme.rawValue, forKey: Keys.darkTheme) }
+        didSet { defaults.set(darkTheme.rawValue, forKey: Keys.darkTheme) }
     }
 
     /// The page's theme where it does not follow the system.
     var fixedTheme: Theme {
-        didSet { UserDefaults.standard.set(fixedTheme.rawValue, forKey: Keys.theme) }
+        didSet { defaults.set(fixedTheme.rawValue, forKey: Keys.theme) }
     }
 
     /// What the system is showing, told by the screen that is showing it. Not kept: the system says it
@@ -160,7 +160,7 @@ final class ReaderSettings {
     /// Words may be broken at the end of a line. A justified column reads far better for it: the only
     /// other way to reach the measure is to pull the words apart.
     var hyphenates: Bool {
-        didSet { UserDefaults.standard.set(hyphenates, forKey: Keys.hyphenates) }
+        didSet { defaults.set(hyphenates, forKey: Keys.hyphenates) }
     }
 
     /// Draws every picture in the page's own two colours, colour art included.
@@ -168,19 +168,26 @@ final class ReaderSettings {
     /// Line art and scans take them anyway, since a sheet of white paper in the middle of a night page
     /// reads worse than the text around it. This holds the rest to them too.
     var monochromeImages: Bool {
-        didSet { UserDefaults.standard.set(monochromeImages, forKey: Keys.monochromeImages) }
+        didSet { defaults.set(monochromeImages, forKey: Keys.monochromeImages) }
     }
 
     /// Holds the page upright however the device is held, which is what reading lying down asks for.
     var isPortraitOnly: Bool {
         didSet {
-            UserDefaults.standard.set(isPortraitOnly, forKey: Keys.portraitOnly)
+            defaults.set(isPortraitOnly, forKey: Keys.portraitOnly)
             OrientationLock.apply(portraitOnly: isPortraitOnly)
         }
     }
 
-    init() {
-        let defaults = UserDefaults.standard
+    @ObservationIgnored
+    private let defaults: UserDefaults
+
+    @ObservationIgnored
+    private var watching: (any UITraitChangeRegistration)?
+
+    init(defaults: UserDefaults = .standard) {
+        self.defaults = defaults
+
         let storedSize = defaults.double(forKey: Keys.fontSize)
         let storedSpacing = defaults.double(forKey: Keys.lineSpacing)
 
@@ -211,6 +218,20 @@ final class ReaderSettings {
         monochromeImages = defaults.bool(forKey: Keys.monochromeImages)
         isPortraitOnly = defaults.bool(forKey: Keys.portraitOnly)
         OrientationLock.seed(portraitOnly: isPortraitOnly)
+    }
+
+    /// Follows what the system is showing, for as long as this is held.
+    func watchTheSystem() {
+        guard watching == nil else { return }
+
+        watching = SystemAppearance.watch { [weak self] isDark in self?.systemIsDark = isDark }
+    }
+
+    /// Asked again where nothing was there to be asked before, and whenever the app has been away long
+    /// enough for the system to have turned without it.
+    func readTheSystem() {
+        systemIsDark = SystemAppearance.isDark
+        watchTheSystem()
     }
 
     /// Everything the layout engine needs; changing any of it invalidates pagination.

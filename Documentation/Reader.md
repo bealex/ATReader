@@ -512,9 +512,14 @@ it, without a finger over the answer. Margins step by four points, since a point
 hundred-point range is not a step anyone means.
 
 Following the system means two themes, one for its light hours and one for its dark, and the page
-turns with it; not following it means one theme whatever the system is doing. What the system is
-showing is read at the app's root and not in the reader, which holds its own bar and status bar to the
-page's colours and would be reading back its own answer. "Match the system" used to be a theme of its
+turns with it; not following it means one theme whatever the system is doing.
+
+What the system is showing is asked of the **scene**, in `SystemAppearance`, and not of a window or of
+SwiftUI's environment. The reader holds the window to the page's own light or dark for as long as a
+book is open, so a window asked then answers with the page: a page following the system would be
+following itself, and would latch to whichever it opened on. An override reaches down from a window
+and never up to the scene it sits in. The answer is taken when the app becomes active and whenever the
+scene's traits change. "Match the system" used to be a theme of its
 own and meant exactly what the switch does; a reader who chose it keeps what they chose.
 
 Hyphenation is the reader's to turn off, and it is part of what a layout is filed under: the chapter is
