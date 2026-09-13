@@ -124,6 +124,14 @@ Only a series read to its last book counts as finished, so every card lands unde
 two. The count beside a filter is books rather than rows, since a series kept for one unread book
 brings the rest of itself along, and what helps is how much is left to read.
 
+**Hide series**, in the same menu, is the one rule that picks through a card: a series shows only the
+books the reader has been into, and the rest of it goes. A library that follows long series otherwise
+stands mostly on volumes nobody has opened. A book that arrived in the last day stays whatever else is
+true of it, which is as long as anything else stands out on this shelf for, and a run of one book is
+left alone, since a single book is not a series and hiding it would hide a book. A series nobody has
+opened has nothing left to show and goes off the shelf whole. A search stands the hiding aside, the
+same way it stands the filter aside.
+
 A writer's own menu can take them off the Reading shelf, which is the one place a card is hidden by
 hand rather than by what has been read. They keep their card under the other filters, so All books
 stays the answer to where a book went, and the count is unmoved: it says how much is left to read,

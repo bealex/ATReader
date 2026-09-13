@@ -211,6 +211,17 @@ extension LibraryScreen {
             }
         }
 
+        /// True while a series shows only the books the reader has been into.
+        ///
+        /// A library that follows long series stands mostly on volumes nobody has opened, and a reader
+        /// looking for where they are has to read past them. With this on, a series keeps the books
+        /// that have been opened, and drops the rest.
+        var hidesSeries = false {
+            didSet {
+                if oldValue != hidesSeries { forgetFiling() }
+            }
+        }
+
         /// The names of the series the reader put together, which are kept in the order they chose
         /// rather than newest first.
         private(set) var madeSeries: Set<String> = [] {
@@ -358,11 +369,13 @@ extension LibraryScreen {
             // wherever it is, and "nothing found" because the book was finished would be wrong.
             let searchFilter = search == nil ? filter : .everything
             let named = seriesRuns(searched.filter { $0.series != nil })
+            // A search stands the hiding aside for the same reason it stands the filter aside.
+            let held = hidesSeries && search == nil ? named.mapValues(Self.opened(among:)) : named
             // One book is not a series, whatever the book says it belongs to. A card built round a
             // single row claims the shelf holds a run of them, and the row already names the series it
             // came from without pretending to hold it.
-            let series = named.filter { $0.value.count > 1 }
-            let lonely = named.filter { $0.value.count == 1 }.values.flatMap { $0 }
+            let series = held.filter { $0.value.count > 1 }
+            let lonely = held.filter { $0.value.count == 1 }.values.flatMap { $0 }
 
             let grouped = series.compactMap { key, works -> Group? in
                 guard searchFilter.includes(works) else { return nil }
@@ -376,6 +389,17 @@ extension LibraryScreen {
                 }
 
             return (grouped + alone).sorted(by: Self.byUpdate)
+        }
+
+        /// The books of a run the reader has been into, leaving a run of one alone: a single book is
+        /// not a series on the shelf, and hiding it would hide a book rather than a series.
+        ///
+        /// A book that arrived in the last day stays whatever else is true of it, which is as long as
+        /// anything else stands out on this shelf for.
+        nonisolated static func opened(among works: [Book]) -> [Book] {
+            guard works.count > 1 else { return works }
+
+            return works.filter { $0.isOpened || $0.isJustTakenDown() }
         }
 
         /// When the service last changed the book. Reading it is not a change to it, so the list holds

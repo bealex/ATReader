@@ -80,6 +80,56 @@ struct LibraryFilterTests {
         #expect(Filter.everything.includes(works))
     }
 
+    // MARK: - Hiding what a series holds
+
+    /// The shelf keeps the books of a series that have been opened, and drops the rest of it.
+    @Test
+    func hidingASeriesKeepsTheBooksThatWereOpened() {
+        let read = Self.book(read: 0.4, isFinished: true)
+        let through = Self.book(read: 1, isFinished: true)
+        let series = [ read, Self.book(read: 0, isFinished: true), through ]
+        let kept = LibraryScreen.Model.opened(among: series).map(\.id)
+
+        #expect(kept == [ read.id, through.id ])
+    }
+
+    /// A book that arrived in the last day stands out wherever it is, opened or not.
+    @Test
+    func hidingASeriesKeepsABookThatJustArrived() {
+        var arrived = Self.book(read: 0, isFinished: true)
+        arrived.takenDownAt = .now
+
+        let series = [ Self.book(read: 0.4, isFinished: true), arrived ]
+
+        #expect(LibraryScreen.Model.opened(among: series).contains { $0.id == arrived.id })
+    }
+
+    @Test
+    func hidingASeriesDropsABookThatArrivedLongerAgo() {
+        var older = Self.book(read: 0, isFinished: true)
+        older.takenDownAt = .now.addingTimeInterval(-2 * 24 * 60 * 60)
+
+        let series = [ Self.book(read: 0.4, isFinished: true), older ]
+
+        #expect(!LibraryScreen.Model.opened(among: series).contains { $0.id == older.id })
+    }
+
+    /// A single book is not a series on the shelf, so hiding series never hides it.
+    @Test
+    func hidingASeriesLeavesALoneBookAlone() {
+        let alone = [ Self.book(read: 0, isFinished: true) ]
+
+        #expect(LibraryScreen.Model.opened(among: alone).count == 1)
+    }
+
+    /// A series nobody has opened has nothing left to show, and goes off the shelf entire.
+    @Test
+    func hidingASeriesNobodyOpenedLeavesNothing() {
+        let series = [ Self.book(read: 0, isFinished: true), Self.book(read: 0, isFinished: true) ]
+
+        #expect(LibraryScreen.Model.opened(among: series).isEmpty)
+    }
+
     // MARK: - A book to file
 
     private static func book(read: Double, isFinished: Bool) -> Book {

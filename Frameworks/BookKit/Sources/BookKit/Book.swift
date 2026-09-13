@@ -114,6 +114,9 @@ public struct Book: Codable, Identifiable, Hashable, Sendable {
     /// Read as far as the book goes, with the author still writing it.
     public var isCaughtUp: Bool { isOngoing && isReadToTheEnd }
 
+    /// Opened at all: started, however little of it was read, or read through.
+    public var isOpened: Bool { hasStartedReading || (readingProgress ?? 0) > 0 || isReadToTheEnd }
+
     /// Started and not yet read to the end.
     public var isBeingRead: Bool { (readingProgress ?? 0) > 0 && !isReadToTheEnd }
 

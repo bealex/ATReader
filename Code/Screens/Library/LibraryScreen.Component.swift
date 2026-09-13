@@ -117,9 +117,17 @@ enum LibraryScreen {
             ]
         }
 
-        /// Which books to show, with the one in force ticked.
+        /// Which books to show, with the one in force ticked, and whether a series shows all of itself.
         private func filterDeeds() -> [Deed] {
-            Model.Filter.allCases.map { filter in
+            let hiding = Deed.act(
+                String(localized: "Hide series"),
+                systemImage: "eye.slash",
+                isOn: model.hidesSeries
+            ) {
+                model.hidesSeries.toggle()
+            }
+
+            return Model.Filter.allCases.map { filter in
                 .act(
                     title(filter, count: model.count(for: filter)),
                     systemImage: filter.systemImage,
@@ -127,7 +135,7 @@ enum LibraryScreen {
                 ) {
                     model.filter = filter
                 }
-            }
+            } + [ hiding ]
         }
 
         /// The library's series, as things that can be held together.

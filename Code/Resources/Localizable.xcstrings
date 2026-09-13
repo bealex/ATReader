@@ -1541,6 +1541,17 @@
         }
       }
     },
+    "Hide series": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Скрыть серии"
+          }
+        }
+      }
+    },
     "Hoefler Text": {
       "extractionState": "manual",
       "shouldTranslate": false
