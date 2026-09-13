@@ -62,11 +62,20 @@ extension BookShelf {
 /// What a chapter is called in a list. A chapter the author left unnamed is called by its number, which
 /// is the app's wording: the service has no say in it.
 extension BookChapter {
+    /// True where the book set out its own divisions, which a book off a file does and the service
+    /// does not.
+    ///
+    /// A piece such a book gave no name to is not a chapter it made, so it is never given a number the
+    /// book never gave it. The reader draws no heading over one for the same reason.
+    var carriesItsOwnStructure: Bool { workId.map(BookNumbering.isLocal) ?? false }
+
     var displayTitle: String {
         guard
             let title,
             !title.isEmpty
         else {
+            guard !carriesItsOwnStructure else { return String(localized: "Untitled") }
+
             return String(localized: "Chapter \((sortOrder ?? 0) + 1)")
         }
 
@@ -93,7 +102,7 @@ extension [BookChapter] {
             }
 
             guard
-                chapter.contentsLevel > 1
+                chapter.contentsLevel > 1 || chapter.carriesItsOwnStructure
             else {
                 counted = 0
                 return chapter.displayTitle

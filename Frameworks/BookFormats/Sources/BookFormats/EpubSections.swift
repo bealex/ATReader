@@ -389,11 +389,21 @@ enum EpubSections {
 
     private static func made(title: String?, html: String, level: Int) -> ParsedBook.Section {
         ParsedBook.Section(
-            title: title?.trimmed.nilWhenEmpty,
+            title: title?.trimmed.nilWhenEmpty ?? ownName(of: html),
             html: html,
             textLength: stripped(html).count,
             level: level
         )
+    }
+
+    /// What a piece calls itself, for one the navigation called nothing.
+    ///
+    /// Only a heading standing at its head counts. One further down names whatever follows it rather
+    /// than the piece as a whole, and taking it would file a page under the name of its last section.
+    private static func ownName(of html: String) -> String? {
+        guard let first = headings(in: html).first, isOpening(first, in: html) else { return nil }
+
+        return named(first, in: html)
     }
 
     /// The words of a fragment, with its markup off, for weighing how long a piece runs.
