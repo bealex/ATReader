@@ -318,6 +318,11 @@ screen has to take the tab bar away on the way in and give it back on the way ou
 bar with it, all of it re-laying out while the zoom runs. A presented one covers them, so nothing
 underneath moves. Everything else is still pushed.
 
+Which is why `Navigator` reports a presented screen going as well as a stack coming back to its root:
+`returnedAt` is what tells a list to read the store again, and a screen that covers the stack never
+pops it. Reading fills the marks on a cover and only the store knows it, so a shelf not told sits there
+showing where the reader was before they read.
+
 **Over full screen, not full screen.** A full-screen presentation takes the presenting view out of the
 window, so the shelf spends the whole reading session off it: its cells are built again and its spines
 printed again only once the reader is gone, and all of that lands in the single frame after the zoom

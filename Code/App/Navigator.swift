@@ -40,8 +40,8 @@ struct AppDressing {
 /// stand-in laid over it.
 @Observable @MainActor
 final class Navigator {
-    /// Moves every time the tab comes back to its own root, for a list that has to read the store again
-    /// to see what the reading changed.
+    /// Moves every time the tab comes back to its own root, or a screen presented over it goes, for a
+    /// list that has to read the store again to see what the reading changed.
     private(set) var returnedAt: Date?
 
     @ObservationIgnored
@@ -90,10 +90,16 @@ final class Navigator {
         // wrong size by the time the book closes, and the zoom landed on one and left the other.
         if let source {
             screen.preferredTransition = .zoom(options: Self.zoom) { _ in source(.running) }
-            // The book is taken down once the reader is over it and put back when the zoom has
-            // finished bringing it home, so it is never standing there behind its own transition.
+            // The book is taken down once the reader is over it, so it is never standing there behind
+            // its own transition, and put back when the zoom has finished bringing it home.
             screen.onArrived = { source(.covered) }
-            screen.onGone = { source(.done) }
+        }
+
+        // A screen that covers the stack never pops it, so the delegate that reports a return never
+        // hears of this one and a list would go on showing what it read before the reading.
+        screen.onGone = { [weak self] in
+            source?(.done)
+            self?.cameBack()
         }
 
         controller.present(screen, animated: true)
