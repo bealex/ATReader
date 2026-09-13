@@ -33,6 +33,8 @@ public struct ParagraphRuler {
     public let headIndent: CGFloat
     /// The paragraph is written from the right, so a line short of the measure stands at that edge.
     public let isRightToLeft: Bool
+    /// How far the paragraph is held off the right edge, which a quoted passage is.
+    public let tailIndent: CGFloat
     public let lineSpacing: CGFloat
     public let paragraphSpacing: CGFloat
     /// The air the paragraph keeps above itself, which only its first line carries.
@@ -72,6 +74,8 @@ public struct ParagraphRuler {
         self.firstLineIndent = style?.firstLineHeadIndent ?? 0
         self.headIndent = style?.headIndent ?? 0
         self.isRightToLeft = style?.baseWritingDirection == .rightToLeft
+        // Written as a distance from the right edge, which the style states as a negative number.
+        self.tailIndent = max(0, -(style?.tailIndent ?? 0))
         self.lineSpacing = style?.lineSpacing ?? 0
         self.paragraphSpacing = style?.paragraphSpacing ?? 0
         self.paragraphSpacingBefore = style?.paragraphSpacingBefore ?? 0

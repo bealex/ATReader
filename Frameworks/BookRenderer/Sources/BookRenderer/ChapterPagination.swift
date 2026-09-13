@@ -198,7 +198,7 @@ public enum ChapterPagination {
             let isCentered = paragraph.isCentered || levels[index] != nil
             let air = Self.spacing(at: index, opening: opening, closing: closing, style: style, gap: gap)
             let paragraphStyle = NSMutableParagraphStyle()
-            paragraphStyle.alignment = isCentered ? .center : bodyAlignment
+            paragraphStyle.alignment = Self.alignment(of: paragraph, centred: isCentered, body: bodyAlignment)
             paragraphStyle.lineSpacing = style.lineSpacing
             paragraphStyle.paragraphSpacing = air.after
             paragraphStyle.paragraphSpacingBefore = air.before
@@ -242,6 +242,21 @@ public enum ChapterPagination {
         return TypesetText(attributed: result, headingLength: headingLength)
     }
 
+    /// Which edge a block is set against.
+    ///
+    /// A title stands in the middle of the measure whatever the book said, and a signature or a date
+    /// against the right where the book put it there. Everything else takes the reader's own answer
+    /// for the language it is written in.
+    private static func alignment(
+        of paragraph: Paragraph,
+        centred: Bool,
+        body: NSTextAlignment
+    ) -> NSTextAlignment {
+        if centred { return .center }
+
+        return paragraph.isRightAligned ? .right : body
+    }
+
     /// How a block stands among the text around it: how far in, and which way round.
     ///
     /// An item of a list stands in on every line of it, since the mark it opens with is part of its own
@@ -257,6 +272,17 @@ public enum ChapterPagination {
         }
 
         if paragraph.isRightToLeft { style.baseWritingDirection = .rightToLeft }
+
+        // A passage the book held off both edges keeps that on the page: a quotation set at the
+        // measure of the text around it reads as the text rather than as something quoted.
+        guard paragraph.isInset else { return }
+
+        let held = font.pointSize * insetMeasure
+
+        style.headIndent = held
+        style.firstLineHeadIndent = held
+        // Counted from the right edge, which is what a negative tail indent means.
+        style.tailIndent = -held
     }
 
     /// Sets the stretches a book marked apart in the face that says so.
@@ -300,6 +326,8 @@ public enum ChapterPagination {
 
     /// How far one level of a list stands in, against the size of the type.
     private static let listIndent: CGFloat = 1.4
+    /// How far a quoted passage is held off each edge, against the size of the type.
+    private static let insetMeasure: CGFloat = 1.6
 
     /// How deep the gap under a paragraph runs, and how much air stands above it.
     ///

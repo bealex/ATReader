@@ -126,6 +126,10 @@ public struct Paragraph: Codable, Sendable, Identifiable, Hashable {
     public let listLevel: Int?
     /// The block is written from the right, which sets it and turns its pages the other way round.
     public let isRightToLeft: Bool
+    /// The block stands against the right edge, which is where a book sets a signature or a date.
+    public let isRightAligned: Bool
+    /// The block is held off both edges, which is how a book sets a passage quoted at length.
+    public let isInset: Bool
     /// The places in this block that point elsewhere in the book, in the order they stand in it.
     public let links: [LinkMark]
     /// What the book knows this block by, where something in it points here. A link lands on a block
@@ -144,7 +148,9 @@ public struct Paragraph: Codable, Sendable, Identifiable, Hashable {
         listLevel: Int? = nil,
         isRightToLeft: Bool = false,
         links: [LinkMark] = [],
-        anchor: String? = nil
+        anchor: String? = nil,
+        isRightAligned: Bool = false,
+        isInset: Bool = false
     ) {
         self.id = id
         self.text = text
@@ -158,6 +164,8 @@ public struct Paragraph: Codable, Sendable, Identifiable, Hashable {
         self.isRightToLeft = isRightToLeft
         self.links = links
         self.anchor = anchor
+        self.isRightAligned = isRightAligned
+        self.isInset = isInset
     }
 
     public init(from decoder: any Decoder) throws {
@@ -177,6 +185,8 @@ public struct Paragraph: Codable, Sendable, Identifiable, Hashable {
         isRightToLeft = try container.decodeIfPresent(Bool.self, forKey: .isRightToLeft) ?? false
         links = try container.decodeIfPresent([ LinkMark ].self, forKey: .links) ?? []
         anchor = try container.decodeIfPresent(String.self, forKey: .anchor)
+        isRightAligned = try container.decodeIfPresent(Bool.self, forKey: .isRightAligned) ?? false
+        isInset = try container.decodeIfPresent(Bool.self, forKey: .isInset) ?? false
     }
 
     public var isImage: Bool { imageSource != nil }
@@ -231,6 +241,14 @@ public enum BookHTML {
 
         return value.isEmpty ? nil : String(value)
     }
+
+    /// True where the block stands against the right edge.
+    private static func isRightAligned(inside attributes: String) -> Bool {
+        attributes.contains("text-align:right")
+    }
+
+    /// True where the block is held off both edges, as a passage quoted at length is.
+    private static func isInset(inside attributes: String) -> Bool { attributes.contains("data-inset=\"1\"") }
 
     /// True where the block says it is written from the right.
     private static func isRightToLeft(inside attributes: String) -> Bool { attributes.contains("dir=\"rtl\"") }
@@ -449,7 +467,9 @@ public enum BookHTML {
                         listLevel: listLevel(inside: attributes),
                         isRightToLeft: isRightToLeft(inside: attributes),
                         links: read.links,
-                        anchor: anchor(inside: attributes)
+                        anchor: anchor(inside: attributes),
+                        isRightAligned: isRightAligned(inside: attributes),
+                        isInset: isInset(inside: attributes)
                     ))
                     index += 1
             }

@@ -213,6 +213,28 @@ struct EpubFormatTests {
         #expect(!text.contains("Quebec [2]"))
     }
 
+    @Test
+    func setsAQuotedPassageInFromBothEdges() throws {
+        let chapter = "<h1>Papa</h1><p class=\"quote\">Quebec romeo.</p><p>Sierra tango.</p>"
+        let css = ".quote { margin-left: 10%; margin-right: 10%; }"
+        let book = try EpubFormat.parse(Self.archive(first: chapter, css: css))
+        let paragraphs = BookHTML.paragraphs(from: book.sections[0].html)
+
+        #expect(paragraphs.first { $0.text == "Quebec romeo." }?.isInset == true)
+        #expect(paragraphs.first { $0.text == "Sierra tango." }?.isInset == false)
+    }
+
+    @Test
+    func standsASignatureAgainstTheRightEdge() throws {
+        let chapter = "<h1>Papa</h1><p class=\"sign\">Quebec romeo.</p><p>Sierra tango.</p>"
+        let css = ".sign { text-align: right; }"
+        let book = try EpubFormat.parse(Self.archive(first: chapter, css: css))
+        let paragraphs = BookHTML.paragraphs(from: book.sections[0].html)
+
+        #expect(paragraphs.first { $0.text == "Quebec romeo." }?.isRightAligned == true)
+        #expect(paragraphs.first { $0.text == "Sierra tango." }?.isRightAligned == false)
+    }
+
     // MARK: - Which way the book reads
 
     @Test

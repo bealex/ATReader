@@ -86,6 +86,8 @@ struct EpubContent {
         /// How a block stands: what the elements around it have said about it so far.
         private struct Frame {
             var isCentered = false
+            var isRightAligned = false
+            var isInset = false
             var titleLevel: Int?
             var listLevel = 0
             var isRightToLeft: Bool
@@ -334,7 +336,13 @@ struct EpubContent {
 
             var attributes = opening() + direction(frame)
 
-            if frame.isCentered { attributes += " style=\"text-align:center\"" }
+            if frame.isCentered {
+                attributes += " style=\"text-align:center\""
+            } else if frame.isRightAligned {
+                attributes += " style=\"text-align:right\""
+            }
+
+            if frame.isInset { attributes += " data-inset=\"1\"" }
 
             if frame.listLevel > 0 { attributes += " data-list=\"\(frame.listLevel)\"" }
 
@@ -375,6 +383,7 @@ struct EpubContent {
             var centred = frame
 
             centred.isCentered = true
+            centred.isRightAligned = false
             centred.titleLevel = nil
             centred.listLevel = 0
             return centred
@@ -387,6 +396,8 @@ struct EpubContent {
             var inner = frame
 
             inner.isCentered = frame.isCentered || isCentered(node)
+            inner.isRightAligned = frame.isRightAligned || isRightAligned(node)
+            inner.isInset = frame.isInset || isInset(node)
             inner.isRightToLeft = frame.isRightToLeft || isRightToLeft(node)
 
             if node.attributes["dir"] == "ltr" { inner.isRightToLeft = false }
@@ -402,6 +413,19 @@ struct EpubContent {
             if style.contains("text-align:center") { return true }
 
             return classes(of: node).contains(where: styles.centered.contains)
+        }
+
+        private func isRightAligned(_ node: Markup.Node) -> Bool {
+            let style = (node.attributes["style"] ?? "").lowercased().replacingOccurrences(of: " ", with: "")
+
+            if style.contains("text-align:right") { return true }
+
+            return classes(of: node).contains(where: styles.rightAligned.contains)
+        }
+
+        /// A passage the book holds off both edges: a long quotation, or a letter set into the text.
+        private func isInset(_ node: Markup.Node) -> Bool {
+            node.name == "blockquote" || classes(of: node).contains(where: styles.inset.contains)
         }
 
         private func isRightToLeft(_ node: Markup.Node) -> Bool {

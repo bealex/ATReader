@@ -60,7 +60,9 @@ public extension ChapterContent {
                     LinkMark(location: $0.location, length: $0.length, target: mark.target)
                 }
             },
-            anchor: paragraph.anchor
+            anchor: paragraph.anchor,
+            isRightAligned: paragraph.isRightAligned,
+            isInset: paragraph.isInset
         )
     }
 

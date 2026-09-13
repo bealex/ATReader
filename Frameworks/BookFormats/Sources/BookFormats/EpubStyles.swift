@@ -13,6 +13,9 @@ import Foundation
 /// epigraphs with a class and nothing else, so without this they arrive as ordinary paragraphs.
 struct EpubStyles {
     private(set) var centered: Set<String> = []
+    private(set) var rightAligned: Set<String> = []
+    /// Classes set in from both edges, which is how a book marks a passage quoted at length.
+    private(set) var inset: Set<String> = []
     private(set) var italic: Set<String> = []
     private(set) var bold: Set<String> = []
     private(set) var rightToLeft: Set<String> = []
@@ -52,6 +55,10 @@ struct EpubStyles {
 
             if body.contains("text-align:center") { centered.formUnion(names) }
 
+            if body.contains("text-align:right") { rightAligned.formUnion(names) }
+
+            if Self.isInset(body) { inset.formUnion(names) }
+
             if body.contains("font-style:italic") || body.contains("font-style:oblique") {
                 italic.formUnion(names)
             }
@@ -89,6 +96,29 @@ struct EpubStyles {
         }
 
         return names
+    }
+
+    /// True where a rule holds its block off both edges, which no ordinary paragraph does.
+    ///
+    /// Both sides, since one alone is an indent rather than a passage set apart, and a margin of
+    /// nothing is the rule saying the block keeps the measure.
+    private static func isInset(_ body: String) -> Bool {
+        guard
+            let left = value(of: "margin-left", in: body),
+            let right = value(of: "margin-right", in: body)
+        else { return false }
+
+        return left && right
+    }
+
+    /// Whether a property is set to something other than nothing.
+    private static func value(of property: String, in body: String) -> Bool? {
+        guard let found = body.range(of: property + ":") else { return nil }
+
+        let written = body[found.upperBound...].prefix { $0 != ";" && $0 != "}" }
+        let figure = written.prefix { $0.isNumber || $0 == "." || $0 == "-" }
+
+        return (Double(figure) ?? 0) > 0
     }
 
     private static let weights = [ "bold", "bolder", "600", "700", "800", "900" ]

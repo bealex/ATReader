@@ -432,7 +432,8 @@ public final class ColumnComposer {
         let drawn = ruler.characters(from: start, to: content) + (stop.drawsHyphen ? 1 : 0)
         let indent = isFirst ? ruler.firstLineIndent : ruler.headIndent
         let hang = fills ? hang(ruler, at: content, drawsHyphen: stop.drawsHyphen) : 0
-        let available = measure - indent + hang
+        // A passage held off the right edge is set to its own measure, not the page's.
+        let available = measure - ruler.tailIndent - indent + hang
         let slack = available - natural
         let gaps = max(0, ruler.gaps(from: start, to: content) - (holdsFirstGap ? 1 : 0))
         let letters = max(0, drawn - 1 - (holdsFirstGap ? 1 : 0))
@@ -563,7 +564,7 @@ public final class ColumnComposer {
             return Rules.squeezePenalty * Double(piece.fill.reach * piece.fill.reach)
         }
 
-        guard !piece.isLast else { return lastLineCost(piece) }
+        guard !piece.isLast else { return lastLineCost(piece, ruler: ruler) }
         guard
             piece.fills
         else {
@@ -584,8 +585,8 @@ public final class ColumnComposer {
     }
 
     /// A paragraph's last line takes whatever is left, but a stub of one reads as a mistake.
-    private func lastLineCost(_ piece: Candidate) -> Double {
-        let least = measure * Rules.shortestLastLine
+    private func lastLineCost(_ piece: Candidate, ruler: ParagraphRuler) -> Double {
+        let least = (measure - ruler.tailIndent) * Rules.shortestLastLine
 
         guard piece.start > 0, piece.natural < least else { return 0 }
 
@@ -659,9 +660,13 @@ public final class ColumnComposer {
     /// A line written from the right stands at that edge, its indent taken off that side, which leaves
     /// a line that fills the measure starting exactly where a left-to-right one would.
     private func origin(of piece: Candidate, drawn width: CGFloat, ruler: ParagraphRuler) -> CGFloat {
-        switch ruler.alignment {
-            case .center: piece.indent + (measure - piece.indent - width) / 2
-            default: ruler.isRightToLeft ? measure - piece.indent - width : piece.indent
+        // The edge this paragraph reaches to, which a quoted passage holds off from the page's own.
+        let held = measure - ruler.tailIndent
+
+        return switch ruler.alignment {
+            case .center: piece.indent + (held - piece.indent - width) / 2
+            case .right: held - width
+            default: ruler.isRightToLeft ? held - piece.indent - width : piece.indent
         }
     }
 
