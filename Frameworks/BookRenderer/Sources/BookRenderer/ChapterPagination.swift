@@ -79,6 +79,19 @@ public struct ChapterTextStyle: Equatable, Sendable {
     public func justifies(_ language: String?) -> Bool {
         Typography.isRussian(language) ? justifiesRussian : justifiesEnglish
     }
+
+    /// Whether a paragraph is told from the one before it by an indent rather than by air above it.
+    ///
+    /// The two traditions do it one way or the other and never both. Russian indents the first line and
+    /// leaves no gap; English parts its paragraphs with space and indents nothing.
+    public func indents(_ language: String?) -> Bool {
+        indentsParagraphs && Typography.isRussian(language)
+    }
+
+    /// The air under a paragraph, which is what parts them where nothing is indented.
+    public func paragraphGap(_ language: String?) -> CGFloat {
+        indents(language) ? 0 : fontSize * ChapterPagination.partedParagraphGap
+    }
 }
 
 /// The heading a chapter opens with.
@@ -155,10 +168,13 @@ public enum ChapterPagination {
         let result = NSMutableAttributedString()
         let font = style.font
         let bodyAlignment: NSTextAlignment = style.justifies(language) ? .justified : .natural
+        let indentsBody = style.indents(language)
+        let gap = style.paragraphGap(language)
+        let read = reading(paragraphs, under: heading)
 
-        append(heading, to: result, style: style)
+        append(read.heading, to: result, style: style)
         let headingLength = result.length
-        let paragraphs = withoutRepeatedHeading(paragraphs, heading: heading)
+        let paragraphs = read.paragraphs
         // Read once for the whole chapter: a paragraph's air depends on the titles it stands among.
         let levels = paragraphs.map(\.titleLevel)
         let opening = TitleBlock.opening(levels)
@@ -180,13 +196,13 @@ public enum ChapterPagination {
             // A title stands in the middle of the measure whether or not the book said so: left where
             // the paragraphs are, it reads as a line of text that lost its words.
             let isCentered = paragraph.isCentered || levels[index] != nil
-            let air = Self.spacing(at: index, opening: opening, closing: closing, style: style, font: font)
+            let air = Self.spacing(at: index, opening: opening, closing: closing, style: style, gap: gap)
             let paragraphStyle = NSMutableParagraphStyle()
             paragraphStyle.alignment = isCentered ? .center : bodyAlignment
             paragraphStyle.lineSpacing = style.lineSpacing
             paragraphStyle.paragraphSpacing = air.after
             paragraphStyle.paragraphSpacingBefore = air.before
-            paragraphStyle.firstLineHeadIndent = isCentered || !style.indentsParagraphs ? 0 : font.pointSize
+            paragraphStyle.firstLineHeadIndent = isCentered || !indentsBody ? 0 : font.pointSize
             paragraphStyle.lineBreakMode = .byWordWrapping
 
             place(paragraph, in: paragraphStyle, font: font)
@@ -204,8 +220,10 @@ public enum ChapterPagination {
                 paragraphStyle.usesDefaultHyphenation = true
             }
 
+            // A book that names its own chapters is left to name them, so those lines have to read as
+            // headings rather than as centred text that lost its face.
             var attributes: [NSAttributedString.Key: Any] = [
-                .font: font,
+                .font: levels[index].map { Self.titleFont($0, style: style) } ?? font,
                 .foregroundColor: style.textColor,
                 .paragraphStyle: paragraphStyle,
             ]
@@ -216,6 +234,7 @@ public enum ChapterPagination {
             result.append(NSAttributedString(string: paragraph.text + suffix, attributes: attributes))
             // Before the markers, which set a face of their own on the stretch they cover.
             emphasise(paragraph.styles, in: result, from: start)
+            connect(paragraph.links, in: result, from: start)
             mark(paragraph.notes, in: result, from: start, style: style)
             raise(paragraph.scripts, in: result, from: start, style: style)
         }
@@ -291,9 +310,8 @@ public enum ChapterPagination {
         opening: [Int?],
         closing: [Bool],
         style: ChapterTextStyle,
-        font: UIFont
+        gap: CGFloat
     ) -> (before: CGFloat, after: CGFloat) {
-        let gap = style.lineSpacing * 0.8
         let line = style.pageLine
         let air = opening[index].map { TitleBlock.air(forLevel: $0) } ?? 0
 
@@ -330,6 +348,28 @@ public enum ChapterPagination {
     ///
     /// The characters are the ones the text arrived with. A reading position is an offset into that
     /// text, so a marker renumbered here would move the reader's place in every book on the device.
+    /// Marks the stretches that point somewhere else in the book.
+    ///
+    /// Underlined rather than coloured: the page is set in one ink, and a second one would read as the
+    /// book's own rather than as the reader's.
+    private static func connect(_ links: [LinkMark], in text: NSMutableAttributedString, from start: Int) {
+        guard !links.isEmpty else { return }
+
+        for link in links {
+            let range = NSRange(location: start + link.location, length: link.length)
+
+            guard range.length > 0, NSMaxRange(range) <= text.length else { continue }
+
+            text.addAttributes(
+                [
+                    .bookLink: link.target,
+                    .underlineStyle: NSUnderlineStyle.single.rawValue,
+                ],
+                range: range
+            )
+        }
+    }
+
     private static func mark(
         _ notes: [NoteMark],
         in text: NSMutableAttributedString,
@@ -385,23 +425,41 @@ public enum ChapterPagination {
 
     /// Drops the chapter's own restatement of its heading.
     ///
-    /// A chapter usually arrives with its number and title as the first paragraphs of the body, and the
-    /// reader sets a heading of its own above that, so both are on the page. The body's version is the
-    /// one to lose: it is the same words in the body's own face.
+    /// Which heading the page shows, and what is left of the body under it.
     ///
-    /// The paragraphs are taken together rather than one at a time, since a heading the contents give as
-    /// one line often reaches the body as two. Each is dropped only while everything read so far is
-    /// still the opening of the heading, so a body that merely starts on the same word keeps it.
-    private static func withoutRepeatedHeading(
+    /// A chapter usually arrives with its number and title as the first paragraphs of the body, and the
+    /// reader sets a heading of its own above that, so both are on the page. Which one goes depends on
+    /// what the body wrote them as.
+    ///
+    /// Written as ordinary text, the body's copy is the one to lose: it is the same words in the body's
+    /// own face. Written as headings, the book is naming its own chapters, and then the reader's
+    /// heading is the one to lose: a book that sets out its divisions is left to set them out.
+    private static func reading(
         _ paragraphs: [Paragraph],
-        heading: ChapterHeading
-    ) -> [Paragraph] {
-        let wanted = plainWords(heading.spokenText)
+        under heading: ChapterHeading
+    ) -> (heading: ChapterHeading, paragraphs: [Paragraph]) {
+        let spoken = matched(paragraphs, against: plainWords(heading.spokenText))
 
-        guard !wanted.isEmpty else { return paragraphs }
+        if spoken > 0 { return (heading, Array(paragraphs.dropFirst(spoken))) }
+
+        let named = matched(paragraphs, against: plainWords(heading.title ?? ""))
+        // Only where the book wrote them as headings. A paragraph that merely opens on the same words
+        // is the text itself, and the chapter still wants a heading over it.
+        let isNamed = named > 0 && paragraphs.prefix(named).allSatisfy { $0.titleLevel != nil }
+
+        return isNamed ? (ChapterHeading(), paragraphs) : (heading, paragraphs)
+    }
+
+    /// How many of the opening blocks spell out the words wanted, or none where they do not.
+    ///
+    /// The blocks are taken together rather than one at a time, since a heading the contents give as one
+    /// line often reaches the body as two. Each counts only while everything read so far is still the
+    /// opening of what is wanted, so a body that merely starts on the same word matches nothing.
+    private static func matched(_ paragraphs: [Paragraph], against wanted: String) -> Int {
+        guard !wanted.isEmpty else { return 0 }
 
         var matched = ""
-        var dropped = 0
+        var count = 0
 
         for paragraph in paragraphs.prefix(repeatedHeadingLimit) {
             let words = plainWords(paragraph.text)
@@ -413,13 +471,34 @@ public enum ChapterPagination {
             guard wanted.hasPrefix(candidate) else { break }
 
             matched = candidate
-            dropped += 1
+            count += 1
 
-            if matched == wanted { break }
+            if matched == wanted { return count }
         }
 
-        return Array(paragraphs.dropFirst(dropped))
+        // Half a heading is not the heading: the words have to be spelled out in full.
+        return matched == wanted ? count : 0
     }
+
+    /// The face a title standing in the body is set in.
+    ///
+    /// A book that names its own chapters is left to name them, so those lines are set as headings
+    /// rather than as centred text. The air a title stands in is measured on top of this.
+    public static func titleFont(_ level: Int, style: ChapterTextStyle) -> UIFont {
+        let scale =
+            switch level {
+                case 1: bookTitleScale
+                case 2: chapterTitleScale
+                default: 1.0
+            }
+
+        return bold(style.face.font(size: style.fontSize * scale, weight: style.weight.uiWeight))
+    }
+
+    /// How far apart paragraphs stand where nothing indents them.
+    static let partedParagraphGap: CGFloat = 0.45
+    private static let bookTitleScale: CGFloat = 1.3
+    private static let chapterTitleScale: CGFloat = 1.15
 
     /// The words of a line, with everything that isn't one thrown away: case, punctuation, and the
     /// joiners and soft hyphens the typesetter puts in to control where a line may break.

@@ -45,9 +45,10 @@ Two rules follow from what real files turn out to look like:
   stub is the chapter's first line. Both names are kept: "CHAPTER 1. MY UNCLE MAKES A GREAT DISCOVERY".
   A piece carrying a paragraph is a chapter however short it runs, which keeps a one-line dedication a
   page of its own.
-- **A page whose lines are mostly titles the navigation also lists is the book's contents.** The app
-  draws a contents of its own, so a second one is dropped. The test is structural rather than the
-  page's name, which means it holds whatever language the book is in.
+- **A page most of whose words stand inside links into the book is its contents.** The app draws a
+  contents of its own, so a second one is dropped. A page whose lines are mostly titles the navigation
+  also lists goes the same way. Both tests read the shape of the page rather than its name, so they
+  hold whatever language the book is in.
 
 ## The reduction
 
@@ -62,9 +63,19 @@ Two rules follow from what real files turn out to look like:
 | `<img>`, and `<image>` inside an SVG cover | `<img>` pointing at the picture's place in the archive |
 | `<hr>` | the centred row of stars a scene break is drawn as |
 | a link into the book that reads as a marker | `<a href="#…">`, with the note carried into the chapter |
+| any other link into the book | `<a href="#…">`, and `data-anchor` on the block it lands on |
 | `<sub>`, `<sup>`, `<br>` | kept |
 
 Ids repeat across an EPUB's files, so a reference folds the document's own path in beside the id.
+
+A link of a few characters is a note's marker; anything longer is a place in the book. What tells the
+two apart afterwards is which of them something pointed at *as a note*: every short block standing
+under an id is remembered while a document is read, since a note may stand anywhere, but a block a
+link merely points at is a piece of the book and stays where it already is.
+
+Where a link lands is only known once the whole book has been looked at, because a chapter points as
+often to a page further on as to one already past. So the addresses are scanned out of the markup
+before anything is reduced, and only the blocks something actually points at are marked.
 
 `XMLParser` is not used. An EPUB's XHTML routinely names entities that only the HTML DTD ever declared,
 and `XMLParser` refuses the whole document over one. `Markup` scans instead: nothing in it throws, and

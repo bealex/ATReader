@@ -54,7 +54,13 @@ public extension ChapterContent {
                 }
             },
             listLevel: paragraph.listLevel,
-            isRightToLeft: paragraph.isRightToLeft
+            isRightToLeft: paragraph.isRightToLeft,
+            links: paragraph.links.compactMap { mark in
+                moved(mark.location, mark.length, among: places).map {
+                    LinkMark(location: $0.location, length: $0.length, target: mark.target)
+                }
+            },
+            anchor: paragraph.anchor
         )
     }
 

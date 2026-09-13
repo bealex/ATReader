@@ -110,6 +110,33 @@ Two things follow from putting characters into the text:
 A line broken at a soft hyphen counts as a hyphenated line for the page rules, which is what keeps a
 hyphen off the foot of a page. The page's accessibility label strips them.
 
+### Whose heading the page shows
+
+A chapter usually arrives with its number and title as the first paragraphs of the body, and the reader
+sets a heading of its own above that, so both are on the page. Which one goes depends on what the body
+wrote them as. Written as ordinary text, the body's copy is the one to lose: it is the same words in
+the body's own face. Written as headings, the book is naming its own chapters, and the reader's heading
+goes instead, since a book that sets out its divisions is left to set them out. A title standing in the
+body is set in a face of its own for that reason.
+
+### How a paragraph is told from the one before it
+
+By an indent or by the air above it, and the two traditions never mix. Russian indents the first line
+and leaves no gap between paragraphs; English parts its paragraphs with space and indents nothing.
+`ChapterTextStyle.indents(_:)` settles it from the language the chapter was read as, the way
+justification is already settled.
+
+### Links
+
+A stretch of words pointing somewhere else in the book is drawn underlined and carries where it points
+on its own glyph run, which is how a finger finds it without counting characters back through the soft
+hyphens the line was set with. Following one remembers where it was followed from, and the way back
+stands in the bottom corner for half a minute before it fades: a reader who was going to take it has
+taken it by then.
+
+Which chapter holds a given place is worked out once, behind the reading, by walking the book's
+chapters and noting every block that says what the book knows it by.
+
 A chapter opens with its number and title above the body, and `ChapterHeading` leaves the number out
 when the chapter's own title already carries one: "Chapter 4" over "Chapter 4. The Road" reads like a
 bug. The first chapter of a book is preceded by a title page carrying the cover, title, author and

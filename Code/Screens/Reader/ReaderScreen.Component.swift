@@ -55,6 +55,13 @@ enum ReaderScreen {
         @State
         private var isChromeHidden = true
 
+        /// True while the way back is on its way out.
+        @State
+        private var fading = false
+
+        @State
+        private var wayBackFade: Task<Void, Never>?
+
         /// The note a marker was tapped for, which carries where that marker stands so the aside can
         /// point at it.
         @State
@@ -131,6 +138,9 @@ enum ReaderScreen {
                     navigator.aboutToGo = { [weak reader] in reader?.flushPosition() }
                 }
                 .task { await model?.loadIfNeeded() }
+                // Where every link in the book lands, worked out behind the reading rather than when a
+                // link is first tapped.
+                .task { await model?.readPlaces() }
                 // Where the reader stopped is worth writing the moment they stop: an app on its way to
                 // the background will not run a task that is still waiting.
                 .onChange(of: scenePhase) { _, phase in
@@ -204,7 +214,7 @@ enum ReaderScreen {
                 hasPageAfter: value.hasPageAfter,
                 onPastEnd: value.goToNextChapter,
                 onPastStart: value.goToPreviousChapter,
-                onPageTap: { point in show(value.note(at: point)) },
+                onPageTap: { point in follow(point, in: value) },
                 onPickOut: { start, finish in value.pickOut(from: start, to: finish) },
                 onPickedOut: { withAnimation(CalloutMotion.showing) { picked = value.picked } },
                 isCovered: value.picked != nil || note != nil,
@@ -221,6 +231,9 @@ enum ReaderScreen {
             // Over the page and in its coordinates, so the controls and the running head are placed
             // from the same edge of the screen.
             .overlay(alignment: .top) { controls }
+            // In the page's own coordinates, so it stands clear of the corner whatever the page does
+            // with the safe area.
+            .overlay(alignment: .bottomLeading) { wayBack(model.wrappedValue) }
             // Drawn text is invisible to VoiceOver, so a marker cannot be touched. The page offers its
             // notes as actions of its own instead.
             .accessibilityActions {
@@ -266,6 +279,58 @@ enum ReaderScreen {
         }
 
         /// Opens a note where one was tapped. Reports whether there was one, since the page turns if not.
+        /// A tap on the page: a note's marker first, since it is the smaller target, then a link.
+        private func follow(_ point: CGPoint, in model: Model) -> Bool {
+            if show(model.note(at: point)) { return true }
+
+            guard let target = model.link(at: point) else { return false }
+
+            model.follow(target)
+            offerTheWayBack()
+            return true
+        }
+
+        /// The way back stands for half a minute and then fades, since a reader who was going to take
+        /// it has taken it by then, and one who read on should not be read to over.
+        private func offerTheWayBack() {
+            fading = false
+            wayBackFade?.cancel()
+            wayBackFade = Task { @MainActor in
+                try? await Task.sleep(for: .seconds(Self.wayBackStands))
+
+                guard !Task.isCancelled else { return }
+
+                withAnimation(.easeInOut(duration: Self.wayBackFade)) { fading = true }
+                try? await Task.sleep(for: .seconds(Self.wayBackFade))
+
+                guard !Task.isCancelled else { return }
+
+                model?.forgetTheWayBack()
+            }
+        }
+
+        @ViewBuilder
+        private func wayBack(_ model: Model) -> some View {
+            if model.wayBack != nil {
+                GlassRow {
+                    Button("Back to where you were", systemImage: "arrow.uturn.backward") {
+                        wayBackFade?.cancel()
+                        model.goBack()
+                    }
+                    .accessibilityIdentifier("reader.wayBack")
+                    .accessibilityHint("Returns to the page the link was followed from")
+                }
+                .padding(.leading, Design.Space.extraLarge)
+                .padding(.bottom, Design.Space.extraLarge)
+                .opacity(fading ? 0 : 1)
+                .transition(.opacity)
+            }
+        }
+
+        /// How long the way back stands before it starts to go.
+        private static let wayBackStands: Double = 30
+        private static let wayBackFade: Double = 1.5
+
         private func show(_ found: Model.TappedNote?) -> Bool {
             guard let found else { return false }
 

@@ -100,7 +100,7 @@ public final class ChapterLayout {
     /// Measurements are kept against the setting they were made at, and the setting alone says nothing
     /// about the rules that read it. Without this, changing how far a mark hangs would leave every book
     /// on the device showing the breaks an older layout chose.
-    public nonisolated static let rulesVersion = "19"
+    public nonisolated static let rulesVersion = "20"
 
     public enum Rules {
         /// Lines that have to follow a heading rather than leaving it stranded at the foot of a page.
@@ -545,6 +545,61 @@ public final class ChapterLayout {
                 id: found.id,
                 rect: CGRect(x: origin + found.start, y: cursor, width: found.width, height: lines[line].height)
             )
+        }
+
+        return nil
+    }
+
+    /// The link a finger found on a page, or nothing where it landed on ordinary words.
+    public func link(at point: CGPoint, onPage index: Int) -> LinkHit? {
+        guard pages.indices.contains(index) else { return nil }
+
+        let page = pages[index]
+        var cursor = context.textRect.minY + (index == 0 ? startOffset : 0)
+
+        for line in page.lines {
+            let allotted = lines[line].height + (lines[line].image != nil ? page.imagePadding * 2 : 0)
+
+            defer { cursor += allotted + page.leading }
+
+            guard point.y >= cursor, point.y < cursor + allotted, let drawn = drawnLine(line) else { continue }
+
+            let origin = context.textRect.minX + lines[line].origin
+
+            guard let found = link(at: point.x - origin, in: drawn) else { return nil }
+
+            return LinkHit(
+                target: found.target,
+                rect: CGRect(x: origin + found.start, y: cursor, width: found.width, height: lines[line].height)
+            )
+        }
+
+        return nil
+    }
+
+    /// A link found in a line: where it points, and where along the line its words stand.
+    private struct FoundLink {
+        var target: String
+        var start: CGFloat
+        var width: CGFloat
+    }
+
+    /// A link runs across a phrase rather than standing on one glyph, so what is asked is whether the
+    /// finger fell inside its words rather than how near it came to their middle.
+    private func link(at distance: CGFloat, in line: CTLine) -> FoundLink? {
+        guard let runs = CTLineGetGlyphRuns(line) as? [CTRun] else { return nil }
+
+        for glyphs in runs {
+            let attributes = CTRunGetAttributes(glyphs) as NSDictionary
+
+            guard let target = attributes[NSAttributedString.Key.bookLink] as? String else { continue }
+
+            let width = CGFloat(CTRunGetTypographicBounds(glyphs, CFRange(location: 0, length: 0), nil, nil, nil))
+            let start = CTLineGetOffsetForStringIndex(line, CTRunGetStringRange(glyphs).location, nil)
+
+            if distance >= start, distance <= start + width {
+                return FoundLink(target: target, start: start, width: width)
+            }
         }
 
         return nil

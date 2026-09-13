@@ -85,6 +85,24 @@ public struct StyleMark: Codable, Sendable, Hashable {
     public var range: NSRange { NSRange(location: location, length: length) }
 }
 
+/// A stretch of a paragraph that points somewhere else in the book.
+///
+/// Counted the way a note marker is, in the characters the text arrived with. What it points at is the
+/// name the whole book knows that place by, which is what an anchor on some other block answers to.
+public struct LinkMark: Codable, Sendable, Hashable {
+    public let location: Int
+    public let length: Int
+    public let target: String
+
+    public init(location: Int, length: Int, target: String) {
+        self.location = location
+        self.length = length
+        self.target = target
+    }
+
+    public var range: NSRange { NSRange(location: location, length: length) }
+}
+
 /// One laid-out block of a chapter: a paragraph of text, or a picture standing on its own.
 public struct Paragraph: Codable, Sendable, Identifiable, Hashable {
     public let id: Int
@@ -108,6 +126,11 @@ public struct Paragraph: Codable, Sendable, Identifiable, Hashable {
     public let listLevel: Int?
     /// The block is written from the right, which sets it and turns its pages the other way round.
     public let isRightToLeft: Bool
+    /// The places in this block that point elsewhere in the book, in the order they stand in it.
+    public let links: [LinkMark]
+    /// What the book knows this block by, where something in it points here. A link lands on a block
+    /// rather than on a letter, which is as near as a reader needs to be put.
+    public let anchor: String?
 
     public init(
         id: Int,
@@ -119,7 +142,9 @@ public struct Paragraph: Codable, Sendable, Identifiable, Hashable {
         scripts: [ScriptMark] = [],
         styles: [StyleMark] = [],
         listLevel: Int? = nil,
-        isRightToLeft: Bool = false
+        isRightToLeft: Bool = false,
+        links: [LinkMark] = [],
+        anchor: String? = nil
     ) {
         self.id = id
         self.text = text
@@ -131,6 +156,8 @@ public struct Paragraph: Codable, Sendable, Identifiable, Hashable {
         self.styles = styles
         self.listLevel = listLevel
         self.isRightToLeft = isRightToLeft
+        self.links = links
+        self.anchor = anchor
     }
 
     public init(from decoder: any Decoder) throws {
@@ -148,6 +175,8 @@ public struct Paragraph: Codable, Sendable, Identifiable, Hashable {
         styles = try container.decodeIfPresent([ StyleMark ].self, forKey: .styles) ?? []
         listLevel = try container.decodeIfPresent(Int.self, forKey: .listLevel)
         isRightToLeft = try container.decodeIfPresent(Bool.self, forKey: .isRightToLeft) ?? false
+        links = try container.decodeIfPresent([ LinkMark ].self, forKey: .links) ?? []
+        anchor = try container.decodeIfPresent(String.self, forKey: .anchor)
     }
 
     public var isImage: Bool { imageSource != nil }
@@ -188,6 +217,19 @@ public enum BookHTML {
         guard let found = attributes.range(of: "data-list=\"[1-9]\"", options: .regularExpression) else { return nil }
 
         return Int(attributes[found].suffix(2).prefix(1))
+    }
+
+    /// What the book knows this block by, where something in it points here.
+    private static func anchor(inside attributes: String) -> String? {
+        guard
+            let found = attributes.range(of: "data-anchor=\"[^\"]+\"", options: .regularExpression)
+        else {
+            return nil
+        }
+
+        let value = attributes[found].dropFirst("data-anchor=\"".count).dropLast()
+
+        return value.isEmpty ? nil : String(value)
     }
 
     /// True where the block says it is written from the right.
@@ -402,7 +444,9 @@ public enum BookHTML {
                         scripts: read.scripts,
                         styles: read.styles,
                         listLevel: listLevel(inside: attributes),
-                        isRightToLeft: isRightToLeft(inside: attributes)
+                        isRightToLeft: isRightToLeft(inside: attributes),
+                        links: read.links,
+                        anchor: anchor(inside: attributes)
                     ))
                     index += 1
             }
@@ -426,6 +470,9 @@ public enum BookHTML {
     /// because no book contains one and neither step touches them.
     private static let markerOpen: Character = "\u{E000}"
     private static let markerClose: Character = "\u{E001}"
+    /// The same fencing for a link, which is a stretch of words rather than a marker beside them.
+    private static let linkOpen: Character = "\u{E00A}"
+    private static let linkClose: Character = "\u{E00B}"
     /// A stretch of a paragraph its markup sets apart, before the markup is gone.
     private enum Run: Hashable {
         case script(ScriptMark.Place)
@@ -499,6 +546,7 @@ public enum BookHTML {
         var marks: [NoteMark]
         var scripts: [ScriptMark] = []
         var styles: [StyleMark] = []
+        var links: [LinkMark] = []
     }
 
     /// One paragraph's text, with the note markers in it found and placed.
@@ -510,6 +558,7 @@ public enum BookHTML {
         let fragment = fencing(in: fragment)
         var fenced = ""
         var ids: [String] = []
+        var targets: [String] = []
         var cursor = fragment.startIndex
 
         while let anchor = anchor(in: fragment, from: cursor) {
@@ -531,7 +580,14 @@ public enum BookHTML {
             guard
                 let id
             else {
-                fenced += fragment[anchor.range]
+                // Pointing somewhere in the book that is not a note: a link, which the reader follows.
+                if let target = anchor.target, !anchor.inner.isEmpty {
+                    targets.append(target)
+                    fenced += String(linkOpen) + anchor.inner + String(linkClose)
+                } else {
+                    fenced += fragment[anchor.range]
+                }
+
                 continue
             }
 
@@ -543,9 +599,11 @@ public enum BookHTML {
 
         let flattened = plainText(from: fenced)
 
-        guard !ids.isEmpty || flattened.contains(where: isFence) else { return ReadText(text: flattened, marks: []) }
+        guard
+            !ids.isEmpty || !targets.isEmpty || flattened.contains(where: isFence)
+        else { return ReadText(text: flattened, marks: []) }
 
-        return placing(ids, in: flattened, notes: &notes)
+        return placing(ids, targets: targets, in: flattened, notes: &notes)
     }
 
     private static func isFence(_ character: Character) -> Bool {
@@ -576,10 +634,40 @@ public enum BookHTML {
         return result
     }
 
+    /// The places a paragraph points at, gathered as its fences are met.
+    ///
+    /// The targets were collected in the order their links were read, so each close takes the next one.
+    private struct Links {
+        private let targets: [String]
+        private var start: Int?
+        private var index = 0
+
+        private(set) var marks: [LinkMark] = []
+
+        init(_ targets: [String]) { self.targets = targets }
+
+        mutating func opened(at length: Int) { start = length }
+
+        mutating func closed(at length: Int) {
+            defer { index += 1 }
+
+            guard let from = start, index < targets.count, length > from else { return }
+
+            marks.append(LinkMark(location: from, length: length - from, target: targets[index]))
+            start = nil
+        }
+    }
+
     /// Reads the fenced markers back out of the flattened text, and records where each one landed.
-    private static func placing(_ ids: [String], in text: String, notes: inout [String: BookNote]) -> ReadText {
+    private static func placing(
+        _ ids: [String],
+        targets: [String],
+        in text: String,
+        notes: inout [String: BookNote]
+    ) -> ReadText {
         var result = ""
         var marks: [NoteMark] = []
+        var links = Links(targets)
         var runs = Runs()
         var length = 0
         var start: Int?
@@ -605,6 +693,10 @@ public enum BookHTML {
                     }
 
                     start = nil
+                case linkOpen:
+                    links.opened(at: length)
+                case linkClose:
+                    links.closed(at: length)
                 default:
                     guard !runs.took(character, at: length) else { continue }
 
@@ -614,7 +706,7 @@ public enum BookHTML {
             }
         }
 
-        return ReadText(text: result, marks: marks, scripts: runs.scripts, styles: runs.styles)
+        return ReadText(text: result, marks: marks, scripts: runs.scripts, styles: runs.styles, links: links.marks)
     }
 
     /// A note that opens by repeating its own figure, with that figure taken off.

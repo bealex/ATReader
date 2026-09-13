@@ -45,6 +45,9 @@ public struct EpubFormat: BookFormat {
 
         let styles = EpubStyles.read(package, from: archive)
         let navigation = EpubNavigation.read(package, from: archive)
+        // Read before anything is reduced: a chapter links as often to a page further on as to one
+        // already past, so where a link lands is only known once the whole book has been looked at.
+        let anchors = self.anchors(of: package, in: archive)
         var read: [(item: EpubPackage.Item, content: EpubContent)] = []
 
         for item in package.spine where item.isDocument {
@@ -59,7 +62,8 @@ public struct EpubFormat: BookFormat {
                     path: item.path,
                     styles: styles,
                     readsRightToLeft: package.readsRightToLeft,
-                    divisions: Set(navigation.entries(forPath: item.path).compactMap(\.fragment))
+                    divisions: Set(navigation.entries(forPath: item.path).compactMap(\.fragment)),
+                    anchors: anchors
                 )
             ))
         }
@@ -89,14 +93,49 @@ public struct EpubFormat: BookFormat {
         )
     }
 
+    /// Every place in the book something points at, by the name the whole book knows it by.
+    ///
+    /// Scanned out of the markup rather than read off a tree, since this runs before the documents are
+    /// parsed and all it wants is which addresses are written down anywhere at all.
+    private static func anchors(of package: EpubPackage, in archive: ZipReader) -> Set<String> {
+        var found: Set<String> = []
+
+        for item in package.spine where item.isDocument {
+            guard let text = archive.text(named: item.path) else { continue }
+
+            let base = (item.path as NSString).deletingLastPathComponent
+            var cursor = text.startIndex
+
+            while let mark = text.range(of: "href=\"", range: cursor ..< text.endIndex) {
+                cursor = mark.upperBound
+
+                let href = String(text[mark.upperBound...].prefix { $0 != "\"" })
+                let pieces = href.split(separator: "#", maxSplits: 1, omittingEmptySubsequences: false)
+
+                guard !href.contains("://"), pieces.count == 2, !pieces[1].isEmpty else { continue }
+
+                let target = pieces[0].isEmpty ? item.path : EpubPackage.resolve(String(pieces[0]), against: base)
+
+                found.insert(EpubContent.reference(path: target, fragment: String(pieces[1])))
+            }
+        }
+
+        return found
+    }
+
     /// Every note the book holds, wherever in it the note stands.
     ///
     /// A file keeps its notes beside the text that points at them, at the end of the chapter, or in a
     /// document of its own after every chapter. All three read the same once the whole book has been
     /// through the reduction, which is why the notes are gathered before any chapter is made.
     private static func notes(in read: [(item: EpubPackage.Item, content: EpubContent)]) -> [String: String] {
-        read.reduce(into: [String: String]()) { result, each in
-            result.merge(each.content.marked) { first, _ in first }
+        // Only the places something pointed at as a note. Every short block standing under an id is
+        // remembered while a document is read, since a note may be anywhere in the book, but a block
+        // a link merely points at is a piece of the book and belongs where it already stands.
+        let wanted = read.reduce(into: Set<String>()) { $0.formUnion($1.content.references) }
+
+        return read.reduce(into: [String: String]()) { result, each in
+            result.merge(each.content.marked.filter { wanted.contains($0.key) }) { first, _ in first }
         }
     }
 

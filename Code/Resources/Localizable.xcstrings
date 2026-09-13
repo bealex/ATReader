@@ -436,6 +436,17 @@
         }
       }
     },
+    "Back to where you were": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Назад, откуда вы пришли"
+          }
+        }
+      }
+    },
     "Back up now": {
       "extractionState": "manual",
       "localizations": {
@@ -2858,6 +2869,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Результаты"
+          }
+        }
+      }
+    },
+    "Returns to the page the link was followed from": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Возвращает на страницу, с которой вы перешли по ссылке"
           }
         }
       }

@@ -19,6 +19,8 @@ struct EpubContent {
     var pictures: Set<String> = []
     /// The notes this document points at, under the name the whole book knows them by.
     var references: Set<String> = []
+    /// Every place in the book this document points at, its notes among them.
+    var links: Set<String> = []
     /// Text this document holds under an id, which is what a note pointing at it will want.
     var marked: [String: String] = [:]
     /// The document's own opening heading, for a book whose navigation named nothing.
@@ -49,14 +51,16 @@ struct EpubContent {
         path: String,
         styles: EpubStyles,
         readsRightToLeft: Bool,
-        divisions: Set<String> = []
+        divisions: Set<String> = [],
+        anchors: Set<String> = []
     ) -> EpubContent {
         var reducer = Reducer(
             path: path,
             base: (path as NSString).deletingLastPathComponent,
             styles: styles,
             readsRightToLeft: readsRightToLeft,
-            divisions: divisions
+            divisions: divisions,
+            anchors: anchors
         )
 
         reducer.read(document.first("body") ?? document)
@@ -74,6 +78,8 @@ struct EpubContent {
         let readsRightToLeft: Bool
         /// The ids the book's own navigation points at, which are where its chapters begin.
         let divisions: Set<String>
+        /// The places anything in the book links to, which are the only ones worth marking.
+        let anchors: Set<String>
 
         private(set) var content = EpubContent()
 
@@ -96,6 +102,8 @@ struct EpubContent {
         /// A chapter starts at the next block written down. Held rather than acted on at once, because
         /// what the navigation points at is as often the element wrapping a heading as the heading.
         private var division: String?
+        /// A place something in the book points at, held until the block that will carry it is closed.
+        private var landing: String?
 
         mutating func read(_ body: Markup.Node) {
             var frame = Frame(isRightToLeft: readsRightToLeft)
@@ -235,12 +243,16 @@ struct EpubContent {
 
             walk(children: node, in: frame)
 
-            let isNote = node.isMarked("noteref") || plain.count - before <= Self.longestMarker
-
-            guard isNote, buffer.endIndex > start else { return }
+            guard buffer.endIndex > start else { return }
 
             buffer.replaceSubrange(start..., with: "<a href=\"#\(name)\">\(buffer[start...])</a>")
-            content.references.insert(name)
+            content.links.insert(name)
+
+            // A link of a few characters is a note's marker. Anything longer is a place in the book,
+            // and the reader follows it rather than showing it in an aside.
+            if node.isMarked("noteref") || plain.count - before <= Self.longestMarker {
+                content.references.insert(name)
+            }
         }
 
         private mutating func picture(_ node: Markup.Node, in frame: Frame) {
@@ -304,17 +316,30 @@ struct EpubContent {
 
         /// Notes on the block being written that a chapter starts at it, and gives the mark up.
         private mutating func opening() -> String {
-            guard let division else { return "" }
+            var written = ""
 
-            self.division = nil
-            return " data-cut=\"\(Self.escaped(division))\" "
+            if let division {
+                self.division = nil
+                written += " data-cut=\"\(Self.escaped(division))\""
+            }
+
+            if let landing {
+                self.landing = nil
+                written += " data-anchor=\"\(Self.escaped(landing))\""
+            }
+
+            return written.isEmpty ? "" : written + " "
         }
 
         /// Remembers that the navigation names this element as the head of a chapter.
         private mutating func divide(_ node: Markup.Node) {
-            guard let id = node.attributes["id"], divisions.contains(id) else { return }
+            guard let id = node.attributes["id"] else { return }
 
-            division = id
+            if divisions.contains(id) { division = id }
+
+            let name = EpubContent.reference(path: path, fragment: id)
+
+            if anchors.contains(name) { landing = name }
         }
 
         private func centred(_ frame: Frame) -> Frame {

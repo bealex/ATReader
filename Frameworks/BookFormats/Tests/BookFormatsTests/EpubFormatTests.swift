@@ -136,6 +136,40 @@ struct EpubFormatTests {
         #expect(book.sections.last?.title == "Hotel")
     }
 
+    @Test
+    func marksTheBlockALinkLandsOn() throws {
+        let chapter = """
+            <h1>Papa</h1>
+            <p>Turn to <a href="second.xhtml#far">the second chapter</a> for the rest.</p>
+            """
+        let second = "<h1>Hotel</h1><p id=\"far\">The place it points at.</p>"
+        let book = try EpubFormat.parse(Self.archive(first: chapter, second: second))
+        let read = BookHTML.chapter(from: book.sections[0].html)
+        let landing = BookHTML.paragraphs(from: book.sections[1].html)
+
+        let target = try #require(read.paragraphs.compactMap(\.links.first).first?.target)
+
+        #expect(landing.contains { $0.anchor == target })
+    }
+
+    @Test
+    func leavesAnOutwardLinkAsPlainWords() throws {
+        let chapter = "<h1>Papa</h1><p>See <a href=\"https://example.com\">a website</a> instead.</p>"
+        let book = try EpubFormat.parse(Self.archive(first: chapter))
+        let read = BookHTML.chapter(from: book.sections[0].html)
+
+        #expect(read.paragraphs.allSatisfy { $0.links.isEmpty })
+        #expect(read.paragraphs.contains { $0.text.contains("a website") })
+    }
+
+    @Test
+    func dropsAPageThatIsMostlyLinksIntoTheBook() throws {
+        let listed = (1 ... 8).map { "<p><a href=\"second.xhtml#c\($0)\">Chapter \($0) of the book</a></p>" }
+        let book = try EpubFormat.parse(Self.archive(first: "<h1>Papa</h1>" + listed.joined()))
+
+        #expect(!book.sections.contains { $0.title == "Golf" })
+    }
+
     // MARK: - Which way the book reads
 
     @Test
@@ -236,6 +270,7 @@ struct EpubFormatTests {
         metadata: String = "",
         progression: String = "ltr",
         first: String = "<h1>Golf</h1><p>The first chapter of it.</p>",
+        second: String = "<h1>Hotel</h1><p>The second chapter of it.</p>",
         css: String = "",
         navigation: [(String, String)] = [ ("first.xhtml", "Golf"), ("second.xhtml", "Hotel") ],
         extra: [Zip.File] = [],
@@ -269,7 +304,7 @@ struct EpubFormatTests {
             ),
             Zip.File("OEBPS/book.css", css),
             Zip.File("OEBPS/first.xhtml", document(first)),
-            Zip.File("OEBPS/second.xhtml", document("<h1>Hotel</h1><p>The second chapter of it.</p>")),
+            Zip.File("OEBPS/second.xhtml", document(second)),
         ]
 
         return Zip.archive(files + extra, wide: wide)

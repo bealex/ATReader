@@ -52,6 +52,8 @@ struct EpubBooksTests {
     func describesEveryBookOnHand() throws {
         for url in Self.files {
             let parsed = try EpubFormat.parse(Data(contentsOf: url))
+            let links = Self.count(of: Self.linkNeedle, in: parsed)
+            let anchors = Self.count(of: "data-anchor=", in: parsed)
 
             print(
                 """
@@ -65,6 +67,8 @@ struct EpubBooksTests {
                   cover      \(parsed.cover.map { "\($0.count) bytes" } ?? "—")
                   pictures   \(parsed.images.count)
                   chapters   \(parsed.sections.count)
+                  links      \(links)
+                  anchors    \(anchors)
                   characters \(parsed.sections.reduce(0) { $0 + $1.textLength })
                 """
             )
@@ -94,6 +98,14 @@ struct EpubBooksTests {
         let found = try? FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil)
 
         return (found ?? []).filter { $0.pathExtension.lowercased() == "epub" }.sorted { $0.path < $1.path }
+    }
+
+    /// What a link into the book is written as, kept out of the interpolation above it.
+    private static let linkNeedle = "href=\"#"
+
+    /// How often something appears across the whole book, for looking at what a reduction produced.
+    private static func count(of needle: String, in book: ParsedBook) -> Int {
+        book.sections.reduce(0) { $0 + $1.html.components(separatedBy: needle).count - 1 }
     }
 
     private static func pictures(in html: String) -> [String] {

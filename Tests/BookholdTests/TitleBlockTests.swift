@@ -75,6 +75,11 @@ struct TitleBlockTests {
         #expect(read.map(\.titleLevel) == [ nil ])
     }
 
+    /// The face a title of this level is set in, which its line is measured against.
+    private static func titleLine(_ level: Int) -> UIFont {
+        ChapterPagination.titleFont(level, style: context.style)
+    }
+
     // MARK: - What the page does with it
 
     /// A subtitle takes six lines above it and two below, measured against an ordinary paragraph.
@@ -93,8 +98,11 @@ struct TitleBlockTests {
         }
 
         let air = (TitleBlock.air(forLevel: 2) + TitleBlock.gap(after: TitleBlock.air(forLevel: 2))) * line
+        // A title is set in a face of its own, so its line is taller than an ordinary one before any
+        // air is added to it.
+        let taller = Self.titleLine(2).lineHeight - Self.context.style.font.lineHeight
 
-        #expect(abs(title.height - ordinary.height - air) < 0.5)
+        #expect(abs(title.height - ordinary.height - air - taller) < 0.5)
     }
 
     /// The air stands over the title rather than under it.
@@ -115,7 +123,9 @@ struct TitleBlockTests {
             return
         }
 
-        #expect(abs(title.baseline - ordinary.baseline - TitleBlock.air(forLevel: 2) * line) < 0.5)
+        let lifted = Self.titleLine(2).ascender - Self.context.style.font.ascender
+
+        #expect(abs(title.baseline - ordinary.baseline - TitleBlock.air(forLevel: 2) * line - lifted) < 0.5)
     }
 
     /// A chapter's own heading keeps two lines of its air where the chapter starts a page: the twelve

@@ -3,12 +3,42 @@
 //  Licensed under the MIT License. See LICENSE in the repository root.
 //
 
+import Foundation
 import Testing
 
 @testable import BookKit
 
 /// The fixtures below are generated nonsense — the service's own payloads never enter the repository.
 struct BookHTMLTests {
+    @Test
+    func readsALinkAndWhereItLands() {
+        let html = """
+            <p>See <a href="#place">the second part</a> for more.</p>
+            <p data-anchor="place">The second part.</p>
+            """
+        let read = BookHTML.chapter(from: html)
+
+        #expect(read.paragraphs.count == 2)
+
+        let link = read.paragraphs[0].links.first
+
+        #expect(link?.target == "place")
+        #expect(link.map { (read.paragraphs[0].text as NSString).substring(with: $0.range) } == "the second part")
+        #expect(read.paragraphs[1].anchor == "place")
+        // A link is not a note: nothing is lifted out of the text and shown beside it.
+        #expect(read.notes.isEmpty)
+    }
+
+    @Test
+    func keepsAMarkerANoteRatherThanALink() {
+        let html = "<p>Alpha<a href=\"#n1\">1</a> bravo.</p><div id=\"n1\">The note itself.</div>"
+        let read = BookHTML.chapter(from: html)
+
+        #expect(read.notes.count == 1)
+        #expect(read.paragraphs[0].links.isEmpty)
+        #expect(read.paragraphs[0].notes.count == 1)
+    }
+
     @Test
     func splitsParagraphsAndDropsMarkup() {
         let html = "<p>Alpha <em>bravo</em> charlie.</p><p>Delta&nbsp;echo &mdash; foxtrot.</p>"

@@ -36,6 +36,10 @@ enum EpubSections {
     private static func isContents(_ section: ParsedBook.Section, named: Set<String>) -> Bool {
         guard section.textLength < longestContents else { return false }
 
+        // Most of its words standing inside links into the book. No chapter reads like that, and it
+        // holds whatever the book is called and whatever language it is in.
+        if linkedShare(of: section) >= contentsShare { return true }
+
         let lines = blocks(in: section.html)
 
         guard lines.count >= fewestContentsLines else { return false }
@@ -43,6 +47,30 @@ enum EpubSections {
         let listed = lines.filter { named.contains(folded($0)) }.count
 
         return Double(listed) / Double(lines.count) >= contentsShare
+    }
+
+    /// How much of a piece's text stands inside a link into the book.
+    private static func linkedShare(of section: ParsedBook.Section) -> Double {
+        guard section.textLength > 0 else { return 0 }
+
+        var linked = 0
+        var count = 0
+        var cursor = section.html.startIndex
+
+        while let open = section.html.range(of: "<a href=\"#", range: cursor ..< section.html.endIndex) {
+            guard
+                let opened = section.html.range(of: ">", range: open.upperBound ..< section.html.endIndex),
+                let closed = section.html.range(of: "</a>", range: opened.upperBound ..< section.html.endIndex)
+            else { break }
+
+            linked += stripped(section.html[opened.upperBound ..< closed.lowerBound]).count
+            count += 1
+            cursor = closed.upperBound
+        }
+
+        guard count >= fewestContentsLines else { return 0 }
+
+        return Double(linked) / Double(section.textLength)
     }
 
     /// A title as it is compared: its case, its spacing and its punctuation are all a publisher's

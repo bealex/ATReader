@@ -395,6 +395,79 @@ extension ReaderScreen {
         ///
         /// Asked before the page turns: a marker is far smaller than the turning zone it stands in,
         /// so the zone would swallow every tap meant for one.
+        /// Where the reader was standing before a link took them somewhere else, while the way back is
+        /// still being offered.
+        private(set) var wayBack: Place?
+
+        /// One place in the book: a chapter, and how far into its own text.
+        struct Place: Equatable {
+            let chapterId: Int
+            let offset: Int
+        }
+
+        /// Every place the book points at, by the name its links use. Read once, in the background,
+        /// since a link is as often to a chapter further on as to one already behind.
+        private var places: [String: Place] = [:]
+        private var isReadingPlaces = false
+
+        /// Follows a link, remembering where it was followed from.
+        func follow(_ target: String) {
+            guard let place = places[target] else { return }
+
+            wayBack = currentChapterId.map { Place(chapterId: $0, offset: storedOffset) }
+            open(chapterId: place.chapterId, anchor: .offset(place.offset))
+        }
+
+        /// Goes back to where the last link was followed from, and stops offering to.
+        func goBack() {
+            guard let place = wayBack else { return }
+
+            wayBack = nil
+            open(chapterId: place.chapterId, anchor: .offset(place.offset))
+        }
+
+        /// Stops offering the way back, for a reader who has read on instead of taking it.
+        func forgetTheWayBack() { wayBack = nil }
+
+        /// Reads where every place the book points at stands.
+        ///
+        /// A link names a place rather than a chapter, so following one means knowing which chapter
+        /// holds it. Nothing else in the app needs that, so it is worked out once and kept.
+        func readPlaces() async {
+            guard !isReadingPlaces, places.isEmpty else { return }
+
+            isReadingPlaces = true
+
+            defer { isReadingPlaces = false }
+
+            for chapter in readableChapters {
+                guard let content = await content(for: chapter.id) else { continue }
+
+                var offset = 0
+
+                for paragraph in content.paragraphs {
+                    if let anchor = paragraph.anchor, places[anchor] == nil {
+                        places[anchor] = Place(chapterId: chapter.id, offset: offset)
+                    }
+
+                    offset += (paragraph.text as NSString).length + 1
+                }
+
+                await Task.yield()
+            }
+        }
+
+        /// The link a finger found on the page, or nothing where it landed on ordinary words.
+        func link(at point: CGPoint) -> String? {
+            guard case let .text(pieces) = page(at: currentPage) else { return nil }
+
+            for piece in pieces {
+                if let found = piece.layout.link(at: point, onPage: piece.page) { return found.target }
+            }
+
+            return nil
+        }
+
         func note(at point: CGPoint) -> TappedNote? {
             guard case let .text(pieces) = page(at: currentPage) else { return nil }
 
