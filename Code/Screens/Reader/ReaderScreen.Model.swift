@@ -19,8 +19,6 @@ extension ReaderScreen {
             case first
             /// A page counted from the start of the chapter's own text.
             case page(Int)
-            /// The last page this chapter has to itself: not the one the next chapter starts on.
-            case lastOfItsOwn
             /// The character the reader stopped on, which survives a change of font.
             case offset(Int)
         }
@@ -218,27 +216,6 @@ extension ReaderScreen {
 
         /// What the title page is kept as, being the one page with no text of its own behind it.
         static let titlePageOffset = -1
-
-        /// True when this chapter begins part-way down the page the one before it ended on.
-        private var runsOnFromPrevious: Bool { (layout?.startOffset ?? 0) > 0 }
-
-        /// True when the chapter after this one begins on this chapter's last page.
-        ///
-        /// Read from the book's own measurements rather than from the neighbour's layout, so it is
-        /// already known before that neighbour has been laid out.
-        private var nextRunsOn: Bool {
-            guard let next = nextChapter else { return false }
-
-            // Where both have been laid out, the layouts answer: they are what drew the page, and the
-            // book's own measurements allow a run-on the drawing then turns down, which would step the
-            // reader past a page they were never shown. The measurements answer for a neighbour that
-            // has not been laid out yet.
-            if let layout, let after = layouts[next.id] {
-                return BookPagination.sharesLastPage(of: layout, with: after, context: layout.context)
-            }
-
-            return pagination?.runsOn(next.id) ?? false
-        }
 
         /// What sits at `index`, which runs from `-1` to ``pageCount`` so a turn can show the page in the
         /// neighbouring chapter it is about to land on.
@@ -532,25 +509,26 @@ extension ReaderScreen {
         /// The page before this chapter's first: the previous chapter's last, unless this chapter starts
         /// on that very page, in which case it is the one before that.
         private func pageBefore() -> Page {
-            guard let previous = previousChapter, let neighbour = layouts[previous.id] else { return .blank }
+            guard
+                let before = beforeThisPage(),
+                let neighbour = layouts[before.id],
+                neighbour.pageRanges.indices.contains(before.page)
+            else { return .blank }
 
-            let target = neighbour.pageCount - 1 - (runsOnFromPrevious ? 1 : 0)
-
-            guard target >= 0 else { return .blank }
-
-            return .text([ Piece(layout: neighbour, page: target) ])
+            return .text([ Piece(layout: neighbour, page: before.page) ])
         }
 
         /// The page after this chapter's last: the next chapter's first, unless it already began on the
         /// page this chapter ended on.
         private func pageAfter(at index: Int) -> Page {
-            guard index >= pageCount, let next = nextChapter, let after = layouts[next.id] else { return .blank }
+            guard
+                index >= pageCount,
+                let beyond = beyondThisPage(),
+                let after = layouts[beyond.id],
+                after.pageRanges.indices.contains(beyond.page)
+            else { return .blank }
 
-            let target = after.startOffset > 0 ? 1 : 0
-
-            guard after.pageRanges.indices.contains(target) else { return .blank }
-
-            return .text([ Piece(layout: after, page: target) ])
+            return .text([ Piece(layout: after, page: beyond.page) ])
         }
 
         /// The footer for one page: where that page sits in its chapter, and the chapter in the book.
@@ -790,17 +768,72 @@ extension ReaderScreen {
         }
 
         func goToNextChapter() {
-            guard let next = nextChapter else { return }
+            guard let beyond = beyondThisPage() else { return }
 
-            // Where the next chapter began on this chapter's last page, its first page is the one the
-            // reader is already looking at.
-            open(chapterId: next.id, anchor: nextRunsOn ? .page(1) : .first)
+            open(chapterId: beyond.id, anchor: beyond.page == 0 ? .first : .page(beyond.page))
+        }
+
+        /// The next chapter with a page the reader has not been shown, and which of its pages that is.
+        ///
+        /// Where a chapter began on this chapter's last page, its first page is the one already being
+        /// looked at, so the turn goes to its second. A chapter short enough to have ended on that page
+        /// as well was read there whole and has no page to turn onto, so the reader is carried past it
+        /// to the next that has one. Several in a row are all passed: a book's front matter often runs
+        /// to a few lines apiece, and turning onto the page they shared would show it a second time.
+        private func beyondThisPage() -> (id: Int, page: Int)? {
+            guard var previous = layout, var index = currentIndex else { return nil }
+
+            let chapters = readableChapters
+
+            while index + 1 < chapters.count {
+                let next = chapters[index + 1]
+
+                guard let after = layouts[next.id] else { return (next.id, 0) }
+
+                let shares = BookPagination.sharesLastPage(of: previous, with: after, context: previous.context)
+                let target = shares ? 1 : 0
+
+                if after.pageRanges.indices.contains(target) { return (next.id, target) }
+
+                previous = after
+                index += 1
+            }
+
+            return nil
         }
 
         func goToPreviousChapter() {
-            guard let previous = previousChapter else { return }
+            guard let before = beforeThisPage() else { return }
 
-            open(chapterId: previous.id, anchor: .lastOfItsOwn)
+            open(chapterId: before.id, anchor: .page(before.page))
+        }
+
+        /// The chapter behind this page with a page the reader has not been shown, and which page.
+        ///
+        /// The mirror of ``beyondThisPage()``. Where this chapter began on the one before's last page,
+        /// that page is the one being looked at and the turn goes to the one before it. A chapter with
+        /// nothing else to show was read whole on the page it shared, and the reader is carried back
+        /// past it.
+        private func beforeThisPage() -> (id: Int, page: Int)? {
+            guard var current = layout, var index = currentIndex else { return nil }
+
+            let chapters = readableChapters
+
+            while index > 0 {
+                let previous = chapters[index - 1]
+
+                guard let before = layouts[previous.id] else { return (previous.id, 0) }
+
+                let shares = BookPagination.sharesLastPage(of: before, with: current, context: before.context)
+                let target = before.pageCount - 1 - (shares ? 1 : 0)
+
+                if target >= 0, before.pageRanges.indices.contains(target) { return (previous.id, target) }
+
+                current = before
+                index -= 1
+            }
+
+            return nil
         }
 
         private func load(chapterId: Int, anchor: PageAnchor) async {
@@ -966,8 +999,6 @@ extension ReaderScreen {
                     currentPage = 0
                 case let .page(page):
                     currentPage = min(max(0, page + titlePageCount), max(0, pageCount - 1))
-                case .lastOfItsOwn:
-                    currentPage = max(0, pageCount - 1 - (nextRunsOn ? 1 : 0))
                 case let .offset(offset):
                     currentPage =
                         offset < 0
