@@ -295,6 +295,19 @@ public enum BookHTML {
         return result
     }
 
+    /// A row of asterisks and nothing else, which stands for a break in the scene.
+    ///
+    /// Centred wherever it is found: most of the service's books align it themselves, and the rest
+    /// leave it in an ordinary justified paragraph, where it would otherwise sit at the margin.
+    private static func isSceneBreak(_ text: String) -> Bool {
+        let marks = text.filter { !$0.isWhitespace }
+
+        return !marks.isEmpty && marks.count <= separatorMarks && marks.allSatisfy { $0 == "*" }
+    }
+
+    /// The longest row of marks read as a scene break rather than as text.
+    private static let separatorMarks = 7
+
     // MARK: - The notes the text points at
 
     /// A chapter's blocks and the notes standing behind them.
@@ -321,12 +334,14 @@ public enum BookHTML {
                     result.append(Paragraph(id: index, text: "", isCentered: true, imageSource: source))
                     index += 1
                 case let .text(attributes, inner):
-                    let centered =
-                        attributes.contains("text-align:center")
-                        || attributes.contains("text-align: center")
                     let read = readingNotes(in: inner, paragraph: index, notes: &notes)
 
                     guard !read.text.isEmpty else { continue }
+
+                    let centered =
+                        attributes.contains("text-align:center")
+                        || attributes.contains("text-align: center")
+                        || isSceneBreak(read.text)
 
                     result.append(Paragraph(
                         id: index,

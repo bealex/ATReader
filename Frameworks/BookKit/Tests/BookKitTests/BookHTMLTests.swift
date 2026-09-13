@@ -28,6 +28,20 @@ struct BookHTMLTests {
         #expect(!paragraphs[1].isCentered)
     }
 
+    /// The service's own books align a scene break themselves; a few leave it in a justified paragraph.
+    @Test
+    func centresASceneBreakWhateverTheMarkupSays() {
+        let html = """
+            <p style="text-align:justify">* * *</p><p style="text-align:justify">***</p>\
+            <p style="text-align:justify">November * oscar</p>
+            """
+        let paragraphs = BookHTML.paragraphs(from: html)
+
+        #expect(paragraphs[0].isCentered)
+        #expect(paragraphs[1].isCentered)
+        #expect(!paragraphs[2].isCentered)
+    }
+
     @Test
     func collapsesTheSourcesOwnNewlines() {
         let paragraphs = BookHTML.paragraphs(from: "<p>Kilo\n  Lima\tMike</p>")
