@@ -238,21 +238,41 @@ struct EpubContent {
 
             let target = pieces[0].isEmpty ? path : EpubPackage.resolve(String(pieces[0]), against: base)
             let name = EpubContent.reference(path: target, fragment: String(pieces[1]))
-            let start = buffer.endIndex
-            let before = plain.count
+            // Read into a buffer of its own, so what the link says can be weighed and what stands
+            // before it trimmed without counting either out of the middle of a paragraph.
+            let leadingBuffer = buffer
+            let leadingPlain = plain
 
+            buffer = ""
+            plain = ""
             walk(children: node, in: frame)
 
-            guard buffer.endIndex > start else { return }
+            let innerBuffer = buffer
+            let innerPlain = plain
 
-            buffer.replaceSubrange(start..., with: "<a href=\"#\(name)\">\(buffer[start...])</a>")
-            content.links.insert(name)
+            buffer = leadingBuffer
+            plain = leadingPlain
+
+            guard !innerBuffer.isEmpty else { return }
 
             // A link of a few characters is a note's marker. Anything longer is a place in the book,
             // and the reader follows it rather than showing it in an aside.
-            if node.isMarked("noteref") || plain.count - before <= Self.longestMarker {
-                content.references.insert(name)
+            let isMarker = node.isMarked("noteref") || innerPlain.count <= Self.longestMarker
+
+            // A marker belongs against the word it belongs to. Books space one off after a word and
+            // not after a comma, which is the book's own spacing rather than anything the text says.
+            if isMarker {
+                while buffer.last?.isWhitespace == true, plain.last?.isWhitespace == true {
+                    buffer.removeLast()
+                    plain.removeLast()
+                }
             }
+
+            buffer += "<a href=\"#\(name)\">" + innerBuffer + "</a>"
+            plain += innerPlain
+            content.links.insert(name)
+
+            if isMarker { content.references.insert(name) }
         }
 
         private mutating func picture(_ node: Markup.Node, in frame: Frame) {

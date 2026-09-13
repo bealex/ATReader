@@ -192,6 +192,27 @@ struct EpubFormatTests {
         #expect(read.paragraphs.allSatisfy { $0.links.isEmpty })
     }
 
+    @Test
+    func standsAMarkerAgainstTheWordItBelongsTo() throws {
+        // A book spaces a marker off after a word and not after a comma. Both belong against it.
+        let chapter = """
+            <h1>Papa</h1>
+            <p>Quebec <a href="second.xhtml#n1">[2]</a> romeo, and sierra<a href="second.xhtml#n2">[3]</a> tango.</p>
+            """
+        let second = """
+            <h1>Hotel</h1>
+            <p><a id="n1"/></p><p>The first note.</p>
+            <p><a id="n2"/></p><p>The second note.</p>
+            """
+        let book = try EpubFormat.parse(Self.archive(first: chapter, second: second))
+        let read = BookHTML.chapter(from: book.sections[0].html)
+        let text = try #require(read.paragraphs.first { $0.notes.count == 2 }?.text)
+
+        #expect(text.contains("Quebec[2]"))
+        #expect(text.contains("sierra[3]"))
+        #expect(!text.contains("Quebec [2]"))
+    }
+
     // MARK: - Which way the book reads
 
     @Test
