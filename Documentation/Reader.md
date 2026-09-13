@@ -496,6 +496,17 @@ stays a guess.
 Because a page can show a chapter that hasn't arrived yet, the model's layout cache is observed, not
 ignored: a neighbour landing has to redraw the page already on screen.
 
+## Where the reader stopped
+
+The position is written 400ms after a page turn, so a run of turns writes once. Two moves are written
+through instead of waited on: leaving a chapter, since the mark on the book's cover jumps by a whole
+chapter and the reader may be gone before the wait is out, and leaving the book.
+
+Leaving is the transition beginning rather than the screen gone: `Navigator.aboutToGo` fires from the
+presented screen's `viewWillDisappear`, a drag's included, and the reader writes there. The shelf draws
+a cover's mark from the store and the zoom photographs that cover as the book starts closing, so a
+shelf told afterwards animates the old mark home and corrects it once the book has landed.
+
 ## Keeping the lines
 
 Where a chapter's lines fall depends on the text and the setting, and not on where the chapter starts

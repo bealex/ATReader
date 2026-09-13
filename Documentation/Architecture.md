@@ -323,6 +323,11 @@ Which is why `Navigator` reports a presented screen going as well as a stack com
 pops it. Reading fills the marks on a cover and only the store knows it, so a shelf not told sits there
 showing where the reader was before they read.
 
+It reports the going twice, at two different moments. `aboutToGo` is the transition beginning, a drag's
+included, which is the last point at which the shelf can be put right before the zoom takes its picture
+of the cover the book is going home to; `returnedAt` is the screen gone. The reader writes its position
+on the first and the shelf reads the store on both.
+
 **Over full screen, not full screen.** A full-screen presentation takes the presenting view out of the
 window, so the shelf spends the whole reading session off it: its cells are built again and its spines
 printed again only once the reader is gone, and all of that lands in the single frame after the zoom

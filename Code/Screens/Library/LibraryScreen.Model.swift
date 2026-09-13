@@ -218,11 +218,16 @@ extension LibraryScreen {
         ///
         /// Nothing is hidden under All books, which is what that filter is for and where a reader goes
         /// to find whatever the shelf is not showing.
-        var hidesSeries = false {
+        var hidesSeries = UserDefaults.standard.bool(forKey: Model.hidesSeriesKey) {
             didSet {
-                if oldValue != hidesSeries { forgetFiling() }
+                guard oldValue != hidesSeries else { return }
+
+                UserDefaults.standard.set(hidesSeries, forKey: Self.hidesSeriesKey)
+                forgetFiling()
             }
         }
+
+        private static let hidesSeriesKey = "library.hidesSeries"
 
         /// The names of the series the reader put together, which are kept in the order they chose
         /// rather than newest first.

@@ -44,6 +44,12 @@ final class Navigator {
     /// list that has to read the store again to see what the reading changed.
     private(set) var returnedAt: Date?
 
+    /// Told as a presented screen starts to go, before the transition has taken its picture of what it
+    /// is going home to. Whoever is on that screen writes what it holds here, so the shelf underneath
+    /// has it in time to be seen.
+    @ObservationIgnored
+    var aboutToGo: (@MainActor () -> Void)?
+
     @ObservationIgnored
     fileprivate weak var controller: UINavigationController?
 
@@ -95,6 +101,10 @@ final class Navigator {
             screen.onArrived = { source(.covered) }
         }
 
+        // The going is reported twice, and the two are different moments. This one is the transition
+        // starting, which is the last chance to put right what the zoom is about to take a picture of.
+        screen.onGoing = { [weak self] in self?.aboutToGo?() }
+
         // A screen that covers the stack never pops it, so the delegate that reports a return never
         // hears of this one and a list would go on showing what it read before the reading.
         screen.onGone = { [weak self] in
@@ -112,11 +122,19 @@ final class Navigator {
     /// again, which is the answer wanted there too.
     private final class PresentedScreen<Content: View>: UIHostingController<Content> {
         var onArrived: (@MainActor () -> Void)?
+        /// The transition beginning, a drag's included: a drag let go half way is answered by
+        /// `viewDidAppear` coming round again.
+        var onGoing: (@MainActor () -> Void)?
         var onGone: (@MainActor () -> Void)?
 
         override func viewDidAppear(_ animated: Bool) {
             super.viewDidAppear(animated)
             onArrived?()
+        }
+
+        override func viewWillDisappear(_ animated: Bool) {
+            super.viewWillDisappear(animated)
+            onGoing?()
         }
 
         override func viewDidDisappear(_ animated: Bool) {

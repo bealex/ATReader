@@ -25,6 +25,9 @@ enum ReaderScreen {
         @Environment(\.scenePhase)
         private var scenePhase
 
+        @Environment(Navigator.self)
+        private var navigator
+
         @State
         private var model: Model?
 
@@ -113,6 +116,8 @@ enum ReaderScreen {
                         ContentsSheet(model: model, isPresented: $isShowingContents)
                     }
                 }
+                // Written as the book starts closing rather than once it has closed: the shelf draws
+                // the mark on a cover from the store and the zoom photographs that cover on its way in.
                 .onAppear {
                     if model == nil {
                         model = Model(
@@ -122,6 +127,8 @@ enum ReaderScreen {
                             session: session
                         )
                     }
+
+                    navigator.aboutToGo = { [weak model] in model?.flushPosition() }
                 }
                 .task { await model?.loadIfNeeded() }
                 // Where the reader stopped is worth writing the moment they stop: an app on its way to
@@ -129,7 +136,10 @@ enum ReaderScreen {
                 .onChange(of: scenePhase) { _, phase in
                     if phase != .active { model?.flushPosition() }
                 }
-                .onDisappear { model?.flushPosition() }
+                .onDisappear {
+                    navigator.aboutToGo = nil
+                    model?.flushPosition()
+                }
             }
         }
 

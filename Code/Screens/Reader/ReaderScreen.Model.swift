@@ -141,6 +141,11 @@ extension ReaderScreen {
         @ObservationIgnored
         private var lastReportedProgress: Double = -1
 
+        /// The chapter the last position was written against, so a move to another one is written
+        /// through rather than waited on.
+        @ObservationIgnored
+        private var wroteChapterId: Int?
+
         @ObservationIgnored
         private var positionSaver: Task<Void, Never>?
 
@@ -812,7 +817,8 @@ extension ReaderScreen {
 
             isLoading = false
             errorMessage = nil
-            savePosition()
+            savePosition(now: built.chapterId != wroteChapterId)
+            wroteChapterId = built.chapterId
             reportProgress()
             prefetchNeighbours()
         }
@@ -956,16 +962,21 @@ extension ReaderScreen {
 
         /// Keeps the device's own copy of the reading position, which is the only one that works: the
         /// service accepts the position and stores nothing. See `Documentation/API.md`.
-        private func savePosition() {
+        /// - Parameter now: true to write without waiting, for a move the wait would lose. Leaving a
+        ///   chapter is one: the mark jumps by a whole chapter, and the reader may be gone before the
+        ///   wait is out.
+        private func savePosition(now: Bool = false) {
             guard let layout, let chapterId = currentChapterId else { return }
 
             let offset = storedOffset
             let overall = bookProgress
             positionSaver?.cancel()
             positionSaver = Task { [store, workId] in
-                try? await Task.sleep(for: .milliseconds(400))
+                if !now {
+                    try? await Task.sleep(for: .milliseconds(400))
 
-                guard !Task.isCancelled else { return }
+                    guard !Task.isCancelled else { return }
+                }
 
                 await store.store(position: .init(
                     workId: workId,
@@ -999,6 +1010,10 @@ extension ReaderScreen {
                     updatedAt: .now
                 ))
                 await store.store(progress: overall, workId: workId)
+                // The shelf draws the mark on a cover from the store, and the zoom takes its picture of
+                // that cover as the book starts closing. Told afterwards, it animates the old mark home
+                // and corrects it once the book has landed.
+                BookInbox.shared.libraryChanged()
             }
 
             reportProgress(force: true)
