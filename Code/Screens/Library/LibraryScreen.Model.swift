@@ -336,6 +336,7 @@ extension LibraryScreen {
             _ = sameText
             _ = madeSeries
             _ = filter
+            _ = hidesSeries
             _ = hiddenFromReading
             _ = authorNames
         }

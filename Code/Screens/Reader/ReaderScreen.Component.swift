@@ -403,9 +403,6 @@ enum ReaderScreen {
         }
 
         /// The book title above the text, or the page number below it.
-        ///
-        /// The title stands at the leading edge, where a running head belongs and where the eye starts
-        /// the page. The page number keeps the middle, since nothing reads along that line.
         @ViewBuilder
         private func runningHead(_ text: String?, edge: VerticalEdge, isCaption: Bool = false) -> some View {
             if let text, !text.isEmpty {
@@ -418,7 +415,7 @@ enum ReaderScreen {
                     .padding(.horizontal, settings.margins)
                     .padding(.top, edge == .top ? safeArea.top + 4 : 0)
                     .padding(.bottom, edge == .bottom ? safeArea.bottom + 4 : 0)
-                    .frame(maxWidth: .infinity, alignment: edge == .top ? .leading : .center)
+                    .frame(maxWidth: .infinity)
                     // Only the page the reader is on names itself, so a turn never puts two of these
                     // on screen under the same identifier.
                     .accessibilityIdentifier(isCaption ? "reader.caption" : "")
