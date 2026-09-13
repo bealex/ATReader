@@ -1655,6 +1655,17 @@
         }
       }
     },
+    "Interactions": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Управление"
+          }
+        }
+      }
+    },
     "Its text is on this device only. You would need the file again to read it.": {
       "extractionState": "manual",
       "localizations": {
@@ -1750,6 +1761,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Выход из книги"
+          }
+        }
+      }
+    },
+    "Left tap advances": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Касание слева листает вперёд"
           }
         }
       }
@@ -3501,6 +3523,17 @@
         }
       }
     },
+    "Tapping": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Касания"
+          }
+        }
+      }
+    },
     "Text size": {
       "extractionState": "manual",
       "localizations": {
@@ -3827,6 +3860,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Перевести"
+          }
+        }
+      }
+    },
+    "Turns forward on either side of the page, or back on the left": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Листает вперёд с любой стороны страницы или назад, если коснуться слева"
           }
         }
       }

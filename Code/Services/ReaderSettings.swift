@@ -157,6 +157,14 @@ final class ReaderSettings {
         return systemIsDark ? darkTheme : lightTheme
     }
 
+    /// A tap on the left of the page turns forward, as a tap on the right does.
+    ///
+    /// Off, the two sides part: the left goes back a page and the right goes on. Which one a reader
+    /// wants depends on the hand they hold the book in, so the app holds an opinion and lets it go.
+    var advancesOnLeftTap: Bool {
+        didSet { defaults.set(advancesOnLeftTap, forKey: Keys.advancesOnLeftTap) }
+    }
+
     /// Words may be broken at the end of a line. A justified column reads far better for it: the only
     /// other way to reach the measure is to pull the words apart.
     var hyphenates: Bool {
@@ -215,6 +223,9 @@ final class ReaderSettings {
         lightTheme = defaults.string(forKey: Keys.lightTheme).flatMap(Theme.init(rawValue:)) ?? .paper
         darkTheme = defaults.string(forKey: Keys.darkTheme).flatMap(Theme.init(rawValue:)) ?? .night
         hyphenates = defaults.object(forKey: Keys.hyphenates) == nil || defaults.bool(forKey: Keys.hyphenates)
+        advancesOnLeftTap =
+            defaults.object(forKey: Keys.advancesOnLeftTap) == nil
+            || defaults.bool(forKey: Keys.advancesOnLeftTap)
         monochromeImages = defaults.bool(forKey: Keys.monochromeImages)
         isPortraitOnly = defaults.bool(forKey: Keys.portraitOnly)
         OrientationLock.seed(portraitOnly: isPortraitOnly)
@@ -268,6 +279,7 @@ final class ReaderSettings {
         static let lightTheme = "reader.theme.light"
         static let darkTheme = "reader.theme.dark"
         static let hyphenates = "reader.hyphenates"
+        static let advancesOnLeftTap = "reader.advancesOnLeftTap"
         static let monochromeImages = "reader.monochromeImages"
         static let portraitOnly = "reader.portraitOnly"
     }

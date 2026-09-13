@@ -42,6 +42,9 @@ public struct PageTurnView<Page: View>: View {
     /// The book is read from the right, so forward is the other way: the page comes in from the left
     /// edge and a finger drawn to the right turns onto it.
     public var readsRightToLeft = false
+    /// A tap on the left of the page turns forward, as a tap on the right does. Off, the two sides
+    /// part: the left goes back a page and the right goes on.
+    public var advancesOnLeftTap = true
 
     @ViewBuilder
     public let page: (Int) -> Page
@@ -60,6 +63,7 @@ public struct PageTurnView<Page: View>: View {
         onMiddleTap: @escaping () -> Void = {},
         onTurnStarted: @escaping () -> Void = {},
         readsRightToLeft: Bool = false,
+        advancesOnLeftTap: Bool = true,
         @ViewBuilder page: @escaping (Int) -> Page
     ) {
         self.pageCount = pageCount
@@ -75,6 +79,7 @@ public struct PageTurnView<Page: View>: View {
         self.onMiddleTap = onMiddleTap
         self.onTurnStarted = onTurnStarted
         self.readsRightToLeft = readsRightToLeft
+        self.advancesOnLeftTap = advancesOnLeftTap
         self.page = page
     }
 
@@ -175,11 +180,13 @@ public struct PageTurnView<Page: View>: View {
             // zone it stands in, so the zones would swallow every tap meant for one.
             guard !onPageTap(location) else { return }
 
-            // Both outer thirds turn forward; the middle third is a dead zone so a reader can rest a
-            // thumb there without losing their place.
+            // The middle third is a dead zone, so a reader can rest a thumb there without losing
+            // their place. The outer two both turn forward, unless the reader has parted them.
             let third = width / 3
 
-            guard location.x < third || location.x > width - third else { return onMiddleTap() }
+            if location.x < third { return advancesOnLeftTap ? advance() : retreat() }
+
+            guard location.x > width - third else { return onMiddleTap() }
 
             advance()
         }
@@ -312,6 +319,26 @@ public struct PageTurnView<Page: View>: View {
         return time.timeIntervalSince(grabbedAt) < Self.grabDuration
     }
 
+    /// Nudges the page and lets it spring back, for a tap at an end of the book with nothing to turn
+    /// onto. Without it the tap reads as though it had not landed at all.
+    private func bounce(_ direction: Turn) {
+        guard overscroll == 0 else { return }
+
+        withAnimation(.easeOut(duration: Self.bounceOut)) {
+            overscroll = width * Self.bounceReach * (direction == .forward ? -1 : 1)
+        }
+
+        Task { @MainActor in
+            try? await Task.sleep(for: .seconds(Self.bounceOut))
+            releaseOverscroll()
+        }
+    }
+
+    /// How far a page gives at an end of the book, against its own width, and how long it takes to
+    /// reach it. Enough to be felt as the page refusing rather than seen as a turn.
+    private static var bounceReach: CGFloat { 0.035 }
+    private static var bounceOut: Double { 0.12 }
+
     /// Gives less the harder the page is pulled, the way a list does at its end.
     private func rubberBand(_ distance: CGFloat) -> CGFloat {
         let limit = width * Self.overscrollLimit
@@ -360,6 +387,7 @@ public struct PageTurnView<Page: View>: View {
             isReachable(target)
         else {
             queued = 0
+            bounce(direction)
             return
         }
 

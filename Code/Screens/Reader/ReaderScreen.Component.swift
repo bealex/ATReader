@@ -221,6 +221,7 @@ enum ReaderScreen {
                     value.noteTurn()
                 },
                 readsRightToLeft: value.readsRightToLeft,
+                advancesOnLeftTap: settings.advancesOnLeftTap,
                 page: { index in pageContent(value, at: index) }
             )
             .accessibilityIdentifier("reader.page")
@@ -231,16 +232,7 @@ enum ReaderScreen {
             // In the page's own coordinates, so it stands clear of the corner whatever the page does
             // with the safe area.
             .overlay(alignment: .bottomLeading) { wayBack(model.wrappedValue) }
-            // Drawn text is invisible to VoiceOver, so a marker cannot be touched. The page offers its
-            // notes as actions of its own instead.
-            .accessibilityActions {
-                ForEach(value.notesOnPage) { found in
-                    Button("Note \(found.marker)") {
-                        let middle = CGPoint(x: pageSize.width / 2, y: pageSize.height / 2)
-                        note = .init(note: found, rect: CGRect(origin: middle, size: .zero))
-                    }
-                }
-            }
+            .accessibilityActions { noteActions(value) }
             .callout(
                 over: anchor(of: note?.rect),
                 item: $note,
@@ -276,6 +268,19 @@ enum ReaderScreen {
         }
 
         /// Opens a note where one was tapped. Reports whether there was one, since the page turns if not.
+        /// Drawn text is invisible to VoiceOver, so a marker cannot be touched. The page offers the
+        /// notes it stands on as actions of its own instead.
+        @ViewBuilder
+        private func noteActions(_ model: Model) -> some View {
+            ForEach(model.notesOnPage) { found in
+                Button("Note \(found.marker)") {
+                    let middle = CGPoint(x: pageSize.width / 2, y: pageSize.height / 2)
+
+                    note = .init(note: found, rect: CGRect(origin: middle, size: .zero))
+                }
+            }
+        }
+
         /// A tap on the page: a note's marker first, since it is the smaller target, then a link.
         private func follow(_ point: CGPoint, in model: Model) -> Bool {
             if show(model.note(at: point)) { return true }
@@ -318,7 +323,10 @@ enum ReaderScreen {
                     .accessibilityHint("Returns to the page the link was followed from")
                 }
                 .padding(.leading, Design.Space.extraLarge)
-                .padding(.bottom, Design.Space.extraLarge)
+                .padding(.bottom, Self.controlsBottom(over: safeArea.bottom, headSize: runningHeadSize))
+                // Counted from the foot of the screen, as the page number is: an overlay is given the
+                // safe area back even where the view under it turned it down.
+                .ignoresSafeArea()
                 .opacity(fading ? 0 : 1)
                 .transition(.opacity)
             }
@@ -609,6 +617,12 @@ enum ReaderScreen {
             safeAreaTop + headInset + (headLine(headSize) - Design.Size.touch) / 2
         }
 
+        /// Where the way back stands, so its middle lands on the middle of the line the page number is
+        /// set on. The number sits its own inset above the safe area, as the running head sits below it.
+        static func controlsBottom(over safeAreaBottom: CGFloat, headSize: CGFloat) -> CGFloat {
+            safeAreaBottom + headInset + (headLine(headSize * captionScale) - Design.Size.touch) / 2
+        }
+
         /// The line a running head of this size is set on, which is taller than the type itself.
         static func headLine(_ headSize: CGFloat) -> CGFloat {
             UIFont.systemFont(ofSize: headSize).lineHeight
@@ -726,6 +740,7 @@ enum ReaderScreen {
         private enum Panel: String, CaseIterable, Identifiable {
             case type
             case colour
+            case interactions
             case options
 
             var id: String { rawValue }
@@ -734,6 +749,7 @@ enum ReaderScreen {
                 switch self {
                     case .type: String(localized: "Type")
                     case .colour: String(localized: "Colour")
+                    case .interactions: String(localized: "Interactions")
                     case .options: String(localized: "Options")
                 }
             }
@@ -750,6 +766,7 @@ enum ReaderScreen {
                 switch panel {
                     case .type: typePanel
                     case .colour: colourPanel
+                    case .interactions: interactionsPanel
                     case .options: optionsPanel
                 }
             }
@@ -914,6 +931,19 @@ enum ReaderScreen {
                 Toggle("In the page’s colours", isOn: $settings.monochromeImages)
                     .accessibilityIdentifier("reader.monochromeImages")
                     .accessibilityHint("Draws every picture in the two colours the page is set in")
+            }
+        }
+
+        // MARK: - Interactions
+
+        @ViewBuilder
+        private var interactionsPanel: some View {
+            @Bindable var settings = settings
+
+            Section("Tapping") {
+                Toggle("Left tap advances", isOn: $settings.advancesOnLeftTap)
+                    .accessibilityIdentifier("reader.advancesOnLeftTap")
+                    .accessibilityHint("Turns forward on either side of the page, or back on the left")
             }
         }
 
