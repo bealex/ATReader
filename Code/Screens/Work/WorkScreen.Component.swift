@@ -41,6 +41,11 @@ enum WorkScreen {
         @State
         private var across: CGFloat = 0
 
+        /// The cover at the top, which a book opened from this screen grows out of and shrinks back
+        /// into.
+        @State
+        private var cover = CoverAnchor()
+
         /// How much of the screen the cover stands across. A share rather than a size: a book's page
         /// opens on its cover, and the cover is as large as the screen allows.
         private static let coverShare: CGFloat = 0.3
@@ -147,7 +152,12 @@ enum WorkScreen {
         /// The cover alone across the top, and under it what the book calls itself.
         private func heading(_ model: Model, work: Book) -> some View {
             VStack(spacing: Design.Space.extraLarge) {
-                CoverImage(url: work.coverURL, width: across * Self.coverShare, reading: ReadingMark(work))
+                CoverImage(
+                    url: work.coverURL,
+                    width: across * Self.coverShare,
+                    reading: ReadingMark(work),
+                    anchor: cover
+                )
 
                 VStack(spacing: Design.Space.small) {
                     RowStack {
@@ -175,7 +185,10 @@ enum WorkScreen {
         private var readButton: some View {
             if let model, let summary = model.summary, let chapterId = model.resumeChapterId {
                 Button(summary.hasStartedReading ? "Continue" : "Read") {
-                    navigator.present(.reader(.init(workId: model.workId, title: summary.title, chapterId: chapterId)))
+                    navigator.present(
+                        .reader(.init(workId: model.workId, title: summary.title, chapterId: chapterId)),
+                        from: { _ in cover.face }
+                    )
                 }
                 .accessibilityIdentifier("work.read")
                 .accessibilityHint("Opens the reader")
@@ -322,7 +335,10 @@ enum WorkScreen {
         private func chapterRow(_ model: Model, chapter: BookChapter, named name: String) -> some View {
             if chapter.isReadable, let summary = model.summary {
                 Button {
-                    navigator.present(.reader(.init(workId: model.workId, title: summary.title, chapterId: chapter.id)))
+                    navigator.present(
+                        .reader(.init(workId: model.workId, title: summary.title, chapterId: chapter.id)),
+                        from: { _ in cover.face }
+                    )
                 } label: {
                     chapterLabel(chapter, named: name, marker: nil, state: model.state(of: chapter))
                 }
@@ -341,7 +357,10 @@ enum WorkScreen {
         /// A mark under its chapter, which opens the book where it stands.
         private func bookmarkRow(_ model: Model, mark: Bookmark, summary: Book) -> some View {
             Button {
-                navigator.present(.reader(.init(workId: model.workId, title: summary.title, chapterId: mark.chapterId)))
+                navigator.present(
+                    .reader(.init(workId: model.workId, title: summary.title, chapterId: mark.chapterId)),
+                    from: { _ in cover.face }
+                )
             } label: {
                 BookmarkLabel(share: mark.share(ofChapterLength: chapterLength(model, of: mark.chapterId)))
                     .padding(.vertical, Design.Space.small)

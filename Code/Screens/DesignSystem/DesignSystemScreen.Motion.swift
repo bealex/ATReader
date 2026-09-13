@@ -205,7 +205,7 @@ private struct DrawnLibrary: View {
             onOpen: { _, _ in },
             onName: { turn($0) },
             onTurn: { turn($0) },
-            bookMenu: { _ in nil },
+            bookMenu: { _, _ in nil },
             runMenu: { _ in nil },
             authorMenu: { _ in nil },
             onRefresh: {}

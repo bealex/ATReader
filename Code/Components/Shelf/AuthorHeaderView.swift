@@ -29,6 +29,7 @@ final class AuthorHeaderView: UICollectionReusableView {
         image: UIImage(systemName: "chevron.down", withConfiguration: UIImage.SymbolConfiguration(textStyle: .headline))
     )
     private var isOpen = false
+    private var turns = true
 
     override init(frame: CGRect) {
         super.init(frame: frame)
@@ -48,7 +49,7 @@ final class AuthorHeaderView: UICollectionReusableView {
         addSubview(chevron)
 
         isAccessibilityElement = true
-        accessibilityTraits = [ .header, .button ]
+        accessibilityTraits = [ .header ]
         accessibilityHint = String(localized: "Switches between every cover and the books left to read")
         addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(tapped)))
         addInteraction(UIContextMenuInteraction(delegate: self))
@@ -58,9 +59,14 @@ final class AuthorHeaderView: UICollectionReusableView {
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 
     /// Shows an author's name, and which way round their bookcase stands: open while every cover is out.
-    func show(name: String, isOpen: Bool, animated: Bool) {
+    /// A shelf with nothing standing on its edge is shown without the chevron, there being nothing to turn.
+    func show(name: String, isOpen: Bool, turns: Bool, animated: Bool) {
         self.name.text = name
         accessibilityLabel = name
+        self.turns = turns
+        chevron.isHidden = !turns
+        accessibilityTraits = turns ? [ .header, .button ] : [ .header ]
+        setNeedsLayout()
 
         guard isOpen != self.isOpen || !animated else { return }
 
@@ -81,7 +87,7 @@ final class AuthorHeaderView: UICollectionReusableView {
         // Level with the bookcase's own edges, which stand in from the list's.
         let edge = Design.Space.extraLarge
         let line = Self.lineHeight
-        let glyph = chevron.intrinsicContentSize
+        let glyph = chevron.isHidden ? .zero : chevron.intrinsicContentSize
 
         // Bounds and centre rather than a frame, which means nothing once the chevron is turned.
         chevron.bounds = CGRect(origin: .zero, size: glyph)
@@ -95,6 +101,8 @@ final class AuthorHeaderView: UICollectionReusableView {
     }
 
     override func accessibilityActivate() -> Bool {
+        guard turns else { return false }
+
         onToggle?()
         return true
     }
@@ -141,7 +149,11 @@ final class AuthorHeaderView: UICollectionReusableView {
     private static var lineHeights: [UIContentSizeCategory: CGFloat] = [:]
 
     @objc
-    private func tapped() { onToggle?() }
+    private func tapped() {
+        guard turns else { return }
+
+        onToggle?()
+    }
 }
 
 extension AuthorHeaderView: UIContextMenuInteractionDelegate {

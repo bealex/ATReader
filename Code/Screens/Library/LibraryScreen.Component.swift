@@ -183,6 +183,9 @@ enum LibraryScreen {
         @Environment(Navigator.self)
         private var navigator
 
+        @Environment(\.colorScheme)
+        private var colorScheme
+
         @State
         private var reordering: Model.Group?
 
@@ -240,7 +243,9 @@ enum LibraryScreen {
                 onName: { author in chose(author: author) },
                 onTurn: { author in switchMode(series: author) },
                 // Under the book's own name, so a menu pressed on a spine says which book it is of.
-                bookMenu: { bookDeeds(work: $0).offered(under: $0.title, and: $0.series) },
+                bookMenu: { work, face in
+                    bookDeeds(work: work, face: face).offered(under: work.title, and: work.series)
+                },
                 runMenu: { run in
                     shelves.flatMap(\.runs).first { $0.id == run }
                         .map { seriesDeeds(group: $0).offered } ?? nil
@@ -350,17 +355,30 @@ enum LibraryScreen {
             return deeds
         }
 
+        /// The spine this book would stand on, at the size the shelf it is on would stand it.
+        private func spine(of work: Book) -> SpinePress.Wanted? {
+            cards.lazy.compactMap { card in
+                ShelfView.spines(in: card.shelf).first { $0.id == work.id }
+            }
+            .first
+        }
+
         /// Opening a book off the shelf, which it grows out of: the very board its artwork is on.
         private func open(_ work: Book, from face: @escaping @MainActor @Sendable (BookZoom) -> UIView?) {
             navigator.present(.reader(.init(workId: work.id, title: work.title)), from: face)
         }
 
-        private func bookDeeds(work: Book) -> [Deed] {
-            [
-                // Reaches a book standing on its edge, which a tap only turns round with its run.
+        private func bookDeeds(
+            work: Book,
+            face: @escaping @MainActor @Sendable (BookZoom) -> UIView?
+        ) -> [Deed] {
+            var deeds: [Deed] = [
+                // Reaches a book standing on its edge, which a tap only turns round with its run. Out of
+                // the book it names, like a tap: a screen with nothing to grow out of cannot be dragged
+                // shut either, and this is the way in that a spine has.
                 .act(String(localized: "Read the book"), systemImage: "book") {
                     Task { await model.takeDown(work) }
-                    navigator.present(.reader(.init(workId: work.id, title: work.title)))
+                    navigator.present(.reader(.init(workId: work.id, title: work.title)), from: face)
                 },
                 // The way to the book's own page. A tap on a cover opens the book itself, so without
                 // this there is nothing left that reaches what the book is.
@@ -385,6 +403,36 @@ enum LibraryScreen {
                     Task { await model.remove(work) }
                 },
             ]
+
+            // A book finished today stands out as a cover until tomorrow. This is for a reader who is
+            // done with it now.
+            if model.canPutAway(work) {
+                let spine = spine(of: work)
+                let isDark = colorScheme == .dark
+
+                deeds.insert(
+                    .act(String(localized: "Put the book away"), systemImage: "books.vertical") {
+                        Task {
+                            // Printed before the book is told to turn, so it turns onto its own spine
+                            // rather than onto the bare board.
+                            if let spine {
+                                _ = await SpinePress.printed(
+                                    of: work,
+                                    number: spine.number,
+                                    title: spine.title,
+                                    size: spine.size,
+                                    isDark: isDark
+                                )
+                            }
+
+                            await model.putAway(work)
+                        }
+                    },
+                    at: deeds.count - 1
+                )
+            }
+
+            return deeds
         }
     }
 }

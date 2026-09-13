@@ -34,7 +34,7 @@ struct LibraryList: UIViewControllerRepresentable {
     let onName: (String) -> Void
     /// A tap on a book standing on its edge, which turns the shelf it is on.
     let onTurn: (String) -> Void
-    let bookMenu: (Book) -> UIMenu?
+    let bookMenu: (Book, @escaping @MainActor @Sendable (BookZoom) -> UIView?) -> UIMenu?
     let runMenu: (String) -> UIMenu?
     let authorMenu: (String) -> UIMenu?
     let onRefresh: () async -> Void
@@ -470,14 +470,19 @@ struct LibraryList: UIViewControllerRepresentable {
         private func dress(_ cell: AuthorCardCell, with contents: AuthorCardView.Contents) {
             cell.card.shelf.onToggle = { [weak self] in self?.list.onTurn(contents.id) }
             cell.card.shelf.onOpen = { [weak self] work, face in self?.list.onOpen(work, face) }
-            cell.card.shelf.bookMenu = { [weak self] work in self?.list.bookMenu(work) }
+            cell.card.shelf.bookMenu = { [weak self] work, face in self?.list.bookMenu(work, face) }
             cell.card.shelf.runMenu = { [weak self] run in self?.list.runMenu(run) }
         }
 
         private func dress(_ header: AuthorHeaderView, with contents: AuthorCardView.Contents, animated: Bool) {
             header.onToggle = { [weak self] in self?.list.onName(contents.id) }
             header.menu = { [weak self] in self?.list.authorMenu(contents.id) }
-            header.show(name: contents.name, isOpen: contents.shelf.showsEveryCover, animated: animated)
+            header.show(
+                name: contents.name,
+                isOpen: contents.shelf.showsEveryCover,
+                turns: contents.shelf.turns,
+                animated: animated
+            )
         }
 
         private func apply(animated: Bool) {

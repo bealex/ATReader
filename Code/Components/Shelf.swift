@@ -69,4 +69,10 @@ enum SeriesSlot: Identifiable {
             case let .missing(number): "gap:\(number)"
         }
     }
+
+    var isShelved: Bool {
+        guard case let .book(_, _, _, isShelved) = self else { return false }
+
+        return isShelved
+    }
 }

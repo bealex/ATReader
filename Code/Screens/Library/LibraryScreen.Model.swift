@@ -410,7 +410,7 @@ extension LibraryScreen {
         nonisolated static func beingRead(among works: [Book]) -> [Book] {
             guard works.count > 1 else { return works }
 
-            return works.filter { ($0.isOpened && !$0.isDone()) || $0.isJustTakenDown() }
+            return works.filter { ($0.isOpened && !$0.isDone()) || $0.isStandingOut() }
         }
 
         /// When the service last changed the book. Reading it is not a change to it, so the list holds
@@ -725,13 +725,19 @@ extension LibraryScreen {
         /// and not out as a cover for the day after it was read through, arrived or was asked for.
         ///
         /// A book still being written never is: the next chapter is what the reader is waiting for, and
-        /// a folded row is the wrong place to be told it landed.
+        /// a folded row is the wrong place to be told it landed. A reader who puts a book away by hand
+        /// stands it up without waiting out that day.
         func isShelved(_ work: Book) -> Bool {
             work.isComplete
                 && newChapters(for: work.id) == 0
                 && !work.isBeingRead
-                && !work.isJustRead()
-                && !work.isJustTakenDown()
+                && !work.isStandingOut()
+        }
+
+        /// True where putting a book away would stand it on its edge now: read and written to its end,
+        /// nothing new in it, and out as a cover only because its day has yet to run out.
+        func canPutAway(_ work: Book) -> Bool {
+            work.isFinishedReading && newChapters(for: work.id) == 0 && !isShelved(work)
         }
 
         /// One series as a card's run: its books in the order they stand in, and whatever numbering
@@ -1382,6 +1388,14 @@ extension LibraryScreen {
             if let index = works.firstIndex(where: { $0.id == work.id }) { works[index].takenDownAt = .now }
 
             await store.takeDown(workId: work.id)
+        }
+
+        /// Stands a book on its edge now, for a reader who has finished with it and doesn't want to
+        /// wait out its day as a cover.
+        func putAway(_ work: Book) async {
+            if let index = works.firstIndex(where: { $0.id == work.id }) { works[index].putAwayAt = .now }
+
+            await store.putAway(workId: work.id)
         }
 
         /// The book's chapters as the device has them, fetched if it has none.

@@ -20,6 +20,8 @@ struct CoverImage: View {
     var width: CGFloat = Design.Size.cover
     /// Where the reader is in the book: a line along the top edge and a bookmark hanging from it.
     var reading: ReadingMark?
+    /// Where a zoom grows a screen out of this cover, for the one screen that opens a book from it.
+    var anchor: CoverAnchor?
 
     @Environment(\.colorScheme)
     private var scheme
@@ -52,6 +54,9 @@ struct CoverImage: View {
             }
         }
         .frame(width: width, height: height)
+        .background {
+            if let anchor { CoverAnchorView(anchor: anchor, face: face) }
+        }
         .overlay(alignment: .topLeading) {
             if let reading { mark(reading) }
         }

@@ -44,6 +44,8 @@ public struct Book: Codable, Identifiable, Hashable, Sendable {
     public var readAt: Date?
     /// When it was last put out as a cover: arriving in the library, or asked for by name.
     public var takenDownAt: Date?
+    /// When the reader put it away by hand, rather than waiting for its day as a cover to run out.
+    public var putAwayAt: Date?
 
     /// Where "read to the end" starts. The service's character offset rarely lands on the last one.
     public static let readThreshold = 0.995
@@ -73,7 +75,8 @@ public struct Book: Codable, Identifiable, Hashable, Sendable {
         lastChapterId: Int? = nil,
         libraryState: BookShelf? = nil,
         readAt: Date? = nil,
-        takenDownAt: Date? = nil
+        takenDownAt: Date? = nil,
+        putAwayAt: Date? = nil
     ) {
         self.id = id
         self.title = title
@@ -97,6 +100,7 @@ public struct Book: Codable, Identifiable, Hashable, Sendable {
         self.libraryState = libraryState
         self.readAt = readAt
         self.takenDownAt = takenDownAt
+        self.putAwayAt = putAwayAt
     }
 
     /// The author is still adding chapters.
@@ -126,8 +130,21 @@ public struct Book: Codable, Identifiable, Hashable, Sendable {
     /// Put out as a cover within the last day.
     public func isJustTakenDown(at now: Date = .now) -> Bool { Self.isRecent(takenDownAt, at: now) }
 
-    /// Finished reading, and more than a day ago: until then a book still counts as being read.
-    public func isDone(at now: Date = .now) -> Bool { isFinishedReading && !isJustRead(at: now) }
+    /// Put away by hand since it was last read or last put out as a cover.
+    public var isPutAway: Bool {
+        guard let putAwayAt else { return false }
+
+        return putAwayAt >= max(readAt ?? .distantPast, takenDownAt ?? .distantPast)
+    }
+
+    /// Out as a cover: read through or asked for within the day, and not put away since.
+    public func isStandingOut(at now: Date = .now) -> Bool {
+        !isPutAway && (isJustRead(at: now) || isJustTakenDown(at: now))
+    }
+
+    /// Finished reading, and either put away by hand or read more than a day ago: until then a book
+    /// still counts as being read.
+    public func isDone(at now: Date = .now) -> Bool { isFinishedReading && (isPutAway || !isJustRead(at: now)) }
 
     private static func isRecent(_ moment: Date?, at now: Date) -> Bool {
         guard let moment else { return false }
@@ -181,7 +198,8 @@ public struct Book: Codable, Identifiable, Hashable, Sendable {
             lastChapterId: lastChapterId,
             libraryState: libraryState,
             readAt: readAt,
-            takenDownAt: takenDownAt
+            takenDownAt: takenDownAt,
+            putAwayAt: putAwayAt
         )
     }
 
@@ -217,7 +235,8 @@ public struct Book: Codable, Identifiable, Hashable, Sendable {
             lastChapterId: lastChapterId ?? previous.lastChapterId,
             libraryState: libraryState ?? previous.libraryState,
             readAt: readAt ?? previous.readAt,
-            takenDownAt: takenDownAt ?? previous.takenDownAt
+            takenDownAt: takenDownAt ?? previous.takenDownAt,
+            putAwayAt: putAwayAt ?? previous.putAwayAt
         )
     }
 }

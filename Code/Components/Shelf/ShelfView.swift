@@ -22,6 +22,10 @@ final class ShelfView: UIView {
         let coverWidth: CGFloat
         /// True while every book stands as a cover, false while the ones read stand as spines.
         let showsEveryCover: Bool
+
+        /// Whether there is anything to turn round: a shelf with no book standing on its edge looks the
+        /// same either way, so nothing offers to turn it.
+        var turns: Bool { runs.flatMap(\.slots).contains(where: \.isShelved) || alone.contains(where: \.isShelved) }
     }
 
     /// One place on the shelf: a slot and the run it stands in.
@@ -42,7 +46,8 @@ final class ShelfView: UIView {
     /// then the shelf may have laid itself out afresh around whatever the reading changed. The view
     /// that was tapped is the wrong size by then, or belongs to another book entirely.
     var onOpen: ((Book, @escaping @MainActor @Sendable (BookZoom) -> UIView?) -> Void)?
-    var bookMenu: ((Book) -> UIMenu?)?
+    /// A menu for one book, given the same way of finding its face that opening it is given.
+    var bookMenu: ((Book, @escaping @MainActor @Sendable (BookZoom) -> UIView?) -> UIMenu?)?
     var runMenu: ((String) -> UIMenu?)?
 
     private var contents: Contents?
@@ -485,7 +490,7 @@ final class ShelfView: UIView {
     private func menu(at place: Place) -> UIMenu? {
         guard case let .book(work, _, _, _) = place.slot else { return nil }
 
-        return bookMenu?(work)
+        return bookMenu?(work) { [weak self] zoom in self?.books[place.id]?.face(during: zoom) }
     }
 
     private func bracket(_ bracket: ShelfLayout.Bracket, in contents: Contents) {

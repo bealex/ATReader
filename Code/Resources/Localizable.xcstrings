@@ -2510,6 +2510,17 @@
         }
       }
     },
+    "Put the book away": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Убрать на полку"
+          }
+        }
+      }
+    },
     "Rank %lld. %@, %@": {
       "extractionState": "manual",
       "localizations": {

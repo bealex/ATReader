@@ -73,11 +73,11 @@ public actor SQLiteBookStore {
         let query =
             shelf == nil
             ? """
-            SELECT payload, reading_progress, read_at, taken_down_at FROM work
+            SELECT payload, reading_progress, read_at, taken_down_at, put_away_at FROM work
             WHERE library_state IS NOT NULL ORDER BY last_read_time DESC
             """
             : """
-            SELECT payload, reading_progress, read_at, taken_down_at FROM work
+            SELECT payload, reading_progress, read_at, taken_down_at, put_away_at FROM work
             WHERE library_state = ? ORDER BY last_read_time DESC
             """
 
@@ -95,6 +95,7 @@ public actor SQLiteBookStore {
             summary.readingProgress = progress(statement.number(1), or: summary.readingProgress)
             summary.readAt = statement.date(2)
             summary.takenDownAt = statement.date(3)
+            summary.putAwayAt = statement.date(4)
             result.append(filed(summary, by: custom, edits: edits))
         }
 
@@ -102,7 +103,9 @@ public actor SQLiteBookStore {
     }
 
     public func book(id: Int) -> StoredBook? {
-        let query = "SELECT payload, tags, reading_progress, read_at, taken_down_at FROM work WHERE id = ?"
+        let query = """
+            SELECT payload, tags, reading_progress, read_at, taken_down_at, put_away_at FROM work WHERE id = ?
+            """
 
         guard let statement = Statement(open(), query) else { return nil }
 
@@ -113,6 +116,7 @@ public actor SQLiteBookStore {
         summary.readingProgress = progress(statement.number(2), or: summary.readingProgress)
         summary.readAt = statement.date(3)
         summary.takenDownAt = statement.date(4)
+        summary.putAwayAt = statement.date(5)
         return StoredBook(
             summary: filed(summary, by: customSeries(), edits: seriesEdits()),
             tags: decode([ String ].self, statement.string(1)) ?? []
@@ -181,6 +185,15 @@ public actor SQLiteBookStore {
     /// Puts a book out as a cover for the next day, as a reader asking for it by name does.
     public func takeDown(workId: Int) {
         guard let statement = Statement(open(), "UPDATE work SET taken_down_at = ? WHERE id = ?") else { return }
+
+        statement.bind(1, Date.now.timeIntervalSince1970)
+        statement.bind(2, workId)
+        statement.execute()
+    }
+
+    /// Stands a book on its edge now, rather than when its day out as a cover runs out.
+    public func putAway(workId: Int) {
+        guard let statement = Statement(open(), "UPDATE work SET put_away_at = ? WHERE id = ?") else { return }
 
         statement.bind(1, Date.now.timeIntervalSince1970)
         statement.bind(2, workId)
@@ -1128,6 +1141,7 @@ public actor SQLiteBookStore {
         createAuthorAliasTable()
         addCompletionColumns()
         addReadingDates()
+        addPutAwayDate()
         addProvenanceColumns()
         repairProgress()
         markServiceBooksRead()
@@ -1189,6 +1203,14 @@ public actor SQLiteBookStore {
 
         execute("ALTER TABLE work ADD COLUMN read_at REAL")
         execute("ALTER TABLE work ADD COLUMN taken_down_at REAL")
+    }
+
+    /// Adds the column that dates a book being put away by hand. Everything already here was put away
+    /// by the day after reading it running out, if at all.
+    private func addPutAwayDate() {
+        guard !workColumns().contains("put_away_at") else { return }
+
+        execute("ALTER TABLE work ADD COLUMN put_away_at REAL")
     }
 
     private func workColumns() -> Set<String> { columns(of: "work") }
@@ -1401,7 +1423,8 @@ public actor SQLiteBookStore {
                 finished_when_added INTEGER NOT NULL DEFAULT 0,
                 finished_at REAL,
                 read_at REAL,
-                taken_down_at REAL
+                taken_down_at REAL,
+                put_away_at REAL
             )
             """
         )
