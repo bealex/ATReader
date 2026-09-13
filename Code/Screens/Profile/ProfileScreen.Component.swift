@@ -16,9 +16,6 @@ enum ProfileScreen {
         @Environment(ReaderSettings.self)
         private var settings
 
-        @Environment(BookInbox.self)
-        private var inbox
-
         @State
         private var isConfirmingSignOut = false
 

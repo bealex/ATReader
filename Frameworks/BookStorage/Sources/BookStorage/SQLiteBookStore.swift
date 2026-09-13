@@ -1662,6 +1662,7 @@ public actor SQLiteBookStore {
             return sqlite3_bind_text(handle, index, value, -1, Self.transient) == SQLITE_OK
         }
 
+        @discardableResult
         func bind(_ index: Int32, _ value: Data?) -> Bool {
             guard let value else { return sqlite3_bind_null(handle, index) == SQLITE_OK }
 

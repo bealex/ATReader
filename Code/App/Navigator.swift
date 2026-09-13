@@ -102,7 +102,7 @@ final class Navigator {
             screen.preferredTransition = .zoom(options: Self.zoom) { _ in source(.running) }
             // The book is taken down once the reader is over it, so it is never standing there behind
             // its own transition, and put back when the zoom has finished bringing it home.
-            screen.onArrived = { source(.covered) }
+            screen.onArrived = { _ = source(.covered) }
         }
 
         // The going is reported twice, and the two are different moments. This one is the transition
@@ -112,7 +112,7 @@ final class Navigator {
         // A screen that covers the stack never pops it, so the delegate that reports a return never
         // hears of this one and a list would go on showing what it read before the reading.
         screen.onGone = { [weak self] in
-            source?(.done)
+            _ = source?(.done)
             self?.cameBack()
         }
 
