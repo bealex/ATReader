@@ -40,6 +40,24 @@ struct BookHTMLTests {
     }
 
     @Test
+    func keepsALineTheBookBrokeItself() {
+        let read = BookHTML.paragraphs(from: "<p>Alpha bravo<br>Charlie delta</p>")
+
+        // Still one paragraph, with a line of its own inside it. A newline here would end the
+        // paragraph for the typesetter, stranding a short line in the middle of a justified column.
+        #expect(read.count == 1)
+        #expect(read[0].text == "Alpha bravo\u{2028}Charlie delta")
+        #expect(!read[0].text.contains("\n"))
+    }
+
+    @Test
+    func dropsWhatTheBookUsedToIndentABrokenLine() {
+        let read = BookHTML.paragraphs(from: "<p>Alpha bravo <br>&nbsp;&nbsp;&nbsp;Charlie delta</p>")
+
+        #expect(read[0].text == "Alpha bravo\u{2028}Charlie delta")
+    }
+
+    @Test
     func splitsParagraphsAndDropsMarkup() {
         let html = "<p>Alpha <em>bravo</em> charlie.</p><p>Delta&nbsp;echo &mdash; foxtrot.</p>"
         let paragraphs = BookHTML.paragraphs(from: html)
@@ -85,16 +103,6 @@ struct BookHTMLTests {
         let paragraphs = BookHTML.paragraphs(from: "<p>Kilo&nbsp;Lima</p>")
 
         #expect(paragraphs[0].text == "Kilo\u{00A0}Lima")
-    }
-
-    @Test
-    func joinsTheTextEitherSideOfALineBreak() {
-        let paragraphs = BookHTML.paragraphs(from: "<p>Kilo<br>Lima</p>")
-
-        // A newline here would end the paragraph for the typesetter, stranding a short line in the
-        // middle of a justified column.
-        #expect(paragraphs.count == 1)
-        #expect(paragraphs[0].text == "Kilo Lima")
     }
 
     @Test

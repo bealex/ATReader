@@ -365,10 +365,13 @@ public enum BookHTML {
     private static func plainText(from fragment: String) -> String {
         var text = fragment
 
-        // A space, not a newline: a newline ends the paragraph as far as the typesetter is concerned.
-        for lineBreak in [ "<br>", "<br/>", "<br />" ] {
-            text = text.replacingOccurrences(of: lineBreak, with: " ", options: .caseInsensitive)
-        }
+        // A line of its own inside the paragraph, which is what the book asked for. Not a newline:
+        // that ends the paragraph as far as the typesetter is concerned.
+        text = text.replacingOccurrences(
+            of: "<br\\s*/?>",
+            with: String(lineSeparator),
+            options: [ .regularExpression, .caseInsensitive ]
+        )
 
         text = text.replacingOccurrences(of: "<[^>]+>", with: "", options: .regularExpression)
         text = decodeEntities(in: text)
@@ -378,8 +381,19 @@ public enum BookHTML {
         // A run of them is a publisher indenting a line, which is the page's business rather than the
         // text's. One on its own still binds the words either side of it and is left alone.
         text = text.replacingOccurrences(of: "[ \u{00A0}]{2,}", with: " ", options: .regularExpression)
+        // A line the book broke itself starts where it starts: the space that ended the line before it
+        // and whatever was used to indent the new one are the book's own setting, not its words.
+        text = text.replacingOccurrences(
+            of: "[ \u{00A0}]*\(lineSeparator)[ \u{00A0}]*",
+            with: String(lineSeparator),
+            options: .regularExpression
+        )
         return text.trimmingCharacters(in: .whitespacesAndNewlines)
     }
+
+    /// What a `<br>` becomes: a line of its own inside the paragraph. Kept in the text, since a
+    /// reading position counts it, and drawn by nothing.
+    public static let lineSeparator: Character = "\u{2028}"
 
     private static let entities = [
         "&nbsp;": "\u{00A0}",

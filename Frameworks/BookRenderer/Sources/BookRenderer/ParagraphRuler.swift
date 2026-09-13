@@ -22,6 +22,8 @@ public struct ParagraphRuler {
         var drawsHyphen: Bool
         /// A tie holds this shut, so breaking here leaves a short word at the end of a line.
         var tied: Bool
+        /// The book broke the line here itself, so no line may carry text across it.
+        var forced = false
     }
 
     public let range: NSRange
@@ -350,6 +352,8 @@ public struct ParagraphRuler {
                 result.append(Break(position: offset, hyphenates: true, drawsHyphen: true, tied: false))
             } else if previous == 0x002D, breaksInsideAWord(string, at: range.location + offset) {
                 result.append(Break(position: offset, hyphenates: true, drawsHyphen: false, tied: false))
+            } else if previous == lineSeparator {
+                result.append(Break(position: offset, hyphenates: false, drawsHyphen: false, tied: false, forced: true))
             }
         }
 
@@ -388,11 +392,14 @@ public struct ParagraphRuler {
     public static let softHyphen = unichar(0x00AD)
     /// Ties a short word to the one after it, so no line may end on it.
     public static let wordJoiner = unichar(0x2060)
+    /// A line the book broke itself. Drawn by nothing, and counted like any other character.
+    public static let lineSeparator = unichar(0x2028)
 
     public static func isBlank(_ character: unichar) -> Bool { character == 0x20 || character == 0x0A }
 
     /// What the typesetter put in to steer the breaking and nobody is meant to see.
     private static func isInvisible(_ character: unichar) -> Bool {
         character == softHyphen || character == wordJoiner || character == 0x200B || character == 0x0A
+            || character == lineSeparator
     }
 }

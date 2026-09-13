@@ -392,6 +392,23 @@ public final class ColumnComposer {
         var hyphenates = false
         var drawsHyphen = false
         var tied = false
+        /// The book broke the line here itself, so no line may carry text across it.
+        var forced = false
+    }
+
+    /// How far back a line ending at each stop may reach, which is never across a break the book made
+    /// itself. A line beginning at such a break is the one the book asked for.
+    private static func reach(of stops: [Stop]) -> [Int] {
+        var held = [Int](repeating: 0, count: stops.count)
+        var latest = 0
+
+        for index in 1 ..< stops.count {
+            held[index] = latest
+
+            if stops[index].forced { latest = index }
+        }
+
+        return held
     }
 
     /// One candidate line, measured and with its slack already shared out.
@@ -410,6 +427,8 @@ public final class ColumnComposer {
         var hyphenates: Bool
         var isJustified: Bool
         var isLast: Bool
+        /// The book ended this line itself, so it takes whatever it has and is no worse for it.
+        var isForced: Bool
         var indent: CGFloat
         var fill: LineFill
 
@@ -426,7 +445,9 @@ public final class ColumnComposer {
     ) -> Candidate {
         let content = ruler.content(from: start, to: stop.position)
         let natural = ruler.width(from: start, to: content) + (stop.drawsHyphen ? ruler.hyphenWidth : 0)
-        let isJustified = ruler.alignment == .justified
+        // A line the book ended itself is not justified: it stops where the book stopped it, and
+        // stretching it to the measure would be filling a line nobody asked to be full.
+        let isJustified = ruler.alignment == .justified && !stop.forced
         let fills = isJustified && !isLast
         let holdsFirstGap = isFirst && Self.opensOnDash(ruler)
         let drawn = ruler.characters(from: start, to: content) + (stop.drawsHyphen ? 1 : 0)
@@ -472,6 +493,7 @@ public final class ColumnComposer {
             hyphenates: stop.hyphenates,
             isJustified: isJustified,
             isLast: isLast,
+            isForced: stop.forced,
             indent: indent,
             fill: fill
         )
@@ -492,7 +514,8 @@ public final class ColumnComposer {
                 position: opportunity.position,
                 hyphenates: opportunity.hyphenates,
                 drawsHyphen: opportunity.drawsHyphen,
-                tied: opportunity.tied
+                tied: opportunity.tied,
+                forced: opportunity.forced
             ))
         }
 
@@ -500,12 +523,14 @@ public final class ColumnComposer {
 
         var best = [Double](repeating: .infinity, count: stops.count)
         var came = [Int](repeating: 0, count: stops.count)
+        let held = Self.reach(of: stops)
+
         best[0] = 0
 
         for stop in 1 ..< stops.count {
             let isLast = stop == stops.count - 1
 
-            for previous in stride(from: stop - 1, through: 0, by: -1) {
+            for previous in stride(from: stop - 1, through: held[stop], by: -1) {
                 let piece = candidate(
                     ruler,
                     from: stops[previous].position,
@@ -564,6 +589,8 @@ public final class ColumnComposer {
             return Rules.squeezePenalty * Double(piece.fill.reach * piece.fill.reach)
         }
 
+        // The book asked for this line to end here, so it costs nothing to have stopped short.
+        guard !piece.isForced else { return 0 }
         guard !piece.isLast else { return lastLineCost(piece, ruler: ruler) }
         guard
             piece.fills
