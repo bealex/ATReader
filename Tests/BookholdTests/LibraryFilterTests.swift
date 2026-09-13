@@ -58,39 +58,48 @@ struct LibraryFilterTests {
         #expect(!Filter.reading.includes(series))
     }
 
-    /// A series is finished only when every book in it is, so the two filters never both claim one.
+    /// A series read right through is off the Reading shelf; one with anything left in it is not.
     @Test
-    func finishedTakesOnlyASeriesReadRightThrough() {
+    func readingLeavesASeriesOnlyWhenNothingIsLeftInIt() {
         let done = [ Self.book(read: 1, isFinished: true), Self.book(read: 1, isFinished: true) ]
         let partly = [ Self.book(read: 1, isFinished: true), Self.book(read: 0.2, isFinished: true) ]
 
-        #expect(Filter.finished.includes(done))
-        #expect(!Filter.finished.includes(partly))
+        #expect(!Filter.reading.includes(done))
+        #expect(Filter.reading.includes(partly))
     }
 
-    /// Every card lands under exactly one of the two, which is what makes the pair a division of the
-    /// shelf rather than two overlapping views of it.
+    /// All books is where a reader goes to find whatever the shelf is not showing, so it keeps every
+    /// card whatever has been read of it.
     @Test(arguments: [
         [ 0.1 ], [ 1.0 ], [ 1.0, 1.0 ], [ 1.0, 0.3 ], [ 0.2, 0.4 ],
     ])
-    func everyCardIsUnderOneFilterOrTheOther(progress: [Double]) {
-        let works = progress.map { Self.book(read: $0, isFinished: true) }
-
-        #expect(Filter.reading.includes(works) != Filter.finished.includes(works))
-        #expect(Filter.everything.includes(works))
+    func everythingKeepsEveryCard(progress: [Double]) {
+        #expect(Filter.everything.includes(progress.map { Self.book(read: $0, isFinished: true) }))
     }
 
     // MARK: - Hiding what a series holds
 
-    /// The shelf keeps the books of a series that have been opened, and drops the rest of it.
+    /// The shelf keeps the book of a series the reader is on, and drops the rest of it: the ones they
+    /// have finished with as well as the ones they have never opened.
     @Test
-    func hidingASeriesKeepsTheBooksThatWereOpened() {
-        let read = Self.book(read: 0.4, isFinished: true)
-        let through = Self.book(read: 1, isFinished: true)
-        let series = [ read, Self.book(read: 0, isFinished: true), through ]
-        let kept = LibraryScreen.Model.opened(among: series).map(\.id)
+    func hidingASeriesKeepsOnlyWhatIsBeingRead() {
+        var done = Self.book(read: 1, isFinished: true)
+        done.readAt = .now.addingTimeInterval(-2 * 24 * 60 * 60)
 
-        #expect(kept == [ read.id, through.id ])
+        let reading = Self.book(read: 0.4, isFinished: true)
+        let series = [ reading, Self.book(read: 0, isFinished: true), done ]
+        let kept = LibraryScreen.Model.beingRead(among: series).map(\.id)
+
+        #expect(kept == [ reading.id ])
+    }
+
+    /// Read to the end of a book the author is still writing is still being read.
+    @Test
+    func hidingASeriesKeepsABookTheReaderIsCaughtUpWith() {
+        let caughtUp = Self.book(read: 1, isFinished: false)
+        let series = [ caughtUp, Self.book(read: 0, isFinished: true) ]
+
+        #expect(LibraryScreen.Model.beingRead(among: series).map(\.id) == [ caughtUp.id ])
     }
 
     /// A book that arrived in the last day stands out wherever it is, opened or not.
@@ -101,7 +110,7 @@ struct LibraryFilterTests {
 
         let series = [ Self.book(read: 0.4, isFinished: true), arrived ]
 
-        #expect(LibraryScreen.Model.opened(among: series).contains { $0.id == arrived.id })
+        #expect(LibraryScreen.Model.beingRead(among: series).contains { $0.id == arrived.id })
     }
 
     @Test
@@ -111,7 +120,7 @@ struct LibraryFilterTests {
 
         let series = [ Self.book(read: 0.4, isFinished: true), older ]
 
-        #expect(!LibraryScreen.Model.opened(among: series).contains { $0.id == older.id })
+        #expect(!LibraryScreen.Model.beingRead(among: series).contains { $0.id == older.id })
     }
 
     /// A single book is not a series on the shelf, so hiding series never hides it.
@@ -119,7 +128,7 @@ struct LibraryFilterTests {
     func hidingASeriesLeavesALoneBookAlone() {
         let alone = [ Self.book(read: 0, isFinished: true) ]
 
-        #expect(LibraryScreen.Model.opened(among: alone).count == 1)
+        #expect(LibraryScreen.Model.beingRead(among: alone).count == 1)
     }
 
     /// A series nobody has opened has nothing left to show, and goes off the shelf entire.
@@ -127,7 +136,7 @@ struct LibraryFilterTests {
     func hidingASeriesNobodyOpenedLeavesNothing() {
         let series = [ Self.book(read: 0, isFinished: true), Self.book(read: 0, isFinished: true) ]
 
-        #expect(LibraryScreen.Model.opened(among: series).isEmpty)
+        #expect(LibraryScreen.Model.beingRead(among: series).isEmpty)
     }
 
     // MARK: - A book to file

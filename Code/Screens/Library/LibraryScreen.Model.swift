@@ -160,8 +160,6 @@ extension LibraryScreen {
         enum Filter: String, CaseIterable, Identifiable {
             /// The author is still writing it, or there is text left to read. Both mean "open me".
             case reading
-            /// Written to its end and read to its end.
-            case finished
             case everything
 
             var id: String { rawValue }
@@ -169,7 +167,6 @@ extension LibraryScreen {
             var title: String {
                 switch self {
                     case .reading: String(localized: "Reading")
-                    case .finished: String(localized: "Finished")
                     case .everything: String(localized: "All books")
                 }
             }
@@ -177,7 +174,6 @@ extension LibraryScreen {
             var systemImage: String {
                 switch self {
                     case .reading: "book"
-                    case .finished: "checkmark.circle"
                     case .everything: "books.vertical"
                 }
             }
@@ -185,7 +181,6 @@ extension LibraryScreen {
             func includes(_ work: Book) -> Bool {
                 switch self {
                     case .reading: !work.isDone()
-                    case .finished: work.isDone()
                     case .everything: true
                 }
             }
@@ -199,7 +194,6 @@ extension LibraryScreen {
             func includes(_ works: [Book]) -> Bool {
                 switch self {
                     case .reading: works.contains { !$0.isDone() }
-                    case .finished: !works.isEmpty && works.allSatisfy { $0.isDone() }
                     case .everything: true
                 }
             }
@@ -211,11 +205,14 @@ extension LibraryScreen {
             }
         }
 
-        /// True while a series shows only the books the reader has been into.
+        /// True while a series shows only the books the reader is reading.
         ///
-        /// A library that follows long series stands mostly on volumes nobody has opened, and a reader
-        /// looking for where they are has to read past them. With this on, a series keeps the books
-        /// that have been opened, and drops the rest.
+        /// A library that follows long series stands mostly on volumes that are read or not started,
+        /// and a reader looking for where they are has to read past them. With this on, a series keeps
+        /// the book they are on and drops the rest of itself.
+        ///
+        /// Nothing is hidden under All books, which is what that filter is for and where a reader goes
+        /// to find whatever the shelf is not showing.
         var hidesSeries = false {
             didSet {
                 if oldValue != hidesSeries { forgetFiling() }
@@ -371,7 +368,10 @@ extension LibraryScreen {
             let searchFilter = search == nil ? filter : .everything
             let named = seriesRuns(searched.filter { $0.series != nil })
             // A search stands the hiding aside for the same reason it stands the filter aside.
-            let held = hidesSeries && search == nil ? named.mapValues(Self.opened(among:)) : named
+            let held =
+                hidesSeries && search == nil && filter != .everything
+                ? named.mapValues(Self.beingRead(among:))
+                : named
             // One book is not a series, whatever the book says it belongs to. A card built round a
             // single row claims the shelf holds a run of them, and the row already names the series it
             // came from without pretending to hold it.
@@ -392,15 +392,17 @@ extension LibraryScreen {
             return (grouped + alone).sorted(by: Self.byUpdate)
         }
 
-        /// The books of a run the reader has been into, leaving a run of one alone: a single book is
-        /// not a series on the shelf, and hiding it would hide a book rather than a series.
+        /// The books of a run the reader is reading: opened, and not finished with. A run of one book
+        /// is left alone, since a single book is not a series and hiding it would hide a book.
         ///
-        /// A book that arrived in the last day stays whatever else is true of it, which is as long as
-        /// anything else stands out on this shelf for.
-        nonisolated static func opened(among works: [Book]) -> [Book] {
+        /// Read to the end of what is written, with the author still writing, is still being read, and
+        /// so is a book finished within the last day: both are what `isDone` already says. A book that
+        /// arrived in the last day stays as well, which is as long as anything else stands out on this
+        /// shelf for.
+        nonisolated static func beingRead(among works: [Book]) -> [Book] {
             guard works.count > 1 else { return works }
 
-            return works.filter { $0.isOpened || $0.isJustTakenDown() }
+            return works.filter { ($0.isOpened && !$0.isDone()) || $0.isJustTakenDown() }
         }
 
         /// When the service last changed the book. Reading it is not a change to it, so the list holds

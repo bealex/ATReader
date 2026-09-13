@@ -114,23 +114,30 @@ dependable about where they have got to, so the app ignores them and works the s
 - **caught up** — read as far as it goes, with the author still writing.
 - everything else is being read.
 
-The list opens on the books that aren't finished, and the toolbar filter switches to the finished ones
-or to all of them.
+The list opens on the books that aren't finished, and the toolbar filter switches to all of them.
 
 The filter keeps or hides a whole card rather than picking through it. A series with anything left in
 it is still being read and arrives entire, the books already finished included: those are what the
 reader is reading through, and a series showing only its unread half would hide where they had got to.
-Only a series read to its last book counts as finished, so every card lands under exactly one of the
-two. The count beside a filter is books rather than rows, since a series kept for one unread book
-brings the rest of itself along, and what helps is how much is left to read.
+The count beside a filter is books rather than rows, since a series kept for one unread book brings the
+rest of itself along, and what helps is how much is left to read.
 
-**Hide series**, in the same menu, is the one rule that picks through a card: a series shows only the
-books the reader has been into, and the rest of it goes. A library that follows long series otherwise
-stands mostly on volumes nobody has opened. A book that arrived in the last day stays whatever else is
-true of it, which is as long as anything else stands out on this shelf for, and a run of one book is
-left alone, since a single book is not a series and hiding it would hide a book. A series nobody has
-opened has nothing left to show and goes off the shelf whole. A search stands the hiding aside, the
-same way it stands the filter aside.
+**Hide series**, in the same menu, is the one rule that picks through a card: a series shows the book
+the reader is on and drops the rest of itself. A library that follows long series otherwise stands
+mostly on books that are finished or never started, and finding where the reading is means reading past
+them. Being read is what `isDone` already decides: caught up with a book still being written counts,
+and so does one finished within the last day. A book that arrived in the last day stays as well, which
+is as long as anything else stands out on this shelf for, and a run of one book is left alone, since a
+single book is not a series and hiding it would hide a book. A series with nothing being read in it has
+nothing left to show and goes off the shelf whole.
+
+All books stands the hiding aside and the switch is offered disabled there: that filter is where a
+reader goes to find whatever the shelf is not showing. A search stands it aside for the same reason.
+
+Whatever the filing is worked out from has to be read in `watchFiling()`. The filings themselves are
+`@ObservationIgnored`, since filing a couple of thousand books is felt and every redraw asks for one,
+so that function is the whole of what a screen showing the shelf is subscribed to. A switch left out of
+it clears the filing and tells nobody.
 
 A writer's own menu can take them off the Reading shelf, which is the one place a card is hidden by
 hand rather than by what has been read. They keep their card under the other filters, so All books

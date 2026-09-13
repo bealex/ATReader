@@ -119,10 +119,13 @@ enum LibraryScreen {
 
         /// Which books to show, with the one in force ticked, and whether a series shows all of itself.
         private func filterDeeds() -> [Deed] {
+            // Under All books there is nothing to hide: that filter is where a reader goes to find
+            // whatever the shelf is not showing.
             let hiding = Deed.act(
                 String(localized: "Hide series"),
                 systemImage: "eye.slash",
-                isOn: model.hidesSeries
+                isEnabled: model.filter != .everything,
+                isOn: model.hidesSeries && model.filter != .everything
             ) {
                 model.hidesSeries.toggle()
             }
