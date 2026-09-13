@@ -9,7 +9,7 @@ the screens, the session and the wiring between them.
 ```
 BookKit            what a book is, and every protocol the others meet at. Foundation only.
 DesignSystem       the lattice, five colours, nine roles. Knows nothing about books.
-BookFormats        reading a book out of a file.        → BookKit
+BookFormats        reading a book out of a file, FB2 or EPUB. → BookKit
 BookStorage        one SQLite file, covers, keychain.   → BookKit
 BookRenderer       typography, pagination, the page.    → BookKit
 AuthorTodayBooks   the service's shapes as one Book.    → BookKit, AuthorToday
@@ -203,6 +203,10 @@ licensing rather than secrecy. An unconfigured build must keep working for every
   out to the screen edges, and moves the text every time a toolbar appears.
 - **The reader's position is a character offset, not a page number.** Changing the font re-paginates,
   and a page index means nothing across a restyle.
+- **A view at no opacity is still there.** Hiding chrome with `.opacity(0)` leaves every button of it
+  in the accessibility tree: VoiceOver reads them out and a UI test finds them by name.
+  `.accessibilityHidden()` does not reach through `GlassRow`, whose buttons sit under `.glassEffect`.
+  Build the thing only while it is shown and keep the fade as a transition.
 - **UI-test environment variables need a `TEST_RUNNER_` prefix** to reach the test process;
   `xcodebuild` strips it.
 - **`UserDefaults` reads `-key value` launch arguments,** which is the easy way to drive reader

@@ -50,7 +50,7 @@ struct BookFileTests {
         let archive = try #require(Self.zipped(Data("nothing".utf8), named: "notes.txt"))
 
         // Nothing names itself a book, so the largest file is taken and the parser turns it down.
-        #expect(throws: FB2Error.self) { try FB2Parser.parse(ZipArchive.book(in: archive)) }
+        #expect(throws: BookFileError.self) { try FB2Parser.parse(ZipArchive.book(in: archive)) }
     }
 
     // MARK: - Importing

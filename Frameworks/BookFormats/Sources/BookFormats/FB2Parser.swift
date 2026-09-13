@@ -40,7 +40,7 @@ public enum FB2Parser {
         parser.delegate = builder
         parser.shouldProcessNamespaces = false
 
-        guard parser.parse() else { throw FB2Error.malformed(parser.parserError?.localizedDescription) }
+        guard parser.parse() else { throw BookFileError.malformed(parser.parserError?.localizedDescription) }
 
         return try builder.book()
     }
@@ -127,7 +127,7 @@ public enum FB2Parser {
         func book() throws -> ParsedBook {
             closeChapter()
 
-            guard !sections.isEmpty else { throw FB2Error.notABook }
+            guard !sections.isEmpty else { throw BookFileError.notABook }
 
             return ParsedBook(
                 title: bookTitle?.trimmed ?? String(localized: "Untitled"),
@@ -601,9 +601,4 @@ public enum FB2Parser {
                 .replacingOccurrences(of: ">", with: "&gt;")
         }
     }
-}
-
-extension String {
-    fileprivate var trimmed: String { trimmingCharacters(in: .whitespacesAndNewlines) }
-    fileprivate var nilWhenEmpty: String? { isEmpty ? nil : self }
 }

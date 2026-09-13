@@ -126,7 +126,9 @@ enum ReaderScreen {
                         )
                     }
 
-                    navigator.aboutToGo = { [weak model] in model?.flushPosition() }
+                    let reader = model
+
+                    navigator.aboutToGo = { [weak reader] in reader?.flushPosition() }
                 }
                 .task { await model?.loadIfNeeded() }
                 // Where the reader stopped is worth writing the moment they stop: an app on its way to
@@ -211,13 +213,14 @@ enum ReaderScreen {
                     hideChrome()
                     value.noteTurn()
                 },
+                readsRightToLeft: value.readsRightToLeft,
                 page: { index in pageContent(value, at: index) }
             )
             .accessibilityIdentifier("reader.page")
             .ignoresSafeArea()
             // Over the page and in its coordinates, so the controls and the running head are placed
             // from the same edge of the screen.
-            .overlay(alignment: .top) { chrome }
+            .overlay(alignment: .top) { controls }
             // Drawn text is invisible to VoiceOver, so a marker cannot be touched. The page offers its
             // notes as actions of its own instead.
             .accessibilityActions {
@@ -477,6 +480,16 @@ enum ReaderScreen {
         ///
         /// Drawn here rather than handed to a bar: a bar centres what it is given on its own height and
         /// reads no offset asking for anything else.
+        /// The controls, built only while they are up.
+        ///
+        /// Faded out is not gone: a row under glass goes on being read out and found by name however
+        /// little of it is drawn, so a reader that only faded them would offer VoiceOver controls that
+        /// are not there, and a test would find buttons nobody can see.
+        @ViewBuilder
+        private var controls: some View {
+            if !isChromeHidden { chrome.transition(.opacity) }
+        }
+
         private var chrome: some View {
             HStack(alignment: .top, spacing: Design.Space.large) {
                 // The way out, since a presented screen has no back button of its own. The glyph is the
@@ -507,6 +520,7 @@ enum ReaderScreen {
                         model?.toggleBookmark()
                     }
                     .accessibilityHint("Marks the page, or clears the marks on it")
+                    .disabled(model?.canBookmarkPage != true)
 
                     Button("Contents", systemImage: "list.bullet") { isShowingContents = true }
                         .accessibilityHint("Shows the chapter list")
@@ -525,8 +539,6 @@ enum ReaderScreen {
             // Counted from the top of the screen, as the running head is: an overlay is given the safe
             // area back even where the view under it turned it down.
             .ignoresSafeArea()
-            .opacity(isChromeHidden ? 0 : 1)
-            .allowsHitTesting(!isChromeHidden)
         }
 
         /// Where the controls start, so that the middle of them lands on the middle of the line the

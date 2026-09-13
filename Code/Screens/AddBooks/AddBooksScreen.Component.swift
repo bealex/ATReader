@@ -49,7 +49,7 @@ enum AddBooksScreen {
                 }
                 .disabled(inbox.isImporting)
                 .accessibilityIdentifier("add.file")
-                .accessibilityHint("Reads an FB2 file into your library")
+                .accessibilityHint("Reads an EPUB or FB2 file into your library")
                 .fileImporter(
                     isPresented: $isPickingFile,
                     allowedContentTypes: LocalBookFiles.fileTypes,

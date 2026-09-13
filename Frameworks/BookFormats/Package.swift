@@ -17,6 +17,11 @@ let package = Package(
         .package(path: "../BookKit")
     ],
     targets: [
-        .target(name: "BookFormats", dependencies: [ "BookKit" ], swiftSettings: [ .swiftLanguageMode(.v6) ])
+        .target(name: "BookFormats", dependencies: [ "BookKit" ], swiftSettings: [ .swiftLanguageMode(.v6) ]),
+        .testTarget(
+            name: "BookFormatsTests",
+            dependencies: [ "BookFormats", "BookKit" ],
+            swiftSettings: [ .swiftLanguageMode(.v6) ]
+        ),
     ]
 )

@@ -1,7 +1,11 @@
 # Books from files
 
-A book can come from an FB2 file on the device instead of from the service. Once it's in, nothing
-downstream can tell the difference: the same library row, the same book page, the same reader.
+A book can come from a file on the device instead of from the service. Once it's in, nothing downstream
+can tell the difference: the same library row, the same book page, the same reader.
+
+Two formats are read. FB2 is described below; EPUB has enough of its own to say that it lives in
+[Epub.md](Epub.md). `BookImporting.formats` holds both, and the bytes decide which one reads a file
+rather than its name.
 
 ## The seam
 
@@ -15,18 +19,20 @@ That's the whole integration. There's no second reader and no second content typ
 
 ## Archives
 
-FB2 books are handed out zipped more often than not, so an archive is opened on the way in rather than
-the reader being asked to unpack one first. The bytes decide, not the name: these arrive called
-`.fb2.zip`, `.zip` and occasionally `.fb2` while being an archive all the same.
+FB2 books are handed out zipped more often than not, and an EPUB is an archive by definition, so one is
+opened on the way in rather than the reader being asked to unpack it first. The bytes decide, not the
+name: FB2 books arrive called `.fb2.zip`, `.zip` and occasionally `.fb2` while being an archive all the
+same.
 
 The platform has no public API for reading a zip, so `ZipArchive` reads the little of the format a book
 needs. It walks the central directory rather than the local headers, because a zip written as a stream
 leaves the sizes zero in the local header and fills them in afterwards. Members are stored or deflated,
-and a zip member's deflate stream is exactly what `NSData.decompressed(using: .zlib)` reads.
+and a zip member's deflate stream is exactly what `NSData.decompressed(using: .zlib)` reads. The Zip64
+records a large archive keeps its numbers in are read too; encryption and multi-disk archives are
+refused rather than half-supported.
 
-Zip64, encryption and multi-disk archives are refused rather than half-supported. The book taken out is
-the first `.fb2` member, or the largest file where none says so; directories and the second copy of
-every file that a Mac writes under `__MACOSX` are skipped.
+The book taken out of an FB2 archive is the first `.fb2` member, or the largest file where none says so.
+Directories and the second copy of every file that a Mac writes under `__MACOSX` are skipped.
 
 ## Parsing
 
@@ -104,8 +110,12 @@ library screen doesn't exist yet, so the reading-in can't live there.
 
 The app declares FB2 in `UTImportedTypeDeclarations` rather than exporting it, since the format is
 somebody else's and this app only claims to read it. That's also why it takes `Default` handler rank
-instead of `Owner`. `LSSupportsOpeningDocumentsInPlace` is on: the text is copied into the store on the
-way past, so nothing needs duplicating into the app's container first.
+instead of `Owner`. EPUB needs no declaration at all: every Apple platform already knows that type, so
+the app only claims to open it, at `Alternate` rank. That claim is also what puts Bookhold in the share
+sheet, which is how a book reaches it from Books.app.
+
+`LSSupportsOpeningDocumentsInPlace` is on: the text is copied into the store on the way past, so nothing
+needs duplicating into the app's container first.
 
 A book that came from a file says so on its own page. Its cover carries no mark for
 it: where a book came from matters less than how far through it the reader is.

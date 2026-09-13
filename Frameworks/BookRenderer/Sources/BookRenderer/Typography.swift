@@ -23,7 +23,7 @@ public enum Typography {
     /// A rule in this file is one reason. A new field on `Paragraph` is another, and the easier one to
     /// forget: the title levels were added without this moving, so every chapter already on a device
     /// went on being read back with no levels on it and the air around its titles never appeared.
-    public static let version = "9"
+    public static let version = "10"
 
     /// A space that cannot be broken at, and that still stretches when a line is justified.
     ///

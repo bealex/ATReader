@@ -61,6 +61,30 @@ public struct ScriptMark: Codable, Sendable, Hashable {
     public var range: NSRange { NSRange(location: location, length: length) }
 }
 
+/// A stretch of a paragraph set apart from the text around it: slanted, or set bold.
+///
+/// Counted the way a note marker is, in the characters the text arrived with, so a reading position
+/// means the same whether or not the typesetter has been through it. Two marks may cover the same
+/// stretch, which is how a phrase set both ways is written down.
+public struct StyleMark: Codable, Sendable, Hashable {
+    public enum Emphasis: String, Codable, Sendable {
+        case italic
+        case bold
+    }
+
+    public let location: Int
+    public let length: Int
+    public let emphasis: Emphasis
+
+    public init(location: Int, length: Int, emphasis: Emphasis) {
+        self.location = location
+        self.length = length
+        self.emphasis = emphasis
+    }
+
+    public var range: NSRange { NSRange(location: location, length: length) }
+}
+
 /// One laid-out block of a chapter: a paragraph of text, or a picture standing on its own.
 public struct Paragraph: Codable, Sendable, Identifiable, Hashable {
     public let id: Int
@@ -77,6 +101,13 @@ public struct Paragraph: Codable, Sendable, Identifiable, Hashable {
     public let notes: [NoteMark]
     /// The stretches of it set off the line, in the order they stand in it.
     public let scripts: [ScriptMark]
+    /// The stretches of it the book set apart, in the order they stand in it.
+    public let styles: [StyleMark]
+    /// How deep in a list this block stands, or nothing where it is ordinary text. The mark an item
+    /// opens with is part of its own text, so only the indent is left to say.
+    public let listLevel: Int?
+    /// The block is written from the right, which sets it and turns its pages the other way round.
+    public let isRightToLeft: Bool
 
     public init(
         id: Int,
@@ -85,7 +116,10 @@ public struct Paragraph: Codable, Sendable, Identifiable, Hashable {
         imageSource: String? = nil,
         titleLevel: Int? = nil,
         notes: [NoteMark] = [],
-        scripts: [ScriptMark] = []
+        scripts: [ScriptMark] = [],
+        styles: [StyleMark] = [],
+        listLevel: Int? = nil,
+        isRightToLeft: Bool = false
     ) {
         self.id = id
         self.text = text
@@ -94,6 +128,9 @@ public struct Paragraph: Codable, Sendable, Identifiable, Hashable {
         self.titleLevel = titleLevel
         self.notes = notes
         self.scripts = scripts
+        self.styles = styles
+        self.listLevel = listLevel
+        self.isRightToLeft = isRightToLeft
     }
 
     public init(from decoder: any Decoder) throws {
@@ -108,6 +145,9 @@ public struct Paragraph: Codable, Sendable, Identifiable, Hashable {
         notes = try container.decodeIfPresent([ NoteMark ].self, forKey: .notes) ?? []
         // As with the notes: a chapter prepared before these were read carries none.
         scripts = try container.decodeIfPresent([ ScriptMark ].self, forKey: .scripts) ?? []
+        styles = try container.decodeIfPresent([ StyleMark ].self, forKey: .styles) ?? []
+        listLevel = try container.decodeIfPresent(Int.self, forKey: .listLevel)
+        isRightToLeft = try container.decodeIfPresent(Bool.self, forKey: .isRightToLeft) ?? false
     }
 
     public var isImage: Bool { imageSource != nil }
@@ -142,6 +182,16 @@ public enum BookHTML {
 
         return Int(attributes[found].suffix(2).prefix(1))
     }
+
+    /// How deep in a list a block stands, or nothing where it is ordinary text.
+    private static func listLevel(inside attributes: String) -> Int? {
+        guard let found = attributes.range(of: "data-list=\"[1-9]\"", options: .regularExpression) else { return nil }
+
+        return Int(attributes[found].suffix(2).prefix(1))
+    }
+
+    /// True where the block says it is written from the right.
+    private static func isRightToLeft(inside attributes: String) -> Bool { attributes.contains("dir=\"rtl\"") }
 
     /// Rewrites `<h1>`…`<h6>` as paragraphs carrying their level, so one walk reads the whole body.
     private static func levelling(_ html: String) -> String {
@@ -349,7 +399,10 @@ public enum BookHTML {
                         isCentered: centered,
                         titleLevel: titleLevel(inside: attributes),
                         notes: read.marks,
-                        scripts: read.scripts
+                        scripts: read.scripts,
+                        styles: read.styles,
+                        listLevel: listLevel(inside: attributes),
+                        isRightToLeft: isRightToLeft(inside: attributes)
                     ))
                     index += 1
             }
@@ -373,17 +426,79 @@ public enum BookHTML {
     /// because no book contains one and neither step touches them.
     private static let markerOpen: Character = "\u{E000}"
     private static let markerClose: Character = "\u{E001}"
-    /// The same trick for the stretches a formula sets off the line: a fence the tag stripper leaves
-    /// alone, read back out once the markup is gone.
-    private static let scriptFences: [(open: Character, close: Character, place: ScriptMark.Place)] = [
-        ("\u{E002}", "\u{E003}", .below),
-        ("\u{E004}", "\u{E005}", .above),
+    /// A stretch of a paragraph its markup sets apart, before the markup is gone.
+    private enum Run: Hashable {
+        case script(ScriptMark.Place)
+        case emphasis(StyleMark.Emphasis)
+    }
+
+    /// The same trick for every stretch a paragraph sets apart: a pair of marks the tag stripper
+    /// leaves alone, and the tags they stand in for.
+    private struct Fence {
+        let open: Character
+        let close: Character
+        let run: Run
+        let tags: [String]
+    }
+
+    private static let fences: [Fence] = [
+        Fence(open: "\u{E002}", close: "\u{E003}", run: .script(.below), tags: [ "sub" ]),
+        Fence(open: "\u{E004}", close: "\u{E005}", run: .script(.above), tags: [ "sup" ]),
+        Fence(open: "\u{E006}", close: "\u{E007}", run: .emphasis(.italic), tags: [ "em", "i", "cite", "dfn", "var" ]),
+        Fence(open: "\u{E008}", close: "\u{E009}", run: .emphasis(.bold), tags: [ "strong", "b" ]),
     ]
+
+    /// The stretches a paragraph sets apart, gathered as the fences are met.
+    ///
+    /// A stretch set apart inside another of its own kind closes once, at the outermost of the two, so
+    /// each kind keeps how deep it stands as well as where it opened.
+    private struct Runs {
+        private var opened: [Run: (start: Int, depth: Int)] = [:]
+
+        private(set) var scripts: [ScriptMark] = []
+        private(set) var styles: [StyleMark] = []
+
+        /// Takes a character as a fence, where it is one. Reports whether it was, since a fence is
+        /// bookkeeping rather than a character the page draws.
+        mutating func took(_ character: Character, at length: Int) -> Bool {
+            if let fence = fences.first(where: { $0.open == character }) {
+                let held = opened[fence.run]
+
+                opened[fence.run] = (held?.start ?? length, (held?.depth ?? 0) + 1)
+                return true
+            }
+
+            guard let fence = fences.first(where: { $0.close == character }) else { return false }
+            guard let held = opened[fence.run] else { return true }
+            guard
+                held.depth <= 1
+            else {
+                opened[fence.run] = (held.start, held.depth - 1)
+                return true
+            }
+
+            opened[fence.run] = nil
+            close(fence.run, from: held.start, to: length)
+            return true
+        }
+
+        private mutating func close(_ run: Run, from start: Int, to length: Int) {
+            guard length > start else { return }
+
+            switch run {
+                case let .script(place):
+                    scripts.append(ScriptMark(location: start, length: length - start, place: place))
+                case let .emphasis(emphasis):
+                    styles.append(StyleMark(location: start, length: length - start, emphasis: emphasis))
+            }
+        }
+    }
 
     private struct ReadText {
         var text: String
         var marks: [NoteMark]
         var scripts: [ScriptMark] = []
+        var styles: [StyleMark] = []
     }
 
     /// One paragraph's text, with the note markers in it found and placed.
@@ -392,7 +507,7 @@ public enum BookHTML {
         paragraph: Int,
         notes: inout [String: BookNote]
     ) -> ReadText {
-        let fragment = fencingScripts(in: fragment)
+        let fragment = fencing(in: fragment)
         var fenced = ""
         var ids: [String] = []
         var cursor = fragment.startIndex
@@ -434,27 +549,28 @@ public enum BookHTML {
     }
 
     private static func isFence(_ character: Character) -> Bool {
-        scriptFences.contains { $0.open == character || $0.close == character }
+        fences.contains { $0.open == character || $0.close == character }
     }
 
-    /// Fences `<sub>` and `<sup>` before the markup is flattened, so where they stood is still known
-    /// afterwards. The fences are private-use characters, which the tag stripper has no opinion about.
-    private static func fencingScripts(in fragment: String) -> String {
+    /// Fences every stretch a paragraph sets apart before the markup is flattened, so where each one
+    /// stood is still known afterwards. The fences are private-use characters, which the tag stripper
+    /// has no opinion about.
+    private static func fencing(in fragment: String) -> String {
         var result = fragment
 
-        for fence in scriptFences {
-            let name = fence.place == .below ? "sub" : "sup"
-
-            result = result.replacingOccurrences(
-                of: "<\(name)(\\s[^>]*)?>",
-                with: String(fence.open),
-                options: [ .regularExpression, .caseInsensitive ]
-            )
-            result = result.replacingOccurrences(
-                of: "</\(name)\\s*>",
-                with: String(fence.close),
-                options: [ .regularExpression, .caseInsensitive ]
-            )
+        for fence in fences {
+            for name in fence.tags {
+                result = result.replacingOccurrences(
+                    of: "<\(name)(\\s[^>]*)?>",
+                    with: String(fence.open),
+                    options: [ .regularExpression, .caseInsensitive ]
+                )
+                result = result.replacingOccurrences(
+                    of: "</\(name)\\s*>",
+                    with: String(fence.close),
+                    options: [ .regularExpression, .caseInsensitive ]
+                )
+            }
         }
 
         return result
@@ -464,8 +580,7 @@ public enum BookHTML {
     private static func placing(_ ids: [String], in text: String, notes: inout [String: BookNote]) -> ReadText {
         var result = ""
         var marks: [NoteMark] = []
-        var scripts: [ScriptMark] = []
-        var opened: [ScriptMark.Place: Int] = [:]
+        var runs = Runs()
         var length = 0
         var start: Int?
         var marker = ""
@@ -482,26 +597,16 @@ public enum BookHTML {
                     guard let from = start, index < ids.count, length > from else { break }
 
                     let id = ids[index]
+
                     marks.append(NoteMark(location: from, length: length - from, noteId: id))
                     // The marker is what names the note where it is shown, and it is only known here.
                     if let note = notes[id] {
                         notes[id] = BookNote(id: id, marker: marker, text: withoutLeading(marker, in: note.text))
                     }
+
                     start = nil
                 default:
-                    if let fence = scriptFences.first(where: { $0.open == character }) {
-                        opened[fence.place] = length
-                        continue
-                    }
-
-                    if let fence = scriptFences.first(where: { $0.close == character }) {
-                        if let from = opened[fence.place], length > from {
-                            scripts.append(ScriptMark(location: from, length: length - from, place: fence.place))
-                        }
-
-                        opened[fence.place] = nil
-                        continue
-                    }
+                    guard !runs.took(character, at: length) else { continue }
 
                     result.append(character)
                     length += character.utf16.count
@@ -509,7 +614,7 @@ public enum BookHTML {
             }
         }
 
-        return ReadText(text: result, marks: marks, scripts: scripts)
+        return ReadText(text: result, marks: marks, scripts: runs.scripts, styles: runs.styles)
     }
 
     /// A note that opens by repeating its own figure, with that figure taken off.

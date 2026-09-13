@@ -239,6 +239,11 @@ extension ReaderScreen {
             currentChapterId.flatMap { parsed[$0]?.language }
         }
 
+        /// True where the chapter on screen is written from the right, which turns its pages that way.
+        var readsRightToLeft: Bool {
+            currentChapterId.flatMap { parsed[$0]?.readsRightToLeft } ?? false
+        }
+
         /// Every line on the page as it was set, for a debug report.
         var pageLines: [ChapterLayout.TypesetLine] {
             switch page(at: currentPage) {
@@ -325,6 +330,12 @@ extension ReaderScreen {
         }
 
         var isPageBookmarked: Bool { !bookmarksOnPage.isEmpty }
+
+        /// True where the page in front of the reader is one a mark can stand on.
+        ///
+        /// A mark covers a stretch of a chapter's text, so a page carrying none of it can hold none.
+        /// The title page a book opens on is the one such page a reader meets.
+        var canBookmarkPage: Bool { !displayedRanges.isEmpty }
 
         /// Marks what the reader can see, or clears every mark it stands on.
         func toggleBookmark() {
@@ -966,7 +977,7 @@ extension ReaderScreen {
         ///   chapter is one: the mark jumps by a whole chapter, and the reader may be gone before the
         ///   wait is out.
         private func savePosition(now: Bool = false) {
-            guard let layout, let chapterId = currentChapterId else { return }
+            guard layout != nil, let chapterId = currentChapterId else { return }
 
             let offset = storedOffset
             let overall = bookProgress
@@ -997,7 +1008,7 @@ extension ReaderScreen {
         func flushPosition() {
             positionSaver?.cancel()
 
-            guard let layout, let chapterId = currentChapterId else { return }
+            guard layout != nil, let chapterId = currentChapterId else { return }
 
             let offset = storedOffset
             let overall = bookProgress

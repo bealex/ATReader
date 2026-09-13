@@ -77,11 +77,32 @@ public struct ChapterContent: Codable, Sendable {
     /// The notes the text points at, by the id its markers carry.
     public var notes: [String: BookNote] = [:]
 
+    /// True where the chapter is written from the right, which sets it and turns its pages that way.
+    ///
+    /// The blocks say rather than the language: a book carries its own direction, and a chapter of
+    /// quoted English inside an Arabic book is still a page of that book.
+    ///
+    /// Settled once when the chapter is made rather than asked of the blocks each time. A screen reads
+    /// this every time it draws, and walking a chapter's paragraphs to answer would put the length of
+    /// the chapter into every frame the reader draws.
+    public var readsRightToLeft = false
+
     public init(paragraphs: [Paragraph], hyphenated: [Paragraph], language: String?, notes: [String: BookNote] = [:]) {
         self.paragraphs = paragraphs
         self.hyphenated = hyphenated
         self.language = language
         self.notes = notes
+        self.readsRightToLeft = Self.readsRightToLeft(paragraphs)
+    }
+
+    /// Which way a chapter reads, from the blocks that carry text: a picture is written the same way
+    /// round whichever language it stands in.
+    private static func readsRightToLeft(_ paragraphs: [Paragraph]) -> Bool {
+        let written = paragraphs.filter { !$0.isImage }
+
+        guard !written.isEmpty else { return false }
+
+        return written.filter(\.isRightToLeft).count * 2 > written.count
     }
 
     public init(from decoder: any Decoder) throws {
@@ -90,6 +111,7 @@ public struct ChapterContent: Codable, Sendable {
         paragraphs = try container.decode([ Paragraph ].self, forKey: .paragraphs)
         hyphenated = try container.decode([ Paragraph ].self, forKey: .hyphenated)
         language = try container.decodeIfPresent(String.self, forKey: .language)
+        readsRightToLeft = Self.readsRightToLeft(paragraphs)
         // A chapter prepared before notes were read carries none, and is still good text.
         notes = try container.decodeIfPresent([ String: BookNote ].self, forKey: .notes) ?? [:]
     }

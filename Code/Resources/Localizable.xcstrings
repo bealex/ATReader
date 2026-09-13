@@ -2653,13 +2653,13 @@
         }
       }
     },
-    "Reads an FB2 file into your library": {
+    "Reads an EPUB or FB2 file into your library": {
       "extractionState": "manual",
       "localizations": {
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Читает файл FB2 в вашу библиотеку"
+            "value": "Читает файл EPUB или FB2 в вашу библиотеку"
           }
         }
       }
@@ -3490,17 +3490,6 @@
         }
       }
     },
-    "That FB2 file has no text in it.": {
-      "extractionState": "manual",
-      "localizations": {
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "В этом файле FB2 нет текста."
-          }
-        }
-      }
-    },
     "That address answered with something else": {
       "extractionState": "manual",
       "localizations": {
@@ -3545,6 +3534,28 @@
         }
       }
     },
+    "That book has DRM on it and can’t be opened here.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "На этой книге стоит DRM, и открыть её здесь нельзя."
+          }
+        }
+      }
+    },
+    "That book is laid out page by page, and this reader can only reflow text.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Эта книга свёрстана постранично, а эта читалка умеет только перетекающий текст."
+          }
+        }
+      }
+    },
     "That file couldn’t be read.": {
       "extractionState": "manual",
       "localizations": {
@@ -3552,6 +3563,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Не удалось прочитать файл."
+          }
+        }
+      }
+    },
+    "That file has no text in it.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "В этом файле нет текста."
           }
         }
       }
@@ -3567,24 +3589,24 @@
         }
       }
     },
-    "That file isn’t valid FB2.": {
+    "That file is damaged.": {
       "extractionState": "manual",
       "localizations": {
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Это не подходящий файл FB2."
+            "value": "Этот файл повреждён."
           }
         }
       }
     },
-    "That file isn’t valid FB2: %@": {
+    "That file is damaged: %@": {
       "extractionState": "manual",
       "localizations": {
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Это не подходящий файл FB2: %@"
+            "value": "Этот файл повреждён: %@"
           }
         }
       }
@@ -3688,17 +3710,6 @@
         }
       }
     },
-    "This catalogue offers no FB2 for that book": {
-      "extractionState": "manual",
-      "localizations": {
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "В этом каталоге нет FB2 для этой книги"
-          }
-        }
-      }
-    },
     "This catalogue offers no search": {
       "extractionState": "manual",
       "localizations": {
@@ -3717,6 +3728,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "В этом каталоге нет такого раздела"
+          }
+        }
+      }
+    },
+    "This catalogue offers nothing readable for that book": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "В этом каталоге нет подходящего файла для этой книги"
           }
         }
       }

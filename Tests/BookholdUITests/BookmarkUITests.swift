@@ -13,6 +13,9 @@ final class BookmarkUITests: XCTestCase {
         let app = launch()
         let page = try openTheBook(in: app)
 
+        // A book opens on its title page, which carries none of a chapter's text and so can hold no
+        // mark. The reading starts on the page after it.
+        turnPage(on: page)
         showChrome(on: page, in: app)
 
         let add = app.buttons["Add bookmark"]
@@ -38,6 +41,11 @@ final class BookmarkUITests: XCTestCase {
             mark.waitForExistence(timeout: 2),
             "the mark stayed in the contents after it was taken off"
         )
+    }
+
+    /// Turns one page forward, by a tap in the outer third the way a reader does.
+    private func turnPage(on page: XCUIElement) {
+        page.coordinate(withNormalizedOffset: CGVector(dx: 0.85, dy: 0.5)).tap()
     }
 
     /// The reader opens with its bar away, and the button lives on that bar.

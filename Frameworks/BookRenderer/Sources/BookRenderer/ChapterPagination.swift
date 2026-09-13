@@ -188,6 +188,9 @@ public enum ChapterPagination {
             paragraphStyle.paragraphSpacingBefore = air.before
             paragraphStyle.firstLineHeadIndent = isCentered || !style.indentsParagraphs ? 0 : font.pointSize
             paragraphStyle.lineBreakMode = .byWordWrapping
+
+            place(paragraph, in: paragraphStyle, font: font)
+
             // Hyphenation, from the system's dictionary for the language the run carries. Without it a
             // justified narrow column pulls the words apart instead of breaking them.
             //
@@ -211,12 +214,73 @@ public enum ChapterPagination {
 
             let start = result.length
             result.append(NSAttributedString(string: paragraph.text + suffix, attributes: attributes))
+            // Before the markers, which set a face of their own on the stretch they cover.
+            emphasise(paragraph.styles, in: result, from: start)
             mark(paragraph.notes, in: result, from: start, style: style)
             raise(paragraph.scripts, in: result, from: start, style: style)
         }
 
         return TypesetText(attributed: result, headingLength: headingLength)
     }
+
+    /// How a block stands among the text around it: how far in, and which way round.
+    ///
+    /// An item of a list stands in on every line of it, since the mark it opens with is part of its own
+    /// text and there is nothing to hang outside the indent. Which way it runs came from the book
+    /// rather than from the language, so a chapter of quoted English in an Arabic book is still set
+    /// that way.
+    private static func place(_ paragraph: Paragraph, in style: NSMutableParagraphStyle, font: UIFont) {
+        if let depth = paragraph.listLevel {
+            let indent = font.pointSize * listIndent * CGFloat(depth)
+
+            style.headIndent = indent
+            style.firstLineHeadIndent = indent
+        }
+
+        if paragraph.isRightToLeft { style.baseWritingDirection = .rightToLeft }
+    }
+
+    /// Sets the stretches a book marked apart in the face that says so.
+    ///
+    /// The face is read off whatever already stands there rather than from the style, so a phrase set
+    /// both bold and slanted comes out as both rather than as whichever mark was applied last.
+    private static func emphasise(_ styles: [StyleMark], in text: NSMutableAttributedString, from start: Int) {
+        guard !styles.isEmpty else { return }
+
+        for style in styles {
+            let range = NSRange(location: start + style.location, length: style.length)
+
+            guard range.length > 0, NSMaxRange(range) <= text.length else { continue }
+
+            var found: [(NSRange, UIFont)] = []
+
+            text.enumerateAttribute(.font, in: range) { value, range, _ in
+                guard let font = value as? UIFont else { return }
+
+                found.append((range, font))
+            }
+
+            for (range, font) in found {
+                text.addAttribute(.font, value: adding(style.emphasis, to: font), range: range)
+            }
+        }
+    }
+
+    private static func adding(_ emphasis: StyleMark.Emphasis, to font: UIFont) -> UIFont {
+        var traits = font.fontDescriptor.symbolicTraits
+
+        switch emphasis {
+            case .italic: traits.insert(.traitItalic)
+            case .bold: traits.insert(.traitBold)
+        }
+
+        guard let descriptor = font.fontDescriptor.withSymbolicTraits(traits) else { return font }
+
+        return UIFont(descriptor: descriptor, size: font.pointSize)
+    }
+
+    /// How far one level of a list stands in, against the size of the type.
+    private static let listIndent: CGFloat = 1.4
 
     /// How deep the gap under a paragraph runs, and how much air stands above it.
     ///

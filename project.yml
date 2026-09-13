@@ -145,6 +145,13 @@ targets:
             LSHandlerRank: Default
             LSItemContentTypes:
               - org.fictionbook.fb2
+          - CFBundleTypeName: EPUB
+            CFBundleTypeRole: Viewer
+            # The system declares this type itself, so there is nothing to import: unlike FB2, every
+            # Apple platform already knows what an EPUB is.
+            LSHandlerRank: Alternate
+            LSItemContentTypes:
+              - org.idpf.epub-container
           - CFBundleTypeName: Zipped FictionBook 2
             CFBundleTypeRole: Viewer
             # These are handed out as plain zips, which the system types as an archive and nothing more.

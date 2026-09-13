@@ -13,9 +13,9 @@ import Foundation
 /// The one place the two halves meet: `BookFormats` knows how to read a book and nothing about where
 /// it goes, `BookStorage` knows where it goes and nothing about how it was read.
 enum BookImporting {
-    /// Every format the app can read a book out of. One today; the protocol is what lets a second
-    /// arrive without anything here changing.
-    static let formats: [any BookFormat] = [ FB2Format() ]
+    /// Every format the app can read a book out of. The bytes decide which one reads a file, so the
+    /// order here settles nothing but which is asked first.
+    static let formats: [any BookFormat] = [ EpubFormat(), FB2Format() ]
 
     /// Reads a picked file into the library.
     ///
@@ -28,7 +28,7 @@ enum BookImporting {
             if scoped { url.stopAccessingSecurityScopedResource() }
         }
 
-        guard let data = try? Data(contentsOf: url) else { throw FB2Error.unreadable }
+        guard let data = try? Data(contentsOf: url) else { throw BookFileError.unreadable }
 
         return try await install(data, store: store)
     }
@@ -37,7 +37,7 @@ enum BookImporting {
     /// something it now knows. The file is kept for exactly this.
     @discardableResult
     static func reimport(workId: Int, store: SQLiteBookStore = .shared) async throws -> Book {
-        guard let data = LocalBookFiles.keptFile(workId: workId) else { throw FB2Error.unreadable }
+        guard let data = LocalBookFiles.keptFile(workId: workId) else { throw BookFileError.unreadable }
 
         // The text is already on the device by definition, so the check that stops a book arriving
         // twice would stop this book being read again at all.
@@ -49,7 +49,7 @@ enum BookImporting {
     /// Apart from installing, so a caller that has to decide something about a book before keeping it
     /// can look at it first: whether it is already here under another name, say.
     static func read(_ data: Data) async throws -> ReadBook {
-        guard let format = formats.first(where: { $0.canRead(data) }) else { throw FB2Error.notABook }
+        guard let format = formats.first(where: { $0.canRead(data) }) else { throw BookFileError.notABook }
 
         return try await format.read(data)
     }

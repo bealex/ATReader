@@ -47,7 +47,14 @@ public extension ChapterContent {
                 moved(mark.location, mark.length, among: places).map {
                     ScriptMark(location: $0.location, length: $0.length, place: mark.place)
                 }
-            }
+            },
+            styles: paragraph.styles.compactMap { mark in
+                moved(mark.location, mark.length, among: places).map {
+                    StyleMark(location: $0.location, length: $0.length, emphasis: mark.emphasis)
+                }
+            },
+            listLevel: paragraph.listLevel,
+            isRightToLeft: paragraph.isRightToLeft
         )
     }
 

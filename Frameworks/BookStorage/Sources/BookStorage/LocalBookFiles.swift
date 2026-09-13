@@ -26,11 +26,16 @@ public enum LocalBookFiles {
 
     /// What a picker offers when it is asking for a book.
     ///
-    /// FB2 has no type of its own on the system, so it is named by its extension. XML is offered beside
-    /// it because a file saved from a browser often arrives typed as that instead, and zip because that
-    /// is how these books are usually handed out.
+    /// FB2 has no type of its own on the system, so it is named by its extension, where the system
+    /// declares EPUB itself. XML is offered beside them because a file saved from a browser often
+    /// arrives typed as that instead, and zip because that is how these books are usually handed out.
     public static var fileTypes: [UTType] {
-        [ UTType(filenameExtension: "fb2"), .xml, .zip ].compactMap { $0 }
+        [
+            UTType(filenameExtension: "fb2"),
+            UTType("org.idpf.epub-container") ?? UTType(filenameExtension: "epub"),
+            .xml,
+            .zip,
+        ].compactMap { $0 }
     }
 
     /// Where a book's own file is kept.

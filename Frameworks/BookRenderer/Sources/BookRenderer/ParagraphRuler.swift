@@ -28,6 +28,11 @@ public struct ParagraphRuler {
     public let font: UIFont
     public let alignment: NSTextAlignment
     public let firstLineIndent: CGFloat
+    /// The indent every line after the first takes, which is what sets an item of a list in from the
+    /// text around it.
+    public let headIndent: CGFloat
+    /// The paragraph is written from the right, so a line short of the measure stands at that edge.
+    public let isRightToLeft: Bool
     public let lineSpacing: CGFloat
     public let paragraphSpacing: CGFloat
     /// The air the paragraph keeps above itself, which only its first line carries.
@@ -65,6 +70,8 @@ public struct ParagraphRuler {
         self.font = font ?? .systemFont(ofSize: 17)
         self.alignment = style?.alignment ?? .natural
         self.firstLineIndent = style?.firstLineHeadIndent ?? 0
+        self.headIndent = style?.headIndent ?? 0
+        self.isRightToLeft = style?.baseWritingDirection == .rightToLeft
         self.lineSpacing = style?.lineSpacing ?? 0
         self.paragraphSpacing = style?.paragraphSpacing ?? 0
         self.paragraphSpacingBefore = style?.paragraphSpacingBefore ?? 0
@@ -146,9 +153,21 @@ public struct ParagraphRuler {
         }
 
         let whole = NSRange(location: 0, length: piece.length)
+        let style = text.attribute(.paragraphStyle, at: range.location, effectiveRange: nil) as? NSParagraphStyle
 
         // CoreText reads the paragraph style itself and would set the line to a measure of its own.
         piece.removeAttribute(.paragraphStyle, range: whole)
+
+        // Which way the line runs has to be put back, since it went with the style CoreText may not
+        // see. Without it a line opening on a Latin word inside an Arabic paragraph is set the wrong
+        // way round: nothing else states the base direction, so the first strong letter decides.
+        if style?.baseWritingDirection == .rightToLeft, piece.length > 0 {
+            piece.addAttribute(
+                NSAttributedString.Key(kCTWritingDirectionAttributeName as String),
+                value: [ NSNumber(value: CTWritingDirection.rightToLeft.rawValue) ],
+                range: whole
+            )
+        }
 
         // CoreText takes its colour from a key of its own; without this every page draws black.
         piece.enumerateAttribute(.foregroundColor, in: whole) { value, range, _ in

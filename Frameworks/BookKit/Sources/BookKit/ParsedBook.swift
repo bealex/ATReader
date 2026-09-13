@@ -43,6 +43,8 @@ public struct ParsedBook: Sendable {
     /// The identifier the file carries, where it has one. Two files with the same identifier are two
     /// editions of one book.
     public let identifier: String?
+    /// What format the book was read out of, which keeps two formats' identifiers from colliding.
+    public let format: String
 
     public init(
         title: String,
@@ -54,7 +56,8 @@ public struct ParsedBook: Sendable {
         cover: Data?,
         images: [String: Data],
         sections: [Section],
-        identifier: String?
+        identifier: String?,
+        format: String = "fb2"
     ) {
         self.title = title
         self.authors = authors
@@ -66,6 +69,7 @@ public struct ParsedBook: Sendable {
         self.images = images
         self.sections = sections
         self.identifier = identifier
+        self.format = format
     }
 
     /// What this book is filed under, so a corrected file replaces the book it corrects.
@@ -77,7 +81,7 @@ public struct ParsedBook: Sendable {
     public var fingerprint: String {
         let name = "\(title)|\(authors.joined(separator: ","))"
 
-        return identifier.map { "fb2:id:\($0)|\(name)" } ?? "fb2:name:\(name)"
+        return identifier.map { "\(format):id:\($0)|\(name)" } ?? "\(format):name:\(name)"
     }
 
     public var authorLine: String {

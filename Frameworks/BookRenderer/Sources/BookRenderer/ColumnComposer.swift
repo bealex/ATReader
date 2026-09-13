@@ -430,7 +430,7 @@ public final class ColumnComposer {
         let fills = isJustified && !isLast
         let holdsFirstGap = isFirst && Self.opensOnDash(ruler)
         let drawn = ruler.characters(from: start, to: content) + (stop.drawsHyphen ? 1 : 0)
-        let indent = isFirst ? ruler.firstLineIndent : 0
+        let indent = isFirst ? ruler.firstLineIndent : ruler.headIndent
         let hang = fills ? hang(ruler, at: content, drawsHyphen: stop.drawsHyphen) : 0
         let available = measure - indent + hang
         let slack = available - natural
@@ -620,10 +620,7 @@ public final class ColumnComposer {
             width = Self.width(of: drawn)
         }
 
-        let origin =
-            ruler.alignment == .center
-            ? piece.indent + (measure - piece.indent - width) / 2
-            : piece.indent
+        let origin = origin(of: piece, drawn: width, ruler: ruler)
         let setting = Line.Setting(
             paragraph: ruler.range,
             start: piece.start,
@@ -655,6 +652,17 @@ public final class ColumnComposer {
             gapMultiple: piece.gaps > 0 ? 1 + fill.perGap / max(1, ruler.spaceWidth) : 1,
             gaps: piece.gaps
         )
+    }
+
+    /// Where a line starts across the measure.
+    ///
+    /// A line written from the right stands at that edge, its indent taken off that side, which leaves
+    /// a line that fills the measure starting exactly where a left-to-right one would.
+    private func origin(of piece: Candidate, drawn width: CGFloat, ruler: ParagraphRuler) -> CGFloat {
+        switch ruler.alignment {
+            case .center: piece.indent + (measure - piece.indent - width) / 2
+            default: ruler.isRightToLeft ? measure - piece.indent - width : piece.indent
+        }
     }
 
     private static func width(of line: CTLine?) -> CGFloat {

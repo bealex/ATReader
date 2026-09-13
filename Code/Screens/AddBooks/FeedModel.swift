@@ -59,8 +59,9 @@ final class FeedModel {
     var inbox: BookInbox?
 
     /// What this reader can open, best first. A zipped FB2 is the same book as a bare one and a
-    /// fraction of the bytes.
-    static let wanted: [OPDSAcquisition.Kind] = [ .fb2Zip, .fb2 ]
+    /// fraction of the bytes; EPUB comes last because a catalogue offering both usually holds a
+    /// richer FB2, and it is what a catalogue of public-domain books offers on its own.
+    static let wanted: [OPDSAcquisition.Kind] = [ .fb2Zip, .fb2, .epub ]
 
     private var client: OPDSClient?
     private var address: String?
@@ -137,7 +138,7 @@ final class FeedModel {
     func take(_ entry: OPDSEntry) async {
         guard
             let acquisition = entry.preferred(among: Self.wanted)
-        else { return message = String(localized: "This catalogue offers no FB2 for that book") }
+        else { return message = String(localized: "This catalogue offers nothing readable for that book") }
         guard let client, let inbox else { return }
 
         fetching = entry.id
@@ -216,10 +217,22 @@ final class FeedModel {
         let file =
             folder
             .appendingPathComponent(safe.isEmpty ? "book" : safe)
-            .appendingPathExtension(kind == .fb2Zip ? "fb2.zip" : "fb2")
+            .appendingPathExtension(Self.extension(of: kind))
 
         try data.write(to: file, options: .atomic)
         return file
+    }
+
+    /// What a downloaded book is called on its way in. The bytes decide which parser reads it, so this
+    /// only has to be a name the file system accepts.
+    private static func `extension`(of kind: OPDSAcquisition.Kind) -> String {
+        switch kind {
+            case .fb2Zip: "fb2.zip"
+            case .fb2: "fb2"
+            case .epub: "epub"
+            // Never reached: a kind this reader does not want is never downloaded.
+            case .other: "book"
+        }
     }
 
     private static func wording(of error: any Error) -> String {

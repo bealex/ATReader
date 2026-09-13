@@ -39,6 +39,9 @@ public struct PageTurnView<Page: View>: View {
     public var onMiddleTap: () -> Void = {}
     /// The moment a turn takes hold, by tap or by finger.
     public var onTurnStarted: () -> Void = {}
+    /// The book is read from the right, so forward is the other way: the page comes in from the left
+    /// edge and a finger drawn to the right turns onto it.
+    public var readsRightToLeft = false
 
     @ViewBuilder
     public let page: (Int) -> Page
@@ -56,6 +59,7 @@ public struct PageTurnView<Page: View>: View {
         isCovered: Bool = false,
         onMiddleTap: @escaping () -> Void = {},
         onTurnStarted: @escaping () -> Void = {},
+        readsRightToLeft: Bool = false,
         @ViewBuilder page: @escaping (Int) -> Page
     ) {
         self.pageCount = pageCount
@@ -70,6 +74,7 @@ public struct PageTurnView<Page: View>: View {
         self.isCovered = isCovered
         self.onMiddleTap = onMiddleTap
         self.onTurnStarted = onTurnStarted
+        self.readsRightToLeft = readsRightToLeft
         self.page = page
     }
 
@@ -152,10 +157,10 @@ public struct PageTurnView<Page: View>: View {
                     .background(Color.clear)
                     .compositingGroup()
                     .shadow(color: .black.opacity(0.35), radius: 14, x: -5, y: 0)
-                    .offset(x: offset(turn))
+                    .offset(x: offset(turn) * mirror)
             }
         }
-        .offset(x: overscroll)
+        .offset(x: overscroll * mirror)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .contentShape(.rect)
         .onGeometryChange(for: CGFloat.self, of: { $0.size.width }, action: { width = max(1, $0) })
@@ -226,7 +231,7 @@ public struct PageTurnView<Page: View>: View {
                 // far it travels.
                 guard !isPickingOut, !isCovered else { return }
 
-                let translation = value.translation.width
+                let translation = value.translation.width * mirror
 
                 if turn == nil {
                     queued = 0
@@ -265,8 +270,8 @@ public struct PageTurnView<Page: View>: View {
                 guard !isPickingOut, !isCovered else { return releaseOverscroll() }
                 guard let turn else { return releaseOverscroll() }
 
-                let translation = value.translation.width
-                let predicted = value.predictedEndTranslation.width
+                let translation = value.translation.width * mirror
+                let predicted = value.predictedEndTranslation.width * mirror
                 let travelled = turn == .forward ? -translation : translation
                 let velocity = turn == .forward ? -(predicted - translation) : (predicted - translation)
                 finish(turn, committing: commits(travelled: travelled, velocity: velocity))
@@ -291,8 +296,14 @@ public struct PageTurnView<Page: View>: View {
     /// The page is held ``grip`` inside its own leading edge, so the finger sits on the page it is
     /// pulling rather than pushing one along from a distance.
     private func forwardProgress(_ value: PageDrag) -> CGFloat {
-        min(1, max(0, 1 - (value.location.x - Self.grip) / width))
+        let across = readsRightToLeft ? width - value.location.x : value.location.x
+
+        return min(1, max(0, 1 - (across - Self.grip) / width))
     }
+
+    /// Which way the page's own geometry runs. Every horizontal distance the turn reads or draws goes
+    /// through this, so the whole gesture is the same one seen in a looking-glass.
+    private var mirror: CGFloat { readsRightToLeft ? -1 : 1 }
 
     /// True while the page is still on its way to the finger.
     private func isGrabbing(at time: Date) -> Bool {
