@@ -139,7 +139,52 @@ struct LibraryFilterTests {
         #expect(LibraryScreen.Model.beingRead(among: series).isEmpty)
     }
 
+    /// A card cut down to what is being read draws no gaps: every book it dropped would come straight
+    /// back as a volume the shelf says it hasn't got.
+    @Test
+    func aCutDownCardDrawsNoMissingVolumes() {
+        let held = [ Self.volume(1), Self.volume(5) ]
+        let whole = Self.run(held, isWhole: true)
+        let cut = Self.run(held, isWhole: false)
+
+        #expect(whole.rows.contains { if case .missing = $0 { true } else { false } })
+        #expect(cut.rows.allSatisfy { if case .book = $0 { true } else { false } })
+        #expect(cut.rows.count == held.count)
+    }
+
     // MARK: - A book to file
+
+    private static func run(_ works: [Book], isWhole: Bool) -> LibraryScreen.Model.Group {
+        LibraryScreen.Model.Group(
+            id: "series:Ember",
+            series: "Ember",
+            works: works,
+            updated: .now,
+            isWhole: isWhole
+        )
+    }
+
+    private static func volume(_ number: Int) -> Book {
+        var work = book(read: 0.5, isFinished: true)
+
+        work = Book(
+            id: work.id,
+            title: "Книга \(number)",
+            authorLine: "Автор",
+            coverURL: nil,
+            annotation: nil,
+            seriesTitle: "Ember",
+            seriesOrder: number,
+            textLength: 1000,
+            isFinished: true,
+            lastUpdateTime: .now,
+            readingProgress: 0.5,
+            hasStartedReading: true,
+            libraryState: .reading
+        )
+
+        return work
+    }
 
     private static func book(read: Double, isFinished: Bool) -> Book {
         Book(

@@ -26,6 +26,11 @@ extension LibraryScreen {
             /// The volume numbers the titles carry, where they carry any. Absent for a series whose
             /// books are named without a numbering, and for a book standing on its own.
             var numbering: SeriesNumbering.Reading?
+            /// True where the card holds everything of the series that is on the device.
+            ///
+            /// A card cut down to the book being read draws no gaps: every book it dropped would come
+            /// straight back as a volume the shelf says it hasn't got.
+            var isWhole = true
 
             /// What a book is called on this card, with the series' own name and index off it.
             private func named(_ work: Book) -> String {
@@ -85,7 +90,7 @@ extension LibraryScreen {
 
                 let held = works.map { SeriesRow.book($0, number: volumes[$0.id], title: title(of: $0)) }
 
-                guard volumes.count == works.count else { return held }
+                guard isWhole, volumes.count == works.count else { return held }
 
                 return withGaps(held, numbers: works.compactMap { volumes[$0.id] })
             }
@@ -367,21 +372,19 @@ extension LibraryScreen {
             // wherever it is, and "nothing found" because the book was finished would be wrong.
             let searchFilter = search == nil ? filter : .everything
             let named = seriesRuns(searched.filter { $0.series != nil })
-            // A search stands the hiding aside for the same reason it stands the filter aside.
-            let held =
-                hidesSeries && search == nil && filter != .everything
-                ? named.mapValues(Self.beingRead(among:))
-                : named
+            // A search stands the hiding aside for the same reason it stands the filter aside, and All
+            // books is where a reader goes to find whatever the shelf is not showing.
+            let hiding = hidesSeries && search == nil && filter != .everything
+            let held = hiding ? named.mapValues(Self.beingRead(among:)) : named
             // One book is not a series, whatever the book says it belongs to. A card built round a
             // single row claims the shelf holds a run of them, and the row already names the series it
             // came from without pretending to hold it.
             let series = held.filter { $0.value.count > 1 }
             let lonely = held.filter { $0.value.count == 1 }.values.flatMap { $0 }
-
             let grouped = series.compactMap { key, works -> Group? in
                 guard searchFilter.includes(works) else { return nil }
 
-                return seriesGroup((key: key, value: works))
+                return seriesGroup((key: key, value: works), whole: !hiding)
             }
             let alone = (searched.filter { $0.series == nil } + lonely)
                 .filter { searchFilter.includes([ $0 ]) }
@@ -728,7 +731,7 @@ extension LibraryScreen {
 
         /// One series as a card's run: its books in the order they stand in, and whatever numbering
         /// their titles carry.
-        private func seriesGroup(_ entry: (key: String, value: [Book])) -> Group? {
+        private func seriesGroup(_ entry: (key: String, value: [Book]), whole: Bool = true) -> Group? {
             let works = entry.value
             let title = works.first?.series ?? ""
             // A series the reader assembled keeps the order they put it in; one the service named
@@ -745,7 +748,8 @@ extension LibraryScreen {
                 // Read for every series, the reader's own included. What they arranged is the order,
                 // and reading the titles takes nothing from that: it gives the volumes their real
                 // numbers and is the only thing that can say which of them is absent.
-                numbering: SeriesNumbering.read(ordered)
+                numbering: SeriesNumbering.read(ordered),
+                isWhole: whole
             )
         }
 
@@ -824,7 +828,7 @@ extension LibraryScreen {
             // Every run, however short. One book of a series is not a series on the shelf, but it is
             // exactly what a reader combining two runs is looking for: the volume the other service
             // filed on its own.
-            return named.compactMap(seriesGroup).sorted(by: Self.byUpdate)
+            return named.compactMap { seriesGroup($0) }.sorted(by: Self.byUpdate)
         }
 
         /// Files the picked runs under one name, whoever wrote them.

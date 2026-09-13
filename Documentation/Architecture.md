@@ -131,6 +131,10 @@ is as long as anything else stands out on this shelf for, and a run of one book 
 single book is not a series and hiding it would hide a book. A series with nothing being read in it has
 nothing left to show and goes off the shelf whole.
 
+A cut-down card draws no gaps. Every book it dropped would otherwise come straight back as a volume the
+shelf says it hasn't got, which is the opposite of hiding them, so `Group.isWhole` is false on such a
+card and the missing volumes are left out.
+
 All books stands the hiding aside and the switch is offered disabled there: that filter is where a
 reader goes to find whatever the shelf is not showing. A search stands it aside for the same reason.
 
