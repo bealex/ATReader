@@ -195,16 +195,18 @@ struct ReaderAppearanceTests {
 
     // MARK: - The controls and the running head
 
-    /// The controls are lifted so that they and the book's name read as one line across the page.
+    /// The controls and the book's name read as one line across the page, whatever the type is set at.
     @Test
     func theControlsSitOnTheRunningHead() {
         typealias Reader = ReaderScreen.Component
 
-        for headSize in [ 14.0, 18.7, 26.0 ] {
-            let controls = Reader.barMiddle - Reader.rise(over: headSize)
-            let head = Reader.headInset + headSize / 2
+        for safeAreaTop in [ 0.0, 62.0 ] {
+            for headSize in [ 14.0, 18.7, 26.0 ] {
+                let controls = Reader.controlsTop(under: safeAreaTop, headSize: headSize) + Design.Size.touch / 2
+                let head = safeAreaTop + Reader.headInset + Reader.headLine(headSize) / 2
 
-            #expect(abs(controls - head) < 0.000_001, "head \(headSize)")
+                #expect(abs(controls - head) < 0.000_001, "head \(headSize) under \(safeAreaTop)")
+            }
         }
     }
 }

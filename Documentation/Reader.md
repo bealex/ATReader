@@ -614,25 +614,31 @@ edge turns back a page, like any other sideways drag.
 
 ## The controls
 
-A tap in the middle third brings back the status bar and the navigation bar, a second tap sends them
-away, and turning a page sends them away too. The bar's own controls are lifted so their middle lands
-on the middle of the running head drawn on the page: the bar centres its contents on its height, the
-head sits a few points below the safe area, and the two read as one line across the top of the page.
- The bar is the navigation stack's own, so the back
-button, the chapter's name and the two sheet buttons sit and size themselves the way the system draws
-them everywhere else. It carries the page's own colour rather than glass, because the running head
-passes underneath, and a shadow below it so a bar the colour of the page still has an edge.
-`readerBarAppearance` sets both on the enclosing `UINavigationController`: `toolbarBackground` takes a
-colour but has no way to ask for a shadow.
+A tap in the middle third brings back the status bar and the controls, a second tap sends them away,
+and turning a page sends them away too.
 
-It holds the window's light or dark as well, for as long as the reader is on screen.
-`preferredColorScheme` did that before, and SwiftUI applies it by overriding the window rather than the
-view: leaving the reader reverted SwiftUI's own side of it and left the window's, so the library came
-back light underneath a navigation bar and a search field that were still dark. The override has one
-owner now, taken when the bar is taken and given back when it is.
+The controls are the reader's own views rather than a toolbar: Close under one pane of glass on the
+leading side, and the bookmark, the contents and the appearance sheet under another on the trailing
+side, both `GlassRow`. They stand on the line the running head is set on, their middle on its middle,
+so the two read as one line across the top of the page. A navigation bar can't do that: it centres what
+it is given on its own height and reads no offset asking for anything else, which is why toolbar items
+sat a bar's worth below the book's name.
 
-Showing it moves no text: the page ignores the safe area and takes its size from the window, so
-nothing pagination depends on changes when a bar appears.
+The reader keeps a navigation stack with its bar hidden, for the window `readerBarAppearance` reaches
+through it: the page's own colour behind the corners the stack rounds, and the window held to the
+page's light or dark for as long as the reader is on screen. `preferredColorScheme` did that before,
+and SwiftUI applies it by overriding the window rather than the view: leaving the reader reverted
+SwiftUI's own side of it and left the window's, so the library came back light underneath a navigation
+bar and a search field that were still dark. The override has one owner now, taken when the reader
+appears and given back when it goes.
+
+The status bar goes with the controls. A presented screen only owns the status bar if it says so, and
+an over-full-screen presentation leaves it with whoever is underneath, so `Navigator` sets
+`modalPresentationCapturesStatusBarAppearance` on the screen it presents. The reader's own
+`statusBarHidden` is what answers from there.
+
+Showing the controls moves no text: the page ignores the safe area and takes its size from the window,
+so nothing pagination depends on changes when they appear.
 
 ## Staying ahead of the reader
 

@@ -9,7 +9,7 @@ import PackageDescription
 let package = Package(
     name: "DesignSystem",
     defaultLocalization: "en",
-    platforms: [ .iOS("26.0"), .macOS(.v15) ],
+    platforms: [ .iOS("26.0"), .macOS("26.0") ],
     products: [
         .library(name: "DesignSystem", targets: [ "DesignSystem" ])
     ],

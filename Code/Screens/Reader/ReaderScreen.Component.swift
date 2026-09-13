@@ -9,6 +9,7 @@ import BookRenderer
 import DesignSystem
 import SwiftUI
 import Translation
+import UIKit
 
 enum ReaderScreen {
     struct Component: View {
@@ -92,20 +93,17 @@ enum ReaderScreen {
                     }
                 }
                 .background(settings.theme.background.ignoresSafeArea())
-                // Nothing but the controls. The page names the book at its own head, so a title in the
-                // bar says it twice.
-                .navigationTitle("")
-                .navigationBarTitleDisplayMode(.inline)
-                // The system's own bar, so its buttons sit and size themselves the way they do elsewhere.
-                .toolbar(isChromeHidden ? .hidden : .visible, for: .navigationBar)
-                // The page's colour behind the bar, with a shadow to part it from the page: the running
-                // head passes under it, and glass would show that through.
+                // The stack is here for the window it gives the page, not for a bar. A bar centres its
+                // buttons on its own height and ignores anything asking them to sit elsewhere, so the
+                // reader draws its own and stands them on the line the running head is set on.
+                .toolbar(.hidden, for: .navigationBar)
+                // The page's colour under the corners the stack rounds, and the window held to the
+                // page's own light or dark.
                 .readerBarAppearance(
                     background: settings.theme.background,
                     colorScheme: settings.theme.colorScheme,
-                    isVisible: !isChromeHidden
+                    isVisible: false
                 )
-                .toolbar { controls }
                 .statusBarHidden(isChromeHidden)
                 .sheet(isPresented: $isShowingSettings) { SettingsSheet() }
                 #if DEBUG
@@ -217,6 +215,9 @@ enum ReaderScreen {
             )
             .accessibilityIdentifier("reader.page")
             .ignoresSafeArea()
+            // Over the page and in its coordinates, so the controls and the running head are placed
+            // from the same edge of the screen.
+            .overlay(alignment: .top) { chrome }
             // Drawn text is invisible to VoiceOver, so a marker cannot be touched. The page offers its
             // notes as actions of its own instead.
             .accessibilityActions {
@@ -472,72 +473,73 @@ enum ReaderScreen {
         /// The page number sits a little smaller than the book's title above it.
         private static let captionScale: CGFloat = 0.9
 
-        /// The bar's own controls. Back and the chapter's name come from the navigation stack.
-        @ToolbarContentBuilder
-        private var controls: some ToolbarContent {
-            // The way out, since a presented screen has no back button of its own. The glyph is the
-            // gesture: a drag down the page does the same thing.
-            ToolbarItem(placement: .topBarLeading) {
-                Button("Close", systemImage: "chevron.down") { dismiss() }
-                    .accessibilityIdentifier("reader.close")
-                    .accessibilityHint("Closes the book")
-                    .offset(y: -barRise)
-            }
+        /// The reader's own controls, standing on the line the running head is set on.
+        ///
+        /// Drawn here rather than handed to a bar: a bar centres what it is given on its own height and
+        /// reads no offset asking for anything else.
+        private var chrome: some View {
+            HStack(alignment: .top, spacing: Design.Space.large) {
+                // The way out, since a presented screen has no back button of its own. The glyph is the
+                // gesture: a drag down the page does the same thing.
+                GlassRow {
+                    Button("Close", systemImage: "chevron.down") { dismiss() }
+                        .accessibilityIdentifier("reader.close")
+                        .accessibilityHint("Closes the book")
+                }
 
-            if model?.isOffline == true {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Image(systemName: "wifi.slash")
-                        .foregroundStyle(.secondary)
-                        .accessibilityLabel("Reading from this device")
-                        .offset(y: -barRise)
+                Spacer(minLength: 0)
+
+                GlassRow {
+                    if model?.isOffline == true {
+                        Image(systemName: "wifi.slash")
+                            .font(.system(size: Design.Size.glyph(in: Design.Size.touch)))
+                            .foregroundStyle(.secondary)
+                            .frame(width: Design.Size.touch, height: Design.Size.touch)
+                            .accessibilityLabel("Reading from this device")
+                    }
+
+                    let isMarked = model?.isPageBookmarked == true
+
+                    Button(
+                        isMarked ? "Remove bookmark" : "Add bookmark",
+                        systemImage: isMarked ? "bookmark.fill" : "bookmark"
+                    ) {
+                        model?.toggleBookmark()
+                    }
+                    .accessibilityHint("Marks the page, or clears the marks on it")
+
+                    Button("Contents", systemImage: "list.bullet") { isShowingContents = true }
+                        .accessibilityHint("Shows the chapter list")
+
+                    Button("Appearance", systemImage: "textformat.size") { isShowingSettings = true }
+                        .accessibilityHint("Font, margins and page settings")
+
+                    #if DEBUG
+                        Button("Debug info", systemImage: "ladybug") { collectReport() }
+                            .accessibilityHint("Collects the page, its settings and a picture of it")
+                    #endif
                 }
             }
-
-            ToolbarItem(placement: .topBarTrailing) {
-                let isMarked = model?.isPageBookmarked == true
-
-                Button(
-                    isMarked ? "Remove bookmark" : "Add bookmark",
-                    systemImage: isMarked ? "bookmark.fill" : "bookmark"
-                ) {
-                    model?.toggleBookmark()
-                }
-                .accessibilityHint("Marks the page, or clears the marks on it")
-                .offset(y: -barRise)
-            }
-
-            ToolbarItem(placement: .topBarTrailing) {
-                Button("Contents", systemImage: "list.bullet") { isShowingContents = true }
-                    .accessibilityHint("Shows the chapter list")
-                    .offset(y: -barRise)
-            }
-
-            ToolbarItem(placement: .topBarTrailing) {
-                Button("Appearance", systemImage: "textformat.size") { isShowingSettings = true }
-                    .accessibilityHint("Font, margins and page settings")
-                    .offset(y: -barRise)
-            }
-
-            #if DEBUG
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button("Debug info", systemImage: "ladybug") { collectReport() }
-                        .accessibilityHint("Collects the page, its settings and a picture of it")
-                        .offset(y: -barRise)
-                }
-            #endif
+            .padding(.horizontal, Design.Space.extraLarge)
+            .padding(.top, Self.controlsTop(under: safeArea.top, headSize: runningHeadSize))
+            // Counted from the top of the screen, as the running head is: an overlay is given the safe
+            // area back even where the view under it turned it down.
+            .ignoresSafeArea()
+            .opacity(isChromeHidden ? 0 : 1)
+            .allowsHitTesting(!isChromeHidden)
         }
 
-        /// How far the bar's own glyphs stand above where the bar would put them. Off the lattice by a
-        /// nudge on purpose: it is where they line up with the back button beside them.
-        private var barRise: CGFloat { Self.rise(over: runningHeadSize) }
+        /// Where the controls start, so that the middle of them lands on the middle of the line the
+        /// running head is set on. The head sits its own inset below the safe area.
+        static func controlsTop(under safeAreaTop: CGFloat, headSize: CGFloat) -> CGFloat {
+            safeAreaTop + headInset + (headLine(headSize) - Design.Size.touch) / 2
+        }
 
-        /// How far the bar's controls are lifted, so their middle lands on the middle of the running
-        /// head drawn on the page. The bar centres its own contents on its height; the head sits its
-        /// own inset below the safe area.
-        static func rise(over headSize: CGFloat) -> CGFloat { barMiddle - (headInset + headSize / 2) }
+        /// The line a running head of this size is set on, which is taller than the type itself.
+        static func headLine(_ headSize: CGFloat) -> CGFloat {
+            UIFont.systemFont(ofSize: headSize).lineHeight
+        }
 
-        /// The middle of the navigation bar, measured from the top of the safe area.
-        static let barMiddle: CGFloat = 22
         /// What the running head keeps between itself and the safe area.
         static let headInset: CGFloat = 4
 

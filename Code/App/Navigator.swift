@@ -91,6 +91,10 @@ final class Navigator {
         // is covered and is already right when it is uncovered.
         screen.modalPresentationStyle = .overFullScreen
 
+        // An over-full-screen presentation leaves the status bar with whoever is underneath, so the
+        // reader's own `.statusBarHidden` would go unread and the bar stay up over a hidden toolbar.
+        screen.modalPresentationCapturesStatusBarAppearance = true
+
         // Asked afresh each time, on the way in and on the way out. A shelf lays itself out again
         // around whatever the reading changed, so the board a book stood on when it opened is the
         // wrong size by the time the book closes, and the zoom landed on one and left the other.
