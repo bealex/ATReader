@@ -155,6 +155,12 @@ public final class BookPagination {
             }
 
             chained = await fold(chapterId: chapter.id, known: hash, chained: chained)
+
+            // A division the book names among its own top ones opens a page of its own. Running one on
+            // reads it as a continuation of what came before, which is what a part or a book is not.
+            // Anything marked inside one still fills the page it is given.
+            if Self.opensItsOwnPage(chapter) { startOffset = 0 }
+
             startOffset = await layOut(
                 chapter,
                 position: index + 1,
@@ -286,6 +292,9 @@ public final class BookPagination {
 
     /// True when this chapter begins part-way down the page the one before it ended on.
     public func runsOn(_ chapterId: Int) -> Bool { (placements[chapterId]?.startOffset ?? 0) > 0 }
+
+    /// True where a chapter stands among the book's own top divisions, which each open a page.
+    static func opensItsOwnPage(_ chapter: BookChapter) -> Bool { max(1, chapter.level ?? 1) <= 1 }
 
     /// Where a chapter starts on the page the one before it ended on, and how far down.
     ///

@@ -100,7 +100,7 @@ public final class ChapterLayout {
     /// Measurements are kept against the setting they were made at, and the setting alone says nothing
     /// about the rules that read it. Without this, changing how far a mark hangs would leave every book
     /// on the device showing the breaks an older layout chose.
-    public nonisolated static let rulesVersion = "20"
+    public nonisolated static let rulesVersion = "22"
 
     public enum Rules {
         /// Lines that have to follow a heading rather than leaving it stranded at the foot of a page.

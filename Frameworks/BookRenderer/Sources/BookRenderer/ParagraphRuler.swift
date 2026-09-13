@@ -88,7 +88,7 @@ public struct ParagraphRuler {
         self.spaceWidth = (" " as NSString).size(withAttributes: attributes).width
         self.hyphenWidth = ("-" as NSString).size(withAttributes: attributes).width
         self.offsets = Self.offsets(of: piece)
-        self.breaks = Self.breaks(in: string, range: range)
+        self.breaks = Self.breaks(in: string, range: range, holding: Self.markers(in: text, range: range))
     }
 
     /// Where each character of the paragraph lands once the invisibles are taken out of it.
@@ -324,10 +324,18 @@ public struct ParagraphRuler {
 
     // MARK: - Where a line may end
 
-    private static func breaks(in string: NSString, range: NSRange) -> [Break] {
+    private static func breaks(in string: NSString, range: NSRange, holding markers: [NSRange]) -> [Break] {
         var result: [Break] = []
 
         for offset in 1 ..< max(1, range.length) {
+            // A marker is the tail of the word it belongs to, however the book spaced it off. Books
+            // write "others [10]", and a line left to begin on that reads as a stray figure.
+            guard
+                !markers.contains(where: { $0.location <= offset && offset < NSMaxRange($0) })
+            else {
+                continue
+            }
+
             let previous = string.character(at: range.location + offset - 1)
 
             if previous == 0x20 {
@@ -342,6 +350,19 @@ public struct ParagraphRuler {
         }
 
         return result
+    }
+
+    /// Where each note's marker stands, counted from the paragraph's own first character.
+    private static func markers(in text: NSAttributedString, range: NSRange) -> [NSRange] {
+        var found: [NSRange] = []
+
+        text.enumerateAttribute(.bookNote, in: range) { value, marker, _ in
+            guard value != nil else { return }
+
+            found.append(NSRange(location: marker.location - range.location, length: marker.length))
+        }
+
+        return found
     }
 
     /// True where a hyphen already written into a word may end a line, with letters enough either side.
