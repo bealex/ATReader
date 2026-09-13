@@ -486,24 +486,37 @@ extension ReaderScreen {
 
             guard let layout, layout.pageRanges.indices.contains(page) else { return pageAfter(at: index) }
 
+            return .text(pieces(of: layout, page: page))
+        }
+
+        /// Everything standing on one chapter's page: the page itself, and whichever neighbour shares it.
+        ///
+        /// Asked by the page the reader is on and by the pages either side of it alike, so a page is
+        /// composed the same way whoever asks. Composed one way while a turn was in flight and another
+        /// once it landed, the half belonging to the neighbour appeared as the turn finished.
+        ///
+        /// Both neighbours are taken on where the two layouts were actually set, not on where the book
+        /// pass says they go: the layouts are what draw, and one set as if it started a page of its own
+        /// is drawn over the chapter already on the page it shares.
+        private func pieces(of built: ChapterLayout, page: Int) -> [Piece] {
+            let chapters = readableChapters
+            let index = chapters.firstIndex { $0.id == built.chapterId }
             var pieces: [Piece] = []
 
-            // Both neighbours are taken on where the two layouts were actually set, not on where the
-            // book pass says they go: the layouts are what draw, and one set as if it started a page of
-            // its own is drawn over the chapter already on the page it shares.
-            if page == 0, let previous = previousChapter, let before = layouts[previous.id],
-                    BookPagination.sharesLastPage(of: before, with: layout, context: layout.context) {
+            if page == 0, let index, index > 0, let before = layouts[chapters[index - 1].id],
+                    BookPagination.sharesLastPage(of: before, with: built, context: built.context) {
                 pieces.append(Piece(layout: before, page: before.pageCount - 1))
             }
 
-            pieces.append(Piece(layout: layout, page: page))
+            pieces.append(Piece(layout: built, page: page))
 
-            if page == layout.pageCount - 1, let next = nextChapter, let after = layouts[next.id],
-                    BookPagination.sharesLastPage(of: layout, with: after, context: layout.context) {
+            if page == built.pageCount - 1, let index, index + 1 < chapters.count,
+                    let after = layouts[chapters[index + 1].id],
+                    BookPagination.sharesLastPage(of: built, with: after, context: built.context) {
                 pieces.append(Piece(layout: after, page: 0))
             }
 
-            return .text(pieces)
+            return pieces
         }
 
         /// The page before this chapter's first: the previous chapter's last, unless this chapter starts
@@ -515,7 +528,7 @@ extension ReaderScreen {
                 neighbour.pageRanges.indices.contains(before.page)
             else { return .blank }
 
-            return .text([ Piece(layout: neighbour, page: before.page) ])
+            return .text(pieces(of: neighbour, page: before.page))
         }
 
         /// The page after this chapter's last: the next chapter's first, unless it already began on the
@@ -528,7 +541,7 @@ extension ReaderScreen {
                 after.pageRanges.indices.contains(beyond.page)
             else { return .blank }
 
-            return .text([ Piece(layout: after, page: beyond.page) ])
+            return .text(pieces(of: after, page: beyond.page))
         }
 
         /// The footer for one page: where that page sits in its chapter, and the chapter in the book.
