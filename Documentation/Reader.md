@@ -392,7 +392,7 @@ possible. None of these is allowed at a break:
 
 Titles stand in air, and `TitleBlock` says how much. Titles that touch are one block however many
 levels they carry, the block takes the air of the biggest title in it, and the air goes round the
-outside rather than between its lines: twelve lines above a first-level title, six above a subtitle,
+outside rather than between its lines: eight lines above a first-level title, six above a subtitle,
 three above a third-level one and a single line above anything smaller. A block given three lines or
 more is parted from the text under it by two; one given less is not, since a gap under a title and
 none above it would read as belonging to the text that follows.
@@ -400,12 +400,22 @@ none above it would read as belonging to the text that follows.
 Counted in lines of the page rather than in the gap paragraphs take between them, because that gap is
 a fraction of the reader's line spacing and comes to nothing at a tight setting.
 
-A chapter's own heading is the first-level title of the block it opens, so it takes the twelve. Where
+A chapter's own heading is the first-level title of the block it opens, so it takes the eight. Where
 the chapter starts a page, all but two lines of that are cut: there is nothing above it there to stand
-clear of, twelve would push the heading a third of the way down its own opening page, and none would
-leave it hard against the top edge. `ChapterLayout` does the cutting, since only it knows where the
+clear of, eight would push the heading well down its own opening page, and none would leave it hard
+against the top edge. `ChapterLayout` does the cutting, since only it knows where the
 chapter begins. For the same reason no page may open on a title standing in three lines or
 more: the air would fall off the top with nothing left to say, so the break goes before the air.
+
+A heading is set as two lines: what the chapter is, small and spaced above, and what it is called,
+large under it. A file usually writes both into one string, so `HeadingNumbering` parts it: a word the
+heading opens with that names a part of a book, the numeral after it, and the name that follows. What
+it will not part, it leaves whole. "Часть тела" opens with a word it knows and is a part of nobody.
+Russian numbers a chapter with an ordinal, so a cardinal at the front is the name counting something:
+"Глава Три товарища" is a chapter called after the three. English says "Chapter One" and is read
+either way. Where a heading carries no number of its own it is given the chapter's count instead, and
+where it carries one, the book's own words are used: a book with a prologue in it disagrees with the
+count and is right.
 
 A break between scenes is a row of stars, which books write as a subtitle and which is set as one.
 The level comes from the markup and only from the markup: `BookHTML` reads it off a heading element,

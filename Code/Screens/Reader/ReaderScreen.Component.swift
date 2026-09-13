@@ -360,7 +360,7 @@ enum ReaderScreen {
             switch model.page(at: index) {
                 case .title:
                     BookTitlePageView(
-                        title: model.book?.title ?? title,
+                        title: model.bookTitle,
                         author: model.book?.authorLine ?? "",
                         seriesTitle: model.book?.seriesTitle,
                         coverURL: model.book?.coverURL,
@@ -381,7 +381,7 @@ enum ReaderScreen {
                         if isCurrent { picking(model) }
                     }
                     .background(settings.theme.background)
-                    .overlay(alignment: .top) { runningHead(model.book?.title ?? title, edge: .top) }
+                    .overlay(alignment: .top) { runningHead(model.bookTitle, edge: .top) }
                     .overlay(alignment: .bottom) { runningHead(footer, edge: .bottom, isCaption: isCurrent) }
                 case .blank:
                     settings.theme.background

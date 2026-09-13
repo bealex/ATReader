@@ -19,7 +19,7 @@ public enum TitleBlock {
     /// chapter opening is supposed to stand in.
     public static func air(forLevel level: Int) -> CGFloat {
         switch level {
-            case 1: 12
+            case 1: 8
             case 2: 6
             case 3: 3
             default: 1
@@ -35,8 +35,8 @@ public enum TitleBlock {
 
     /// What is left of a block's air where the block opens a page.
     ///
-    /// Not all of it: air at the head of a page has nothing above it to stand clear of, and the twelve
-    /// lines a chapter keeps would push its title a third of the way down its own opening page. Not
+    /// Not all of it: air at the head of a page has nothing above it to stand clear of, and the eight
+    /// lines a chapter keeps would push its title well down its own opening page. Not
     /// none of it either, since a title hard against the top edge reads as a page that lost its head.
     public static let atTheTopOfAPage: CGFloat = 2
 

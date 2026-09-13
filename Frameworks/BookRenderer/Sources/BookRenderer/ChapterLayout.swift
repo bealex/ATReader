@@ -99,7 +99,7 @@ public final class ChapterLayout {
     /// Measurements are kept against the setting they were made at, and the setting alone says nothing
     /// about the rules that read it. Without this, changing how far a mark hangs would leave every book
     /// on the device showing the breaks an older layout chose.
-    public nonisolated static let rulesVersion = "17"
+    public nonisolated static let rulesVersion = "18"
 
     public enum Rules {
         /// Lines that have to follow a heading rather than leaving it stranded at the foot of a page.
@@ -308,7 +308,7 @@ public final class ChapterLayout {
     /// Cuts the air above the chapter's first line back where the chapter starts a page of its own.
     ///
     /// A title keeps its air by standing in it, and at the head of a page there is nothing above it to
-    /// stand clear of: the twelve lines a chapter keeps would push its title a third of the way down
+    /// stand clear of: the eight lines a chapter keeps would push its title well down
     /// its own opening page. Two are left, so the title is not hard against the top edge. A chapter
     /// that runs on from the one before it keeps every bit of its air, which is the point of having it.
     private func dropTheAirAtTheTop() {

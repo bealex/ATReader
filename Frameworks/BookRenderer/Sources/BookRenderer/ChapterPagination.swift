@@ -94,11 +94,20 @@ public struct ChapterHeading: Equatable, Sendable {
 
     /// Numbers a chapter unless its title already does — "Chapter 4" above "Chapter 4. The Road" reads
     /// like a bug rather than a heading.
+    ///
+    /// A title that carries its own number is parted into the two the heading is set in, and the book's
+    /// own words are used rather than the count, since a book with a prologue in it disagrees with the
+    /// count and is right.
     public static func make(position: Int, title: String?) -> ChapterHeading {
         let trimmed = title?.trimmingCharacters(in: .whitespacesAndNewlines)
         let number = String(localized: "Chapter \(position)", bundle: .module)
 
         guard let trimmed, !trimmed.isEmpty else { return ChapterHeading(number: number, title: nil) }
+
+        if let parted = HeadingNumbering.part(trimmed) {
+            return ChapterHeading(number: parted.number, title: parted.name)
+        }
+
         guard !isSelfNumbering(trimmed) else { return ChapterHeading(number: nil, title: trimmed) }
 
         return ChapterHeading(number: number, title: trimmed)

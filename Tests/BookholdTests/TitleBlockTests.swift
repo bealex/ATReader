@@ -31,7 +31,7 @@ struct TitleBlockTests {
 
     @Test
     func theAirGoesByLevel() {
-        #expect(TitleBlock.air(forLevel: 1) == 12)
+        #expect(TitleBlock.air(forLevel: 1) == 8)
         #expect(TitleBlock.air(forLevel: 2) == 6)
         #expect(TitleBlock.air(forLevel: 3) == 3)
         #expect(TitleBlock.air(forLevel: 4) == 1)

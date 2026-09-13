@@ -61,6 +61,15 @@ extension ReaderScreen {
         /// they are done before a reader could read a progress bar.
         private(set) var paginationProgress: Double?
 
+        /// What the page calls the book: its own name, with whatever its series writes into every one of
+        /// its titles taken off. The same name the shelf gives it, and the title page names the series
+        /// under it anyway.
+        var bookTitle: String {
+            guard let book else { return workTitle }
+
+            return SeriesNumbering.title(book.title, in: book.seriesTitle, volume: book.seriesOrder)
+        }
+
         /// True from the tap that opens a book to its first page being set.
         ///
         /// Fetching a chapter and measuring the book behind it are two jobs to the reader's model and
