@@ -638,6 +638,19 @@ extension ReaderScreen {
 
         // MARK: - Opening the book
 
+        /// The heading the reader sets over a chapter, where it sets one at all.
+        ///
+        /// A book off a file carries its own divisions, so a chapter it gave no name to is not a chapter
+        /// the book made: numbering it puts "Chapter 1" over a page of front matter. The service counts
+        /// its own chapters and an untitled one there still wants its number.
+        private static func heading(at position: Int, title: String?, workId: Int) -> ChapterHeading {
+            let named = !(title?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true)
+
+            guard named || !BookNumbering.isLocal(workId) else { return ChapterHeading() }
+
+            return ChapterHeading.make(position: position, title: title)
+        }
+
         func loadIfNeeded() async {
             guard !hasLoaded else { return }
 
@@ -657,6 +670,10 @@ extension ReaderScreen {
             await refreshContents()
 
             if currentChapterId == nil { openTarget(position: position) }
+
+            // Behind the reading: a link names a place rather than a chapter, and which chapter holds
+            // it is only known once every chapter has been looked at.
+            Task { [weak self] in await self?.readPlaces() }
 
             isLoading = layout == nil && errorMessage == nil
             await refreshBook()
@@ -994,7 +1011,7 @@ extension ReaderScreen {
             let built = await ChapterLayout.make(
                 chapterId: chapterId,
                 content: content,
-                heading: ChapterHeading.make(position: position, title: title),
+                heading: Self.heading(at: position, title: title, workId: workId),
                 context: context,
                 startOffset: startOffset,
                 columns: store,

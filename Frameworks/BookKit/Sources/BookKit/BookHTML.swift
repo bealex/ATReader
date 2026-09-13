@@ -357,6 +357,9 @@ public enum BookHTML {
         // HTML reads any run of these as one space. The non-breaking space is left alone, being the one
         // piece of white space the text means.
         text = text.replacingOccurrences(of: "[ \t\n\r\u{000B}\u{000C}]+", with: " ", options: .regularExpression)
+        // A run of them is a publisher indenting a line, which is the page's business rather than the
+        // text's. One on its own still binds the words either side of it and is left alone.
+        text = text.replacingOccurrences(of: "[ \u{00A0}]{2,}", with: " ", options: .regularExpression)
         return text.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 

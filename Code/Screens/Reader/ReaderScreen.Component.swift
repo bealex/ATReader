@@ -138,9 +138,6 @@ enum ReaderScreen {
                     navigator.aboutToGo = { [weak reader] in reader?.flushPosition() }
                 }
                 .task { await model?.loadIfNeeded() }
-                // Where every link in the book lands, worked out behind the reading rather than when a
-                // link is first tapped.
-                .task { await model?.readPlaces() }
                 // Where the reader stopped is worth writing the moment they stop: an app on its way to
                 // the background will not run a task that is still waiting.
                 .onChange(of: scenePhase) { _, phase in

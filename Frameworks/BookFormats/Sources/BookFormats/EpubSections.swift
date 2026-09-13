@@ -253,20 +253,27 @@ enum EpubSections {
         else { return [ made(title: title, html: html, level: level) ] }
 
         var pieces: [ParsedBook.Section] = []
+        // A name the document was given belongs to whichever heading spells it out, rather than to
+        // whatever happened to stand above that heading. Otherwise a preface and the dedication before
+        // it come out as two chapters of the same name.
+        let claimed = boundaries.contains { named($0, in: html).map(folded) == title.map(folded) }
 
         for (index, heading) in boundaries.enumerated() {
             let ends = index + 1 < boundaries.count ? boundaries[index + 1].open.lowerBound : html.endIndex
 
-            // Whatever stood before the first heading belongs to the document, and keeps its name.
             if index == 0, html.startIndex < heading.open.lowerBound {
                 let opening = String(html[html.startIndex ..< heading.open.lowerBound])
 
-                if !stripped(opening).isEmpty { pieces.append(made(title: title, html: opening, level: level)) }
+                if !stripped(opening).isEmpty {
+                    pieces.append(made(title: claimed ? nil : title, html: opening, level: level))
+                }
             }
 
+            // The heading stays in the piece it opens: a book that sets out its own divisions is left
+            // to set them out, and the reader draws no heading of its own over one that does.
             pieces.append(made(
                 title: named(heading, in: html),
-                html: String(html[heading.close.upperBound ..< ends]),
+                html: String(html[heading.open.lowerBound ..< ends]),
                 level: level + 1
             ))
         }
