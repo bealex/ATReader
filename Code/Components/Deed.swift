@@ -21,8 +21,9 @@ enum Deed: Identifiable {
         let systemImage: String
         var isDestructive = false
         var isEnabled = true
-        /// Ticked, for a menu where one of several is the one in force.
-        var isOn = false
+        /// Whether the deed stands for something that is on or off, and which it is. A plain act, which
+        /// is most of them, answers nothing and is drawn as a row to press rather than a state.
+        var isOn: Bool?
         let run: @MainActor @Sendable () -> Void
     }
 
@@ -38,7 +39,7 @@ enum Deed: Identifiable {
         systemImage: String,
         isDestructive: Bool = false,
         isEnabled: Bool = true,
-        isOn: Bool = false,
+        isOn: Bool? = nil,
         run: @escaping @MainActor @Sendable () -> Void
     ) -> Deed {
         .act(Act(
@@ -82,7 +83,7 @@ private extension Deed {
                     title: act.title,
                     image: UIImage(systemName: act.systemImage),
                     attributes: attributes,
-                    state: act.isOn ? .on : .off
+                    state: act.isOn == true ? .on : .off
                 ) { _ in act.run() }
             case let .menu(title, deeds):
                 return UIMenu(title: title, children: deeds.map(\.element))
@@ -98,10 +99,20 @@ struct DeedMenu: View {
         ForEach(deeds) { deed in
             switch deed {
                 case let .act(act):
-                    Button(role: act.isDestructive ? .destructive : nil, action: act.run) {
-                        Label(act.title, systemImage: act.systemImage)
+                    // A deed that stands for a state is a toggle, so the menu ticks it the way the
+                    // system ticks one. A plain act is a button: read out as a switch it would say it
+                    // was off, which is not a thing it can be.
+                    if let isOn = act.isOn {
+                        Toggle(isOn: .init(get: { isOn }, set: { _ in act.run() })) {
+                            Label(act.title, systemImage: act.systemImage)
+                        }
+                        .disabled(!act.isEnabled)
+                    } else {
+                        Button(role: act.isDestructive ? .destructive : nil, action: act.run) {
+                            Label(act.title, systemImage: act.systemImage)
+                        }
+                        .disabled(!act.isEnabled)
                     }
-                    .disabled(!act.isEnabled)
                 case let .menu(title, held):
                     Menu(title) { DeedMenu(deeds: held) }
             }

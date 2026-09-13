@@ -326,7 +326,10 @@ Left in the window, the shelf keeps up while it is covered and is already right 
 
 Menus are described once, as `Deed` values, because the shelf sets them out in UIKit and the rows still
 set them out in SwiftUI. Written twice they would drift, and the reader would find a different menu
-depending on which of the two they pressed.
+depending on which of the two they pressed. Which is exactly what happened to `isOn`: UIKit ticked what
+it named and SwiftUI drew a plain row, so nothing in a SwiftUI menu ever showed as chosen. A deed that
+answers `isOn` stands for a state and is set out as a toggle; one that answers nothing is a row to
+press, since a plain act read out as a switch would say it was off, which is not a thing it can be.
 
 ### What a book is made of
 
