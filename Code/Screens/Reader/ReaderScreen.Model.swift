@@ -229,6 +229,14 @@ extension ReaderScreen {
         private var nextRunsOn: Bool {
             guard let next = nextChapter else { return false }
 
+            // Where both have been laid out, the layouts answer: they are what drew the page, and the
+            // book's own measurements allow a run-on the drawing then turns down, which would step the
+            // reader past a page they were never shown. The measurements answer for a neighbour that
+            // has not been laid out yet.
+            if let layout, let after = layouts[next.id] {
+                return BookPagination.sharesLastPage(of: layout, with: after, context: layout.context)
+            }
+
             return pagination?.runsOn(next.id) ?? false
         }
 
@@ -760,7 +768,21 @@ extension ReaderScreen {
             pendingAnchor = anchor
             errorMessage = nil
 
-            if let prepared = layouts[chapterId] { return install(prepared, anchor: anchor) }
+            if let prepared = layouts[chapterId] {
+                guard sharesWithOneNotLaidOut(prepared) else { return install(prepared, anchor: anchor) }
+
+                // Held only where half the page is missing. Everything already laid out installs at
+                // once, which is what keeps a turn between chapters immediate.
+                Task { [weak self] in
+                    await self?.layOutWhoeverSharesAPage(with: prepared)
+
+                    guard self?.currentChapterId == chapterId else { return }
+
+                    self?.install(prepared, anchor: anchor)
+                }
+
+                return
+            }
 
             layout = nil
             isLoading = true
@@ -819,6 +841,18 @@ extension ReaderScreen {
         ///
         /// Only a neighbour that actually shares: one starting a page of its own is read ahead for as
         /// before, and costs the reader nothing here.
+        /// True where a chapter shares a page with a neighbour that has not been laid out, so drawing
+        /// it now would leave that half of the page blank until the neighbour arrives.
+        private func sharesWithOneNotLaidOut(_ built: ChapterLayout) -> Bool {
+            if built.startOffset > 0, let previous = previousChapter, layouts[previous.id] == nil {
+                return true
+            }
+
+            guard let next = nextChapter, layouts[next.id] == nil else { return false }
+
+            return (pagination?.placement(of: next.id)?.startOffset ?? 0) > 0
+        }
+
         private func layOutWhoeverSharesAPage(with built: ChapterLayout) async {
             // The chapter being installed rather than the one still on screen: this runs before it is
             // installed, so the reader's own layout is still the last one.
