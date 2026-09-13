@@ -347,6 +347,9 @@ public final class ChapterLayout {
     /// is what a test reads to say whether it did.
     public struct TypesetLine {
         public var text: String
+        /// Where the line starts across the measure, which a quoted passage holds off the edge.
+        public var origin: CGFloat
+        /// Where the line ends across the measure, counted from the same edge as ``origin``.
         public var width: CGFloat
         /// How deep the line stands, the space under it included.
         public var height: CGFloat
@@ -379,6 +382,7 @@ public final class ChapterLayout {
     private func described(_ line: ColumnComposer.Line) -> TypesetLine {
         TypesetLine(
             text: (text.string as NSString).substring(with: line.characters),
+            origin: line.origin,
             width: line.origin + line.width,
             height: line.height,
             shortReason: line.shortReason,
