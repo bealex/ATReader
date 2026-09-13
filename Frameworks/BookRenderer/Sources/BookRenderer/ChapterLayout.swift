@@ -81,6 +81,7 @@ public final class ChapterLayout {
                 style.weight.rawValue,
                 "\(style.fontSize)", "\(style.lineSpacing)", "\(style.letterSpacing)",
                 "\(style.justifiesRussian)", "\(style.justifiesEnglish)",
+                style.hyphenates ? nil : "nohyphens",
                 "\(margins)", "\(pageSize.width)x\(pageSize.height)",
                 "\(safeArea.top),\(safeArea.leading),\(safeArea.bottom),\(safeArea.trailing)",
                 // Only a page that is not one of the book's own says so, which leaves every book
@@ -183,9 +184,9 @@ public final class ChapterLayout {
         // The pictures are read off the device before anything is measured: a line as deep as a plate
         // cannot be set without knowing how deep the plate is.
         let images = await BookImages.shared.prepare(sources: content.imageSources)
-        // Both settings take every break the dictionary offers: a hyphen evens a ragged edge as surely as
-        // it fills a justified line.
-        let paragraphs = content.hyphenated
+        // Both alignments take every break the dictionary offers, where the reader lets them: a hyphen
+        // evens a ragged edge as surely as it fills a justified line.
+        let paragraphs = context.style.hyphenates ? content.hyphenated : content.paragraphs
         let language = content.language
         let style = context.style
         let typesetting: @Sendable () -> ChapterPagination.TypesetText = {

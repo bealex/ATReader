@@ -22,6 +22,9 @@ public struct ChapterTextStyle: Equatable, Sendable {
     /// been parsed, so the style carries both answers and the typesetter picks.
     public var justifiesRussian: Bool
     public var justifiesEnglish: Bool
+    /// Whether words may be broken at the end of a line. A justified column reads far better with it,
+    /// since the alternative to a hyphen is a line pulled apart to reach the measure.
+    public var hyphenates: Bool = true
     public var textColor: UIColor
     /// The colour the page is set on, which pictures are drawn against as well as text.
     public var backgroundColor: UIColor = .systemBackground
@@ -40,6 +43,7 @@ public struct ChapterTextStyle: Equatable, Sendable {
         letterSpacing: Double,
         justifiesRussian: Bool,
         justifiesEnglish: Bool,
+        hyphenates: Bool = true,
         textColor: UIColor,
         backgroundColor: UIColor = .systemBackground,
         monochromeImages: Bool = false,
@@ -52,6 +56,7 @@ public struct ChapterTextStyle: Equatable, Sendable {
         self.letterSpacing = letterSpacing
         self.justifiesRussian = justifiesRussian
         self.justifiesEnglish = justifiesEnglish
+        self.hyphenates = hyphenates
         self.textColor = textColor
         self.backgroundColor = backgroundColor
         self.monochromeImages = monochromeImages

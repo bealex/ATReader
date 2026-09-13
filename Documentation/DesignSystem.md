@@ -31,6 +31,8 @@ apply `Design` to the page.
 | `DisclosureLabel` | A row that opens another screen through a button, with the chevron a `NavigationLink` would draw. |
 | `BookmarkMark` | A ribbon hanging from a cover's top edge with a figure or a glyph, and where along the edge it hangs. Its red is a ribbon's colour; its green and grey are `positive` and `neutral`. |
 | `ExplainedHeader` | A section header whose ⓘ, at its far end, opens a dialog explaining the section. |
+| `ProgressBar` | A bar that fills to a number, and slides back and forth while there isn't one yet. |
+| `SteppedSlider` | A slider with a glass step either side of it: the drag gets near, the steps settle it. |
 | `Callout` | A short aside: set to a width, as deep as what it says. |
 | `CalloutShape` | The card and its pointer as one path. |
 | `CalloutPlacement` | Which side of a thing an aside takes, and where it slides to. |

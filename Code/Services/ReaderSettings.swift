@@ -10,8 +10,9 @@ import UIKit
 /// Typography, margins and page tint for the reader, persisted across launches.
 @Observable @MainActor
 final class ReaderSettings {
+    /// A page's two colours. What the reader chooses is one of these for the light hours and one for
+    /// the dark, or a single one for both.
     enum Theme: String, CaseIterable, Identifiable {
-        case system
         case paper
         case sepia
         case night
@@ -21,7 +22,6 @@ final class ReaderSettings {
 
         var title: String {
             switch self {
-                case .system: String(localized: "Match the system")
                 case .paper: String(localized: "Paper")
                 case .sepia: String(localized: "Sepia")
                 case .night: String(localized: "Night")
@@ -31,7 +31,6 @@ final class ReaderSettings {
 
         var background: Color {
             switch self {
-                case .system: Color(.systemBackground)
                 case .paper: Color(red: 0.99, green: 0.99, blue: 0.97)
                 case .sepia: Color(red: 0.96, green: 0.91, blue: 0.82)
                 case .night: Color(red: 0.09, green: 0.09, blue: 0.11)
@@ -41,7 +40,6 @@ final class ReaderSettings {
 
         var foreground: Color {
             switch self {
-                case .system: Color(.label)
                 case .paper: Color(red: 0.11, green: 0.11, blue: 0.12)
                 case .sepia: Color(red: 0.25, green: 0.19, blue: 0.11)
                 case .night: Color(red: 0.85, green: 0.85, blue: 0.88)
@@ -49,14 +47,11 @@ final class ReaderSettings {
             }
         }
 
-        /// Forces the status bar and controls to match the page, except when following the system.
-        var colorScheme: ColorScheme? {
-            switch self {
-                case .system: nil
-                case .paper, .sepia: .light
-                case .night, .green: .dark
-            }
-        }
+        /// True for a page meant to be read in the dark, which is what the system asks for by name.
+        var isDark: Bool { self == .night || self == .green }
+
+        /// Holds the status bar and the controls to the page rather than to the system.
+        var colorScheme: ColorScheme { isDark ? .dark : .light }
     }
 
     /// What a face and a weight are belongs to the typesetter; what the reader picked belongs here.
@@ -86,6 +81,7 @@ final class ReaderSettings {
     }
 
     static let fontSizeRange: ClosedRange<Double> = 14 ... 30
+    static let lineSpacingRange: ClosedRange<Double> = 0 ... 16
     static let marginRange: ClosedRange<Double> = 0 ... 100
     /// Tracking in points. A little either way is all a text face can take before it stops reading well.
     static let letterSpacingRange: ClosedRange<Double> = -0.5 ... 2
@@ -131,8 +127,40 @@ final class ReaderSettings {
         didSet { UserDefaults.standard.set(englishAlignment.rawValue, forKey: Keys.englishAlignment) }
     }
 
+    /// True where the page turns with the system: one theme for its light hours and another for its
+    /// dark ones. Off, the page keeps one theme whatever the system is doing.
+    var followsSystem: Bool {
+        didSet { UserDefaults.standard.set(followsSystem, forKey: Keys.followsSystem) }
+    }
+
+    var lightTheme: Theme {
+        didSet { UserDefaults.standard.set(lightTheme.rawValue, forKey: Keys.lightTheme) }
+    }
+
+    var darkTheme: Theme {
+        didSet { UserDefaults.standard.set(darkTheme.rawValue, forKey: Keys.darkTheme) }
+    }
+
+    /// The page's theme where it does not follow the system.
+    var fixedTheme: Theme {
+        didSet { UserDefaults.standard.set(fixedTheme.rawValue, forKey: Keys.theme) }
+    }
+
+    /// What the system is showing, told by the screen that is showing it. Not kept: the system says it
+    /// afresh every launch, and a stale answer would show as the page opening in the wrong colours.
+    var systemIsDark = false
+
+    /// The page's colours, whichever way the reader settled them.
     var theme: Theme {
-        didSet { UserDefaults.standard.set(theme.rawValue, forKey: Keys.theme) }
+        guard followsSystem else { return fixedTheme }
+
+        return systemIsDark ? darkTheme : lightTheme
+    }
+
+    /// Words may be broken at the end of a line. A justified column reads far better for it: the only
+    /// other way to reach the measure is to pull the words apart.
+    var hyphenates: Bool {
+        didSet { UserDefaults.standard.set(hyphenates, forKey: Keys.hyphenates) }
     }
 
     /// Draws every picture in the page's own two colours, colour art included.
@@ -168,7 +196,18 @@ final class ReaderSettings {
             defaults.string(forKey: Keys.russianAlignment).flatMap(Alignment.init(rawValue:)) ?? .justified
         englishAlignment =
             defaults.string(forKey: Keys.englishAlignment).flatMap(Alignment.init(rawValue:)) ?? .leading
-        theme = defaults.string(forKey: Keys.theme).flatMap(Theme.init(rawValue:)) ?? .system
+        // "system" was a theme of its own before it was a switch, and it meant exactly what the switch
+        // does. A reader who chose it keeps what they chose.
+        let stored = defaults.string(forKey: Keys.theme)
+
+        fixedTheme = stored.flatMap(Theme.init(rawValue:)) ?? .paper
+        followsSystem =
+            defaults.object(forKey: Keys.followsSystem) == nil
+            ? stored == nil || stored == "system"
+            : defaults.bool(forKey: Keys.followsSystem)
+        lightTheme = defaults.string(forKey: Keys.lightTheme).flatMap(Theme.init(rawValue:)) ?? .paper
+        darkTheme = defaults.string(forKey: Keys.darkTheme).flatMap(Theme.init(rawValue:)) ?? .night
+        hyphenates = defaults.object(forKey: Keys.hyphenates) == nil || defaults.bool(forKey: Keys.hyphenates)
         monochromeImages = defaults.bool(forKey: Keys.monochromeImages)
         isPortraitOnly = defaults.bool(forKey: Keys.portraitOnly)
         OrientationLock.seed(portraitOnly: isPortraitOnly)
@@ -184,6 +223,7 @@ final class ReaderSettings {
             letterSpacing: letterSpacing,
             justifiesRussian: russianAlignment == .justified,
             justifiesEnglish: englishAlignment == .justified,
+            hyphenates: hyphenates,
             textColor: UIColor(theme.foreground),
             backgroundColor: UIColor(theme.background),
             monochromeImages: monochromeImages
@@ -203,6 +243,10 @@ final class ReaderSettings {
         static let russianAlignment = "reader.alignment.ru"
         static let englishAlignment = "reader.alignment.en"
         static let theme = "reader.theme"
+        static let followsSystem = "reader.theme.followsSystem"
+        static let lightTheme = "reader.theme.light"
+        static let darkTheme = "reader.theme.dark"
+        static let hyphenates = "reader.hyphenates"
         static let monochromeImages = "reader.monochromeImages"
         static let portraitOnly = "reader.portraitOnly"
     }

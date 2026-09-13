@@ -833,6 +833,17 @@
         }
       }
     },
+    "Colour": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Цвет"
+          }
+        }
+      }
+    },
     "Combine": {
       "extractionState": "manual",
       "localizations": {
@@ -1152,6 +1163,17 @@
         }
       }
     },
+    "Draws every picture in the two colours the page is set in": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Рисует все картинки в двух цветах страницы"
+          }
+        }
+      }
+    },
     "Each run keeps the order it stands in, and they follow one another as picked.": {
       "extractionState": "manual",
       "localizations": {
@@ -1335,6 +1357,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "В цветах страницы"
+          }
+        }
+      }
+    },
+    "Follow the system": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Как в системе"
           }
         }
       }
@@ -1556,6 +1589,17 @@
       "extractionState": "manual",
       "shouldTranslate": false
     },
+    "Holds the page still when the device is turned": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Страница не поворачивается вместе с устройством"
+          }
+        }
+      }
+    },
     "Holds two series, or two spellings of a name, together": {
       "extractionState": "manual",
       "localizations": {
@@ -1563,6 +1607,28 @@
           "stringUnit": {
             "state": "translated",
             "value": "Объединяет две серии или два написания имени"
+          }
+        }
+      }
+    },
+    "Hyphenation": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Переносы"
+          }
+        }
+      }
+    },
+    "In the page’s colours": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "В цветах страницы"
           }
         }
       }
@@ -1622,6 +1688,17 @@
         }
       }
     },
+    "Keep the page upright": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Всегда вертикально"
+          }
+        }
+      }
+    },
     "Keeps the page upright when the device is turned": {
       "extractionState": "manual",
       "localizations": {
@@ -1673,6 +1750,28 @@
           "stringUnit": {
             "state": "translated",
             "value": "По левому краю"
+          }
+        }
+      }
+    },
+    "Less": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Меньше"
+          }
+        }
+      }
+    },
+    "Lets a word break at the end of a line": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Разрешает переносить слова в конце строки"
           }
         }
       }
@@ -1926,6 +2025,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Средний"
+          }
+        }
+      }
+    },
+    "More": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Больше"
           }
         }
       }
@@ -2216,6 +2326,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Открывает читалку"
+          }
+        }
+      }
+    },
+    "Options": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Прочее"
           }
         }
       }
@@ -2528,6 +2649,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Читает файл FB2 в вашу библиотеку"
+          }
+        }
+      }
+    },
+    "Reads one theme by day and another by night, as the system does": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Одна тема для светлого оформления системы, другая для тёмного"
           }
         }
       }
@@ -2951,6 +3083,17 @@
         }
       }
     },
+    "Sets the colours the page is drawn in": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Задаёт цвета страницы"
+          }
+        }
+      }
+    },
     "Sets the page background": {
       "extractionState": "manual",
       "localizations": {
@@ -3002,6 +3145,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Верстаем страницы…"
+          }
+        }
+      }
+    },
+    "Settings": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Настройки"
           }
         }
       }
@@ -3314,6 +3468,17 @@
         }
       }
     },
+    "Text size": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Размер текста"
+          }
+        }
+      }
+    },
     "That FB2 file has no text in it.": {
       "extractionState": "manual",
       "localizations": {
@@ -3490,6 +3655,17 @@
         }
       }
     },
+    "Theme": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Тема"
+          }
+        }
+      }
+    },
     "This book has no chapters you can read yet.": {
       "extractionState": "manual",
       "localizations": {
@@ -3596,6 +3772,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Перевести"
+          }
+        }
+      }
+    },
+    "Type": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Шрифт"
           }
         }
       }
@@ -3838,6 +4025,28 @@
           "stringUnit": {
             "state": "translated",
             "value": "Откуда книга"
+          }
+        }
+      }
+    },
+    "While the system is dark": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Когда система тёмная"
+          }
+        }
+      }
+    },
+    "While the system is light": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Когда система светлая"
           }
         }
       }

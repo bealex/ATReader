@@ -496,6 +496,32 @@ stays a guess.
 Because a page can show a chapter that hasn't arrived yet, the model's layout cache is observed, not
 ignored: a neighbour landing has to redraw the page already on screen.
 
+## What the reader can set
+
+The appearance sheet is three panels behind a segmented picker that never scrolls away, since the
+sheet is half the screen on purpose and everything below the first scroll of a single long form is out
+of sight.
+
+- **Type** — typeface and weight, then text size, line spacing, letter spacing and page margins, then
+  how lines are set: alignment per language, and hyphenation.
+- **Colour** — whether the page follows the system, and the theme or themes it turns between.
+- **Options** — the screen and the pictures.
+
+Every slider has a step either side of it (`SteppedSlider`): the drag gets near and the steps settle
+it, without a finger over the answer. Margins step by four points, since a point either way on a
+hundred-point range is not a step anyone means.
+
+Following the system means two themes, one for its light hours and one for its dark, and the page
+turns with it; not following it means one theme whatever the system is doing. What the system is
+showing is read at the app's root and not in the reader, which holds its own bar and status bar to the
+page's colours and would be reading back its own answer. "Match the system" used to be a theme of its
+own and meant exactly what the switch does; a reader who chose it keeps what they chose.
+
+Hyphenation is the reader's to turn off, and it is part of what a layout is filed under: the chapter is
+composed from the text as hyphenated or as bound, so turning it off re-breaks every line. A justified
+column reads far better with it, since the only other way to reach the measure is to pull the words
+apart.
+
 ## Where the reader stopped
 
 The position is written 400ms after a page turn, so a run of turns writes once. Two moves are written
@@ -584,7 +610,10 @@ edge turns back a page, like any other sideways drag.
 ## The controls
 
 A tap in the middle third brings back the status bar and the navigation bar, a second tap sends them
-away, and turning a page sends them away too. The bar is the navigation stack's own, so the back
+away, and turning a page sends them away too. The bar's own controls are lifted so their middle lands
+on the middle of the running head drawn on the page: the bar centres its contents on its height, the
+head sits a few points below the safe area, and the two read as one line across the top of the page.
+ The bar is the navigation stack's own, so the back
 button, the chapter's name and the two sheet buttons sit and size themselves the way the system draws
 them everywhere else. It carries the page's own colour rather than glass, because the running head
 passes underneath, and a shadow below it so a bar the colour of the page still has an edge.

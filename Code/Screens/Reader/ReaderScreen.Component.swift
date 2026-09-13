@@ -423,8 +423,8 @@ enum ReaderScreen {
                     // little more ink; with them up it steps back and lets them carry it.
                     .foregroundStyle(settings.theme.foreground.opacity(isChromeHidden ? 0.6 : 0.4))
                     .padding(.horizontal, settings.margins)
-                    .padding(.top, edge == .top ? safeArea.top + 4 : 0)
-                    .padding(.bottom, edge == .bottom ? safeArea.bottom + 4 : 0)
+                    .padding(.top, edge == .top ? safeArea.top + Self.headInset : 0)
+                    .padding(.bottom, edge == .bottom ? safeArea.bottom + Self.headInset : 0)
                     .frame(maxWidth: .infinity)
                     // Only the page the reader is on names itself, so a turn never puts two of these
                     // on screen under the same identifier.
@@ -481,7 +481,7 @@ enum ReaderScreen {
                 Button("Close", systemImage: "chevron.down") { dismiss() }
                     .accessibilityIdentifier("reader.close")
                     .accessibilityHint("Closes the book")
-                    .offset(y: -Self.barRise)
+                    .offset(y: -barRise)
             }
 
             if model?.isOffline == true {
@@ -489,7 +489,7 @@ enum ReaderScreen {
                     Image(systemName: "wifi.slash")
                         .foregroundStyle(.secondary)
                         .accessibilityLabel("Reading from this device")
-                        .offset(y: -Self.barRise)
+                        .offset(y: -barRise)
                 }
             }
 
@@ -503,33 +503,41 @@ enum ReaderScreen {
                     model?.toggleBookmark()
                 }
                 .accessibilityHint("Marks the page, or clears the marks on it")
-                .offset(y: -Self.barRise)
+                .offset(y: -barRise)
             }
 
             ToolbarItem(placement: .topBarTrailing) {
                 Button("Contents", systemImage: "list.bullet") { isShowingContents = true }
                     .accessibilityHint("Shows the chapter list")
-                    .offset(y: -Self.barRise)
+                    .offset(y: -barRise)
             }
 
             ToolbarItem(placement: .topBarTrailing) {
                 Button("Appearance", systemImage: "textformat.size") { isShowingSettings = true }
                     .accessibilityHint("Font, margins and page settings")
-                    .offset(y: -Self.barRise)
+                    .offset(y: -barRise)
             }
 
             #if DEBUG
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Debug info", systemImage: "ladybug") { collectReport() }
                         .accessibilityHint("Collects the page, its settings and a picture of it")
-                        .offset(y: -Self.barRise)
+                        .offset(y: -barRise)
                 }
             #endif
         }
 
         /// How far the bar's own glyphs stand above where the bar would put them. Off the lattice by a
         /// nudge on purpose: it is where they line up with the back button beside them.
-        private static let barRise = Design.Space.small - Design.Space.nudge
+        /// How far the bar's controls are lifted, so their middle lands on the middle of the running
+        /// head drawn on the page. The bar centres its own contents on its height; the head sits its
+        /// own inset below the safe area.
+        private var barRise: CGFloat { Self.barMiddle - (Self.headInset + runningHeadSize / 2) }
+
+        /// The middle of the navigation bar, measured from the top of the safe area.
+        private static let barMiddle: CGFloat = 22
+        /// What the running head keeps between itself and the safe area.
+        private static let headInset: CGFloat = 4
 
         #if DEBUG
             /// The page, what it was set with and a picture of it, zipped and offered to share.
@@ -631,113 +639,207 @@ enum ReaderScreen {
         }
     }
 
-    /// Typeface, size, spacing, margins, alignment and page tint.
+    /// How the text is set, what colours it is set in, and what the screen does with it.
     struct Appearance: View {
+        /// Which of the three the sheet is showing.
+        ///
+        /// Three panels rather than one long form: the sheet is half the screen on purpose, so the page
+        /// behind it can be watched, and everything below the first scroll of a form is out of sight.
+        private enum Panel: String, CaseIterable, Identifiable {
+            case type
+            case colour
+            case options
+
+            var id: String { rawValue }
+
+            var title: String {
+                switch self {
+                    case .type: String(localized: "Type")
+                    case .colour: String(localized: "Colour")
+                    case .options: String(localized: "Options")
+                }
+            }
+        }
+
         @Environment(ReaderSettings.self)
         private var settings
 
-        @Environment(\.scenePhase)
-        private var scenePhase
+        @State
+        private var panel: Panel = .type
 
         var body: some View {
-            @Bindable var settings = settings
-
             Form {
-                Section {
-                    Picker("Typeface", selection: $settings.face) {
-                        ForEach(ReaderSettings.Face.allCases) { face in
-                            Text(face.title)
-                                .font(Font(face.font(size: 17)))
-                                .tag(face)
-                        }
-                    }
-                    .pickerStyle(.menu)
-                    .accessibilityIdentifier("reader.face")
-                    .accessibilityLabel("Typeface")
-
-                    Picker("Weight", selection: $settings.weight) {
-                        ForEach(settings.face.weights) { weight in
-                            Text(settings.face.title(for: weight))
-                                .font(Font(settings.face.font(size: 17, weight: weight.uiWeight)))
-                                .tag(weight)
-                        }
-                    }
-                    .pickerStyle(.menu)
-                    .accessibilityIdentifier("reader.weight")
-                    .accessibilityLabel("Font weight")
-                }
-
-                Section {
-                    Slider(
-                        value: $settings.fontSize,
-                        in: ReaderSettings.fontSizeRange,
-                        step: 1,
-                        label: { Text("Font size") },
-                        minimumValueLabel: { Text("A").font(.caption) },
-                        maximumValueLabel: { Text("A").font(.title3) }
-                    )
-                    .accessibilityIdentifier("reader.fontSize")
-                    .accessibilityLabel("Font size")
-                    .accessibilityValue("\(Int(settings.fontSize)) points")
-                } header: {
-                    setting("Size", at: settings.fontSize)
-                }
-
-                Section {
-                    Slider(value: $settings.lineSpacing, in: 0 ... 16, step: 1)
-                        .accessibilityIdentifier("reader.lineSpacing")
-                        .accessibilityLabel("Line spacing")
-                        .accessibilityValue("\(Int(settings.lineSpacing))")
-                } header: {
-                    setting("Line spacing", at: settings.lineSpacing)
-                }
-
-                Section {
-                    Slider(value: $settings.letterSpacing, in: ReaderSettings.letterSpacingRange, step: 0.1)
-                        .accessibilityIdentifier("reader.letterSpacing")
-                        .accessibilityLabel("Letter spacing")
-                        .accessibilityValue(
-                            "\(settings.letterSpacing.formatted(.number.precision(.fractionLength(1)))) points"
-                        )
-                } header: {
-                    setting("Letter spacing", at: settings.letterSpacing, fraction: 1)
-                }
-
-                Section {
-                    Slider(value: $settings.margins, in: ReaderSettings.marginRange, step: 1)
-                        .accessibilityIdentifier("reader.margins")
-                        .accessibilityLabel("Page margins")
-                        .accessibilityValue("\(Int(settings.margins)) points")
-                } header: {
-                    setting("Margins", at: settings.margins)
-                }
-
-                Section("Alignment") {
-                    alignmentPicker("Russian", selection: $settings.russianAlignment, key: "ru")
-                    alignmentPicker("English", selection: $settings.englishAlignment, key: "en")
-                }
-
-                Section("Screen") {
-                    Toggle("Portrait only", isOn: $settings.isPortraitOnly)
-                        .accessibilityIdentifier("reader.portraitOnly")
-                        .accessibilityHint("Keeps the page upright when the device is turned")
-                }
-
-                Section("Pictures") {
-                    Toggle("Follow the page", isOn: $settings.monochromeImages)
-                        .accessibilityIdentifier("reader.monochromeImages")
-                        .accessibilityHint("Draws every picture in the page’s own two colours")
-                }
-
-                Section("Page") {
-                    ForEach(ReaderSettings.Theme.allCases) { theme in
-                        themeRow(theme, isSelected: settings.theme == theme)
-                    }
+                switch panel {
+                    case .type: typePanel
+                    case .colour: colourPanel
+                    case .options: optionsPanel
                 }
             }
+            .safeAreaInset(edge: .top, spacing: 0) { panels }
             .navigationTitle("Appearance")
             .navigationBarTitleDisplayMode(.inline)
         }
+
+        /// Always on screen, since it says where the rest of the sheet is.
+        private var panels: some View {
+            Picker("Settings", selection: $panel) {
+                ForEach(Panel.allCases) { panel in
+                    Text(panel.title).tag(panel)
+                }
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .padding(.horizontal)
+            .padding(.bottom, 8)
+            .background(.bar)
+            .accessibilityIdentifier("reader.panel")
+        }
+
+        // MARK: - Type
+
+        @ViewBuilder
+        private var typePanel: some View {
+            @Bindable var settings = settings
+
+            Section {
+                Picker("Typeface", selection: $settings.face) {
+                    ForEach(ReaderSettings.Face.allCases) { face in
+                        Text(face.title)
+                            .font(Font(face.font(size: 17)))
+                            .tag(face)
+                    }
+                }
+                .pickerStyle(.menu)
+                .accessibilityIdentifier("reader.face")
+                .accessibilityLabel("Typeface")
+
+                Picker("Weight", selection: $settings.weight) {
+                    ForEach(settings.face.weights) { weight in
+                        Text(settings.face.title(for: weight))
+                            .font(Font(settings.face.font(size: 17, weight: weight.uiWeight)))
+                            .tag(weight)
+                    }
+                }
+                .pickerStyle(.menu)
+                .accessibilityIdentifier("reader.weight")
+                .accessibilityLabel("Font weight")
+            }
+
+            Section {
+                SteppedSlider(
+                    value: $settings.fontSize,
+                    in: ReaderSettings.fontSizeRange,
+                    step: 1,
+                    nudge: 1,
+                    identifier: "reader.fontSize",
+                    label: "Text size",
+                    spoken: "\(Int(settings.fontSize)) points"
+                )
+            } header: {
+                setting("Text size", at: settings.fontSize)
+            }
+
+            Section {
+                SteppedSlider(
+                    value: $settings.lineSpacing,
+                    in: ReaderSettings.lineSpacingRange,
+                    step: 1,
+                    nudge: 1,
+                    identifier: "reader.lineSpacing",
+                    label: "Line spacing",
+                    spoken: "\(Int(settings.lineSpacing))"
+                )
+            } header: {
+                setting("Line spacing", at: settings.lineSpacing)
+            }
+
+            Section {
+                SteppedSlider(
+                    value: $settings.letterSpacing,
+                    in: ReaderSettings.letterSpacingRange,
+                    step: 0.1,
+                    nudge: 0.1,
+                    identifier: "reader.letterSpacing",
+                    label: "Letter spacing",
+                    spoken: "\(settings.letterSpacing.formatted(.number.precision(.fractionLength(1)))) points"
+                )
+            } header: {
+                setting("Letter spacing", at: settings.letterSpacing, fraction: 1)
+            }
+
+            Section {
+                SteppedSlider(
+                    value: $settings.margins,
+                    in: ReaderSettings.marginRange,
+                    step: 1,
+                    nudge: 4,
+                    identifier: "reader.margins",
+                    label: "Page margins",
+                    spoken: "\(Int(settings.margins)) points"
+                )
+            } header: {
+                setting("Page margins", at: settings.margins)
+            }
+
+            Section("Alignment") {
+                alignmentPicker("Russian", selection: $settings.russianAlignment, key: "ru")
+                alignmentPicker("English", selection: $settings.englishAlignment, key: "en")
+
+                Toggle("Hyphenation", isOn: $settings.hyphenates)
+                    .accessibilityIdentifier("reader.hyphenates")
+                    .accessibilityHint("Lets a word break at the end of a line")
+            }
+        }
+
+        // MARK: - Colour
+
+        @ViewBuilder
+        private var colourPanel: some View {
+            @Bindable var settings = settings
+
+            Section {
+                Toggle("Follow the system", isOn: $settings.followsSystem)
+                    .accessibilityIdentifier("reader.followsSystem")
+                    .accessibilityHint("Reads one theme by day and another by night, as the system does")
+            }
+
+            // Two themes where the page follows the system, since that is the whole of what following
+            // it means: which one to turn to when it turns.
+            if settings.followsSystem {
+                Section("While the system is light") {
+                    themes(picked: settings.lightTheme, named: "light") { settings.lightTheme = $0 }
+                }
+
+                Section("While the system is dark") {
+                    themes(picked: settings.darkTheme, named: "dark") { settings.darkTheme = $0 }
+                }
+            } else {
+                Section("Theme") {
+                    themes(picked: settings.fixedTheme, named: "fixed") { settings.fixedTheme = $0 }
+                }
+            }
+        }
+
+        // MARK: - Options
+
+        @ViewBuilder
+        private var optionsPanel: some View {
+            @Bindable var settings = settings
+
+            Section("Screen") {
+                Toggle("Keep the page upright", isOn: $settings.isPortraitOnly)
+                    .accessibilityIdentifier("reader.portraitOnly")
+                    .accessibilityHint("Holds the page still when the device is turned")
+            }
+
+            Section("Pictures") {
+                Toggle("In the page’s colours", isOn: $settings.monochromeImages)
+                    .accessibilityIdentifier("reader.monochromeImages")
+                    .accessibilityHint("Draws every picture in the two colours the page is set in")
+            }
+        }
+
+        // MARK: - The pieces
 
         /// A section's own name with the value its slider stands at, so a setting can be read as well
         /// as felt for.
@@ -771,11 +873,27 @@ enum ReaderScreen {
             }
         }
 
+        @ViewBuilder
+        private func themes(
+            picked: ReaderSettings.Theme,
+            named: String,
+            choose: @escaping (ReaderSettings.Theme) -> Void
+        ) -> some View {
+            ForEach(ReaderSettings.Theme.allCases) { theme in
+                themeRow(theme, isSelected: theme == picked, named: named, choose: choose)
+            }
+        }
+
         /// A tappable row per page tint. Explicit rows rather than a `Picker` so each option carries its
         /// own label, swatch and selected state.
-        private func themeRow(_ theme: ReaderSettings.Theme, isSelected: Bool) -> some View {
+        private func themeRow(
+            _ theme: ReaderSettings.Theme,
+            isSelected: Bool,
+            named: String,
+            choose: @escaping (ReaderSettings.Theme) -> Void
+        ) -> some View {
             Button(
-                action: { settings.theme = theme },
+                action: { choose(theme) },
                 label: {
                     HStack(spacing: 12) {
                         RoundedRectangle(cornerRadius: 5)
@@ -799,10 +917,10 @@ enum ReaderScreen {
                 }
             )
             .buttonStyle(.plain)
-            .accessibilityIdentifier("reader.theme.\(theme.rawValue)")
+            .accessibilityIdentifier("reader.theme.\(named).\(theme.rawValue)")
             .accessibilityLabel(theme.title)
             .accessibilityAddTraits(isSelected ? [ .isButton, .isSelected ] : .isButton)
-            .accessibilityHint("Sets the page background")
+            .accessibilityHint("Sets the colours the page is drawn in")
         }
     }
 

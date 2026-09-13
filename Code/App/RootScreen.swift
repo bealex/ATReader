@@ -12,6 +12,14 @@ enum RootScreen {
         @Environment(SessionStore.self)
         private var session
 
+        @Environment(ReaderSettings.self)
+        private var settings
+
+        /// What the system is showing, read here rather than in the reader: the reader holds its bar
+        /// and its status bar to the page's own colours, and would be reading back its own answer.
+        @Environment(\.colorScheme)
+        private var scheme
+
         var body: some View {
             Group {
                 #if DEBUG
@@ -25,6 +33,7 @@ enum RootScreen {
                 #endif
             }
             .animation(.default, value: session.state)
+            .onChange(of: scheme, initial: true) { _, now in settings.systemIsDark = now == .dark }
             .task {
                 guard case .restoring = session.state else { return }
 
