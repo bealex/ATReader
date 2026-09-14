@@ -1,6 +1,5 @@
 {
   "sourceLanguage": "en",
-  "version": "1.0",
   "strings": {
     "Close": {
       "extractionState": "manual",
@@ -20,6 +19,28 @@
           "stringUnit": {
             "state": "translated",
             "value": "Объясняет, о чём этот раздел"
+          }
+        }
+      }
+    },
+    "Less": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Меньше"
+          }
+        }
+      }
+    },
+    "More": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Больше"
           }
         }
       }
@@ -68,5 +89,6 @@
         }
       }
     }
-  }
+  },
+  "version": "1.0"
 }
