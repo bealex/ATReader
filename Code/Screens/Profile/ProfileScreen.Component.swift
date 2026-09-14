@@ -29,7 +29,7 @@ enum ProfileScreen {
         private var isConfirmingClear = false
 
         @State
-        private var cacheSize: Int64 = 0
+        private var booksOnDisk: Int64 = 0
 
         /// The setting is a class the view only reads from here, so the toggle is handed a binding
         /// into it rather than the view being rebuilt around one.
@@ -41,9 +41,13 @@ enum ProfileScreen {
             }
         }
 
-        /// What the device is holding, which changes whenever books arrive or are cleared out.
+        /// The room the device is giving to books, which changes whenever they arrive or are cleared
+        /// out. The library file, the covers printed off it, and everything an imported book brought.
         private func refreshStats() async {
-            cacheSize = await SQLiteBookStore.shared.downloadSize() + CoverCache.shared.diskUsage()
+            booksOnDisk =
+                await SQLiteBookStore.shared.diskUsage()
+                + CoverCache.shared.diskUsage()
+                + LocalBookFiles.diskUsage()
         }
 
         var body: some View {
@@ -125,7 +129,7 @@ enum ProfileScreen {
 
                 LabeledContent {
                     RowStack(spacing: Design.Space.medium) {
-                        Text(cacheSize, format: .byteCount(style: .file))
+                        Text(booksOnDisk, format: .byteCount(style: .file))
 
                         Button(role: .destructive) {
                             isConfirmingClear = true

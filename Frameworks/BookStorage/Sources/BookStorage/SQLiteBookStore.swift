@@ -56,13 +56,12 @@ public actor SQLiteBookStore {
               AND id > 0
               AND finished_when_added = 0
               AND (is_finished = 0 OR (finished_at IS NOT NULL AND finished_at >= ?))
-              AND COALESCE(reading_progress, 0) < ?
+              AND COALESCE(reading_progress, 0) < 1
             """
 
         guard let statement = Statement(open(), query) else { return 0 }
 
         statement.bind(1, cutoff)
-        statement.bind(2, Book.readThreshold)
 
         guard statement.step() else { return 0 }
 
@@ -172,7 +171,7 @@ public actor SQLiteBookStore {
         let query = """
             UPDATE work SET
                 read_at = CASE
-                    WHEN ?3 = 1 AND ?1 >= ?4 AND COALESCE(reading_progress, 0) < ?4 THEN ?5
+                    WHEN ?3 = 1 AND ?1 >= 1 AND COALESCE(reading_progress, 0) < 1 THEN ?4
                     ELSE read_at
                 END,
                 reading_progress = ?1
@@ -184,8 +183,7 @@ public actor SQLiteBookStore {
         statement.bind(1, min(1, max(0, progress)))
         statement.bind(2, workId)
         statement.bind(3, dated ? 1 : 0)
-        statement.bind(4, Book.readThreshold)
-        statement.bind(5, Date.now.timeIntervalSince1970)
+        statement.bind(4, Date.now.timeIntervalSince1970)
         statement.execute()
     }
 
@@ -212,7 +210,8 @@ public actor SQLiteBookStore {
     ///
     /// A stored fraction goes stale the moment the author publishes, because all of yesterday's book is
     /// less than all of today's. The position is a character offset in a named chapter, which stays
-    /// true, so the fraction is derived from it again every time the contents change.
+    /// true, so the fraction is derived from it again every time the contents change. A book already
+    /// read to its end is left alone until something is published past where the reader stands.
     private func recomputeProgress(workId: Int) {
         guard let position = position(workId: workId) else { return }
 
@@ -227,9 +226,26 @@ public actor SQLiteBookStore {
             let length = readable[index].textLength
         else { return }
 
+        // A reader standing in the last chapter of a book they read to its end stays at the end. The
+        // offset is the head of the page they are on and never the foot of the chapter, so deriving
+        // the fraction again would take the book off the Finished shelf every time its contents were
+        // stored. A chapter published after theirs is what moves them, and it moves this too.
+        if index == readable.count - 1, storedProgress(workId: workId) ?? 0 >= 1 { return }
+
         let before = readable.prefix(index).reduce(0) { $0 + ($1.textLength ?? 0) }
         let read = before + min(position.characterOffset, length)
         store(progress: Double(read) / Double(total), workId: workId)
+    }
+
+    /// What the row says the reader has read of a book, which a recompute may not undo.
+    private func storedProgress(workId: Int) -> Double? {
+        guard let statement = Statement(open(), "SELECT reading_progress FROM work WHERE id = ?") else { return nil }
+
+        statement.bind(1, workId)
+
+        guard statement.step() else { return nil }
+
+        return statement.number(0)
     }
 
     public func store(book: Book, tags: [String]? = nil) {
@@ -256,7 +272,13 @@ public actor SQLiteBookStore {
             for work in books {
                 // Merged rather than replaced: the shelf and a book's own details each leave out what
                 // the other carries, and the payload is one column holding both.
-                let merged = storedWork(work.id, using: lookup).map(work.merged) ?? work
+                var merged = storedWork(work.id, using: lookup).map(work.merged) ?? work
+
+                // Finished is the reader's word for being done with a book, and it cannot hold while
+                // the author is still writing one. The service takes that filing once and never
+                // revises it when a chapter lands, so a book arriving that way is put back on Reading.
+                if merged.libraryState == .finished, merged.isOngoing { merged.libraryState = .reading }
+
                 let shelf = merged.libraryState.flatMap { $0 == BookShelf.none ? nil : $0.rawValue }
 
                 statement.reset()
@@ -684,6 +706,7 @@ public actor SQLiteBookStore {
     }
 
     public func store(chapters: [BookChapter], workId: Int) {
+        let held = Set(self.chapters(workId: workId).map(\.id))
         let query = """
             INSERT INTO chapter (id, work_id, sort_order, is_readable, payload)
             VALUES (?, ?, ?, ?, ?)
@@ -708,7 +731,20 @@ public actor SQLiteBookStore {
             }
         }
 
+        // A chapter published since the reader said they were done takes the book off Finished. Their
+        // word was about the book as it stood, and there is more of it now. The first contents a book
+        // ever gets is not that, every chapter of it being new.
+        if !held.isEmpty, chapters.contains(where: { !held.contains($0.id) }) { unfinish(workId: workId) }
+
         recomputeProgress(workId: workId)
+    }
+
+    /// Takes a book off Finished, leaving it where one still being read stands.
+    private func unfinish(workId: Int) {
+        guard var summary = book(id: workId)?.summary, summary.libraryState == .finished else { return }
+
+        summary.libraryState = .reading
+        store(books: [ summary ])
     }
 
     /// The chapters the service now lists that this device has never seen.
@@ -1117,18 +1153,19 @@ public actor SQLiteBookStore {
         execute("VACUUM")
     }
 
-    public func downloadSize() -> Int64 {
-        let query = """
-            SELECT
-                (SELECT COALESCE(SUM(LENGTH(html)), 0) FROM chapter_body)
-                + (SELECT COALESCE(SUM(LENGTH(content)), 0) FROM chapter_content)
-            """
-
-        guard let statement = Statement(open(), query) else { return 0 }
-        guard statement.step() else { return 0 }
-
-        return Int64(statement.integer(0))
+    /// How much room the library file takes on the disk, the journal beside it included.
+    ///
+    /// The file rather than what its rows add up to. `LENGTH` over a text column counts characters, so
+    /// a library of Russian books measured that way comes out at half its size, and the pages a
+    /// cleared-out book leaves behind belong to the file until it is vacuumed.
+    public func diskUsage() -> Int64 {
+        Self.beside.reduce(Int64(0)) { total, suffix in
+            total + DiskSpace.taken(by: URL(fileURLWithPath: fileURL.path + suffix))
+        }
     }
+
+    /// The database, and the two files SQLite keeps beside it.
+    private static let beside = [ "", "-wal", "-shm" ]
 
     // MARK: - The database itself
 

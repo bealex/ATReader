@@ -80,7 +80,7 @@ public enum LibraryArchive {
         // megabytes, and a backup that empties itself before it fills is no backup while it does.
         try sync(LocalBookFiles.directory, to: books(in: folder))
 
-        let manifest = Manifest(bytes: size(of: home(in: folder)))
+        let manifest = Manifest(bytes: DiskSpace.taken(by: home(in: folder)))
 
         try JSONEncoder().encode(manifest).write(to: note(in: folder), options: .atomic)
         logger.info("wrote a backup of \(manifest.bytes) bytes")
@@ -128,8 +128,6 @@ public enum LibraryArchive {
         return manifest
     }
 
-    /// How much a folder holds, walked rather than asked for: a directory reports its own size and not
-    /// what is under it.
     /// Brings a folder into step with another: what is gone here goes there, and what has changed is
     /// written over.
     ///
@@ -170,19 +168,5 @@ public enum LibraryArchive {
         else { return nil }
 
         return [ size, Int(changed.timeIntervalSince1970) ]
-    }
-
-    private static func size(of folder: URL) -> Int64 {
-        guard
-            let walk = FileManager.default.enumerator(at: folder, includingPropertiesForKeys: [ .fileSizeKey ])
-        else { return 0 }
-
-        var total: Int64 = 0
-
-        for case let url as URL in walk {
-            total += Int64((try? url.resourceValues(forKeys: [ .fileSizeKey ]).fileSize) ?? 0)
-        }
-
-        return total
     }
 }

@@ -85,7 +85,7 @@ struct BookRow: View {
     }
 
     private var picture: some View {
-        let reading = ReadingMark(work, showsProgress: showsProgress)
+        let reading = ReadingMark(work, showsProgress: showsProgress, isFresh: newChapters > 0)
 
         return CoverImage(url: work.coverURL, width: coverWidth, reading: reading)
             // At the foot, since the top edge carries the bookmark.

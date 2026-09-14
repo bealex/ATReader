@@ -50,9 +50,6 @@ public struct Book: Codable, Identifiable, Hashable, Sendable {
     /// When the reader put it away by hand, rather than waiting for its day as a cover to run out.
     public var putAwayAt: Date?
 
-    /// Where "read to the end" starts. The service's character offset rarely lands on the last one.
-    public static let readThreshold = 0.995
-
     /// How long a book stays out as a cover after it's read through, arrives, or is asked for.
     public static let standingOut: TimeInterval = 24 * 60 * 60
 
@@ -112,13 +109,15 @@ public struct Book: Codable, Identifiable, Hashable, Sendable {
     /// The author has written its last chapter.
     public var isComplete: Bool { isFinished == true }
 
-    /// The reader has been through everything published so far.
+    /// The reader has been through everything published so far: they were shown its last page, or they
+    /// filed the book as finished themselves.
     ///
-    /// The shelf the book is filed on says so outright and outranks the count: a book on Finished is
-    /// finished whatever the characters add up to. The count is worked out again from where the reader
-    /// stands, so it can be lost where the shelf cannot, and a book that loses it is not unread.
+    /// Nothing short of the whole counts, since a hundredth of a long book is a chapter of a short one
+    /// and a threshold there reads a book the author has just added to as one the reader is done with.
+    /// Only the last page of the last chapter comes to a whole one; the shelf the book is filed on is
+    /// what the reader said, and outranks a count that is derived and can be lost.
     public var isReadToTheEnd: Bool {
-        libraryState == .finished || (readingProgress ?? 0) >= Self.readThreshold
+        libraryState == .finished || (readingProgress ?? 0) >= 1
     }
 
     /// Written to its end and read to its end. Only both together finish a book.

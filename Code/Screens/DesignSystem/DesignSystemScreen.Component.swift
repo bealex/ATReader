@@ -509,10 +509,12 @@ enum DesignSystemScreen {
                     specimen("Cover") {
                         HStack(alignment: .top, spacing: Design.Space.medium) {
                             ForEach(Self.readingSpecimens.indices, id: \.self) { index in
+                                let specimen = Self.readingSpecimens[index]
+
                                 CoverImage(
                                     url: Specimen.artwork,
                                     width: Design.Size.rowCover,
-                                    reading: ReadingMark(Self.readingSpecimens[index])
+                                    reading: ReadingMark(specimen.book, isFresh: specimen.isFresh)
                                 )
                             }
                             CoverImage(url: nil, width: Design.Size.rowCover)
@@ -584,12 +586,13 @@ enum DesignSystemScreen {
 
         /// Invented, and obviously so. Nothing the service returned ever goes in the repository.
         /// A book for each bookmark: part read, not started while still being written, read as far as
-        /// it goes, and a finished one read just now.
-        private static let readingSpecimens = [
-            specimenBook(progress: 0.47, isFinished: false),
-            specimenBook(progress: 0, isFinished: false),
-            specimenBook(progress: 1, isFinished: false),
-            specimenBook(progress: 1, isFinished: true, readAt: .now),
+        /// it goes, a finished one read just now, and one the author has written past.
+        private static let readingSpecimens: [(book: Book, isFresh: Bool)] = [
+            (specimenBook(progress: 0.47, isFinished: false), false),
+            (specimenBook(progress: 0, isFinished: false), false),
+            (specimenBook(progress: 1, isFinished: false), false),
+            (specimenBook(progress: 1, isFinished: true, readAt: .now), false),
+            (specimenBook(progress: 1, isFinished: false), true),
         ]
 
         private static func specimenBook(progress: Double, isFinished: Bool, readAt: Date? = nil) -> Book {

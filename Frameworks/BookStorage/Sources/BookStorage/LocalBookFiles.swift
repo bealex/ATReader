@@ -12,6 +12,9 @@ import UniformTypeIdentifiers
 /// never collide. Every table in ``SQLiteBookStore`` is keyed on those numbers, and a screen asks
 /// ``isLocal(_:)`` rather than the database whenever the only question is whether to call the service.
 public enum LocalBookFiles {
+    /// How much room the imported books take on the disk, pictures and covers included.
+    public static func diskUsage() -> Int64 { DiskSpace.taken(by: directory) }
+
     /// Where everything an imported book brought with it is kept: its file, its cover and its pictures.
     public static var directory: URL {
         let base =

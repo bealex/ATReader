@@ -155,7 +155,7 @@ enum WorkScreen {
                 CoverImage(
                     url: work.coverURL,
                     width: across * Self.coverShare,
-                    reading: ReadingMark(work),
+                    reading: ReadingMark(work, isFresh: UpdateBadge.newChapters(for: work.id) > 0),
                     anchor: cover
                 )
 

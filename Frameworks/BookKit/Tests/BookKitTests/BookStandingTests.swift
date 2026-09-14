@@ -66,6 +66,14 @@ struct BookStandingTests {
         #expect(filed.isDone())
     }
 
+    /// Nothing short of the whole counts. The last hundredth of a long book is a chapter of a short
+    /// one, and a threshold there reads a book the author has just added to as one that is done.
+    @Test
+    func nearlyTheEndIsNotTheEnd() {
+        #expect(!book(progress: 0.997).isReadToTheEnd)
+        #expect(book(progress: 1).isReadToTheEnd)
+    }
+
     /// Opening the book again puts it back on the board, whatever was asked for before.
     @Test
     func openingAPutAwayBookStandsItOutAgain() {

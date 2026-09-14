@@ -231,18 +231,7 @@ public actor CoverCache {
         try? FileManager.default.setAttributes([ .modificationDate: Date.now ], ofItemAtPath: url.path)
     }
 
-    public func diskUsage() -> Int64 {
-        guard
-            let entries = try? FileManager.default.contentsOfDirectory(
-                at: directory,
-                includingPropertiesForKeys: [ .fileSizeKey ]
-            )
-        else { return 0 }
-
-        return entries.reduce(into: Int64(0)) { total, url in
-            total += Int64((try? url.resourceValues(forKeys: [ .fileSizeKey ]).fileSize) ?? 0)
-        }
-    }
+    public func diskUsage() -> Int64 { DiskSpace.taken(by: directory) }
 
     public func clear() {
         memory.removeAllObjects()

@@ -128,8 +128,12 @@ extension WorkScreen {
             guard index == current else { return .unread }
 
             let progress = positionProgress ?? 0
-            return progress >= Book.readThreshold ? .read : .reading(progress)
+            return progress >= Self.chapterRead ? .read : .reading(progress)
         }
+
+        /// How far into a chapter counts as having read it. The position is the head of the page the
+        /// reader is on, so the last page of a chapter never reaches its last character.
+        private static let chapterRead = 0.995
 
         /// The chapter the reader is in: this device's own position, or the service's if it has none.
         private var positionChapterId: Int? { position?.chapterId ?? summary?.lastChapterId }

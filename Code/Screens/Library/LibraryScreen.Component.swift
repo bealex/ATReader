@@ -270,10 +270,19 @@ enum LibraryScreen {
                         },
                         alone: shelf.alone.flatMap { model.slots(of: $0) },
                         coverWidth: coverWidth,
-                        showsEveryCover: model.showsEveryCover(shelf.id)
+                        showsEveryCover: model.showsEveryCover(shelf.id),
+                        fresh: fresh(on: shelf)
                     )
                 )
             }
+        }
+
+        /// Which of an author's books have chapters the reader hasn't read, which is the library's to
+        /// say rather than the book's.
+        private func fresh(on shelf: Model.AuthorShelf) -> Set<Int> {
+            let held = (shelf.runs + shelf.alone).flatMap(\.works)
+
+            return Set(held.map(\.id).filter { model.newChapters(for: $0) > 0 })
         }
 
         /// What a tap on an author's name does, which is turn their shelf round.

@@ -1414,14 +1414,18 @@ extension LibraryScreen {
             await store.store(progress: 1, workId: work.id)
 
             // The service keeps no progress, but it does keep a shelf, and Finished is its way of
-            // saying the reader is done with a book.
-            if !isLocal(work) {
-                try? await session.client.updateLibraryState(workIds: [ work.id ], state: .finished)
-            }
+            // saying the reader is done with a book. Never one still being written: the next chapter
+            // is what they are waiting for, and nothing takes a book off that shelf when it lands.
+            // Having read everything published is the count's business, and the count is now whole.
+            if work.isComplete {
+                if !isLocal(work) {
+                    try? await session.client.updateLibraryState(workIds: [ work.id ], state: .finished)
+                }
 
-            if let index = works.firstIndex(where: { $0.id == work.id }) {
-                works[index].libraryState = .finished
-                await store.store(book: works[index])
+                if let index = works.firstIndex(where: { $0.id == work.id }) {
+                    works[index].libraryState = .finished
+                    await store.store(book: works[index])
+                }
             }
 
             guard let last = await contents(of: work.id).last(where: \.isReadable) else { return }

@@ -43,6 +43,33 @@ struct ReadingMarkTests {
         #expect(caughtUp?.reached == 1)
     }
 
+    /// The pencil says the reader is waiting on the author. Once the author has written, the book is
+    /// part read again and says how far.
+    @Test
+    func aBookTheAuthorWrotePastIsPartReadAgain() {
+        let caughtUp = ReadingMark(Self.book(read: 1, isFinished: false), isFresh: true)
+
+        #expect(caughtUp?.kind == .reading)
+        // Never 100 while there is a chapter nobody has read.
+        #expect(caughtUp?.face == .figure(99))
+    }
+
+    /// The shelf the service files a book on cannot decide this: it says finished, and goes on saying
+    /// it when the author writes again.
+    @Test
+    func aBookFiledAsFinishedIsPartReadAgainToo() {
+        let filed = Self.book(read: 0.97, isFinished: false, state: .finished)
+
+        #expect(ReadingMark(filed)?.kind == .waiting)
+        #expect(ReadingMark(filed, isFresh: true)?.face == .figure(97))
+    }
+
+    /// Nothing read is nothing read, whatever landed, so the pencil stands at the start.
+    @Test
+    func newChaptersInABookNeverOpenedLeaveThePencil() {
+        #expect(ReadingMark(Self.book(read: 0, isFinished: false), isFresh: true)?.kind == .waiting)
+    }
+
     @Test
     func aFinishedBookReadTodayIsTicked() {
         let mark = ReadingMark(Self.book(read: 1, isFinished: true, readAt: .now.addingTimeInterval(-3600)))
@@ -153,7 +180,13 @@ struct ReadingMarkTests {
         return SQLiteBookStore(fileURL: folder.appendingPathComponent("library.sqlite"))
     }
 
-    private static func book(id: Int = 1, read: Double, isFinished: Bool = true, readAt: Date? = nil) -> Book {
+    private static func book(
+        id: Int = 1,
+        read: Double,
+        isFinished: Bool = true,
+        state: BookShelf = .reading,
+        readAt: Date? = nil
+    ) -> Book {
         Book(
             id: id,
             title: "Книга",
@@ -164,7 +197,7 @@ struct ReadingMarkTests {
             isFinished: isFinished,
             readingProgress: read,
             hasStartedReading: read > 0,
-            libraryState: .reading,
+            libraryState: state,
             readAt: readAt
         )
     }
