@@ -48,6 +48,25 @@ struct FB2SceneBreakTests {
         #expect(!blocks.contains { $0.isSceneBreak && $0.titleLevel != nil })
     }
 
+    /// The marks are the book's own. A file that parts its scenes with one asterism is not a file of
+    /// star rows, and writing a row where it wrote a single mark puts words on the page nobody wrote.
+    @Test
+    func keepsTheMarksTheBookPartedItsScenesWith() throws {
+        let read = try book("<section><p>Раз.</p><subtitle>⁂</subtitle><p>Два.</p></section>")
+        let mark = blocks(read).first { $0.isSceneBreak }
+
+        #expect(mark?.text == "⁂")
+    }
+
+    /// A blank line carries no marks of its own, so it is given the ones the service's chapters use.
+    @Test
+    func drawsABlankLineAsTheServicesOwnChaptersDo() throws {
+        let read = try book("<section><p>Раз.</p><empty-line/><p>Два.</p></section>")
+        let mark = blocks(read).first { $0.isSceneBreak }
+
+        #expect(mark?.text == "* * *")
+    }
+
     /// A subtitle that carries words names a part of its own and opens one, the way it always has.
     /// That is the behaviour a break must not borrow: a scene parted is not a part begun.
     @Test

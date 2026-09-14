@@ -74,9 +74,13 @@ named is dropped for the same reason.
 Only the first `<body>` is the book. A second one holds footnotes, which the reader has nowhere to
 show.
 
-A run of `<empty-line/>` collapses to one centred row of stars, which is how the service's own chapters
-mark a scene break. So does a `<subtitle>` carrying nothing but those marks, which is how a good many
-files write one; a subtitle carrying words is a heading and cuts the chapter as it always did.
+A `<subtitle>` carrying nothing but the marks of a scene break is one, which is how a good many files
+write them; a subtitle carrying words is a heading and cuts the chapter as it always did.
+
+The marks are the file's own. A book that parts its scenes with a single asterism is not a book of star
+rows, and writing a row where it wrote one mark would put on the page words that nobody wrote. A run of
+`<empty-line/>` is the one case with no marks to keep, having only a gap, so it is given the row of
+stars the service's own chapters use.
 
 Which marks count is `BookHTML.isSceneBreak(_:)` and nothing else, so the test that centres a break and
 the test that keeps one off the top of a page can't drift apart and start disagreeing.

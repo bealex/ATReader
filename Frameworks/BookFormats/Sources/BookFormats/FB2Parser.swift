@@ -101,9 +101,9 @@ public enum FB2Parser {
 
         /// The sections the parser is inside, outermost first. Text lands in the innermost.
         private var open: [Open] = []
-        /// The markup one blank line in the file is drawn as: a centred row of stars between the
-        /// paragraphs it parts, the way the service's own chapters set one.
-        private static let breakLine = "\(Setting.centred.tag)* * *</p>"
+        /// What a blank line is drawn as, having no marks of its own to be drawn with. The service's
+        /// own chapters write a row of stars, so a file that only leaves a gap is given the same.
+        private static let blankLineMarks = "* * *"
 
         /// Only the first `<body>` is the book. A body after it holds the notes the text points at,
         /// which are read into ``notes`` and handed to the chapters that refer to them.
@@ -264,7 +264,7 @@ public enum FB2Parser {
             switch element {
                 case "body": startBody()
                 case "section" where region == .body: startSection()
-                case "empty-line" where region == .body: markBreak()
+                case "empty-line" where region == .body: markBreak(Self.blankLineMarks)
                 case "image" where region == .body: startImage(attributes)
                 case "a" where region == .body: startMark(Self.note(in: attributes))
                 case "emphasis" where region == .body: startMark(Self.emphasis)
@@ -356,11 +356,20 @@ public enum FB2Parser {
         ///
         /// A break opening a block divides nothing, having nothing above it, and a run of blank lines
         /// is one break rather than several.
-        private func markBreak() {
+        private func markBreak(_ marks: String) {
             guard !open.isEmpty, let last = open[open.count - 1].lines.last else { return }
-            guard last != Self.breakLine else { return }
+            guard !Self.isBreakLine(last) else { return }
 
-            open[open.count - 1].lines.append(Self.breakLine)
+            open[open.count - 1].lines.append("\(Setting.centred.tag)\(Self.escaped(marks))</p>")
+        }
+
+        /// Whether a line already written is a break, so a run of them comes out as one.
+        private static func isBreakLine(_ line: String) -> Bool {
+            guard line.hasPrefix(Setting.centred.tag), line.hasSuffix("</p>") else { return false }
+
+            let marks = line.dropFirst(Setting.centred.tag.count).dropLast(4)
+
+            return BookHTML.isSceneBreak(String(marks))
         }
 
         /// A picture in the text becomes a block of its own, named after the binary that holds it.
@@ -551,7 +560,7 @@ public enum FB2Parser {
                 // file calls it. Read as a title it becomes a heading, which cuts the chapter in two
                 // wherever the book merely parted two scenes.
                 case "subtitle" where BookHTML.isSceneBreak(text):
-                    markBreak()
+                    markBreak(text.trimmed)
                 case "subtitle":
                     append(text, setting: .centred, titleLevel: 2)
                 // Whose words they were, set apart from them the way a quotation names its source.

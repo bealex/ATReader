@@ -495,7 +495,8 @@ either way. Where a heading carries no number of its own it is given the chapter
 where it carries one, the book's own words are used: a book with a prologue in it disagrees with the
 count and is right.
 
-A break between scenes is a row of stars. Which blocks are one is `BookHTML.isSceneBreak(_:)`, and it
+A break between scenes is drawn with the marks the book wrote it with, a row of stars or a single
+asterism alike. Which blocks are one is `BookHTML.isSceneBreak(_:)`, and it
 is the only test: a row of asterisks, or the asterism, and nothing else. Books write a break either as
 a blank line or as a subtitle carrying those marks, and both arrive as the same thing.
 
