@@ -2,7 +2,20 @@
   "fill-specializations" : [
     {
       "value" : {
-        "automatic-gradient" : "srgb:1.00000,1.00000,1.00000,1.00000"
+        "linear-gradient" : [
+          "display-p3:0.90021,0.89746,0.94470,1.00000",
+          "srgb:0.95000,1.00000,0.95466,1.00000"
+        ],
+        "orientation" : {
+          "start" : {
+            "x" : 0.5,
+            "y" : 1
+          },
+          "stop" : {
+            "x" : 0.5,
+            "y" : 0
+          }
+        }
       }
     },
     {
@@ -14,44 +27,39 @@
   ],
   "groups" : [
     {
-      "blur-material" : 0.5,
+      "blur-material" : null,
       "layers" : [
         {
           "fill-specializations" : [
             {
-              "value" : "automatic"
+              "value" : {
+                "linear-gradient" : [
+                  "display-p3:0.01187,0.00000,0.20392,1.00000",
+                  "srgb:0.00000,0.10000,0.00931,1.00000"
+                ]
+              }
             },
             {
               "appearance" : "dark",
               "value" : {
                 "linear-gradient" : [
-                  "display-p3:0.83029,0.83029,0.83029,1.00000",
-                  "srgb:1.00000,1.00000,1.00000,1.00000"
-                ],
-                "orientation" : {
-                  "start" : {
-                    "x" : 0.5,
-                    "y" : 1
-                  },
-                  "stop" : {
-                    "x" : 0.5,
-                    "y" : 0
-                  }
-                }
+                  "srgb:1.00000,1.00000,1.00000,1.00000",
+                  "srgb:0.66284,0.66284,0.66284,1.00000"
+                ]
               }
             },
             {
               "appearance" : "tinted",
               "value" : {
-                "solid" : "gray:0.87282,1.00000"
+                "solid" : "gray:1.00000,1.00000"
               }
             }
           ],
-          "glass" : true,
-          "image-name" : "icon-transparent.png",
-          "name" : "icon-transparent",
+          "hidden" : false,
+          "image-name" : "image-1-black-alpha.png",
+          "name" : "image-1-black-alpha",
           "position" : {
-            "scale" : 0.6,
+            "scale" : 0.8,
             "translation-in-points" : [
               0,
               0
@@ -60,6 +68,13 @@
         }
       ],
       "lighting" : "combined",
+      "position" : {
+        "scale" : 0.95,
+        "translation-in-points" : [
+          0,
+          -10
+        ]
+      },
       "refractivity" : {
         "depth" : 0,
         "enabled" : false,
@@ -67,11 +82,11 @@
       },
       "shadow" : {
         "kind" : "neutral",
-        "opacity" : 0.25
+        "opacity" : 0.5
       },
       "specular" : false,
       "translucency" : {
-        "enabled" : true,
+        "enabled" : false,
         "value" : 0.3
       }
     }
