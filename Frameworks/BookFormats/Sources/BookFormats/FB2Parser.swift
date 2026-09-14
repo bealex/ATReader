@@ -463,13 +463,34 @@ public enum FB2Parser {
         // MARK: - The text itself
 
         private func startSection() {
-            // A section that turns out to hold sections is a part, and what it holds directly is its
-            // own page. Emitting that here rather than when it closes is what keeps the book in order:
-            // its children close before it does.
-            if !open.isEmpty { emit(&open[open.count - 1], keepingTitle: false) }
+            // A section that turns out to hold sections is a part, and what it holds directly is
+            // either a page of its own or the head of the section opening under it. Settling that here
+            // rather than when the part closes keeps the book in order: its children close first.
+            let opening = open.isEmpty ? Open() : leading(from: &open[open.count - 1])
 
-            open.append(Open())
+            open.append(opening)
             pendingBreak = false
+        }
+
+        /// What a part holds directly, where it stands over the section opening under it rather than
+        /// on a page of its own: the epigraphs a book carries above chapter one. Anything named is a
+        /// page, and so is a plate, which is something to look at rather than something to read.
+        private func leading(from part: inout Open) -> Open {
+            guard
+                part.title == nil,
+                !part.lines.contains(where: { $0.hasPrefix("<img") })
+            else {
+                emit(&part, keepingTitle: false)
+
+                return Open()
+            }
+
+            defer {
+                part.lines = []
+                part.length = 0
+            }
+
+            return Open(lines: part.lines, length: part.length)
         }
 
         private func endSection() {
@@ -556,6 +577,10 @@ public enum FB2Parser {
             var sourcing: String { tag.replacingOccurrences(of: "<p", with: "<p data-source=\"1\"") }
         }
 
+        /// True where the block being read is a line of verse, which the file says outright: a `<v>`
+        /// inside a `<poem>`. Nothing is guessed at from how short a line is.
+        private var isVerse: Bool { path.contains("poem") }
+
         /// How whatever is being read now is set, decided by what it stands inside.
         private var setting: Setting {
             if Self.quotedParents.contains(where: path.contains) { return .inset }
@@ -588,9 +613,19 @@ public enum FB2Parser {
             if let titleLevel {
                 open[open.count - 1].lines.append("<h\(titleLevel)>\(body)</h\(titleLevel)>")
             } else {
-                open[open.count - 1].lines.append("\(sourcing ? setting.sourcing : setting.tag)\(body)</p>")
+                let tag = sourcing ? setting.sourcing : setting.tag
+
+                open[open.count - 1].lines.append("\(Self.versed(tag, isVerse))\(body)</p>")
             }
             open[open.count - 1].length += line.count
+        }
+
+        /// The same block, marked as a line the book set as verse. Verse keeps whatever else it is,
+        /// since a poem quoted as an epigraph is both held off the edge and broken into lines.
+        private static func versed(_ tag: String, _ isVerse: Bool) -> String {
+            guard isVerse else { return tag }
+
+            return tag.replacingOccurrences(of: "<p", with: "<p data-verse=\"1\"")
         }
 
         /// The paragraph escaped, with every mark the file made wrapped round the words it covered.

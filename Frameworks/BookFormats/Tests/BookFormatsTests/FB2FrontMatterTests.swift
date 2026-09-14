@@ -25,7 +25,7 @@ struct FB2FrontMatterTests {
         return try FB2Parser.parse(Data(document.utf8))
     }
 
-    /// What a book opens with stands ahead of its first chapter rather than falling out of it.
+    /// What a book opens with stands over its first chapter, under that chapter's own name.
     @Test
     func opensWithWhatStandsBeforeTheFirstSection() throws {
         let read = try book(
@@ -35,14 +35,35 @@ struct FB2FrontMatterTests {
             <section><title><p>Глава</p></title><p>Раз.</p></section>
             """
         )
+        let chapter = try #require(read.sections.first)
 
-        #expect(read.sections.count == 2)
-        #expect(read.sections.map(\.title) == [ nil, "Глава" ])
-        #expect(read.sections.map(\.level) == [ 1, 1 ])
-        #expect(read.sections[0].html.contains("Тудым и сюдым."))
-        #expect(read.sections[0].html.contains("Некто"))
-        #expect(read.sections[0].html.contains("Обратно тудым."))
-        #expect(read.sections[0].textLength > 0)
+        #expect(read.sections.count == 1)
+        #expect(chapter.title == "Глава")
+        #expect(chapter.level == 1)
+        #expect(chapter.html.hasPrefix(#"<p data-inset="1">Тудым и сюдым.</p>"#))
+        #expect(chapter.html.contains("Некто"))
+        #expect(chapter.html.contains("Обратно тудым."))
+        #expect(chapter.html.hasSuffix("<p>Раз.</p>"))
+        #expect(chapter.textLength > "Раз.".count)
+    }
+
+    /// A part names the page it opens, so what it holds stays on that page rather than joining the
+    /// first chapter under it.
+    @Test
+    func keepsThePageAPartOpens() throws {
+        let read = try book(
+            """
+            <section>
+              <title><p>Часть</p></title>
+              <epigraph><p>Тудым.</p></epigraph>
+              <section><title><p>Глава</p></title><p>Раз.</p></section>
+            </section>
+            """
+        )
+
+        #expect(read.sections.map(\.title) == [ "Часть", "Глава" ])
+        #expect(read.sections[0].html.contains("Тудым."))
+        #expect(!read.sections[1].html.contains("Тудым."))
     }
 
     /// A body's own title names the book, which the reader shows before the first page anyway.
@@ -56,7 +77,8 @@ struct FB2FrontMatterTests {
             """
         )
 
-        #expect(read.sections.map(\.title) == [ nil, "Глава" ])
+        #expect(read.sections.map(\.title) == [ "Глава" ])
+        #expect(read.sections[0].html.contains("Тудым."))
         #expect(read.sections.allSatisfy { !$0.html.contains("Некто") })
         #expect(read.sections.allSatisfy { !$0.html.contains("Проба") })
     }
@@ -117,8 +139,8 @@ struct FB2FrontMatterTests {
             """
         )
 
-        #expect(read.sections.count == 2)
+        #expect(read.sections.count == 1)
         #expect(read.sections[0].html.contains("Тудым."))
-        #expect(read.sections[1].html.contains(#"<div id="n1">Сюдым.</div>"#))
+        #expect(read.sections[0].html.contains(#"<div id="n1">Сюдым.</div>"#))
     }
 }

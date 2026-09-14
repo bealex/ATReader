@@ -93,6 +93,9 @@ extension ReaderScreen {
         private let processor: BookProcessor
 
         @ObservationIgnored
+        private let inbox: BookInbox
+
+        @ObservationIgnored
         private var context: ChapterLayout.Context?
 
         /// Chapters laid out for the current context: the one on screen and the ones either side of it.
@@ -153,7 +156,8 @@ extension ReaderScreen {
             initialChapterId: Int?,
             session: SessionStore,
             store: SQLiteBookStore = .shared,
-            processor: BookProcessor = .shared
+            processor: BookProcessor = .shared,
+            inbox: BookInbox = .shared
         ) {
             self.workId = workId
             self.workTitle = workTitle
@@ -161,6 +165,7 @@ extension ReaderScreen {
             self.session = session
             self.store = store
             self.processor = processor
+            self.inbox = inbox
         }
 
         // MARK: - Where the reader is
@@ -659,6 +664,8 @@ extension ReaderScreen {
             // Opening a book counts as seeing whatever the daily sweep flagged for it.
             await UpdateBadge.clear(workId: workId)
 
+            await rereadIfBehind()
+
             book = await store.book(id: workId)?.summary
             chapters = await store.chapters(workId: workId)
             bookmarks = await store.bookmarks(workId: workId)
@@ -679,6 +686,25 @@ extension ReaderScreen {
 
             // The rest of the book is prepared behind the reader, who is already on its first page.
             await processor.start(workId: workId, chapters: chapters)
+        }
+
+        /// Reads the book again from its kept file where an older build read it, before its chapters are
+        /// taken out of the store.
+        ///
+        /// A chapter holds whatever the parser made of the file at the time, so a parser that has since
+        /// learned something reaches a book only through the file. One book as it opens rather than a
+        /// library at launch, which is what puts reading positions at risk; `BookInstaller` carries the
+        /// position across whatever the new reading cuts the book into.
+        private func rereadIfBehind() async {
+            guard
+                BookNumbering.isLocal(workId),
+                LocalBookFiles.hasKeptFile(workId: workId),
+                await store.localBook(workId: workId)?.isBehindThisBuild == true
+            else {
+                return
+            }
+
+            await inbox.reaccept(workId: workId)
         }
 
         /// Picks the chapter to open: the one asked for, else the one the reader stopped in, else the first.

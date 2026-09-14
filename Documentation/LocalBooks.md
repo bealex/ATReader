@@ -55,16 +55,21 @@ Sections nest. A book with parts puts its chapters one level further in than a b
 splitting at the top level gives one chapter per part: on the sample that meant five chapters of
 100,000 characters each.
 
-A section holding sections is therefore a part rather than a chapter. What it holds directly (its
-title, an epigraph) becomes a short page of its own, and the sections inside it become the chapters.
-The part's own page is emitted when it gains its first child rather than when it closes, because its
-children close before it does and the book has to come out in reading order.
+A section holding sections is therefore a part rather than a chapter. What it holds directly, its
+title and whatever stands under it, becomes a short page of its own, and the sections inside it become
+the chapters. That page is settled when the part gains its first child rather than when it closes,
+because its children close before it does and the book has to come out in reading order.
 
-The body itself is opened the same way, so what a book puts before its first section becomes the page
-ahead of chapter one rather than falling out of the book: the plate it opens on, the epigraphs it
-carries. Its `<title>` doesn't come with it, because that names the book rather than a chapter and the
-reader shows it before the first page anyway. A plate repeating the cover the description already named
-is dropped for the same reason.
+The body itself is opened the same way, so what a book puts before its first section stays in the book
+instead of falling out of it: the plate it opens on, the epigraphs it carries. A body has no name to
+give that page, and an unnamed page reads in the contents as a chapter nothing can call. So front
+matter carrying no title leads the section opening under it, landing after that chapter's heading and
+before its text. A plate keeps a page of its own, being something to look at rather than something to
+read.
+
+A body's own `<title>` doesn't come across at all, because it names the book rather than a chapter and
+the reader shows it before the first page anyway. A plate repeating the cover the description already
+named is dropped for the same reason.
 
 Only the first `<body>` is the book. A second one holds footnotes, which the reader has nowhere to
 show.
@@ -112,10 +117,18 @@ cover, so a spine that waited for one to arrive waited for ever and stood bare f
 **`BookReading.version` is what makes a parser reach books already on the shelf.** A chapter holds
 whatever the parser made of the file when it was read, so re-measuring sets the words it holds again and
 cannot add words it never held. Raise that number whenever a change puts something different into a
-chapter's stored text, and every book below it is read again from its kept file, one at a time and
-behind whatever the reader is doing. `local_book.reading_version` dates each copy. Changes to how text
-is set rather than to what it holds belong in `Typography.version` and `ChapterLayout.rulesVersion`
-instead, which re-measure without reading anything again.
+chapter's stored text, and `local_book.reading_version` then dates every copy that is behind it.
+Changes to how text is set rather than to what it holds belong in `Typography.version` and
+`ChapterLayout.rulesVersion` instead, which re-measure without reading anything again.
+
+A book behind that number is read again as it opens. `ReaderScreen.Model.rereadIfBehind()` does it
+before the chapters come out of the store, so what the reader turns to is what this build makes of the
+file, and `BookInstaller` carries the reading position across whatever the new reading cuts the book
+into. The reader waits on it once per book, behind the card that already covers opening one.
+
+One book as it opens rather than a library at launch. `BookInbox.rereadWhatIsBehind()` reads every book
+that is behind in one pass and nothing calls it: doing that at launch cost five books that had been read
+through their positions, and a position lost is lost for good.
 
 Re-import by hand reads the kept file with this build's parser and writes the chapters over the ones already
 there. It is filed under whatever the book is already filed under, never under the name its file gives

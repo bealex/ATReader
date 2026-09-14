@@ -93,12 +93,9 @@ struct ReimportTests {
         #expect(!held.isBehindThisBuild)
     }
 
-    /// One read by a build that made less of the same file is read again, and dated afresh.
-    @Test
-    func readsAgainWhateverIsBehindThisBuild() async throws {
-        let store = store()
-        let book = try await installed(into: store)
-        let held = try #require(await store.localBook(workId: book.id))
+    /// Dates a book as read by a build that made less of the same file than this one does.
+    private func dateBehindThisBuild(_ workId: Int, in store: SQLiteBookStore) async throws {
+        let held = try #require(await store.localBook(workId: workId))
 
         await store.store(provenance: LocalBookRecord(
             workId: held.workId,
@@ -109,7 +106,16 @@ struct ReimportTests {
             readingVersion: BookReading.version - 1
         ))
 
-        #expect(await store.localBook(workId: book.id)?.isBehindThisBuild == true)
+        #expect(await store.localBook(workId: workId)?.isBehindThisBuild == true)
+    }
+
+    /// One read by a build that made less of the same file is read again, and dated afresh.
+    @Test
+    func readsAgainWhateverIsBehindThisBuild() async throws {
+        let store = store()
+        let book = try await installed(into: store)
+
+        try await dateBehindThisBuild(book.id, in: store)
 
         // Installing keeps the file, which is the whole reason a book can be read again at all.
         #expect(LocalBookFiles.hasKeptFile(workId: book.id))
@@ -121,6 +127,52 @@ struct ReimportTests {
         #expect(await inbox.rereadWhatIsBehind() == 1)
         #expect(await store.localBook(workId: book.id)?.readingVersion == BookReading.version)
         #expect(await store.localBooks().count == 1, "the book was stood on the shelf a second time")
+    }
+
+    /// Opening a book an older build read reads its file again first, so the reader turns to what this
+    /// build makes of the file rather than to what the old one made of it.
+    @Test
+    func readsABookAgainAsItOpens() async throws {
+        let store = store()
+        let book = try await installed(into: store)
+
+        defer { try? FileManager.default.removeItem(at: LocalBookFiles.fileURL(workId: book.id)) }
+
+        try await dateBehindThisBuild(book.id, in: store)
+
+        let inbox = BookInbox(store: store, processor: BookProcessor(store: store))
+
+        await reader(for: book, in: store, inbox: inbox).loadIfNeeded()
+
+        #expect(await store.localBook(workId: book.id)?.readingVersion == BookReading.version)
+        #expect(await store.localBooks().count == 1, "the book was stood on the shelf a second time")
+    }
+
+    /// A book this build already read opens without its file being touched.
+    @Test
+    func opensWithoutReadingAgainWhatIsUpToDate() async throws {
+        let store = store()
+        let book = try await installed(into: store)
+
+        defer { try? FileManager.default.removeItem(at: LocalBookFiles.fileURL(workId: book.id)) }
+
+        let inbox = BookInbox(store: store, processor: BookProcessor(store: store))
+
+        await reader(for: book, in: store, inbox: inbox).loadIfNeeded()
+
+        #expect(inbox.importedAt == nil, "the file was read again for a book already up to date")
+    }
+
+    private func reader(for book: Book, in store: SQLiteBookStore, inbox: BookInbox) -> ReaderScreen.Model {
+        ReaderScreen.Model(
+            workId: book.id,
+            workTitle: book.title,
+            initialChapterId: nil,
+            session: SessionStore(),
+            store: store,
+            processor: BookProcessor(store: store),
+            inbox: inbox
+        )
     }
 
     /// A book already up to date is left alone.

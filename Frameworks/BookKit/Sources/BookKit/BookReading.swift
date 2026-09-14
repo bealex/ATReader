@@ -14,5 +14,5 @@
 /// rather than to what it holds belong in `Typography.version` and `ChapterLayout.rulesVersion`, which
 /// re-measure without reading anything again.
 public enum BookReading {
-    public static let version = 2
+    public static let version = 3
 }
