@@ -30,6 +30,8 @@ struct PageCutter: Sendable {
         var endsWithHyphen: Bool
         var isHeading: Bool
         var isImage: Bool
+        /// The line divides the scene above it from the one below, so no page may open on it.
+        var isSceneBreak: Bool = false
     }
 
     /// Where the pages fall and what each one covers.
@@ -137,7 +139,7 @@ struct PageCutter: Sendable {
             while limit <= count {
                 used += slugs[limit - 1].height
                 let squeeze = CGFloat(limit - start - 1) * Rules.tightening
-                let filled = fitting(used, endingAt: limit - 1, in: depth + squeeze)
+                let filled = fitting(used, over: start ..< limit, in: depth + squeeze)
 
                 // Nothing longer will fit. One line always may, so a line taller than the page still
                 // lands on one instead of leaving the chapter with nowhere to break.
@@ -172,7 +174,7 @@ struct PageCutter: Sendable {
         while limit <= count {
             used += slugs[limit - 1].height
             let squeeze = CGFloat(limit - 1) * Rules.tightening
-            let filled = fitting(used, endingAt: limit - 1, in: available + squeeze)
+            let filled = fitting(used, over: 0 ..< limit, in: available + squeeze)
 
             if filled == nil, limit > 1 { break }
 
@@ -189,18 +191,27 @@ struct PageCutter: Sendable {
         return chosen
     }
 
-    /// How deep a page from its first line to `limit` actually stands, letting a plate at its foot give
-    /// up depth to finish it. Nil where not even the plate's floor will fit, which is where a page has
-    /// to break earlier.
-    private func fitting(_ used: CGFloat, endingAt last: Int, in room: CGFloat) -> CGFloat? {
+    /// How deep the page over `lines` actually stands, letting the plate nearest its foot give up depth
+    /// to finish it. Nil where not even that plate's floor will fit, which is where a page has to break
+    /// earlier.
+    ///
+    /// The plate is not always the last line: a scene break closing the passage stands under it, and
+    /// the reported page had exactly that. So the page is searched for one rather than only asking
+    /// whatever happens to be at the foot.
+    private func fitting(_ used: CGFloat, over lines: Range<Int>, in room: CGFloat) -> CGFloat? {
         guard used > room else { return used }
+        guard let plate = givingPlate(in: lines) else { return nil }
 
-        let slug = slugs[last]
-        let canGive = slug.height - slug.leastHeight
+        let canGive = slugs[plate].height - slugs[plate].leastHeight
 
-        guard canGive > 0, used - room <= canGive else { return nil }
+        guard used - room <= canGive else { return nil }
 
         return room
+    }
+
+    /// The plate nearest the foot of a page with depth to spare, where the page carries one.
+    private func givingPlate(in lines: Range<Int>) -> Int? {
+        lines.reversed().first { slugs[$0].isImage && slugs[$0].height > slugs[$0].leastHeight }
     }
 
     /// What one page costs: the rules it breaks, and how far short of its measure it comes.
@@ -242,6 +253,11 @@ struct PageCutter: Sendable {
 
         // A widow: the last line of a paragraph, alone at the top of the next one.
         if following.endsParagraph, !following.startsParagraph { broken += 1 }
+
+        // A scene break divides what stands above it from what stands below. At the head of a page the
+        // page break has already done the dividing, so the mark says nothing there and belongs at the
+        // foot of the page it closes.
+        if following.isSceneBreak { broken += 1 }
 
         // A title stands in its own air, and at the head of a page that air falls off the top with
         // nothing left to say. Only a title given enough of it to notice: the smallest levels keep a
@@ -304,20 +320,18 @@ struct PageCutter: Sendable {
     private func plate(on page: ChapterLayout.Page, available: CGFloat) -> ChapterLayout.Page.Plate? {
         typealias Rules = ChapterLayout.Rules
 
-        let last = page.lines.upperBound - 1
-
-        guard page.lines.count > 1, slugs.indices.contains(last), slugs[last].isImage else { return nil }
+        guard page.lines.count > 1, let plate = givingPlate(in: page.lines) else { return nil }
 
         let used = page.lines.reduce(CGFloat(0)) { $0 + slugs[$1].height }
         let room = available + CGFloat(page.lines.count - 1) * Rules.tightening
 
         guard used > room else { return nil }
 
-        let given = min(used - room, slugs[last].height - slugs[last].leastHeight)
+        let given = min(used - room, slugs[plate].height - slugs[plate].leastHeight)
 
         guard given > 0 else { return nil }
 
-        return ChapterLayout.Page.Plate(line: last, height: slugs[last].height - given)
+        return ChapterLayout.Page.Plate(line: plate, height: slugs[plate].height - given)
     }
 
     /// How deep a line stands on a page, which is less than its own depth for a plate that gave some up.
@@ -351,7 +365,8 @@ extension ColumnComposer.Line {
             endsParagraph: endsParagraph,
             endsWithHyphen: endsWithHyphen,
             isHeading: isHeading,
-            isImage: image != nil
+            isImage: image != nil,
+            isSceneBreak: isSceneBreak
         )
     }
 }

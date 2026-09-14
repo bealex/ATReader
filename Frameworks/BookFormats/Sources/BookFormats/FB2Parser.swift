@@ -101,8 +101,9 @@ public enum FB2Parser {
 
         /// The sections the parser is inside, outermost first. Text lands in the innermost.
         private var open: [Open] = []
-        /// Runs of `<empty-line/>` collapse into a single scene break.
-        private var pendingBreak = false
+        /// The markup one blank line in the file is drawn as: a centred row of stars between the
+        /// paragraphs it parts, the way the service's own chapters set one.
+        private static let breakLine = "\(Setting.centred.tag)* * *</p>"
 
         /// Only the first `<body>` is the book. A body after it holds the notes the text points at,
         /// which are read into ``notes`` and handed to the chapters that refer to them.
@@ -263,7 +264,7 @@ public enum FB2Parser {
             switch element {
                 case "body": startBody()
                 case "section" where region == .body: startSection()
-                case "empty-line" where region == .body: pendingBreak = true
+                case "empty-line" where region == .body: markBreak()
                 case "image" where region == .body: startImage(attributes)
                 case "a" where region == .body: startMark(Self.note(in: attributes))
                 case "emphasis" where region == .body: startMark(Self.emphasis)
@@ -347,6 +348,21 @@ public enum FB2Parser {
             return String(href.dropFirst()).trimmed.nilWhenEmpty
         }
 
+        /// A blank line in the file is a break in the scene, written where the book put it.
+        ///
+        /// Held over until the next paragraph, as it once was, a picture or the end of a section
+        /// swallowed it and the reader met the break further down the chapter than the book wrote it,
+        /// or never met it at all. Nothing may move what a book set in order.
+        ///
+        /// A break opening a block divides nothing, having nothing above it, and a run of blank lines
+        /// is one break rather than several.
+        private func markBreak() {
+            guard !open.isEmpty, let last = open[open.count - 1].lines.last else { return }
+            guard last != Self.breakLine else { return }
+
+            open[open.count - 1].lines.append(Self.breakLine)
+        }
+
         /// A picture in the text becomes a block of its own, named after the binary that holds it.
         private func startImage(_ attributes: [String: String]) {
             guard !open.isEmpty, let name = Self.reference(in: attributes) else { return }
@@ -355,7 +371,6 @@ public enum FB2Parser {
             guard inSection || name != coverId else { return }
 
             wanted.insert(name)
-            pendingBreak = false
             open[open.count - 1].lines.append("<img src=\"\(Self.escaped(name))\">")
         }
 
@@ -469,7 +484,6 @@ public enum FB2Parser {
             let opening = open.isEmpty ? Open() : leading(from: &open[open.count - 1])
 
             open.append(opening)
-            pendingBreak = false
         }
 
         /// What a part holds directly, where it stands over the section opening under it rather than
@@ -497,7 +511,6 @@ public enum FB2Parser {
             guard var section = open.popLast() else { return }
 
             emit(&section, keepingTitle: true)
-            pendingBreak = false
         }
 
         /// Closes what a section holds into a chapter, unless it holds nothing worth a page.
@@ -534,6 +547,11 @@ public enum FB2Parser {
                     } else {
                         append(text, setting: setting)
                     }
+                // A subtitle carrying nothing but the marks of a scene break is a break, whatever the
+                // file calls it. Read as a title it becomes a heading, which cuts the chapter in two
+                // wherever the book merely parted two scenes.
+                case "subtitle" where BookHTML.isSceneBreak(text):
+                    markBreak()
                 case "subtitle":
                     append(text, setting: .centred, titleLevel: 2)
                 // Whose words they were, set apart from them the way a quotation names its source.
@@ -596,14 +614,6 @@ public enum FB2Parser {
             sourcing: Bool = false
         ) {
             guard !open.isEmpty, let line = raw.trimmed.nilWhenEmpty else { return }
-
-            // A run of blank lines is a scene break, which this reader draws the way the service's own
-            // chapters do: one centred row of stars between the paragraphs it parts.
-            if pendingBreak, !open[open.count - 1].lines.isEmpty {
-                open[open.count - 1].lines.append("\(Setting.centred.tag)* * *</p>")
-            }
-
-            pendingBreak = false
 
             let marked = marks.isEmpty ? Self.escaped(line) : Self.escaped(raw, marking: marks).trimmed
             let body = emphasised ? "<em>\(marked)</em>" : marked

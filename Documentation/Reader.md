@@ -495,10 +495,17 @@ either way. Where a heading carries no number of its own it is given the chapter
 where it carries one, the book's own words are used: a book with a prologue in it disagrees with the
 count and is right.
 
-A break between scenes is a row of stars, which books write as a subtitle and which is set as one.
-The level comes from the markup and only from the markup: `BookHTML` reads it off a heading element,
-and `FB2Parser` writes a file's `<subtitle>` out as one. What a paragraph holds is never asked, since
-a paragraph is centred for all sorts of reasons and an epigraph is not a title.
+A break between scenes is a row of stars. Which blocks are one is `BookHTML.isSceneBreak(_:)`, and it
+is the only test: a row of asterisks, or the asterism, and nothing else. Books write a break either as
+a blank line or as a subtitle carrying those marks, and both arrive as the same thing.
+
+A subtitle that carries words is a heading and divides the book; one that carries only those marks
+parts two scenes and leaves the chapter whole. That distinction is worth the asking, even though it
+means asking what a paragraph holds rather than only how it's marked up. A book that marks
+every one of its scene breaks that way otherwise comes out as a contents of a hundred and more unnamed
+pieces, with the mark itself swallowed by the cut: one reported file carried thirty-seven chapters and
+a hundred and thirty-four breaks. Anything else centred, an epigraph among them, is left alone, since
+a paragraph is centred for all sorts of reasons.
 
 A book filed before that was written carries its subtitles as centred paragraphs, and its breaks
 stand in no air until the file it came from is read again.

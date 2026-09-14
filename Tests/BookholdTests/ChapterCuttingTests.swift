@@ -45,10 +45,13 @@ struct ChapterCuttingTests {
         #expect(read.sections.map(\.level) == [ 1, 2, 2 ])
     }
 
-    /// A heading of nothing but marks still divides the book. It names nothing, so the piece it opens
-    /// carries no title, and the contents calls it what it is.
+    /// A heading of nothing but marks divides two scenes, not two chapters. It is written into the text
+    /// where the book put it, and the chapter stands whole.
+    ///
+    /// It used to cut, which turned a book that parts every scene that way into a contents of a hundred
+    /// and more unnamed pieces and swallowed the mark along the way.
     @Test
-    func cutsAtHeadingsThatNameNothing() throws {
+    func partsTheScenesAtAHeadingThatNamesNothing() throws {
         let read = try book("""
             <section>
               <p>Раз.</p>
@@ -59,10 +62,12 @@ struct ChapterCuttingTests {
             </section>
             """)
 
-        #expect(read.sections.count == 3)
-        #expect(read.sections.map(\.title) == [ nil, nil, nil ])
-        // A piece cut out of a section stands one level below it.
-        #expect(read.sections.map(\.level) == [ 1, 2, 2 ])
+        #expect(read.sections.count == 1)
+
+        let blocks = BookHTML.paragraphs(from: read.sections[0].html)
+
+        #expect(blocks.count { $0.isSceneBreak } == 2)
+        #expect(!blocks.contains { $0.titleLevel != nil })
     }
 
     /// A file that names its chapters keeps those names, and what is marked inside one stands under it.

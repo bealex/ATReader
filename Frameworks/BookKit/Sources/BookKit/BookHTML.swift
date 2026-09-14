@@ -141,6 +141,18 @@ public struct Paragraph: Codable, Sendable, Identifiable, Hashable {
     /// rather than on a letter, which is as near as a reader needs to be put.
     public let anchor: String?
 
+    /// True where the block stands for a break in the scene rather than carrying words.
+    ///
+    /// It divides what stands above it from what stands below, so it says nothing at the head of a
+    /// page, where the page break has already done the dividing. Which rows of marks count is
+    /// `BookHTML.isSceneBreak(_:)`, the same test that centres one wherever a book leaves it, so the
+    /// two can never drift apart and start disagreeing about what a break is.
+    public var isSceneBreak: Bool {
+        guard titleLevel == nil, imageSource == nil, !isVerse else { return false }
+
+        return BookHTML.isSceneBreak(text)
+    }
+
     public init(
         id: Int,
         text: String,
@@ -439,15 +451,23 @@ public enum BookHTML {
         return result
     }
 
-    /// A row of asterisks and nothing else, which stands for a break in the scene.
+    /// A row of the marks that stand for a break in the scene, and nothing else.
     ///
     /// Centred wherever it is found: most of the service's books align it themselves, and the rest
     /// leave it in an ordinary justified paragraph, where it would otherwise sit at the margin.
-    private static func isSceneBreak(_ text: String) -> Bool {
+    ///
+    /// The asterism is here because a book that sets its breaks with one sets every one of them that
+    /// way, so reading it as ordinary words puts a stray glyph on a line of its own a hundred times
+    /// over.
+    public static func isSceneBreak(_ text: String) -> Bool {
         let marks = text.filter { !$0.isWhitespace }
 
-        return !marks.isEmpty && marks.count <= separatorMarks && marks.allSatisfy { $0 == "*" }
+        return !marks.isEmpty && marks.count <= separatorMarks && marks.allSatisfy(breakMarks.contains)
     }
+
+    /// The marks a book parts its scenes with: a row of asterisks, or the asterism that means exactly
+    /// this and nothing else.
+    private static let breakMarks: Set<Character> = [ "*", "⁂" ]
 
     /// The longest row of marks read as a scene break rather than as text.
     private static let separatorMarks = 7

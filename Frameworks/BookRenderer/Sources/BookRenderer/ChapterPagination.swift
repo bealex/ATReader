@@ -149,6 +149,9 @@ extension NSAttributedString.Key {
     /// Marks a block the book set as verse, so the composer runs its long lines over rather than
     /// wrapping them like prose.
     static let verseLine = NSAttributedString.Key("ATVerseLine")
+
+    /// Marks a block the book set as a scene break, so no page opens on one.
+    static let sceneBreak = NSAttributedString.Key("ATSceneBreak")
 }
 
 /// Sets a chapter as text: the heading, then the body, styled as the reader asked.
@@ -207,6 +210,7 @@ public enum ChapterPagination {
             if style.letterSpacing != 0 { attributes[.kern] = style.letterSpacing }
 
             if paragraph.isVerse { attributes[.verseLine] = true }
+            if paragraph.isSceneBreak { attributes[.sceneBreak] = true }
 
             let start = result.length
             result.append(NSAttributedString(string: paragraph.text + suffix, attributes: attributes))

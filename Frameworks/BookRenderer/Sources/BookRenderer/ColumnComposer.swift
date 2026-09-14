@@ -188,6 +188,8 @@ public final class ColumnComposer {
         var gapMultiple: CGFloat = 1
         /// How many gaps the line had to open, which is all it could fill itself from.
         var gaps: Int = 0
+        /// The line is a scene break, which no page may open on.
+        var isSceneBreak: Bool = false
     }
 
     private let measure: CGFloat
@@ -337,7 +339,10 @@ public final class ColumnComposer {
                 isLast: step == stops.count - 2
             )
 
-            return draw(piece, ruler: ruler, isHeading: isHeading)
+            var line = draw(piece, ruler: ruler, isHeading: isHeading)
+
+            line.isSceneBreak = ruler.isSceneBreak
+            return line
         }
     }
 

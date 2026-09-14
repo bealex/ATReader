@@ -40,6 +40,9 @@ public struct ParagraphRuler {
     /// The paragraph is a line the book set as verse, so a line too long for the measure runs over to
     /// the far edge rather than starting again at the near one like a wrapped paragraph.
     public let isVerse: Bool
+    /// The paragraph is a scene break, which divides what is above it from what is below and so can
+    /// never be the first thing on a page.
+    public let isSceneBreak: Bool
     public let lineSpacing: CGFloat
     public let paragraphSpacing: CGFloat
     /// The air the paragraph keeps above itself, which only its first line carries.
@@ -82,6 +85,7 @@ public struct ParagraphRuler {
         // Written as a distance from the right edge, which the style states as a negative number.
         self.tailIndent = max(0, -(style?.tailIndent ?? 0))
         self.isVerse = text.attribute(.verseLine, at: range.location, effectiveRange: nil) != nil
+        self.isSceneBreak = text.attribute(.sceneBreak, at: range.location, effectiveRange: nil) != nil
         self.lineSpacing = style?.lineSpacing ?? 0
         self.paragraphSpacing = style?.paragraphSpacing ?? 0
         self.paragraphSpacingBefore = style?.paragraphSpacingBefore ?? 0

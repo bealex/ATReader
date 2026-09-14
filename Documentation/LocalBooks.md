@@ -75,7 +75,15 @@ Only the first `<body>` is the book. A second one holds footnotes, which the rea
 show.
 
 A run of `<empty-line/>` collapses to one centred row of stars, which is how the service's own chapters
-mark a scene break.
+mark a scene break. So does a `<subtitle>` carrying nothing but those marks, which is how a good many
+files write one; a subtitle carrying words is a heading and cuts the chapter as it always did.
+
+Which marks count is `BookHTML.isSceneBreak(_:)` and nothing else, so the test that centres a break and
+the test that keeps one off the top of a page can't drift apart and start disagreeing.
+
+The break is written where the file puts it, rather than held over until the next paragraph arrives.
+Held over, a picture standing between the two swallowed it, and so did the end of a section, so a
+reader met the break further down the chapter than the book wrote it or never met it at all.
 
 ### What a paragraph carries, and how it is set
 
