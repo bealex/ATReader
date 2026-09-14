@@ -60,11 +60,29 @@ title, an epigraph) becomes a short page of its own, and the sections inside it 
 The part's own page is emitted when it gains its first child rather than when it closes, because its
 children close before it does and the book has to come out in reading order.
 
+The body itself is opened the same way, so what a book puts before its first section becomes the page
+ahead of chapter one rather than falling out of the book: the plate it opens on, the epigraphs it
+carries. Its `<title>` doesn't come with it, because that names the book rather than a chapter and the
+reader shows it before the first page anyway. A plate repeating the cover the description already named
+is dropped for the same reason.
+
 Only the first `<body>` is the book. A second one holds footnotes, which the reader has nowhere to
 show.
 
 A run of `<empty-line/>` collapses to one centred row of stars, which is how the service's own chapters
 mark a scene break.
+
+### What a paragraph carries, and how it is set
+
+`<emphasis>` and `<strong>` come across as `<em>` and `<strong>`, wrapped round the words they covered
+and nested where the file nested them. They are recorded as the file is walked, the way a note's marker
+already was, because the words arrive as characters with no tags in them: what is kept is where each
+mark opened and closed. The words themselves are untouched, since a reading position counts them.
+
+How a block is set comes from where the file put it rather than from anything it styles. A paragraph
+inside an `<epigraph>` or a `<cite>` is a passage quoted rather than told, and is held off the edge the
+way the reader already holds one. A `<poem>` is centred. A `<text-author>` stays with whatever it names
+and is set in italics, which is how a quotation gives its source. Everything else is a plain paragraph.
 
 ### Where the pictures go
 
@@ -76,6 +94,34 @@ That name carries the book as well as the picture, so a chapter body holds every
 its own pictures and nothing has to be passed alongside it. Removing an imported book removes the
 directory; a corrected file clears it first, since the new file may have dropped pictures the old one
 had. See `Documentation/Reader.md` for what the reader then does with them.
+
+### A book's cover moves under it
+
+An imported book's cover is a file in the app's own container, and **the system gives the app a new
+container every time it is installed**. The path written down when the book arrived names a directory
+that is no longer there, so `SQLiteBookStore` works a local book's `coverURL` out again from its number
+as it reads one rather than trusting what was stored. Without that every local book loses its artwork
+after an install, and with it the spine, which is a blur of that artwork.
+
+`SpinePress` reads that file itself for the same reason. It takes any other cover only if one is already
+at hand, so printing a shelf pulls nothing down, but a book standing on its edge never decodes its own
+cover, so a spine that waited for one to arrive waited for ever and stood bare for good.
+
+### Reading the file again
+
+**`BookReading.version` is what makes a parser reach books already on the shelf.** A chapter holds
+whatever the parser made of the file when it was read, so re-measuring sets the words it holds again and
+cannot add words it never held. Raise that number whenever a change puts something different into a
+chapter's stored text, and every book below it is read again from its kept file, one at a time and
+behind whatever the reader is doing. `local_book.reading_version` dates each copy. Changes to how text
+is set rather than to what it holds belong in `Typography.version` and `ChapterLayout.rulesVersion`
+instead, which re-measure without reading anything again.
+
+Re-import by hand reads the kept file with this build's parser and writes the chapters over the ones already
+there. It is filed under whatever the book is already filed under, never under the name its file gives
+it: a book a service handed over is named by that service, and working the name out from the file again
+names it something else, which stands the same book on the shelf a second time instead of correcting
+the one that is there. `ReimportTests` holds that.
 
 ### The file is kept
 

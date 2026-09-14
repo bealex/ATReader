@@ -203,12 +203,34 @@ A menu pressed on a book lifts it on its own shape, the board's outline or the s
 menu as a preview of its own. The rounded box a menu lifts anything else on comes out as a lozenge on
 something a few points wide. `SpineMenuUITests` photographs both.
 
+**A deed that changes how a book stands waits for that menu to close.** UIKit returns a lifted book to
+the view's own centre and takes its own time over it, so a shelf that has begun turning the same book
+is drawing it somewhere else while that runs. `BookView.whenMenuCloses` holds the work until the
+interaction's animator finishes, and `BookInHand` is what carries that to whoever builds the menu.
+
 A book stands as a cover while it's in play: part read, still being written, or within a day of being
 read to the end, arriving in the library, or being opened with "Read the book" from its menu. Otherwise
-it stands on its edge. The store dates those days in `read_at` and `taken_down_at`. The first library a
+it stands on its edge.
+
+`Book.standsOnItsEdge()` is that rule, and it is the only one. The shelf draws by it, the Reading shelf
+keeps by its negation, and "Put the book away" is offered on its complement, so a book cannot be filed
+away and called unfinished reading at the same time. Two rules asking different questions did exactly
+that: a book with nothing read against it is not being read, so the shelf drew a spine, and it is not
+finished either, so Reading kept the card. `isShelved` is that rule plus "nothing new has arrived in
+it", which a book on its own cannot know.
+
+Read to its end is what the reader said rather than what the characters add up to: a book on the
+Finished shelf is finished whatever its progress. The progress is worked out again from where the
+reader stands and can be lost; the shelf cannot. The store dates those days in `read_at` and `taken_down_at`. The first library a
 device loads arrives undated, or all of it would stand out at once, and a Litres book that arrives read
 isn't dated as read. A book changing stance turns on its own hinge, the way a whole card does, and one
 that leaves a card fades where it stood while the rest close up.
+
+The shelf carries a book along its own row and nowhere else. A cover turning onto its edge gives back
+most of its width, so the books after it close up and the ones that no longer fit a row move to the row
+above. That move can't be slid: a straight line between two rows runs over the plank and through the
+books it is joining. A book the refold puts on another row leaves the row it was on at once, so the
+books closing up have the room it left, and comes in where it is going.
 
 A row has two tap targets: the cover opens the book, and everything else opens its page. Gestures rather
 than a button and a link, because the cover sits inside the row's own target and the inner gesture is
@@ -269,6 +291,11 @@ and asks again, and the clock has moved by then. It never settles, and the colle
 itself a dozen passes down. Heights are `.absolute`, `AuthorCardView.height(across:)` interpolates
 between where the card was and where it is going, and the turn's clock invalidates the layout each frame.
 
+**The turn is started before the snapshot is applied.** Applying lays the whole list out, and in that
+one pass a card with nothing yet carrying it is given the height it is going to. Everything afterwards
+then animates inside a card that has already arrived, which reads as a step under the books. So
+`LibraryList` works out which cards turned, starts those turns, and applies the snapshot after.
+
 Nothing on the shelf is drawn while it scrolls:
 
 - **Every picture is printed once.** A cover is `CoverPrint`: its artwork cut to the board, with the
@@ -304,6 +331,11 @@ a zoom shrinks the screen into what its source view is showing, so an empty one 
 into nothing, and a cover is its artwork plus the line read, the ribbon and the crease. The picture is
 taken when the transition asks rather than kept up to date, which is twice in its life. The anchor
 stands behind the panel that draws the same thing, and goes when a book turns edge-on.
+
+A book opened from its own page grows out of the cover at the top of it, and `CoverAnchor` is what
+stands there: `CoverImage` keeps the whole cover, marks and all, as one picture, and while the zoom runs
+the anchor draws it and the cover itself draws nothing. The same rule as the shelf's, for the same
+reason: two of one cover, one growing and one holding still, is what gives a zoom away.
 
 **The shelf hands over a way of finding that board rather than the board itself**, because the transition asks again on the way out: while the
 book is open the shelf may lay itself out afresh around whatever the reading changed, and the view that
