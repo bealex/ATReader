@@ -1218,7 +1218,10 @@ enum ReaderScreen {
                     model.open(chapterId: mark.chapterId, anchor: .offset(mark.startOffset))
                 },
                 label: {
-                    BookmarkLabel(share: mark.share(ofChapterLength: model.length(ofChapter: mark.chapterId)))
+                    BookmarkLabel(
+                        share: mark.share(ofChapterLength: model.length(ofChapter: mark.chapterId)),
+                        text: mark.text
+                    )
                 }
             )
             .buttonStyle(.plain)

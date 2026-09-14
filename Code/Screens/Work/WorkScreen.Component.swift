@@ -365,8 +365,11 @@ enum WorkScreen {
                     from: { cover.face(during: $0) }
                 )
             } label: {
-                BookmarkLabel(share: mark.share(ofChapterLength: chapterLength(model, of: mark.chapterId)))
-                    .padding(.vertical, Design.Space.small)
+                BookmarkLabel(
+                    share: mark.share(ofChapterLength: chapterLength(model, of: mark.chapterId)),
+                    text: mark.text
+                )
+                .padding(.vertical, Design.Space.small)
             }
             .buttonStyle(.plain)
             .accessibilityHint("Opens the book here")
