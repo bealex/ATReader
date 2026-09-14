@@ -108,16 +108,18 @@ public enum FB2Parser {
         /// which are read into ``notes`` and handed to the chapters that refer to them.
         private var hasReadBody = false
 
-        /// A note's marker, and the note it points at, inside the paragraph being read.
-        private struct Anchor {
-            let target: String
+        /// A stretch of the paragraph being read that the file marked: words it set apart, or a marker
+        /// pointing at one of its notes.
+        private struct Mark {
+            let open: String
+            let close: String
             let start: Int
             var stop: Int
         }
 
-        /// The anchor open in the paragraph being read, and the ones already closed in it.
-        private var openAnchor: Anchor?
-        private var anchors: [Anchor] = []
+        /// The marks still open in the paragraph being read, innermost last, and the ones closed in it.
+        private var openMarks: [Mark] = []
+        private var marks: [Mark] = []
 
         /// The notes the file keeps in a body of their own, by the id its anchors point at.
         private var notes: [String: String] = [:]
@@ -237,8 +239,8 @@ public enum FB2Parser {
             // Every block of text starts empty, so the characters of the one before it never leak in.
             if Self.blocks.contains(element) {
                 text = ""
-                anchors = []
-                openAnchor = nil
+                marks = []
+                openMarks = []
             }
         }
 
@@ -259,21 +261,55 @@ public enum FB2Parser {
 
         private func startedBody(_ element: String, attributes: [String: String]) {
             switch element {
-                case "body": region = hasReadBody ? .notes : .body
+                case "body": startBody()
                 case "section" where region == .body: startSection()
                 case "empty-line" where region == .body: pendingBreak = true
                 case "image" where region == .body: startImage(attributes)
-                case "a" where region == .body: startAnchor(attributes)
+                case "a" where region == .body: startMark(Self.note(in: attributes))
+                case "emphasis" where region == .body: startMark(Self.emphasis)
+                case "strong" where region == .body: startMark(Self.strength)
                 case "section" where region == .notes: startNote(attributes)
                 default: break
             }
         }
 
-        /// A link into the book's own notes. Anything else an `<a>` may point at is not one.
-        private func startAnchor(_ attributes: [String: String]) {
-            guard let target = Self.noteTarget(in: attributes) else { return }
+        /// A body is opened the way a part is, so that what it holds before its first section has
+        /// somewhere to land: a picture, the book's epigraphs, a dedication. The first section closes
+        /// that into a page of its own, ahead of the first chapter.
+        private func startBody() {
+            region = hasReadBody ? .notes : .body
 
-            openAnchor = Anchor(target: target, start: text.count, stop: text.count)
+            guard region == .body else { return }
+
+            open.append(Open())
+        }
+
+        /// True where text is landing inside a section rather than in the body's own front matter.
+        private var inSection: Bool { open.count > 1 }
+
+        /// Opens a mark over whatever the paragraph reads from here. An element that marks nothing
+        /// opens a blank one all the same, so the tag closing it has its own to close.
+        private func startMark(_ tags: (open: String, close: String)?) {
+            openMarks.append(Mark(
+                open: tags?.open ?? "",
+                close: tags?.close ?? "",
+                start: text.count,
+                stop: text.count
+            ))
+        }
+
+        private static let emphasis = (open: "<em>", close: "</em>")
+        private static let strength = (open: "<strong>", close: "</strong>")
+
+        /// Elements that mark a stretch of a paragraph rather than holding one of their own.
+        private static let marking: Set<String> = [ "a", "emphasis", "strong" ]
+
+        /// The tags that wrap a marker pointing into the book's own notes. Anything else an `<a>` may
+        /// point at is not one.
+        private static func note(in attributes: [String: String]) -> (open: String, close: String)? {
+            guard let target = noteTarget(in: attributes) else { return nil }
+
+            return (open: "<a href=\"#\(escaped(target))\">", close: "</a>")
         }
 
         private func startNote(_ attributes: [String: String]) {
@@ -281,15 +317,14 @@ public enum FB2Parser {
             noteLines = []
         }
 
-        private func endAnchor() {
-            guard var anchor = openAnchor else { return }
+        private func endMark() {
+            guard var mark = openMarks.popLast() else { return }
 
-            openAnchor = nil
-            anchor.stop = text.count
+            mark.stop = text.count
 
-            guard anchor.stop > anchor.start else { return }
+            guard !mark.open.isEmpty, mark.stop > mark.start else { return }
 
-            anchors.append(anchor)
+            marks.append(mark)
         }
 
         private func endNote() {
@@ -315,6 +350,9 @@ public enum FB2Parser {
         /// A picture in the text becomes a block of its own, named after the binary that holds it.
         private func startImage(_ attributes: [String: String]) {
             guard !open.isEmpty, let name = Self.reference(in: attributes) else { return }
+            // A body opening with the plate the description already named as the cover is repeating
+            // the one the reader shows before the first page.
+            guard inSection || name != coverId else { return }
 
             wanted.insert(name)
             pendingBreak = false
@@ -364,7 +402,7 @@ public enum FB2Parser {
                     hasReadBody = true
                 case "body" where region == .notes: region = .none
                 case "section" where region == .notes: endNote()
-                case "a" where region == .body: endAnchor()
+                case let name where Self.marking.contains(name) && region == .body: endMark()
                 case "binary": endBinary()
                 case "author" where region == .titleInfo: endAuthor()
                 case "section" where region == .body: endSection()
@@ -473,12 +511,13 @@ public enum FB2Parser {
                     if path.contains("title") {
                         addTitleLine()
                     } else {
-                        append(text, centered: Self.centeredParents.contains(where: path.contains))
+                        append(text, setting: setting)
                     }
                 case "subtitle":
-                    append(text, centered: true, titleLevel: 2)
+                    append(text, setting: .centred, titleLevel: 2)
+                // Whose words they were, set apart from them the way a quotation names its source.
                 case "text-author":
-                    append(text, centered: true)
+                    append(text, setting: setting, emphasised: true, sourcing: true)
                 default: break
             }
         }
@@ -486,60 +525,101 @@ public enum FB2Parser {
         /// The first line of a section's title names it. Any line after that stays in the text, so a
         /// title set as several paragraphs keeps the rest of itself.
         private func addTitleLine() {
-            guard !open.isEmpty, let line = text.trimmed.nilWhenEmpty else { return }
+            // A body's own title names the book rather than a chapter, and the reader shows that
+            // before the first page whatever the file says.
+            guard inSection, let line = text.trimmed.nilWhenEmpty else { return }
             guard
                 open[open.count - 1].title == nil
             else {
-                return append(line, centered: true)
+                return append(line, setting: .centred)
             }
 
             open[open.count - 1].title = line
         }
 
-        private func append(_ raw: String, centered: Bool, titleLevel: Int? = nil) {
+        /// How a block is set, which comes from where the file put it rather than from any styling.
+        private enum Setting {
+            case plain
+            case centred
+            /// Held off the edge the way a passage quoted at length is, which is what an epigraph is.
+            case inset
+
+            var tag: String {
+                switch self {
+                    case .plain: "<p>"
+                    case .centred: "<p style=\"text-align:center\">"
+                    case .inset: "<p data-inset=\"1\">"
+                }
+            }
+
+            /// The same block, naming whose words stood above it rather than adding to them.
+            var sourcing: String { tag.replacingOccurrences(of: "<p", with: "<p data-source=\"1\"") }
+        }
+
+        /// How whatever is being read now is set, decided by what it stands inside.
+        private var setting: Setting {
+            if Self.quotedParents.contains(where: path.contains) { return .inset }
+
+            return Self.centredParents.contains(where: path.contains) ? .centred : .plain
+        }
+
+        private func append(
+            _ raw: String,
+            setting: Setting,
+            titleLevel: Int? = nil,
+            emphasised: Bool = false,
+            sourcing: Bool = false
+        ) {
             guard !open.isEmpty, let line = raw.trimmed.nilWhenEmpty else { return }
 
             // A run of blank lines is a scene break, which this reader draws the way the service's own
             // chapters do: one centred row of stars between the paragraphs it parts.
             if pendingBreak, !open[open.count - 1].lines.isEmpty {
-                open[open.count - 1].lines.append("<p style=\"text-align:center\">* * *</p>")
+                open[open.count - 1].lines.append("\(Setting.centred.tag)* * *</p>")
             }
 
             pendingBreak = false
 
-            let body = anchors.isEmpty ? Self.escaped(line) : Self.escaped(raw, marking: anchors).trimmed
+            let marked = marks.isEmpty ? Self.escaped(line) : Self.escaped(raw, marking: marks).trimmed
+            let body = emphasised ? "<em>\(marked)</em>" : marked
 
             // A title is written as a heading, which is what carries its level across to the reader.
-            // Everything else is a paragraph, centred or not as the file said.
+            // Everything else is a paragraph, set the way the file put it.
             if let titleLevel {
                 open[open.count - 1].lines.append("<h\(titleLevel)>\(body)</h\(titleLevel)>")
             } else {
-                open[open.count - 1].lines.append(
-                    centered
-                        ? "<p style=\"text-align:center\">\(body)</p>"
-                        : "<p>\(body)</p>"
-                )
+                open[open.count - 1].lines.append("\(sourcing ? setting.sourcing : setting.tag)\(body)</p>")
             }
             open[open.count - 1].length += line.count
         }
 
-        /// The paragraph escaped, with each note marker wrapped in the anchor that pointed at it.
+        /// The paragraph escaped, with every mark the file made wrapped round the words it covered.
         ///
-        /// The markers keep the characters the file gave them: a reading position counts them, and the
-        /// reader sets them as references rather than renumbering them.
-        private static func escaped(_ text: String, marking anchors: [Anchor]) -> String {
+        /// The words keep the characters the file gave them: a reading position counts them, so nothing
+        /// is added to the text or taken out of it, and a note's marker is set as the file wrote it
+        /// rather than renumbered.
+        private static func escaped(_ text: String, marking marks: [Mark]) -> String {
             let characters = Array(text)
+            var opening: [Int: [Mark]] = [:]
+            var closing: [Int: [Mark]] = [:]
+
+            for mark in marks where mark.start >= 0 && mark.stop <= characters.count {
+                opening[mark.start, default: []].append(mark)
+                closing[mark.stop, default: []].append(mark)
+            }
+
             var result = ""
             var cursor = 0
 
-            for anchor in anchors.sorted(by: { $0.start < $1.start }) {
-                guard anchor.start >= cursor, anchor.stop <= characters.count else { continue }
+            for point in Set(opening.keys).union(closing.keys).sorted() {
+                result += escaped(String(characters[cursor ..< point]))
+                // Closes before opens, and the innermost of each first, so marks meeting at one point
+                // nest rather than cross.
+                for mark in (closing[point] ?? []).sorted(by: { $0.start > $1.start }) { result += mark.close }
 
-                result += escaped(String(characters[cursor ..< anchor.start]))
-                result += "<a href=\"#\(escaped(anchor.target))\">"
-                result += escaped(String(characters[anchor.start ..< anchor.stop]))
-                result += "</a>"
-                cursor = anchor.stop
+                for mark in (opening[point] ?? []).sorted(by: { $0.stop > $1.stop }) { result += mark.open }
+
+                cursor = point
             }
 
             return result + escaped(String(characters[cursor...]))
@@ -591,8 +671,12 @@ public enum FB2Parser {
             "first-name", "middle-name", "last-name", "nickname",
         ]
 
-        /// Anything inside one of these is set centred, the way the reader already sets an epigraph.
-        private static let centeredParents: Set<String> = [ "epigraph", "poem" ]
+        /// Anything inside one of these is a passage quoted rather than told, and is held off the edge
+        /// the way the reader already holds one: an epigraph over a chapter, a citation inside it.
+        private static let quotedParents: Set<String> = [ "epigraph", "cite" ]
+
+        /// Anything inside one of these is set centred.
+        private static let centredParents: Set<String> = [ "poem" ]
 
         private static func escaped(_ text: String) -> String {
             text
