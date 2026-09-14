@@ -46,8 +46,9 @@ final class ShelfView: UIView {
     /// then the shelf may have laid itself out afresh around whatever the reading changed. The view
     /// that was tapped is the wrong size by then, or belongs to another book entirely.
     var onOpen: ((Book, @escaping @MainActor @Sendable (BookZoom) -> UIView?) -> Void)?
-    /// A menu for one book, given the same way of finding its face that opening it is given.
-    var bookMenu: ((Book, @escaping @MainActor @Sendable (BookZoom) -> UIView?) -> UIMenu?)?
+    /// A menu for one book, given the same way of finding its face that opening it is given, and a way
+    /// to hold back whatever would move the book while the menu is still closing.
+    var bookMenu: ((Book, BookInHand) -> UIMenu?)?
     var runMenu: ((String) -> UIMenu?)?
 
     private var contents: Contents?
@@ -77,6 +78,9 @@ final class ShelfView: UIView {
 
     /// How far round each book on the shelf stands, which is what a turn moves.
     var turns: [String: CGFloat] { books.mapValues(\.turned) }
+
+    /// Where each book on the shelf stands, which is what a refold moves.
+    var stands: [String: CGRect] { books.mapValues(\.frame) }
 
     /// How far in from either end of the bookcase the books stand.
     static let inset = Design.Space.large
@@ -137,7 +141,12 @@ final class ShelfView: UIView {
         layout = Self.layout(contents, places: places, across: across)
         build(contents)
 
-        turning = Turning(started: CACurrentMediaTime(), from: from, was: was, wasHeight: wasHeight)
+        // A book the refold puts on another row is re-shelved rather than carried across: a straight
+        // line between two rows runs over the plank and through the books it is joining. It leaves the
+        // row it was on at once, so the books closing up behind it have the room it left.
+        let crossing = Set(layout.placed.filter { changesRow($0, from: was) }.map(\.id))
+
+        turning = Turning(started: CACurrentMediaTime(), from: from, was: was, wasHeight: wasHeight, crossing: crossing)
         link?.invalidate()
         link = CADisplayLink(target: self, selector: #selector(stepped))
         link?.add(to: .main, forMode: .common)
@@ -158,13 +167,24 @@ final class ShelfView: UIView {
         }
     }
 
-    /// A turn in flight: when it started, how far round each book was, where each stood, and how deep
-    /// the shelf was before it began.
+    /// Whether the refold moves this book to another row, which is the one move the shelf cannot carry.
+    private func changesRow(_ placed: ShelfLayout.Placed, from was: [String: CGRect]) -> Bool {
+        guard let stood = was[placed.id] else { return false }
+
+        return abs(stood.maxY - placed.frame.maxY) > Self.sameRow
+    }
+
+    /// How far two feet may differ and still be the same row, which is nothing a reader could see.
+    private static let sameRow: CGFloat = 0.5
+
+    /// A turn in flight: when it started, how far round each book was, where each stood, how deep the
+    /// shelf was before it began, and which books it moves to another row.
     private struct Turning {
         let started: CFTimeInterval
         let from: [String: CGFloat]
         let was: [String: CGRect]
         let wasHeight: CGFloat
+        let crossing: Set<String>
     }
 
     @objc
@@ -490,7 +510,17 @@ final class ShelfView: UIView {
     private func menu(at place: Place) -> UIMenu? {
         guard case let .book(work, _, _, _) = place.slot else { return nil }
 
-        return bookMenu?(work) { [weak self] zoom in self?.books[place.id]?.face(during: zoom) }
+        return bookMenu?(
+            work,
+            BookInHand(
+                face: { [weak self] zoom in self?.books[place.id]?.face(during: zoom) },
+                settled: { [weak self] work in
+                    guard let view = self?.books[place.id] else { return work() }
+
+                    view.whenMenuCloses(work)
+                }
+            )
+        )
     }
 
     private func bracket(_ bracket: ShelfLayout.Bracket, in contents: Contents) {
@@ -540,9 +570,12 @@ final class ShelfView: UIView {
                 width: placed.frame.width,
                 height: slot
             )
-            let frame = turning?.was[placed.id].map { $0.carried(to: box, at: reached) } ?? box
+            let crossed = turning?.crossing.contains(placed.id) ?? false
+            let frame = crossed ? box : (turning?.was[placed.id].map { $0.carried(to: box, at: reached) } ?? box)
 
             books[placed.id]?.frame = frame
+            // One that crossed stands where it is going from the first frame and comes in there.
+            books[placed.id]?.alpha = crossed ? reached : 1
         }
 
         for bracket in layout.brackets {

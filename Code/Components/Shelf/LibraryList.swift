@@ -34,7 +34,7 @@ struct LibraryList: UIViewControllerRepresentable {
     let onName: (String) -> Void
     /// A tap on a book standing on its edge, which turns the shelf it is on.
     let onTurn: (String) -> Void
-    let bookMenu: (Book, @escaping @MainActor @Sendable (BookZoom) -> UIView?) -> UIMenu?
+    let bookMenu: (Book, BookInHand) -> UIMenu?
     let runMenu: (String) -> UIMenu?
     let authorMenu: (String) -> UIMenu?
     let onRefresh: () async -> Void
@@ -129,8 +129,19 @@ struct LibraryList: UIViewControllerRepresentable {
             // afterwards asks about the height it is going to.
             let standing = heights(across: cardWidth)
 
+            let stances = list.cards.reduce(into: [String: [String: Bool]]()) {
+                $0[$1.id] = ShelfView.stance(of: $1.shelf)
+            }
+
             self.list = list
             measure(across: cardWidth)
+
+            // Started before the snapshot is applied. Applying lays the list out, and a card with
+            // nothing yet carrying it lands at its new height in that one pass, whatever the turn does
+            // afterwards.
+            let turning = turned ? startTurns(to: stances, from: standing) : []
+
+            for (id, stance) in stances { shown[id] = stance }
 
             apply(animated: false)
             press()
@@ -141,19 +152,11 @@ struct LibraryList: UIViewControllerRepresentable {
                 guard let index = source.indexPath(for: .author(card.id)) else { continue }
                 guard let cell = controller?.collectionView.cellForItem(at: index) as? AuthorCardCell else { continue }
 
-                let was = shown[card.id]
-                let stance = ShelfView.stance(of: card.shelf)
-
-                shown[card.id] = stance
                 dress(cell, with: card)
 
                 // Only a card whose books have turned is animated. Everything else is a redraw, and a
                 // redraw that springs would move every book on screen whenever one cover loaded.
-                if turned, let was, was != stance {
-                    turn(cell, to: card, from: standing[card.id])
-                } else {
-                    cell.card.show(card)
-                }
+                if !turning.contains(card.id) { cell.card.show(card) }
             }
 
             guard let collection = controller?.collectionView else { return }
@@ -171,6 +174,24 @@ struct LibraryList: UIViewControllerRepresentable {
             }
 
             markFloatingHeaders()
+        }
+
+        /// Turns every card whose books have changed which way they stand, and says which those were.
+        private func startTurns(to stances: [String: [String: Bool]], from standing: [String: CGFloat]) -> Set<String> {
+            guard let source else { return [] }
+
+            var started: Set<String> = []
+
+            for card in list.cards {
+                guard let was = shown[card.id], was != stances[card.id] else { continue }
+                guard let index = source.indexPath(for: .author(card.id)) else { continue }
+                guard let cell = controller?.collectionView.cellForItem(at: index) as? AuthorCardCell else { continue }
+
+                turn(cell, to: card, from: standing[card.id])
+                started.insert(card.id)
+            }
+
+            return started
         }
 
         /// Carries one card to the height its books are turning towards, and everything below it along
@@ -470,7 +491,7 @@ struct LibraryList: UIViewControllerRepresentable {
         private func dress(_ cell: AuthorCardCell, with contents: AuthorCardView.Contents) {
             cell.card.shelf.onToggle = { [weak self] in self?.list.onTurn(contents.id) }
             cell.card.shelf.onOpen = { [weak self] work, face in self?.list.onOpen(work, face) }
-            cell.card.shelf.bookMenu = { [weak self] work, face in self?.list.bookMenu(work, face) }
+            cell.card.shelf.bookMenu = { [weak self] work, hand in self?.list.bookMenu(work, hand) }
             cell.card.shelf.runMenu = { [weak self] run in self?.list.runMenu(run) }
         }
 

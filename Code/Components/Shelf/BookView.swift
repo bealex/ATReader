@@ -23,6 +23,18 @@ enum BookZoom {
     case done
 }
 
+/// A book a menu is being built for: where a screen presented from it grows out of, and a way to hold
+/// work back until that menu has closed.
+@MainActor
+struct BookInHand {
+    /// The board a zoom grows out of, asked for again at each point of the zoom.
+    let face: @MainActor @Sendable (BookZoom) -> UIView?
+    /// Runs the work once the menu has finished closing, or at once where none is open. What changes
+    /// how a book stands goes through this: UIKit puts a lifted book back where it lifted it from, over
+    /// its own time, and a shelf moving the same book in the meantime is drawing it somewhere else.
+    let settled: @MainActor @Sendable (@escaping @MainActor @Sendable () -> Void) -> Void
+}
+
 final class BookView: UIView {
     /// Everything about one place on the shelf this view has to be told.
     struct Contents {
@@ -64,6 +76,26 @@ final class BookView: UIView {
 
     var onTap: (() -> Void)?
     var menu: (() -> UIMenu?)?
+
+    /// Work held back until the menu on this book has finished closing, and how far that menu has got.
+    private var afterMenu: (() -> Void)?
+    private var menuIsUp = false
+
+    /// Puts work off until the menu on this book has gone, which is when the book is the shelf's again.
+    func whenMenuCloses(_ work: @escaping () -> Void) {
+        guard menuIsUp else { return work() }
+
+        afterMenu = work
+    }
+
+    private func menuClosed() {
+        menuIsUp = false
+
+        let work = afterMenu
+
+        afterMenu = nil
+        work?()
+    }
 
     /// The board a zoom grows out of, and what the book shows while that zoom runs.
     ///
@@ -341,7 +373,10 @@ final class BookView: UIView {
             hasArtwork: work.coverURL.flatMap(CoverImages.image(for:)) != nil
         )
 
-        guard !standing.isWanted, !edgePanel.isHidden else { return stopPrinting() }
+        // Nothing standing yet, or only the bare board: both are worth asking the press for, since the
+        // press is what fetches the cover a spine is a blur of. A book on its edge never decodes its
+        // own cover, so waiting for one to arrive by itself waits for ever.
+        guard standing.image == nil || standing.isWanted, !edgePanel.isHidden else { return stopPrinting() }
         guard printing?.order != order else { return }
 
         stopPrinting()
@@ -429,6 +464,24 @@ extension BookView: UIContextMenuInteractionDelegate {
         previewForDismissingMenuWithConfiguration configuration: UIContextMenuConfiguration
     ) -> UITargetedPreview? {
         lifted()
+    }
+
+    func contextMenuInteraction(
+        _ interaction: UIContextMenuInteraction,
+        willDisplayMenuFor configuration: UIContextMenuConfiguration,
+        animator: UIContextMenuInteractionAnimating?
+    ) {
+        menuIsUp = true
+    }
+
+    func contextMenuInteraction(
+        _ interaction: UIContextMenuInteraction,
+        willEndFor configuration: UIContextMenuConfiguration,
+        animator: UIContextMenuInteractionAnimating?
+    ) {
+        guard let animator else { return menuClosed() }
+
+        animator.addCompletion { [weak self] in self?.menuClosed() }
     }
 
     /// The book lifted on its own shape rather than on the rounded box a menu lifts anything else on,

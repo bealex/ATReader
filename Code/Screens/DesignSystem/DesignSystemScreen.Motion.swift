@@ -46,6 +46,10 @@ extension DesignSystemScreen.Component {
                     specimen("The library's own list, cards and all") {
                         DrawnLibrary()
                     }
+
+                    specimen("One book put away, which moves every book after it") {
+                        PutAwayCard()
+                    }
                 }
             }
 
@@ -221,6 +225,68 @@ private struct DrawnLibrary: View {
     }
 }
 
+/// A run long enough to wrap, with its last book standing out, and the menu that puts that one away.
+///
+/// What the library does when a reader is done with a book: the cover turns onto its edge, everything
+/// after it closes up, and whatever no longer fits a row moves to the row above.
+private struct PutAwayCard: View {
+    @State
+    private var away: Set<Int> = []
+
+    private static let width = Design.Space.unit * 106
+
+    var body: some View {
+        Card(away: away) { id, isAway in
+            if isAway { away.insert(id) } else { away.remove(id) }
+        }
+        .frame(height: AuthorCardView.height(Specimen.longCard(away: away), across: Self.width))
+        .frame(width: Self.width)
+        .accessibilityIdentifier("catalog.putaway")
+    }
+
+    /// The card itself, turned the way the list turns one: whenever a book changes which way it stands.
+    private struct Card: UIViewRepresentable {
+        let away: Set<Int>
+        let put: (Int, Bool) -> Void
+
+        func makeUIView(context: Context) -> AuthorCardView { AuthorCardView() }
+
+        func updateUIView(_ view: AuthorCardView, context: Context) {
+            let contents = Specimen.longCard(away: away)
+
+            view.shelf.bookMenu = { work, hand in Self.menu(for: work, hand: hand, put: put) }
+
+            if context.coordinator.away == away {
+                view.show(contents)
+            } else {
+                view.turn(to: contents, animated: true)
+            }
+
+            context.coordinator.away = away
+        }
+
+        func makeCoordinator() -> Holder { Holder() }
+
+        /// Which books were away when this card was last given any, so an update that changed none of
+        /// them redraws rather than starting a turn.
+        @MainActor
+        final class Holder {
+            var away: Set<Int>?
+        }
+
+        private static func menu(for work: Book, hand: BookInHand, put: @escaping (Int, Bool) -> Void) -> UIMenu {
+            UIMenu(children: [
+                UIAction(title: "Put the book away", image: UIImage(systemName: "books.vertical")) { _ in
+                    hand.settled { put(work.id, true) }
+                },
+                UIAction(title: "Take it back down", image: UIImage(systemName: "book")) { _ in
+                    hand.settled { put(work.id, false) }
+                },
+            ])
+        }
+    }
+}
+
 /// Everything the catalogue's books are. Invented, and obviously so: nothing the service returned ever
 /// goes in the repository.
 @MainActor
@@ -301,6 +367,38 @@ enum Specimen {
                 alone: [ .book(volume(5, length: 500_000), number: nil, title: "On Its Own", isShelved: true) ],
                 coverWidth: Design.Size.gridCover,
                 showsEveryCover: showsEveryCover
+            )
+        )
+    }
+
+    /// A run of fourteen, which wraps onto a second row, with one in the middle standing out.
+    ///
+    /// The middle rather than the end, because that is where putting a book away costs something: every
+    /// book after it closes up, and whatever no longer fits a row moves to the row above.
+    static let standingOut = 6
+
+    static func longCard(away: Set<Int>) -> AuthorCardView.Contents {
+        paint()
+
+        let volumes = (1 ... 14).map { number -> SeriesSlot in
+            let book = volume(number, length: 300_000 + number * 60_000)
+
+            return .book(
+                book,
+                number: number,
+                title: "Winter \(number)",
+                isShelved: number != standingOut || away.contains(number)
+            )
+        }
+
+        return AuthorCardView.Contents(
+            id: "putaway",
+            name: "Author Name",
+            shelf: ShelfView.Contents(
+                runs: [ ShelfRun(id: "one", title: "Name of the series", slots: volumes) ],
+                alone: [],
+                coverWidth: Design.Size.gridCover,
+                showsEveryCover: false
             )
         )
     }
