@@ -71,6 +71,75 @@ struct SeriesShelfTests {
         #expect(slots.contains { if case .missing(2) = $0 { true } else { false } })
     }
 
+    /// A publisher's imprint is not a run with gaps in it, so the volumes nobody holds stay off the
+    /// shelf rather than burying it.
+    @Test
+    func drawsNoGapsForAnImprintTheReaderHoldsAFewOf() {
+        let works = [ Self.book(id: 1, title: "Зимпель (Зимпель-3)"), Self.book(id: 2, title: "Зимпель (Зимпель-80)") ]
+        let group = Model.Group(
+            id: "series:Зимпель",
+            series: "Зимпель",
+            works: works,
+            updated: .now,
+            numbering: SeriesNumbering.read(works)
+        )
+        let slots = Self.model().slots(of: group)
+
+        #expect(slots.count == works.count)
+        #expect(!slots.contains { if case .missing = $0 { true } else { false } })
+    }
+
+    /// An imprint's figures number a publisher's shelf rather than a story, so no book carries one.
+    @Test
+    func printsNoVolumeFiguresForAnImprint() {
+        let works = [ Self.book(id: 1, title: "Зимпель (Зимпель-3)"), Self.book(id: 2, title: "Зимпель (Зимпель-80)") ]
+        let group = Model.Group(
+            id: "series:Зимпель",
+            series: "Зимпель",
+            works: works,
+            updated: .now,
+            numbering: SeriesNumbering.read(works)
+        )
+
+        #expect(group.rows.allSatisfy { if case .book(_, nil, _) = $0 { true } else { false } })
+    }
+
+    /// A run the reader is collecting keeps its volume figures, which is what they are for.
+    @Test
+    func printsVolumeFiguresForARun() {
+        let works = [ 1, 2, 4 ].map { Self.book(id: $0, title: "Зимпель (Зимпель-\($0))") }
+        let group = Model.Group(
+            id: "series:Зимпель",
+            series: "Зимпель",
+            works: works,
+            updated: .now,
+            numbering: SeriesNumbering.read(works)
+        )
+        let figures = group.rows.compactMap { row -> Int? in
+            guard case let .book(_, number, _) = row else { return nil }
+
+            return number
+        }
+
+        #expect(figures.sorted() == [ 1, 2, 4 ])
+    }
+
+    /// A run the reader holds most of still shows what it is missing.
+    @Test
+    func drawsGapsForARunMostlyHeld() {
+        let works = [ 1, 2, 4 ].map { Self.book(id: $0, title: "Зимпель (Зимпель-\($0))") }
+        let group = Model.Group(
+            id: "series:Зимпель",
+            series: "Зимпель",
+            works: works,
+            updated: .now,
+            numbering: SeriesNumbering.read(works)
+        )
+        let slots = Self.model().slots(of: group)
+
+        #expect(slots.contains { if case .missing(3) = $0 { true } else { false } })
+    }
+
     /// A label the service files books under is not a series unless one writer wrote them.
     ///
     /// "LitRPG" is a shelf in a shop rather than a run of books, and three writers' books under it are

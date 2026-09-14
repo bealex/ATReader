@@ -88,11 +88,33 @@ extension LibraryScreen {
                     }
                 }
 
+                let numbered = works.compactMap { volumes[$0.id] }
+
+                // An imprint's figures are catalogue positions rather than volumes: they number a
+                // publisher's whole shelf, so they name nothing the reader can follow and no run they
+                // can be missing part of.
+                guard
+                    Self.isARun(numbered)
+                else {
+                    return works.map { .book($0, number: nil, title: title(of: $0)) }
+                }
+
                 let held = works.map { SeriesRow.book($0, number: volumes[$0.id], title: title(of: $0)) }
 
                 guard isWhole, volumes.count == works.count else { return held }
 
-                return withGaps(held, numbers: works.compactMap { volumes[$0.id] })
+                return withGaps(held, numbers: numbered)
+            }
+
+            /// Whether these volumes stand close enough together to be a run the reader is collecting.
+            ///
+            /// A publisher's imprint numbers its books into the hundreds and a library holds a few of
+            /// them. A third of a run is a run with gaps in it; a tenth of one is a shop's catalogue.
+            /// Volumes rather than books, since two parts of one volume share a number.
+            static func isARun(_ numbers: [Int]) -> Bool {
+                guard let first = numbers.min(), let last = numbers.max() else { return true }
+
+                return Set(numbers).count * 3 >= last - first + 1
             }
 
             /// What a book is called on this card.
@@ -135,6 +157,8 @@ extension LibraryScreen {
             /// bracket: there is no run for a bracket to hold.
             let alone: [Group]
             let updated: Date
+            /// When this device last saw the reader in any book of theirs.
+            let lastRead: Date
 
             var id: String { "author:\(key)" }
             var works: [Book] { (runs + alone).flatMap(\.works) }
@@ -249,6 +273,15 @@ extension LibraryScreen {
             didSet {
                 refreshWriters()
                 forgetFiling()
+            }
+        }
+
+        /// When this device last saw the reader in each book, which is the order the Reading shelf
+        /// stands in. The service's own `lastReadTime` cannot do it: nothing writes back to it, so it
+        /// never moves for reading done here and an imported book has none of it at all.
+        private var readingTimes: [Int: Date] = [:] {
+            didSet {
+                if oldValue != readingTimes { forgetFiling() }
             }
         }
         private(set) var isLoading = false
@@ -405,6 +438,14 @@ extension LibraryScreen {
             if arrangedByHand, works.allSatisfy({ $0.shelfOrder != nil }) { return works.sorted(by: byChosenOrder) }
 
             let volumes = SeriesNumbering.volumes(of: works, reading: SeriesNumbering.read(works))
+
+            // An imprint's figures order a publisher's shelf rather than a story, so standing by them
+            // stands the books in no order the reader can see. Their titles are the only order left.
+            guard
+                Group.isARun(works.compactMap { volumes[$0.id] })
+            else {
+                return works.sorted { $0.title.localizedStandardCompare($1.title) == .orderedAscending }
+            }
 
             // Two parts of one volume, or two books nothing numbers, go in the order their titles put them.
             return works.sorted { left, right in
@@ -898,14 +939,28 @@ extension LibraryScreen {
                         name: name(among: held, filedUnder: key),
                         runs: held.filter { $0.series != nil }.sorted(by: Self.byUpdate),
                         alone: held.filter { $0.series == nil }.sorted(by: Self.byUpdate),
-                        updated: held.map(\.updated).max() ?? .distantPast
+                        updated: held.map(\.updated).max() ?? .distantPast,
+                        lastRead: held.flatMap(\.works).compactMap { readingTimes[$0.id] }.max() ?? .distantPast
                     )
                 }
-                .sorted { left, right in
-                    guard left.updated == right.updated else { return left.updated > right.updated }
+                .sorted(by: filter == .reading ? Self.byLastRead : Self.byName)
+        }
 
-                    return left.id.localizedStandardCompare(right.id) == .orderedAscending
-                }
+        /// Reading stands in the order the reader last had each writer open, newest first, so the book
+        /// they are in the middle of is the one at the top.
+        private static func byLastRead(_ left: AuthorShelf, _ right: AuthorShelf) -> Bool {
+            guard left.lastRead == right.lastRead else { return left.lastRead > right.lastRead }
+
+            return byName(left, right)
+        }
+
+        /// All books stands by name, which is what a reader looking through everything is looking for.
+        private static func byName(_ left: AuthorShelf, _ right: AuthorShelf) -> Bool {
+            let order = left.name.localizedStandardCompare(right.name)
+
+            guard order != .orderedSame else { return left.id < right.id }
+
+            return order == .orderedAscending
         }
 
         /// Every card a group stands on, and what of it stands there.
@@ -1169,6 +1224,7 @@ extension LibraryScreen {
             let stored = await store.books()
 
             await readTextHashes()
+            readingTimes = await store.readingTimes()
             // Which series the reader put together, read back with everything else: filing one is
             // what decides whether a card is theirs to order, and it can be filed from the series'
             // own screen while the shelf stands behind it.
@@ -1229,6 +1285,7 @@ extension LibraryScreen {
             let stored = await store.books()
 
             await readTextHashes()
+            readingTimes = await store.readingTimes()
 
             guard !stored.isEmpty, works.isEmpty else { return }
 
@@ -1330,6 +1387,7 @@ extension LibraryScreen {
                 let merged = await store.books()
 
                 await readTextHashes()
+                readingTimes = await store.readingTimes()
                 apply(entries: merged.isEmpty ? entries : merged)
                 isOffline = false
                 hasLoaded = true

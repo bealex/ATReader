@@ -135,6 +135,18 @@ A cut-down card draws no gaps. Every book it dropped would otherwise come straig
 shelf says it hasn't got, which is the opposite of hiding them, so `Group.isWhole` is false on such a
 card and the missing volumes are left out.
 
+Neither does a run the reader holds less than a third of, and nor does it carry volume figures.
+`Group.isARun` is that one test: a publisher's imprint numbers its books into the hundreds and a library
+holds a few of them, so its figures are catalogue positions rather than volumes. They name nothing the
+reader can follow and no run they can be missing part of, so an imprint shows no gaps, no figures, and
+stands by its titles instead of by numbers nobody can see. A third of a run is a run with gaps in it,
+and less is a shop's catalogue.
+
+Across the numbered series in one real library, all but one are held nine tenths entire or better and
+the odd one out is held a tenth, so nothing sits near the line. A third rather than a half because the
+measurement could not separate them and a test could: `LibraryFilterTests` holds two volumes of a
+five-wide run, which is a reader missing three books rather than an imprint.
+
 All books stands the hiding aside and the switch is offered disabled there: that filter is where a
 reader goes to find whatever the shelf is not showing. A search stands it aside for the same reason.
 
@@ -169,8 +181,18 @@ first book goes to every card whole, and so does a series the reader put togethe
 writers' runs. Otherwise the shared books stand on the co-author's card on their own, since a run
 missing the lead writer's volumes would show them as gaps.
 
-The newest book comes first, by the service's own update time. Reading a book isn't a change to it, so
-the list holds still while the reader reads, and books the service dates identically keep a fixed order.
+Inside a card the newest book comes first, by the service's own update time. Reading a book isn't a
+change to it, so a card holds still while the reader reads, and books the service dates identically keep
+a fixed order.
+
+The cards themselves stand differently under each filter, because the two filters answer different
+questions. All books is where a reader goes to look someone up, so it stands by the name on the card.
+Reading is where they go to carry on, so it stands by when this device last saw them in a book of that
+writer's, newest first, and a writer nothing has been read of stands after the ones that have been.
+
+That time is `reading_position.updated_at`, read in bulk by `SQLiteBookStore.readingTimes()`. The
+service's own `lastReadTime` can't answer it: nothing is ever written back to the service, so it doesn't
+move for reading done here, and a book from a file has none of it at all.
 
 Inside a series a book is called by its title with the series' name and index taken off
 (`SeriesNumbering.title`):
