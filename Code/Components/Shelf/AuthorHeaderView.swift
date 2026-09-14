@@ -22,6 +22,17 @@ final class AuthorHeaderView: UICollectionReusableView {
         }
     }
 
+    /// How far off the trailing side this header has gone, with its author's card. Clipped while it
+    /// goes, since the section shrinks under it and the name would otherwise run over the next card.
+    var aside: CGFloat = 0 {
+        didSet {
+            guard oldValue != aside else { return }
+
+            clipsToBounds = aside > 0
+            setNeedsLayout()
+        }
+    }
+
     private let edgeEffect = UIScrollEdgeElementContainerInteraction()
     private let name = UILabel()
     /// The whole header is the control, so the chevron is only its picture, turned about its own middle.
@@ -88,16 +99,20 @@ final class AuthorHeaderView: UICollectionReusableView {
         let edge = Design.Space.extraLarge
         let line = Self.lineHeight
         let glyph = chevron.isHidden ? .zero : chevron.intrinsicContentSize
+        let trailing: CGFloat = effectiveUserInterfaceLayoutDirection == .rightToLeft ? -1 : 1
+        let goes = trailing * aside * bounds.width
 
         // Bounds and centre rather than a frame, which means nothing once the chevron is turned.
         chevron.bounds = CGRect(origin: .zero, size: glyph)
-        chevron.center = CGPoint(x: bounds.width - edge - glyph.width / 2, y: Self.above + line / 2)
+        chevron.center = CGPoint(x: bounds.width - edge - glyph.width / 2 + goes, y: Self.above + line / 2)
         name.frame = CGRect(
-            x: edge,
+            x: edge + goes,
             y: Self.above,
             width: max(0, bounds.width - edge * 2 - glyph.width - Design.Space.medium),
             height: line
         )
+        name.alpha = 1 - aside
+        chevron.alpha = 1 - aside
     }
 
     override func accessibilityActivate() -> Bool {
@@ -111,6 +126,7 @@ final class AuthorHeaderView: UICollectionReusableView {
         super.prepareForReuse()
 
         isFloating = false
+        aside = 0
     }
 
     /// How tall the header stands at the reader's type size: the room above the name, its one line, and

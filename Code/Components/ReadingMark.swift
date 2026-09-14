@@ -28,9 +28,14 @@ struct ReadingMark: Hashable {
 
     /// The mark for this book, or nothing where it carries none. `showsProgress` off leaves only what
     /// the book says about itself, for a list where the reader's own progress isn't the point.
-    init?(_ work: Book, showsProgress: Bool = true, at now: Date = .now) {
+    ///
+    /// - Parameter isFresh: whether chapters have arrived that the reader hasn't read. A book cannot
+    ///   know this of itself, so whoever draws it is told.
+    init?(_ work: Book, showsProgress: Bool = true, isFresh: Bool = false, at now: Date = .now) {
         let progress = showsProgress ? min(1, max(0, work.readingProgress ?? 0)) : 0
-        let isReadToTheEnd = showsProgress && work.isReadToTheEnd
+        // A chapter nobody has read leaves the book part read, whatever the service says: it files a
+        // book as finished and doesn't unfile it when the author writes again.
+        let isReadToTheEnd = showsProgress && work.isReadToTheEnd && !isFresh
 
         if progress > 0, !isReadToTheEnd {
             self.init(kind: .reading, reached: progress)

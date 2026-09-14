@@ -21,6 +21,25 @@ final class AuthorCardView: UIView {
 
     let shelf = ShelfView()
 
+    /// How far the books on this card have gone, for a bookcase shutting over them.
+    var emptied: CGFloat = 0 {
+        didSet {
+            guard oldValue != emptied else { return }
+
+            shelf.shown = 1 - emptied
+        }
+    }
+
+    /// How far off the trailing side this card has gone, fading as it goes. Its own edge clips it, so a
+    /// card leaving never draws over the ones closing up around it.
+    var aside: CGFloat = 0 {
+        didSet {
+            guard oldValue != aside else { return }
+
+            setNeedsLayout()
+        }
+    }
+
     /// Called on every frame of a turn, for whatever has to follow the card as it changes height.
     var onFrame: (() -> Void)? {
         get { shelf.onFrame }
@@ -59,6 +78,10 @@ final class AuthorCardView: UIView {
         self.contents = contents
 
         shelf.show(contents.shelf)
+        // A card that came back while it was leaving stands as it stood, rather than where its
+        // departure had carried it to.
+        emptied = 0
+        aside = 0
         setNeedsLayout()
     }
 
@@ -73,7 +96,10 @@ final class AuthorCardView: UIView {
     override func layoutSubviews() {
         super.layoutSubviews()
 
-        shelf.frame = bounds
+        let trailing: CGFloat = effectiveUserInterfaceLayoutDirection == .rightToLeft ? -1 : 1
+
+        shelf.frame = bounds.offsetBy(dx: trailing * aside * bounds.width, dy: 0)
+        shelf.alpha = 1 - aside
     }
 
     /// How tall this card comes out, which the list has to know before the card exists.

@@ -66,7 +66,12 @@ final class BookcaseView: UIView {
 
         let isDark = traitCollection.userInterfaceStyle == .dark
         let step = ShelfLayout.step(slot: slot)
-        let count = max(0, Int(((bounds.height - ShelfLayout.lid) / step).rounded(.up)))
+        let inside = max(0, bounds.height - ShelfLayout.lid)
+        let whole = Int(inside / step)
+        // What is left over for a row that doesn't fit, which is every row of a shelf part way through
+        // changing height.
+        let rest = inside - CGFloat(whole) * step
+        let count = whole + (rest > 0 ? 1 : 0)
 
         while rows.count < count {
             let row = CALayer()
@@ -93,7 +98,20 @@ final class BookcaseView: UIView {
 
             if row.contents == nil { hang(BookcasePrint.row(slot: slot, isDark: isDark), on: row) }
 
-            row.frame = CGRect(x: 0, y: ShelfLayout.lid + CGFloat(index) * step, width: bounds.width, height: step)
+            // A row cut short shows the foot of its picture rather than the head of it, so a shelf
+            // closing shuts onto the board across it instead of being sliced through its plank.
+            let short = rest > 0 && index == whole
+            // `contentsRect` counts in fractions of the picture, where one is the whole of it.
+            let all: CGFloat = 1
+            let shows = short ? rest / step : all
+
+            row.frame = CGRect(
+                x: 0,
+                y: ShelfLayout.lid + CGFloat(index) * step,
+                width: bounds.width,
+                height: short ? rest : step
+            )
+            row.contentsRect = CGRect(x: 0, y: all - shows, width: all, height: shows)
         }
 
         place(corners)

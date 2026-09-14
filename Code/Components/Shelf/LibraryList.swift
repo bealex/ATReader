@@ -65,6 +65,9 @@ struct LibraryList: UIViewControllerRepresentable {
         private var shown: [String: [String: Bool]] = [:]
         /// The card in the middle of a turn, and the two heights it is travelling between.
         private var carrying: Carrying?
+        /// The cards on their way off the list, which stand where they stood until they have gone.
+        private var leaving: [Leaving] = []
+        private var link: CADisplayLink?
         /// A refresh that finished while the finger was still pulling, left to end once it lets go.
         private var endsRefreshingOnRelease = false
         /// How tall each card stands across the width it was measured at, and the shape of the shelf it
@@ -83,6 +86,43 @@ struct LibraryList: UIViewControllerRepresentable {
 
             @MainActor
             var reached: CGFloat { card?.reached ?? 1 }
+        }
+
+        /// A card on its way off the list: which card, where it stood, how tall it stood, and when it
+        /// set off.
+        ///
+        /// Its bookcase shuts over its books first, and the shut case then goes off the trailing side
+        /// while the cards around it close up over the room it had.
+        private struct Leaving {
+            let card: AuthorCardView.Contents
+            let at: Int
+            let from: CGFloat
+            let started: CFTimeInterval
+
+            var id: String { card.id }
+
+            /// How far through leaving it is.
+            var ran: CGFloat { min(1, max(0, CGFloat((CACurrentMediaTime() - started) / LeaveMotion.seconds))) }
+
+            /// How far the bookcase has shut.
+            var shut: CGFloat { Easing.settling(min(1, ran / LeaveMotion.shutting)) }
+
+            /// How far the shut case has gone, which is nowhere until it is shut.
+            var gone: CGFloat {
+                guard ran > LeaveMotion.shutting else { return 0 }
+
+                return Easing.settling((ran - LeaveMotion.shutting) / (1 - LeaveMotion.shutting))
+            }
+
+            /// How far the books have gone, which is done before the case is shut over them.
+            var emptied: CGFloat { min(1, shut / LeaveMotion.emptying) }
+
+            /// How tall the card stands at this point: the case shutting onto its own board, then that
+            /// board going with it.
+            var height: CGFloat { (from + (Self.closed - from) * shut) * (1 - gone) }
+
+            /// A shut bookcase, which is the board across its top standing on the plank at its foot.
+            private static var closed: CGFloat { ShelfLayout.lid + ShelfLayout.plank }
         }
 
         /// How many books the shelf makes before anyone scrolls: a few screens' worth of cards.
@@ -133,7 +173,14 @@ struct LibraryList: UIViewControllerRepresentable {
                 $0[$1.id] = ShelfView.stance(of: $1.shelf)
             }
 
+            // Set off before the list forgets the card, since where it stood and how tall it stood are
+            // both about to be replaced.
+            leaving += departures(to: list.cards, standing: standing)
+
             self.list = list
+
+            // A card that has come back is not leaving, and the list may hold no card twice.
+            leaving.removeAll { departure in list.cards.contains { $0.id == departure.id } }
             measure(across: cardWidth)
 
             // Started before the snapshot is applied. Applying lays the list out, and a card with
@@ -145,6 +192,7 @@ struct LibraryList: UIViewControllerRepresentable {
 
             apply(animated: false)
             press()
+            follow()
 
             guard let source else { return }
 
@@ -194,6 +242,78 @@ struct LibraryList: UIViewControllerRepresentable {
             return started
         }
 
+        /// The card leaving the list, where one has gone and nothing else has changed.
+        ///
+        /// A search or a filter that replaces the whole list is not a departure: a card animated off one
+        /// list stands over the list that took its place.
+        private func departures(to cards: [AuthorCardView.Contents], standing: [String: CGFloat]) -> [Leaving] {
+            let staying = Set(cards.map(\.id))
+            let gone = list.cards.enumerated().filter { !staying.contains($0.element.id) }
+
+            guard gone.count == 1, cards.count == list.cards.count - 1 else { return [] }
+
+            return gone.map {
+                Leaving(
+                    card: $0.element,
+                    at: $0.offset,
+                    from: standing[$0.element.id] ?? 0,
+                    started: CACurrentMediaTime()
+                )
+            }
+        }
+
+        /// Runs the clock a departure is read off, which is its own: the height of a card leaving is
+        /// asked for in the middle of a layout, the same as the height of one turning. Stops it once
+        /// there is nothing left to carry off.
+        private func follow() {
+            guard !leaving.isEmpty else { return land() }
+            guard link == nil else { return }
+
+            link = CADisplayLink(target: self, selector: #selector(stepped))
+            link?.add(to: .main, forMode: .common)
+        }
+
+        private func land() {
+            link?.invalidate()
+            link = nil
+        }
+
+        @objc
+        private func stepped() {
+            controller?.collectionView.collectionViewLayout.invalidateLayout()
+
+            for departure in leaving { leave(departure) }
+
+            leaving.removeAll { $0.ran >= 1 }
+
+            guard leaving.isEmpty else { return }
+
+            land()
+            // Only now is the card taken out of the list, the room it stood in having already closed.
+            apply(animated: false)
+        }
+
+        /// A card and the name over it, as far through leaving as the clock says. Neither is there to
+        /// be moved once it has shrunk out of sight, which is no reason to stop the clock.
+        private func leave(_ departure: Leaving) {
+            guard
+                let collection = controller?.collectionView,
+                let index = source?.indexPath(for: .author(departure.id))
+            else { return }
+
+            if let cell = collection.cellForItem(at: index) as? AuthorCardCell {
+                cell.card.emptied = departure.emptied
+                cell.card.aside = departure.gone
+            }
+
+            let header = collection.supplementaryView(
+                forElementKind: UICollectionView.elementKindSectionHeader,
+                at: IndexPath(item: 0, section: index.section)
+            )
+
+            (header as? AuthorHeaderView)?.aside = departure.gone
+        }
+
         /// Carries one card to the height its books are turning towards, and everything below it along
         /// with it, on the turn's own clock.
         ///
@@ -224,6 +344,18 @@ struct LibraryList: UIViewControllerRepresentable {
             (controller?.collectionView.bounds.width ?? 0) - Design.Space.extraLarge * 2
         }
 
+        /// Every card the list draws: the ones it holds, and the ones still leaving it, each standing
+        /// where it stood.
+        private var showing: [AuthorCardView.Contents] {
+            guard !leaving.isEmpty else { return list.cards }
+
+            return leaving.reduce(into: list.cards) { cards, leaving in
+                cards.insert(leaving.card, at: min(leaving.at, cards.count))
+            }
+        }
+
+        private func contents(of id: String) -> AuthorCardView.Contents? { showing.first { $0.id == id } }
+
         /// What every card on the list stands at, for whoever needs them before they change.
         private func heights(across: CGFloat) -> [String: CGFloat] {
             list.cards.reduce(into: [:]) { heights, card in
@@ -234,6 +366,8 @@ struct LibraryList: UIViewControllerRepresentable {
         /// What a card stands at across the width it is given, which is its own height except while it
         /// is turning, when it is somewhere between the two.
         private func height(of id: String, across: CGFloat) -> CGFloat? {
+            if let leaving = leaving.first(where: { $0.id == id }) { return leaving.height }
+
             if let carrying, carrying.id == id {
                 return carrying.from + (carrying.onto - carrying.from) * carrying.reached
             }
@@ -359,7 +493,7 @@ struct LibraryList: UIViewControllerRepresentable {
             paths.compactMap { path in
                 guard case let .author(id) = source?.sectionIdentifier(for: path.section) else { return nil }
 
-                return list.cards.first { $0.id == id }
+                return contents(of: id)
             }
         }
 
@@ -387,14 +521,20 @@ struct LibraryList: UIViewControllerRepresentable {
                         let deep = height(of: id, across: across)
                     else { return Self.section(height: .estimated(Design.Size.touch)) }
 
+                    // A card going takes the name over it and the room under it along, so what closes
+                    // up over it is everything it had rather than the card alone.
+                    let going = leaving.first { $0.id == id }?.gone ?? 0
                     // Given rather than measured. A cell that answers with its own height sends the
                     // layout round again to ask, and a height that is moving never gives the same
                     // answer twice: the collection view goes round until it trips over itself.
-                    let section = Self.section(height: .absolute(max(1, deep)))
+                    let section = Self.section(
+                        height: .absolute(max(1, deep)),
+                        under: Design.Space.extraLarge * (1 - going)
+                    )
                     let header = NSCollectionLayoutBoundarySupplementaryItem(
                         layoutSize: NSCollectionLayoutSize(
                             widthDimension: .fractionalWidth(1),
-                            heightDimension: .absolute(AuthorHeaderView.height)
+                            heightDimension: .absolute(max(1, AuthorHeaderView.height * (1 - going)))
                         ),
                         elementKind: UICollectionView.elementKindSectionHeader,
                         alignment: .top
@@ -410,7 +550,10 @@ struct LibraryList: UIViewControllerRepresentable {
 
         /// A section of one item, inset from the list's sides by the item rather than the section, so a
         /// pinned header can run the whole width and cover the books passing under it.
-        private static func section(height: NSCollectionLayoutDimension) -> NSCollectionLayoutSection {
+        private static func section(
+            height: NSCollectionLayoutDimension,
+            under: CGFloat = Design.Space.extraLarge
+        ) -> NSCollectionLayoutSection {
             let size = NSCollectionLayoutSize(widthDimension: .fractionalWidth(1), heightDimension: height)
             let item = NSCollectionLayoutItem(layoutSize: size)
 
@@ -425,12 +568,7 @@ struct LibraryList: UIViewControllerRepresentable {
                 group: NSCollectionLayoutGroup.horizontal(layoutSize: size, subitems: [ item ])
             )
 
-            section.contentInsets = NSDirectionalEdgeInsets(
-                top: 0,
-                leading: 0,
-                bottom: Design.Space.extraLarge,
-                trailing: 0
-            )
+            section.contentInsets = NSDirectionalEdgeInsets(top: 0, leading: 0, bottom: under, trailing: 0)
 
             return section
         }
@@ -450,7 +588,7 @@ struct LibraryList: UIViewControllerRepresentable {
             }
 
             let card = UICollectionView.CellRegistration<AuthorCardCell, String> { [weak self] cell, _, id in
-                guard let self, let contents = list.cards.first(where: { $0.id == id }) else { return }
+                guard let self, let contents = contents(of: id) else { return }
 
                 dress(cell, with: contents)
                 cell.card.show(contents)
@@ -463,7 +601,7 @@ struct LibraryList: UIViewControllerRepresentable {
                 guard
                     let self,
                     case let .author(id) = source?.sectionIdentifier(for: index.section),
-                    let contents = list.cards.first(where: { $0.id == id })
+                    let contents = contents(of: id)
                 else { return }
 
                 dress(header, with: contents, animated: false)
@@ -510,12 +648,13 @@ struct LibraryList: UIViewControllerRepresentable {
             guard let source else { return }
 
             var snapshot = NSDiffableDataSourceSnapshot<Section, Section>()
+            let cards = showing
 
-            if list.cards.isEmpty {
+            if cards.isEmpty {
                 snapshot.appendSections([ .empty ])
                 snapshot.appendItems([ .empty ], toSection: .empty)
             } else {
-                for card in list.cards {
+                for card in cards {
                     snapshot.appendSections([ .author(card.id) ])
                     snapshot.appendItems([ .author(card.id) ], toSection: .author(card.id))
                 }
@@ -540,4 +679,11 @@ final class AuthorCardCell: UICollectionViewCell {
 
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+    override func prepareForReuse() {
+        super.prepareForReuse()
+
+        card.emptied = 0
+        card.aside = 0
+    }
 }

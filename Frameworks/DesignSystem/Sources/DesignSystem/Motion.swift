@@ -33,3 +33,24 @@ public enum FoldMotion {
 public enum ArrivalMotion {
     public static var fadeSeconds: Double { 0.18 * MotionScale.factor }
 }
+
+/// How a card leaves the list: its bookcase shuts over the books, then the shut case goes.
+public enum LeaveMotion {
+    public static var seconds: Double { 1.1 * MotionScale.factor }
+
+    /// How much of that the case spends shutting, the rest of it spent going.
+    public static let shutting: CGFloat = 0.6
+
+    /// How much of the shutting the books take to go, so the case closes on an empty shelf.
+    public static let emptying: CGFloat = 0.5
+}
+
+/// How a run from nought to one is eased, for what is animated against a clock rather than by an animator.
+public enum Easing {
+    /// A critically damped spring, normalised so it arrives exactly.
+    public static func settling(_ ran: CGFloat) -> CGFloat {
+        let shape = { (time: CGFloat) in 1 - (1 + 8 * time) * exp(-8 * time) }
+
+        return shape(ran) / shape(1)
+    }
+}

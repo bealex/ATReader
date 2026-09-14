@@ -22,6 +22,9 @@ final class ShelfView: UIView {
         let coverWidth: CGFloat
         /// True while every book stands as a cover, false while the ones read stand as spines.
         let showsEveryCover: Bool
+        /// The books with chapters in them the reader hasn't read. A book cannot know this of itself,
+        /// so the shelf is told which of them stand out.
+        var fresh: Set<Int> = []
 
         /// Whether there is anything to turn round: a shelf with no book standing on its edge looks the
         /// same either way, so nothing offers to turn it.
@@ -74,6 +77,16 @@ final class ShelfView: UIView {
     /// Asks again for the pictures given up while the shelf was off the screen.
     func resumeLoading() {
         for book in books.values { book.resumeLoading() }
+    }
+
+    /// How plainly the books stand, for a shelf whose bookcase is shutting over them. The bookcase
+    /// behind them keeps its own.
+    var shown: CGFloat = 1 {
+        didSet {
+            guard oldValue != shown else { return }
+
+            stand()
+        }
     }
 
     /// How far round each book on the shelf stands, which is what a turn moves.
@@ -220,14 +233,7 @@ final class ShelfView: UIView {
 
         let ran = (CACurrentMediaTime() - turning.started) / FoldMotion.turningSeconds
 
-        return Self.settling(min(1, max(0, ran)))
-    }
-
-    /// A critically damped spring, normalised so it arrives exactly.
-    private static func settling(_ ran: CGFloat) -> CGFloat {
-        let shape = { (time: CGFloat) in 1 - (1 + 8 * time) * exp(-8 * time) }
-
-        return shape(ran) / shape(1)
+        return Easing.settling(min(1, max(0, ran)))
     }
 
     override func layoutSubviews() {
@@ -477,9 +483,11 @@ final class ShelfView: UIView {
     private static func stands(_ slot: SeriesSlot, in contents: Contents) -> BookView.Contents.Stands {
         switch slot {
             case let .book(work, number, title, _):
-                .book(work, number: number, title: title, marks: CoverView.Marks(reading: ReadingMark(work)))
+                let mark = ReadingMark(work, isFresh: contents.fresh.contains(work.id))
+
+                return .book(work, number: number, title: title, marks: CoverView.Marks(reading: mark))
             case let .missing(number):
-                .gap(number)
+                return .gap(number)
         }
     }
 
@@ -575,7 +583,7 @@ final class ShelfView: UIView {
 
             books[placed.id]?.frame = frame
             // One that crossed stands where it is going from the first frame and comes in there.
-            books[placed.id]?.alpha = crossed ? reached : 1
+            books[placed.id]?.alpha = (crossed ? reached : 1) * shown
         }
 
         for bracket in layout.brackets {
@@ -583,6 +591,7 @@ final class ShelfView: UIView {
             let frame = bracket.frame.offsetBy(dx: Self.inset, dy: 0)
 
             brackets[bracket.id]?.frame = was.map { $0.carried(to: frame, at: reached) } ?? frame
+            brackets[bracket.id]?.alpha = shown
         }
 
         // As deep as the shelf stands at this point in the turn, which is what the rows are drawn down.
