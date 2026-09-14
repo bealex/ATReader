@@ -241,9 +241,19 @@ that: a book with nothing read against it is not being read, so the shelf drew a
 finished either, so Reading kept the card. `isShelved` is that rule plus "nothing new has arrived in
 it", which a book on its own cannot know.
 
-Read to its end is what the reader said rather than what the characters add up to: a book on the
-Finished shelf is finished whatever its progress. The progress is worked out again from where the
-reader stands and can be lost; the shelf cannot. The store dates those days in `read_at` and `taken_down_at`. The first library a
+Read to its end has two ways of being true and no third: the reader was shown the last page, or they
+filed the book as finished themselves. Only the last page of the last chapter comes to a whole one, and
+nothing short of a whole counts, since the last hundredth of a long book is a chapter of a short one
+and a threshold there reads a book the author has just added to as one the reader is done with. The
+shelf is what they said and outranks the count, which is worked out again from where they stand and can
+be lost, but only a shelf that can be true. Finished is the reader's word for being done, and it cannot
+hold while the author is still writing: the store puts a book arriving that way back on Reading, a
+chapter published after the filing takes it off Finished, and `markAsRead` files a book that way only
+where its author has finished it. The service takes that filing once and never revises it, so without
+those three a book the reader caught up with months ago reads as finished for good. `SQLiteBookStore.recomputeProgress` leaves a book already read to its end alone until
+something is published past where the reader stopped, because the position it derives from is the head
+of the page they are on and never the foot of the chapter. The store dates those days in `read_at` and
+`taken_down_at`. The first library a
 device loads arrives undated, or all of it would stand out at once, and a Litres book that arrives read
 isn't dated as read. A book changing stance turns on its own hinge, the way a whole card does, and one
 that leaves a card fades where it stood while the rest close up.
@@ -283,8 +293,11 @@ Where the reader is in a book is a line along the top of its cover and a bookmar
 `ReadingMark` decides which, `BookmarkMark` draws it. Part read, the line runs as far as they've got and
 a red bookmark carries the percentage. A book still being written gets a grey bookmark with a pencil,
 at the start before it's opened and at the end once it's caught up, and a finished book read in the
-last day gets a green one with a tick. Anything else carries none. The line runs from the cover's own
-edge and is cut with the board, so it rounds where the board rounds. The line and the bookmark are one
+last day gets a green one with a tick. A chapter nobody has read leaves a book part read whatever the
+service says, so a book the reader was caught up with goes back to its percentage the moment the author
+writes past it: a pencil there says they're waiting on a chapter that has already landed. Anything else
+carries none. The line runs from the cover's own edge and is cut with
+the board, so it rounds where the board rounds. The line and the bookmark are one
 shape, with a white line of shade run round the whole of it, which lifts it off the artwork; the
 binding's own shadow falls across all three. A cover carries no other mark.
 
@@ -312,6 +325,22 @@ a crash: the card answers from the turn's clock, that disagrees with the layout,
 and asks again, and the clock has moved by then. It never settles, and the collection view trips over
 itself a dozen passes down. Heights are `.absolute`, `AuthorCardView.height(across:)` interpolates
 between where the card was and where it is going, and the turn's clock invalidates the layout each frame.
+
+Whether anything new has arrived in a book is the library's to say, not the book's, so the count rides
+in: `ShelfView.Contents.fresh` holds the ids for a card, and `BookRow` passes the same count it badges.
+
+**A card leaves in two movements.** An author's card goes when the last book of theirs is put away, and
+one that vanished between two frames read as a glitch. Its bookcase shuts first, the books fading as the
+space between the board across its top and the plank at its foot closes, and the shut case then slides
+off the trailing side while the name over it and the room under it close up with it. Both movements are
+the height carry the turn already uses, run down to nothing: the card keeps its place in the snapshot
+until it has gone, and only then is it taken out. One card leaving and nothing arriving is a departure;
+a search or a filter that replaces the list is not, because a card animated off one list stands over the
+list that took its place.
+
+A bookcase's rows are drawn from its top down, and the row cut short at the bottom is cut through the
+top of its inside rather than through its plank, so a shelf part way through changing height is a case
+with a floor under it rather than one sliced through, which is what lets a card shut onto its own board.
 
 **The turn is started before the snapshot is applied.** Applying lays the whole list out, and in that
 one pass a card with nothing yet carrying it is given the height it is going to. Everything afterwards
@@ -542,6 +571,15 @@ bodies, chapter text the typesetter has already been through, and the reading po
 
 One thing in it isn't: a book imported from a file is here and nowhere else. See
 [LocalBooks.md](LocalBooks.md).
+
+How much room books take is measured as room rather than as content. `DiskSpace.taken(by:)` reads the
+blocks a file is given, which is what the device counts against its free space, and never reports less
+than the bytes the file holds, since one kept in the cloud and not downloaded here is allocated nothing
+and is still that big. Profile's Books row is the library file, the covers printed off it and everything
+an imported book brought, and the backup's row is the same measure over the folder. `LENGTH` over a text
+column is what these must not use: SQLite counts characters there, so a library of Russian books came
+out at half its size, and the pages a cleared-out book leaves behind belong to the file until
+`clearDownloads` vacuums them away.
 
 Reading positions live here and nowhere else. The service accepts `reader/update-progress` and stores
 nothing (see [API.md](API.md)), so the character offset the store keeps is the only position that

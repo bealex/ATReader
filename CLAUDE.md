@@ -45,9 +45,11 @@ its own.
 - `Scripts/app.sh build` compiles. Add `-d` for hardware and `--release` for the Release configuration;
   both default to a simulator in Debug.
 - `Scripts/app.sh deploy` builds, installs and launches on a simulator or a device.
-- `Scripts/app.sh test` runs the package unit tests and the app UI tests. `--unit` and `--ui` pick one,
-  `--only SPEC` runs a single target or suite, and `--build-only` with `--no-build` splits building the
-  tests from running them.
+- `Scripts/app.sh test` runs the package unit tests and everything in the Xcode project. `--unit` and
+  `--ui` pick one, `--only SPEC` runs a single target or suite, and `--build-only` with `--no-build`
+  splits building the tests from running them. **`--unit` is the packages alone.** The app's own unit
+  tests are a target in the project, so `BookholdTests` runs under `--ui`, and `--only BookholdTests`
+  is how to run them without waiting out the UI suite.
 - `Scripts/app.sh clean` removes `build/`.
 
 **Run the tests in the background and keep working.** A suite takes minutes, so start it in the
@@ -171,6 +173,12 @@ licensing rather than secrecy. An unconfigured build must keep working for every
   the layout is told it as `.absolute`, and the turn's clock invalidates the layout each frame. Asking
   the cell instead, through self-sizing, crashes: the answer comes from a running clock, so it differs
   every time the layout asks, and the collection view recurses until it trips its own assertion.
+- **A collection view puts its layout attributes back on every pass.** A transform or an alpha set on a
+  cell or a supplementary view is wiped the next time the layout runs, and a card changing height runs
+  it every frame. Anything moved on a clock has to be moved inside the cell's own view.
+- **`LENGTH` over a SQLite text column counts characters.** A library of Russian books measured that way
+  comes out at half its size, Cyrillic being two bytes a character in UTF-8. `LENGTH(CAST(x AS BLOB))`
+  counts bytes, and `DiskSpace.taken(by:)` is what answers how much room anything takes.
 - **A model a view holds compares every field.** SwiftUI decides whether to redraw a row by comparing
   the values its view stores, so an id-only `==` on `WorkSummary` or `WorkMetaInfo` tells it a book is
   unchanged when its progress, badges and dates have all moved, and the row keeps yesterday's copy for
