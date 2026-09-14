@@ -47,8 +47,11 @@ enum WorkScreen {
         private var cover = CoverAnchor()
 
         /// How much of the screen the cover stands across. A share rather than a size: a book's page
-        /// opens on its cover, and the cover is as large as the screen allows.
+        /// opens on its cover, and the cover is as large as the screen allows, up to a size past which
+        /// the page holds nothing else.
         private static let coverShare: CGFloat = 0.3
+
+        private var coverWidth: CGFloat { min(across * Self.coverShare, Design.Size.pageCover) }
 
         var body: some View {
             ScrollView {
@@ -154,7 +157,7 @@ enum WorkScreen {
             VStack(spacing: Design.Space.extraLarge) {
                 CoverImage(
                     url: work.coverURL,
-                    width: across * Self.coverShare,
+                    width: coverWidth,
                     reading: ReadingMark(work, isFresh: UpdateBadge.newChapters(for: work.id) > 0),
                     anchor: cover
                 )

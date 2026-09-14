@@ -57,7 +57,7 @@ final class LoginUITests: XCTestCase {
         signIn(login: login, password: password)
 
         let codeField = app.textFields["login.code"]
-        let libraryTab = app.tabBars.buttons["Library"]
+        let libraryTab = app.tab("Library")
 
         // The account either signs straight in or asks for a second factor.
         let reachedEither = codeField.waitForExistence(timeout: 40) || libraryTab.waitForExistence(timeout: 5)

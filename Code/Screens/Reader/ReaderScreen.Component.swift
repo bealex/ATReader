@@ -44,7 +44,7 @@ enum ReaderScreen {
         #endif
 
         @State
-        private var pageSize: CGSize = .zero
+        private var sheetSize: CGSize = .zero
 
         /// The notch and home-indicator bands, taken from the window rather than the layout: a toolbar
         /// coming and going would otherwise re-paginate the chapter.
@@ -112,15 +112,9 @@ enum ReaderScreen {
                     isVisible: false
                 )
                 .statusBarHidden(isChromeHidden)
-                .sheet(isPresented: $isShowingSettings) { SettingsSheet() }
                 #if DEBUG
                     .sheet(item: $report) { ShareSheet(url: $0.url) }
                 #endif
-                .sheet(isPresented: $isShowingContents) {
-                    if let model {
-                        ContentsSheet(model: model, isPresented: $isShowingContents)
-                    }
-                }
                 // Written as the book starts closing rather than once it has closed: the shelf draws
                 // the mark on a cover from the store and the zoom photographs that cover on its way in.
                 .onAppear {
@@ -205,14 +199,14 @@ enum ReaderScreen {
             let value = model.wrappedValue
 
             PageTurnView(
-                pageCount: value.pageCount,
-                index: model.currentPage,
+                pageCount: value.sheetCount,
+                index: model.currentSheet,
                 hasPageBefore: value.hasPageBefore,
                 hasPageAfter: value.hasPageAfter,
                 onPastEnd: value.goToNextChapter,
                 onPastStart: value.goToPreviousChapter,
                 onPageTap: { point in follow(point, in: value) },
-                onPickOut: { start, finish in value.pickOut(from: start, to: finish) },
+                onPickOut: { start, finish in pickOut(from: start, to: finish, in: value) },
                 onPickedOut: { withAnimation(CalloutMotion.showing) { picked = value.picked } },
                 isCovered: value.picked != nil || note != nil,
                 onMiddleTap: toggleChrome,
@@ -222,13 +216,13 @@ enum ReaderScreen {
                 },
                 readsRightToLeft: value.readsRightToLeft,
                 advancesOnLeftTap: settings.advancesOnLeftTap,
-                page: { index in pageContent(value, at: index) }
+                page: { sheet in sheetContent(value, at: sheet) }
             )
             .accessibilityIdentifier("reader.page")
             .ignoresSafeArea()
             // Over the page and in its coordinates, so the controls and the running head are placed
             // from the same edge of the screen.
-            .overlay(alignment: .top) { controls }
+            .overlay(alignment: band.alignment) { controls }
             // In the page's own coordinates, so it stands clear of the corner whatever the page does
             // with the safe area.
             .overlay(alignment: .bottomLeading) { wayBack(model.wrappedValue) }
@@ -252,7 +246,9 @@ enum ReaderScreen {
             // The window, not the layout: a page ignores the safe area, so the size its parent hands
             // it is not the size it draws at, and a toolbar coming and going would move it besides.
             .onGeometryChange(for: CGSize.self, of: { $0.size }, action: { _ in applyWindowMetrics() })
-            .onChange(of: layoutContext, initial: true) { value.apply(context: layoutContext) }
+            .onChange(of: layoutContext, initial: true) {
+                value.apply(context: layoutContext, columns: spread.columns)
+            }
         }
 
         /// What an aside is hung over, in the page's own coordinates.
@@ -262,9 +258,17 @@ enum ReaderScreen {
         /// every aside a notch's depth away from what it pointed at.
         private func anchor(of rect: CGRect?) -> CGRect { rect ?? .zero }
 
-        /// Everything the reader picked out, as one box for an aside to stand clear of.
+        /// Everything the reader picked out, as one box for an aside to stand clear of, in the sheet's
+        /// coordinates rather than in those of the page the words came off.
         private func pickedBox(_ chosen: Model.PickedText?) -> CGRect? {
-            CalloutPlacement.bounds(around: chosen?.rects ?? [])
+            guard let chosen, let bounds = CalloutPlacement.bounds(around: chosen.rects) else { return nil }
+
+            return spread.onSheet(bounds, column: column(of: chosen.page))
+        }
+
+        /// Which column of the spread a page stands in.
+        private func column(of page: Int) -> Int {
+            model?.pagesOnScreen.firstIndex(of: page) ?? 0
         }
 
         /// Opens a note where one was tapped. Reports whether there was one, since the page turns if not.
@@ -274,7 +278,7 @@ enum ReaderScreen {
         private func noteActions(_ model: Model) -> some View {
             ForEach(model.notesOnPage) { found in
                 Button("Note \(found.marker)") {
-                    let middle = CGPoint(x: pageSize.width / 2, y: pageSize.height / 2)
+                    let middle = CGPoint(x: sheetSize.width / 2, y: sheetSize.height / 2)
 
                     note = .init(note: found, rect: CGRect(origin: middle, size: .zero))
                 }
@@ -282,14 +286,34 @@ enum ReaderScreen {
         }
 
         /// A tap on the page: a note's marker first, since it is the smaller target, then a link.
+        ///
+        /// The point arrives in the sheet's own coordinates, so it is carried onto whichever page of the
+        /// spread it landed on before anything is asked about it.
         private func follow(_ point: CGPoint, in model: Model) -> Bool {
-            if show(model.note(at: point)) { return true }
+            let spread = spread
+            let column = spread.column(containing: point.x)
+            let index = model.page(inColumn: column)
+            let onPage = spread.onPage(point, column: column)
 
-            guard let target = model.link(at: point) else { return false }
+            if show(model.note(at: onPage, onPage: index), in: column) { return true }
+
+            guard let target = model.link(at: onPage, onPage: index) else { return false }
 
             model.follow(target)
             offerTheWayBack()
             return true
+        }
+
+        /// Words drawn out of one page of the spread, the page settled by where the finger went down.
+        private func pickOut(from start: CGPoint, to finish: CGPoint, in model: Model) {
+            let spread = spread
+            let column = spread.column(containing: start.x)
+
+            model.pickOut(
+                from: spread.onPage(start, column: column),
+                to: spread.onPage(finish, column: column),
+                onPage: model.page(inColumn: column)
+            )
         }
 
         /// The way back stands for half a minute and then fades, since a reader who was going to take
@@ -322,8 +346,8 @@ enum ReaderScreen {
                     .accessibilityIdentifier("reader.wayBack")
                     .accessibilityHint("Returns to the page the link was followed from")
                 }
-                .padding(.leading, Design.Space.extraLarge)
-                .padding(.bottom, Self.controlsBottom(over: safeArea.bottom, headSize: runningHeadSize))
+                .padding(.leading, safeArea.leading + Design.Space.extraLarge)
+                .padding(.bottom, Self.controlsBottom(over: spread.pageSafeArea.bottom, headSize: runningHeadSize))
                 // Counted from the foot of the screen, as the page number is: an overlay is given the
                 // safe area back even where the view under it turned it down.
                 .ignoresSafeArea()
@@ -336,10 +360,12 @@ enum ReaderScreen {
         private static let wayBackStands: Double = 30
         private static let wayBackFade: Double = 1.5
 
-        private func show(_ found: Model.TappedNote?) -> Bool {
+        private func show(_ found: Model.TappedNote?, in column: Int) -> Bool {
             guard let found else { return false }
 
-            withAnimation(CalloutMotion.showing) { note = found }
+            let carried = Model.TappedNote(note: found.note, rect: spread.onSheet(found.rect, column: column))
+
+            withAnimation(CalloutMotion.showing) { note = carried }
             return true
         }
 
@@ -434,10 +460,38 @@ enum ReaderScreen {
 
         private static let noteScale = 0.88
 
+        /// One sheet, which is what a turn moves: a single page, or two standing side by side with the
+        /// binding between them.
+        ///
+        /// The pages are placed rather than stacked in a row, since each one is measured against its own
+        /// width and a spread's outer margins are whatever the sheet had over.
+        @ViewBuilder
+        private func sheetContent(_ model: Model, at sheet: Int) -> some View {
+            let spread = spread
+            let alone = spread.columns == 1
+
+            ZStack(alignment: .topLeading) {
+                settings.theme.background
+
+                ForEach(Array(model.pages(onSheet: sheet).enumerated()), id: \.offset) { column, index in
+                    pageContent(model, at: index, titled: alone)
+                        .frame(width: spread.pageSize.width, height: spread.pageSize.height)
+                        .offset(x: spread.origin(ofColumn: column))
+                }
+            }
+            // One title over the spread rather than the same words twice, set in the middle of the
+            // sheet the way a printed book sets it across the opening.
+            .overlay(alignment: .top) {
+                if !alone, model.showsTitle(onSheet: sheet) {
+                    runningHead(model.bookTitle, edge: .top)
+                }
+            }
+        }
+
         /// One page, drawn edge to edge: the text, the book's title above it and the page number below.
         /// Both run with the page rather than sitting in chrome around it, so a turn moves everything.
         @ViewBuilder
-        private func pageContent(_ model: Model, at index: Int) -> some View {
+        private func pageContent(_ model: Model, at index: Int, titled: Bool) -> some View {
             let footer = model.caption(at: index, expanded: !isChromeHidden)
             let isCurrent = index == model.currentPage
 
@@ -450,7 +504,7 @@ enum ReaderScreen {
                         coverURL: model.book?.coverURL,
                         style: settings.textStyle,
                         margins: settings.margins,
-                        safeArea: safeArea
+                        safeArea: spread.pageSafeArea
                     )
                     .background(settings.theme.background)
                     .overlay(alignment: .bottom) { runningHead(footer, edge: .bottom, isCaption: isCurrent) }
@@ -462,10 +516,10 @@ enum ReaderScreen {
                             ChapterPageView(layout: piece.layout, pageIndex: piece.page)
                         }
 
-                        if isCurrent { picking(model) }
+                        if model.picked?.page == index { picking(model) }
                     }
                     .background(settings.theme.background)
-                    .overlay(alignment: .top) { runningHead(model.bookTitle, edge: .top) }
+                    .overlay(alignment: .top) { if titled { runningHead(model.bookTitle, edge: .top) } }
                     .overlay(alignment: .bottom) { runningHead(footer, edge: .bottom, isCaption: isCurrent) }
                 case .blank:
                     settings.theme.background
@@ -497,8 +551,8 @@ enum ReaderScreen {
                     // little more ink; with them up it steps back and lets them carry it.
                     .foregroundStyle(settings.theme.foreground.opacity(isChromeHidden ? 0.6 : 0.4))
                     .padding(.horizontal, settings.margins)
-                    .padding(.top, edge == .top ? safeArea.top + Self.headInset : 0)
-                    .padding(.bottom, edge == .bottom ? safeArea.bottom + Self.headInset : 0)
+                    .padding(.top, edge == .top ? spread.pageSafeArea.top + Self.headInset : 0)
+                    .padding(.bottom, edge == .bottom ? spread.pageSafeArea.bottom + Self.headInset : 0)
                     .frame(maxWidth: .infinity)
                     // Only the page the reader is on names itself, so a turn never puts two of these
                     // on screen under the same identifier.
@@ -520,11 +574,13 @@ enum ReaderScreen {
 
         /// Everything pagination depends on. A change to any of it re-lays the chapter.
         private var layoutContext: ChapterLayout.Context {
-            ChapterLayout.Context(
+            let spread = spread
+
+            return ChapterLayout.Context(
                 style: settings.textStyle,
                 margins: settings.margins,
-                pageSize: pageSize,
-                safeArea: safeArea
+                pageSize: spread.pageSize,
+                safeArea: spread.pageSafeArea
             )
         }
 
@@ -537,7 +593,15 @@ enum ReaderScreen {
 
             let insets = window.safeAreaInsets
             safeArea = EdgeInsets(top: insets.top, leading: insets.left, bottom: insets.bottom, trailing: insets.right)
-            pageSize = window.bounds.size
+            sheetSize = window.bounds.size
+        }
+
+        /// Which edge the device keeps its own band on, and so where the controls stand.
+        private var band: DeviceBand { DeviceBand.read(safeArea, in: sheetSize) }
+
+        /// How the sheet is divided: one page, or two with the binding between them.
+        private var spread: PageSpread {
+            PageSpread(sheet: sheetSize, safeArea: safeArea, margins: settings.margins)
         }
 
         /// How long the controls take to fade in or out.
@@ -560,55 +624,97 @@ enum ReaderScreen {
             if !isChromeHidden { chrome.transition(.opacity) }
         }
 
+        /// The controls, set out along whichever edge the device keeps its own band on.
+        @ViewBuilder
         private var chrome: some View {
+            if band.isDownASide { downTheSide } else { acrossTheTop }
+        }
+
+        private var acrossTheTop: some View {
             HStack(alignment: .top, spacing: Design.Space.large) {
-                // The way out, since a presented screen has no back button of its own. The glyph is the
-                // gesture: a drag down the page does the same thing.
-                GlassRow {
-                    Button("Close", systemImage: "chevron.down") { dismiss() }
-                        .accessibilityIdentifier("reader.close")
-                        .accessibilityHint("Closes the book")
-                }
+                GlassRow { wayOut }
 
                 Spacer(minLength: 0)
 
-                GlassRow {
-                    if model?.isOffline == true {
-                        Image(systemName: "wifi.slash")
-                            .font(.system(size: Design.Size.glyph(in: Design.Size.touch)))
-                            .foregroundStyle(.secondary)
-                            .frame(width: Design.Size.touch, height: Design.Size.touch)
-                            .accessibilityLabel("Reading from this device")
-                    }
-
-                    let isMarked = model?.isPageBookmarked == true
-
-                    Button(
-                        isMarked ? "Remove bookmark" : "Add bookmark",
-                        systemImage: isMarked ? "bookmark.fill" : "bookmark"
-                    ) {
-                        model?.toggleBookmark()
-                    }
-                    .accessibilityHint("Marks the page, or clears the marks on it")
-                    .disabled(model?.canBookmarkPage != true)
-
-                    Button("Contents", systemImage: "list.bullet") { isShowingContents = true }
-                        .accessibilityHint("Shows the chapter list")
-
-                    Button("Appearance", systemImage: "textformat.size") { isShowingSettings = true }
-                        .accessibilityHint("Font, margins and page settings")
-
-                    #if DEBUG
-                        Button("Debug info", systemImage: "ladybug") { collectReport() }
-                            .accessibilityHint("Collects the page, its settings and a picture of it")
-                    #endif
-                }
+                GlassRow { actions }
             }
-            .padding(.horizontal, Design.Space.extraLarge)
-            .padding(.top, Self.controlsTop(under: safeArea.top, headSize: runningHeadSize))
+            // Clear of whatever the device keeps down either side, which on a phone turned on its side
+            // is the sensor housing the close button was sitting under.
+            .padding(.leading, safeArea.leading + Design.Space.extraLarge)
+            .padding(.trailing, safeArea.trailing + Design.Space.extraLarge)
+            .padding(.top, Self.controlsTop(under: spread.pageSafeArea.top, headSize: runningHeadSize))
             // Counted from the top of the screen, as the running head is: an overlay is given the safe
             // area back even where the view under it turned it down.
             .ignoresSafeArea()
+        }
+
+        /// Down the edge the device keeps its band on, which a folding screen can hold to one side while
+        /// the window itself stands upright. The controls go where the system already is rather than
+        /// crossing the page above the text.
+        private var downTheSide: some View {
+            VStack(spacing: Design.Space.large) {
+                GlassRow(.down) { wayOut }
+
+                Spacer(minLength: 0)
+
+                GlassRow(.down) { actions }
+            }
+            .padding(.vertical, Design.Space.extraLarge)
+            .padding(band == .leading ? .leading : .trailing, sideInset)
+            .ignoresSafeArea()
+        }
+
+        /// How far in from the edge the side controls stand: clear of the device's own band.
+        private var sideInset: CGFloat {
+            (band == .leading ? safeArea.leading : safeArea.trailing) + Design.Space.extraLarge
+        }
+
+        /// The way out, since a presented screen has no back button of its own. The glyph is the
+        /// gesture: a drag down the page does the same thing.
+        @ViewBuilder
+        private var wayOut: some View {
+            Button("Close", systemImage: "chevron.down") { dismiss() }
+                .accessibilityIdentifier("reader.close")
+                .accessibilityHint("Closes the book")
+        }
+
+        @ViewBuilder
+        private var actions: some View {
+            if model?.isOffline == true {
+                Image(systemName: "wifi.slash")
+                    .font(.system(size: Design.Size.glyph(in: Design.Size.touch)))
+                    .foregroundStyle(.secondary)
+                    .frame(width: Design.Size.touch, height: Design.Size.touch)
+                    .accessibilityLabel("Reading from this device")
+            }
+
+            let isMarked = model?.isPageBookmarked == true
+
+            Button(
+                isMarked ? "Remove bookmark" : "Add bookmark",
+                systemImage: isMarked ? "bookmark.fill" : "bookmark"
+            ) {
+                model?.toggleBookmark()
+            }
+            .accessibilityHint("Marks the page, or clears the marks on it")
+            .disabled(model?.canBookmarkPage != true)
+
+            Button("Contents", systemImage: "list.bullet") { isShowingContents = true }
+                .accessibilityHint("Shows the chapter list")
+                .popover(isPresented: $isShowingContents) {
+                    if let model {
+                        ContentsSheet(model: model, isPresented: $isShowingContents)
+                    }
+                }
+
+            Button("Appearance", systemImage: "textformat.size") { isShowingSettings = true }
+                .accessibilityHint("Font, margins and page settings")
+                .popover(isPresented: $isShowingSettings) { SettingsSheet() }
+
+            #if DEBUG
+                Button("Debug info", systemImage: "ladybug") { collectReport() }
+                    .accessibilityHint("Collects the page, its settings and a picture of it")
+            #endif
         }
 
         /// Where the controls start, so that the middle of them lands on the middle of the line the
@@ -724,11 +830,18 @@ enum ReaderScreen {
                         }
                     }
             }
-            // Half height on purpose: the page stays visible above, so every change can be seen
-            // landing on the real text rather than on a sample.
+            // Read only where this stands beside the button rather than over the book: a popover is
+            // asked how big it wants to be, and a sheet is told.
+            .frame(idealWidth: Self.wide, idealHeight: Self.deep)
+            // Half height on purpose where it does cover the book: the page stays visible above, so
+            // every change can be seen landing on the real text rather than on a sample.
             .presentationDetents([ .medium ])
+            .presentationCompactAdaptation(.sheet)
             .presentationBackgroundInteraction(.disabled)
         }
+
+        static let wide: CGFloat = 380
+        static let deep: CGFloat = 520
     }
 
     /// How the text is set, what colours it is set in, and what the screen does with it.
@@ -1061,6 +1174,8 @@ enum ReaderScreen {
                     }
                 }
             }
+            .frame(idealWidth: SettingsSheet.wide, idealHeight: SettingsSheet.deep)
+            .presentationCompactAdaptation(.sheet)
         }
 
         private func chapterRow(_ chapter: BookChapter, named name: String) -> some View {

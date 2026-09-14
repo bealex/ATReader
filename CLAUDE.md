@@ -217,6 +217,13 @@ licensing rather than secrecy. An unconfigured build must keep working for every
   Build the thing only while it is shown and keep the fade as a transition.
 - **UI-test environment variables need a `TEST_RUNNER_` prefix** to reach the test process;
   `xcodebuild` strips it.
+- **A `didSet` that assigns to its own property recurses forever on an `@Observable` class.** The macro
+  rewrites the property as a computed pair, so the assignment runs the observer again. It builds clean
+  and every unit test passes; it dies on the stack guard the first time a view sets it. Clamp the value
+  where it is handed over instead.
+- **The tabs are only a `tabBar` to a UI test on a phone.** Given room to spare they stand in a pill at
+  the top, which `app.tabBars` does not match at all. `app.tab(_:)` in `TabFinding.swift` looks in both
+  places; the rest of the UI suite is still written for a phone-shaped screen.
 - **`UserDefaults` reads `-key value` launch arguments,** which is the easy way to drive reader
   settings from `simctl` without touching the UI. It only works if the default is read with a coercing
   accessor like `double(forKey:)` rather than `object(forKey:) as? Double`.

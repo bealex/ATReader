@@ -18,7 +18,7 @@ apply `Design` to the page.
 | `Space` | Seven steps from 3 to 36, all multiples of `unit`. |
 | `Radius` | Three fixed, plus the barely-there `spine` and `cover`, which are cut nearly square. |
 | `Stroke` | The hairline, the line under a run on a shelf, the ring, the reading line along a cover and the shade under it. |
-| `Size` | Fixed dimensions, from a 15pt bookmark to a 120pt cover. |
+| `Size` | Fixed dimensions, from a 15pt bookmark to a 120pt cover, plus the ceilings a wide screen is held to: `form`, `pageCover`, `shelfCover`, and `idealCover(across:)`, which grows a shelf's covers rather than only fitting more of them in. |
 | `Palette` | The five meanings, and the one opacity every tinted ground and edge is drawn at. |
 | `Surface` | Screen and card, slate greys in light mode and the system's in dark; fill, the edge colour, and `ground(_:)` for a tinted pill. |
 | `listOnScreen()` | A list on the screen colour rather than the system's white. |

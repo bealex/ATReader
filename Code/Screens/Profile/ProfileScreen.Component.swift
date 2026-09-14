@@ -25,6 +25,10 @@ enum ProfileScreen {
         @Environment(Navigator.self)
         private var navigator
 
+        /// Whether the screen has more room than a form can use.
+        @Environment(\.horizontalSizeClass)
+        private var width
+
         @State
         private var isConfirmingClear = false
 
@@ -60,6 +64,11 @@ enum ProfileScreen {
                 .listRowBackground(Design.Surface.card)
             }
             .listOnScreen()
+            // Held to a form's width and stood in the middle of what is left. A switch at the far side
+            // of a tablet has nothing to do with the words naming it.
+            .frame(maxWidth: width == .regular ? Design.Size.form : .infinity)
+            .frame(maxWidth: .infinity)
+            .background(Design.Surface.screen)
             .navigationTitle("Profile")
             .task {
                 await refreshStats()

@@ -95,18 +95,43 @@ public enum Design {
         /// A glyph inside a circular mark, sized to the mark rather than to a text style.
         public static func glyph(in mark: CGFloat) -> CGFloat { mark * 0.45 }
 
+        /// The widest a cover stands on a book's own page. A cover is what the page opens on, but past
+        /// this it is the only thing on it.
+        public static let pageCover = Space.unit * 64
+
+        /// How wide a form stands where the screen has more room than a form can use. A setting and its
+        /// switch an arm's length apart read as two separate things.
+        public static let form = Space.unit * 180
+
+        /// The widest a cover stands on a shelf, however much room the shelf has. Past this the books
+        /// are the subject of the screen rather than the library on it.
+        public static let shelfCover = Space.unit * 48
+
+        /// How many covers a shelf with room to spare aims to stand in a row.
+        private static let coversAcross: CGFloat = 6
+
+        /// How wide a cover wants to be on a shelf this wide.
+        ///
+        /// A phone takes the grid's own size. A shelf with more room than that grows its covers rather
+        /// than only fitting more of them in, since a book drawn on a tablet at the size a phone draws
+        /// it wastes the room it was given.
+        public static func idealCover(across available: CGFloat) -> CGFloat {
+            min(shelfCover, max(gridCover, available / coversAcross))
+        }
+
         /// How wide a cover stands so that a row of them fills the space it is given exactly.
         ///
         /// Covers are laid out at one size across the whole shelf, and a fixed size leaves a ragged
         /// margin down the right that changes with the width of the screen. So the size wanted decides
         /// how many go in a row, the count is rounded to a whole number of them, and what is actually
         /// there is shared out between that many.
-        public static func coverWidth(across available: CGFloat, ideal: CGFloat = gridCover, spacing: CGFloat)
+        public static func coverWidth(across available: CGFloat, ideal: CGFloat? = nil, spacing: CGFloat)
             -> CGFloat
         {
-            guard available > 0 else { return ideal }
+            guard available > 0 else { return ideal ?? gridCover }
 
-            let count = max(1, (available / ideal).rounded())
+            let wanted = ideal ?? idealCover(across: available)
+            let count = max(1, (available / wanted).rounded())
 
             return (available - spacing * (count - 1)) / count
         }

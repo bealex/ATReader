@@ -35,7 +35,7 @@ class CatalogUITestCase: XCTestCase {
 
     /// The search tab, set to ask the catalogue rather than the reader's own shelves.
     fileprivate func searchTheCatalogue() -> XCUIElement {
-        app.tabBars.buttons["Search"].tap()
+        app.tab("Search").tap()
 
         let catalogue = app.buttons["Author.Today"]
         XCTAssertTrue(catalogue.waitForExistence(timeout: 10), "no way to search the catalogue")
@@ -46,7 +46,7 @@ class CatalogUITestCase: XCTestCase {
 
     /// Opens the second book of the chart and waits for its page to offer a read action.
     fileprivate func openBookPage() {
-        app.tabBars.buttons["Top"].tap()
+        app.tab("Top").tap()
 
         let book = app.collectionViews.cells.element(boundBy: 1)
         XCTAssertTrue(book.waitForExistence(timeout: 30), "no book to open")
@@ -58,7 +58,7 @@ class CatalogUITestCase: XCTestCase {
     }
 
     fileprivate func openReader() {
-        app.tabBars.buttons["Top"].tap()
+        app.tab("Top").tap()
 
         let firstBook = app.collectionViews.cells.element(boundBy: 1)
         XCTAssertTrue(firstBook.waitForExistence(timeout: 30), "no book to open")
@@ -172,7 +172,7 @@ final class CatalogUITests: CatalogUITestCase {
     }
 
     func testTopChartLoadsAndFiltersByPeriod() {
-        app.tabBars.buttons["Top"].tap()
+        app.tab("Top").tap()
 
         XCTAssertTrue(
             app.collectionViews.cells.firstMatch.waitForExistence(timeout: 30),
@@ -188,9 +188,9 @@ final class CatalogUITests: CatalogUITestCase {
 
     /// The tab bar belongs to the root of each tab; pushed screens give the page the full height.
     func testTabBarIsHiddenBelowTheTopLevel() {
-        XCTAssertTrue(app.tabBars.firstMatch.waitForExistence(timeout: 20), "tab bar missing at the top level")
+        XCTAssertTrue(app.waitForTabs(named: "Top", timeout: 20), "tabs missing at the top level")
 
-        app.tabBars.buttons["Top"].tap()
+        app.tab("Top").tap()
 
         let firstBook = app.collectionViews.cells.element(boundBy: 1)
         XCTAssertTrue(firstBook.waitForExistence(timeout: 30))
@@ -198,11 +198,11 @@ final class CatalogUITests: CatalogUITestCase {
 
         let readButton = app.buttons["work.read"]
         XCTAssertTrue(readButton.waitForExistence(timeout: 30))
-        XCTAssertFalse(app.tabBars.firstMatch.exists, "tab bar should be hidden on a book page")
+        XCTAssertFalse(app.showsTabs(named: "Top"), "tabs should be hidden on a book page")
 
         readButton.tap()
         XCTAssertTrue(app.otherElements["reader.page"].firstMatch.waitForExistence(timeout: 40))
-        XCTAssertFalse(app.tabBars.firstMatch.exists, "tab bar should be hidden while reading")
+        XCTAssertFalse(app.showsTabs(named: "Top"), "tabs should be hidden while reading")
     }
 }
 

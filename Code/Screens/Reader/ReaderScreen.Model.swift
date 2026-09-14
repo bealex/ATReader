@@ -37,6 +37,18 @@ extension ReaderScreen {
             case title
             case text([Piece])
             case blank
+
+            var isText: Bool {
+                guard case .text = self else { return false }
+
+                return true
+            }
+
+            var isTitle: Bool {
+                guard case .title = self else { return false }
+
+                return true
+            }
         }
 
         let workId: Int
@@ -203,6 +215,59 @@ extension ReaderScreen {
 
         var hasPageAfter: Bool { nextChapter != nil }
 
+        /// How many pages stand side by side on one sheet. Told by the view, which is the only thing
+        /// that knows how much room the window has, and never below one.
+        private(set) var columns = 1
+
+        /// How many sheets the chapter comes to, a sheet being what one turn moves.
+        var sheetCount: Int { Int((Double(pageCount) / Double(columns)).rounded(.up)) }
+
+        /// Which sheet the reader is on. Setting it opens that sheet at its first page.
+        var currentSheet: Int {
+            get { currentPage / columns }
+            set { currentPage = newValue * columns }
+        }
+
+        /// The pages in front of the reader: one, or a spread of two.
+        var pagesOnScreen: [Int] { pages(onSheet: currentSheet) }
+
+        /// Whether a sheet takes the book's title above it.
+        ///
+        /// Every sheet of text does. One carrying the book's own title page takes none, since that page
+        /// already says what the book is called, and one carrying no text has nothing to name.
+        func showsTitle(onSheet sheet: Int) -> Bool {
+            let standing = pages(onSheet: sheet).map(page(at:))
+
+            return standing.contains(where: \.isText) && !standing.contains(where: \.isTitle)
+        }
+
+        /// Which page stands in one column of the sheet the reader is on.
+        func page(inColumn column: Int) -> Int {
+            let pages = pagesOnScreen
+
+            return pages.indices.contains(column) ? pages[column] : currentPage
+        }
+
+        /// Which of this chapter's pages each column of a sheet shows.
+        ///
+        /// Inside the chapter a sheet is the next `columns` pages of its own grid. The sheets either
+        /// side belong to the chapters either side and are counted on *their* grids, so a turn that
+        /// crosses out of this chapter lands on the very sheet it had already brought in.
+        func pages(onSheet sheet: Int) -> [Int] {
+            if sheet < 0, let before = beforeThisPage() {
+                return pages(from: -1 - (before.page % columns))
+            }
+
+            if sheet >= sheetCount, let beyond = beyondThisPage() {
+                return pages(from: pageCount - (beyond.page % columns))
+            }
+
+            return pages(from: sheet * columns)
+        }
+
+        /// A sheet's worth of pages, counting up from its first.
+        private func pages(from first: Int) -> [Int] { (0 ..< columns).map { first + $0 } }
+
         private func textIndex(for page: Int) -> Int { page - titlePageCount }
 
         /// Where the reader is, as an offset to keep.
@@ -268,15 +333,18 @@ extension ReaderScreen {
             let selection: ChapterLayout.Selection
             /// One box per line it runs through, for painting under it.
             let rects: [CGRect]
+            /// Which page of the spread the words were taken off, so what is drawn over them and what
+            /// is hung beside them both land on that page rather than on the sheet's first.
+            let page: Int
 
             var id: String { "\(selection.range.location).\(selection.range.length)" }
         }
 
         private(set) var picked: PickedText?
 
-        /// Picks out everything between two points on the page showing, out to whole words.
-        func pickOut(from start: CGPoint, to finish: CGPoint) {
-            guard case let .text(pieces) = page(at: currentPage) else { return }
+        /// Picks out everything between two points on one page, out to whole words.
+        func pickOut(from start: CGPoint, to finish: CGPoint, onPage index: Int) {
+            guard case let .text(pieces) = page(at: index) else { return }
 
             for piece in pieces {
                 guard let range = piece.layout.words(from: start, to: finish, onPage: piece.page) else { continue }
@@ -285,7 +353,11 @@ extension ReaderScreen {
 
                 guard !chosen.isEmpty else { continue }
 
-                picked = PickedText(selection: chosen, rects: piece.layout.rects(of: range, onPage: piece.page))
+                picked = PickedText(
+                    selection: chosen,
+                    rects: piece.layout.rects(of: range, onPage: piece.page),
+                    page: index
+                )
                 return
             }
         }
@@ -294,10 +366,21 @@ extension ReaderScreen {
 
         // MARK: - Bookmarks
 
-        /// What the page shows, chapter by chapter. A page carries two stretches where a chapter runs
-        /// on from the end of the one before it.
-        private var displayedRanges: [(chapterId: Int, start: Int, end: Int)] {
-            guard case let .text(pieces) = page(at: currentPage) else { return [] }
+        /// One stretch of one chapter standing in front of the reader.
+        private struct Shown {
+            let chapterId: Int
+            let start: Int
+            let end: Int
+        }
+
+        /// What the reader can see, chapter by chapter. A page carries two stretches where a chapter
+        /// runs on from the end of the one before it, and a spread carries whatever both its pages do.
+        private var displayedRanges: [Shown] {
+            pagesOnScreen.flatMap(ranges(onPage:))
+        }
+
+        private func ranges(onPage index: Int) -> [Shown] {
+            guard case let .text(pieces) = page(at: index) else { return [] }
 
             return pieces.map { piece in
                 let start = piece.layout.characterOffset(ofPage: piece.page)
@@ -306,7 +389,7 @@ extension ReaderScreen {
                     ? piece.layout.characterOffset(ofPage: piece.page + 1)
                     : piece.layout.sourceLength
 
-                return (piece.layout.chapterId, start, max(end, start + 1))
+                return Shown(chapterId: piece.layout.chapterId, start: start, end: max(end, start + 1))
             }
         }
 
@@ -448,8 +531,8 @@ extension ReaderScreen {
         }
 
         /// The link a finger found on the page, or nothing where it landed on ordinary words.
-        func link(at point: CGPoint) -> String? {
-            guard case let .text(pieces) = page(at: currentPage) else { return nil }
+        func link(at point: CGPoint, onPage index: Int) -> String? {
+            guard case let .text(pieces) = page(at: index) else { return nil }
 
             for piece in pieces {
                 if let found = piece.layout.link(at: point, onPage: piece.page) { return found.target }
@@ -458,8 +541,8 @@ extension ReaderScreen {
             return nil
         }
 
-        func note(at point: CGPoint) -> TappedNote? {
-            guard case let .text(pieces) = page(at: currentPage) else { return nil }
+        func note(at point: CGPoint, onPage index: Int) -> TappedNote? {
+            guard case let .text(pieces) = page(at: index) else { return nil }
 
             for piece in pieces {
                 guard
@@ -475,7 +558,11 @@ extension ReaderScreen {
 
         /// Every note the page showing refers to, for a reader who cannot touch a marker they can't see.
         var notesOnPage: [BookNote] {
-            guard case let .text(pieces) = page(at: currentPage) else { return [] }
+            pagesOnScreen.flatMap(notes(onPage:))
+        }
+
+        private func notes(onPage index: Int) -> [BookNote] {
+            guard case let .text(pieces) = page(at: index) else { return [] }
 
             return pieces.flatMap { piece in
                 piece.layout.notes(onPage: piece.page).compactMap { parsed[piece.layout.chapterId]?.notes[$0] }
@@ -483,7 +570,7 @@ extension ReaderScreen {
         }
 
         func page(at index: Int) -> Page {
-            if index < 0 { return pageBefore() }
+            if index < 0 { return pageBefore(at: index) }
 
             if hasTitlePage, index == 0 { return .title }
 
@@ -526,14 +613,15 @@ extension ReaderScreen {
 
         /// The page before this chapter's first: the previous chapter's last, unless this chapter starts
         /// on that very page, in which case it is the one before that.
-        private func pageBefore() -> Page {
-            guard
-                let before = beforeThisPage(),
-                let neighbour = layouts[before.id],
-                neighbour.pageRanges.indices.contains(before.page)
-            else { return .blank }
+        private func pageBefore(at index: Int) -> Page {
+            guard let before = beforeThisPage(), let neighbour = layouts[before.id] else { return .blank }
 
-            return .text(pieces(of: neighbour, page: before.page))
+            // `-1` is the page next to this chapter, and a spread reaches one further back than that.
+            let page = before.page + index + 1
+
+            guard neighbour.pageRanges.indices.contains(page) else { return .blank }
+
+            return .text(pieces(of: neighbour, page: page))
         }
 
         /// The page after this chapter's last: the next chapter's first, unless it already began on the
@@ -542,11 +630,14 @@ extension ReaderScreen {
             guard
                 index >= pageCount,
                 let beyond = beyondThisPage(),
-                let after = layouts[beyond.id],
-                after.pageRanges.indices.contains(beyond.page)
+                let after = layouts[beyond.id]
             else { return .blank }
 
-            return .text(pieces(of: after, page: beyond.page))
+            let page = beyond.page + index - pageCount
+
+            guard after.pageRanges.indices.contains(page) else { return .blank }
+
+            return .text(pieces(of: after, page: page))
         }
 
         /// The footer for one page: where that page sits in its chapter, and the chapter in the book.
@@ -615,7 +706,11 @@ extension ReaderScreen {
         // MARK: - Layout
 
         /// Adopts a new page size or reading style, keeping the reader's place.
-        func apply(context newContext: ChapterLayout.Context) {
+        /// Takes the shape of the page and how many of them stand on a sheet, which always move together:
+        /// a spread that gained or lost a page is a page of a different width.
+        func apply(context newContext: ChapterLayout.Context, columns pages: Int) {
+            columns = max(1, pages)
+
             guard newContext.isUsable, newContext != context else { return }
 
             let offset = layout?.characterOffset(ofPage: textIndex(for: currentPage)) ?? 0

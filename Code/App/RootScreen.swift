@@ -70,6 +70,9 @@ enum RootScreen {
                     NavigationStack {
                         ReaderScreen.Component(workId: workId, title: "", initialChapterId: nil)
                     }
+                    // The reader pushes and presents like any screen, and there is no tab under this
+                    // one to have handed it a navigator.
+                    .environment(Navigator())
                 } else {
                     MainTabs()
                 }

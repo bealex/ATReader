@@ -23,7 +23,7 @@ final class LibraryUITests: XCTestCase {
     func testLibraryListsTheReadersBooks() throws {
         try launchSignedIn()
 
-        XCTAssertTrue(app.tabBars.buttons["Library"].waitForExistence(timeout: 30), "never reached the tabs")
+        XCTAssertTrue(app.waitForTabs(named: "Library"), "never reached the tabs")
 
         let list = app.collectionViews.firstMatch
         XCTAssertTrue(list.waitForExistence(timeout: 30), "library list never rendered")
@@ -37,7 +37,7 @@ final class LibraryUITests: XCTestCase {
     func testFilterIsAvailable() throws {
         try launchSignedIn()
 
-        XCTAssertTrue(app.tabBars.buttons["Library"].waitForExistence(timeout: 30))
+        XCTAssertTrue(app.waitForTabs(named: "Library"))
 
         let filterButton = app.buttons["Choose what to show"]
         XCTAssertTrue(filterButton.waitForExistence(timeout: 20), "filter missing")
@@ -49,7 +49,7 @@ final class LibraryUITests: XCTestCase {
     func testProfileShowsTheSignedInReaderAndCanSignOut() throws {
         try launchSignedIn()
 
-        let profileTab = app.tabBars.buttons["Profile"]
+        let profileTab = app.tab("Profile")
         XCTAssertTrue(profileTab.waitForExistence(timeout: 30))
         profileTab.tap()
 

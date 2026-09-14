@@ -14,7 +14,13 @@ import UIKit
 enum OrientationLock {
     private(set) static var isPortraitOnly = false
 
-    static var mask: UIInterfaceOrientationMask { isPortraitOnly ? .portrait : .allButUpsideDown }
+    /// A tablet has no way up of its own, so it may be held any way round. A phone upside down puts
+    /// its own camera at the bottom and is left out.
+    static var mask: UIInterfaceOrientationMask {
+        guard !isPortraitOnly else { return .portrait }
+
+        return UIDevice.current.userInterfaceIdiom == .pad ? .all : .allButUpsideDown
+    }
 
     /// Called before any scene exists, so it only records the answer.
     static func seed(portraitOnly: Bool) {

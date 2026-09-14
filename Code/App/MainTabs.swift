@@ -36,21 +36,29 @@ struct MainTabs: View {
     @Environment(BookOrigins.self)
     private var origins
 
+    /// Whether the window has room to spare, which is all the bar asks about the device.
+    @Environment(\.horizontalSizeClass)
+    private var width
+
     var body: some View {
-        Tabs(dressing: AppDressing(
-            session: session,
-            settings: settings,
-            inbox: inbox,
-            litres: litres,
-            backup: backup,
-            shelf: shelf,
-            origins: origins
-        ))
+        Tabs(
+            hasRoomToSpare: width == .regular,
+            dressing: AppDressing(
+                session: session,
+                settings: settings,
+                inbox: inbox,
+                litres: litres,
+                backup: backup,
+                shelf: shelf,
+                origins: origins
+            )
+        )
         .ignoresSafeArea()
     }
 }
 
 private struct Tabs: UIViewControllerRepresentable {
+    let hasRoomToSpare: Bool
     let dressing: AppDressing
 
     /// One navigator per stack, held here so the tabs are built once and keep them.
@@ -74,14 +82,23 @@ private struct Tabs: UIViewControllerRepresentable {
     func makeUIViewController(context: Context) -> UITabBarController {
         let tabs = UITabBarController(tabs: everyTab(context.coordinator))
 
-        // What was wanted from the SwiftUI bar all along: it shrinks as the shelf is pulled up rather
-        // than being taken away and put back.
-        tabs.tabBarMinimizeBehavior = .onScrollDown
+        // Never a sidebar. Four tabs are the whole shape of the app, and a sidebar puts them behind a
+        // button on the one device with room to show them.
+        tabs.mode = .tabBar
+        apply(to: tabs)
 
         return tabs
     }
 
-    func updateUIViewController(_ controller: UITabBarController, context: Context) {}
+    func updateUIViewController(_ controller: UITabBarController, context: Context) {
+        apply(to: controller)
+    }
+
+    /// The bar gets out of the way as a shelf is pulled up only where the shelf is the whole screen.
+    /// Given room to spare it stands still: nothing it was covering was wanted back.
+    private func apply(to tabs: UITabBarController) {
+        tabs.tabBarMinimizeBehavior = hasRoomToSpare ? .never : .onScrollDown
+    }
 
     private func everyTab(_ coordinator: Coordinator) -> [UITab] {
         [

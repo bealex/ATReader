@@ -66,7 +66,12 @@ What's still open, roughly in the order it would bite. Finished work isn't liste
 - [ ] Series navigation. `seriesId` and `seriesNextWorkId` are modelled and unused.
 - [ ] Marking a book finished from inside the reader instead of only from the book page.
 - [ ] Notifications for new chapters. The badge exists; nothing is ever delivered.
-- [ ] iPad layout. The app builds for iPad and looks phone-shaped on it.
+- [ ] A foldable half-opened. Treated as one screen, which is wrong once there's a hinge across it.
+- [ ] The UI suite is written for a phone-shaped screen. `app.tab(_:)` finds the tabs either way now,
+      but seventeen normalized-coordinate taps still assume one full-width page. On an iPad
+      `ReaderTurningUITests` runs 4 of 5: `testSwipingTurnsThePageBothWays` fails on the leftward
+      swipe, and whether that's `swipeLeft()` on a 1194-point element or the drag arithmetic at a
+      spread's width is not yet known. Tapping to turn, rapid taps and the edge drag all pass.
 
 ## Housekeeping
 

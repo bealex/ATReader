@@ -630,12 +630,66 @@ the view under it is not, and a toolbar coming and going would otherwise re-pagi
 
 Drawn text is invisible to VoiceOver, so each page publishes its text as its own accessibility element.
 
+## One page or two
+
+What fills the screen is a *sheet*, and a sheet carries one page or two. `PageSpread` settles which,
+from the size of the window, the device's own bands and the margins the reader chose. Two pages where
+each half still holds a column worth reading and stands taller than it is wide; one otherwise, held to
+a measure the eye can track back across and stood in the middle of whatever room is left.
+
+A phone in portrait comes out exactly as it always did, to the point. That's deliberate rather than
+lucky: the page size is part of the layout fingerprint, so a page measured any differently would throw
+away every measurement on every phone at once.
+
+The shape test is what a window with plenty of width and little depth runs into. A large phone on its
+side has the width for two pages and just enough depth to keep them page-shaped, so it opens like a
+small book. Flatten that window further and the two halves would each come out landscape, which reads
+as a screen split down the middle rather than as a book, so one page is kept and held to a measure
+instead.
+
+Both the head and the foot of a page keep a band of their own even where the device asks for none. An
+edge with no notch and no indicator behind it gave the running head four points of air and stood it
+against the glass, while the foot kept the indicator's room, and the page came out lopsided. The
+running heads, the controls and the way back are all set on that band rather than on the window's own,
+which is what keeps a control on the line its head is set on.
+
+Everything below the spread knows only about a page. A page is measured, drawn and hit-tested in its
+own coordinates, and the spread's whole job is to say how big one is and where on the sheet it stands.
+So the sides of the device's safe area are spent outside the spread rather than in its gutter, which is
+what makes both pages the same size: a chapter set for one is set for the other, and the book is
+measured once.
+
+A tap arrives in the sheet's coordinates and is carried onto whichever page it landed on before
+anything is asked about it. What comes back out, a note's marker or the box around picked words, is
+carried the other way, since an aside is hung over the sheet.
+
+### What each page names, and what the sheet names
+
+The page number belongs to the page: a spread shows two of them, one under each, because they are
+different numbers. The book's title belongs to the sheet and is set once, in the middle, over the
+binding. Drawn per page it came out as the same words twice a few inches apart, which reads as a fault
+rather than as a running head.
+
+A sheet carrying the book's own title page takes no running head at all, since that page already says
+what the book is called, and neither does one carrying no text. `Model.showsTitle(onSheet:)` is the
+whole of that rule. The band each page keeps for a head is unchanged either way, so the text still
+starts where it always did and nothing is re-measured.
+
 ## Turning a page
 
-The whole effect comes from one rule: page `n + 1` always sits above page `n`. Turning forward slides
-page `n + 1` in from the right; turning back slides that same page off to the right and uncovers page
-`n`. One offset drives both directions, so a half-finished turn can be reversed with no special
+A turn moves a sheet, so on a spread both pages go at once, the way they do in a book. `PageTurnView`
+counts in sheets and knows nothing else about them: what it's handed is a count, an index and a
+builder, and on a phone a sheet is simply a page.
+
+The whole effect comes from one rule: sheet `n + 1` always sits above sheet `n`. Turning forward slides
+sheet `n + 1` in from the right; turning back slides that same sheet off to the right and uncovers
+sheet `n`. One offset drives both directions, so a half-finished turn can be reversed with no special
 handling.
+
+Inside a chapter a sheet is the next pages of that chapter's own grid. The sheets either side of the
+chapter belong to the chapters either side, and are counted on *their* grids rather than by carrying on
+past the end of this one. That's what makes a turn out of a chapter land on the very sheet it had
+already brought in, instead of settling half a page off it.
 
 Dragging forward, the incoming page eases in from the right edge to meet the finger over 0.3s and from
 then on is held 20pt inside its own leading edge, so the finger is on the page it is pulling. Sliding
@@ -679,6 +733,14 @@ side, both `GlassRow`. They stand on the line the running head is set on, their 
 so the two read as one line across the top of the page. A navigation bar can't do that: it centres what
 it is given on its own height and reads no offset asking for anything else, which is why toolbar items
 sat a bar's worth below the book's name.
+
+Where they stand is read off the window rather than assumed. `DeviceBand` looks at the safe-area
+insets: where one side's inset clearly beats the other's and the window stands upright, the device is
+keeping its own band down that side, and the controls go there as a column instead of a row. A band
+along one physical edge of a device sits at the head or the foot of a window that is turned on its
+side, and the head is where the controls already are, so an upright window is part of the test. No
+phone or tablet in any orientation meets it today; a folding screen that holds its band down one edge
+does. `GlassRow` takes an axis so a column of buttons is still one pane of glass.
 
 The reader keeps a navigation stack with its bar hidden, for the window `readerBarAppearance` reaches
 through it: the page's own colour behind the corners the stack rounds, and the window held to the
