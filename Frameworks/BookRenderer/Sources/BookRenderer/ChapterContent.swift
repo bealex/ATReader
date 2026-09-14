@@ -62,7 +62,8 @@ public extension ChapterContent {
             },
             anchor: paragraph.anchor,
             isRightAligned: paragraph.isRightAligned,
-            isInset: paragraph.isInset
+            isInset: paragraph.isInset,
+            isSource: paragraph.isSource
         )
     }
 

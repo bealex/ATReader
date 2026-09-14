@@ -130,6 +130,8 @@ public struct Paragraph: Codable, Sendable, Identifiable, Hashable {
     public let isRightAligned: Bool
     /// The block is held off both edges, which is how a book sets a passage quoted at length.
     public let isInset: Bool
+    /// The block names whose words the quotation above it were, rather than being part of them.
+    public let isSource: Bool
     /// The places in this block that point elsewhere in the book, in the order they stand in it.
     public let links: [LinkMark]
     /// What the book knows this block by, where something in it points here. A link lands on a block
@@ -150,7 +152,8 @@ public struct Paragraph: Codable, Sendable, Identifiable, Hashable {
         links: [LinkMark] = [],
         anchor: String? = nil,
         isRightAligned: Bool = false,
-        isInset: Bool = false
+        isInset: Bool = false,
+        isSource: Bool = false
     ) {
         self.id = id
         self.text = text
@@ -166,6 +169,7 @@ public struct Paragraph: Codable, Sendable, Identifiable, Hashable {
         self.anchor = anchor
         self.isRightAligned = isRightAligned
         self.isInset = isInset
+        self.isSource = isSource
     }
 
     public init(from decoder: any Decoder) throws {
@@ -187,6 +191,7 @@ public struct Paragraph: Codable, Sendable, Identifiable, Hashable {
         anchor = try container.decodeIfPresent(String.self, forKey: .anchor)
         isRightAligned = try container.decodeIfPresent(Bool.self, forKey: .isRightAligned) ?? false
         isInset = try container.decodeIfPresent(Bool.self, forKey: .isInset) ?? false
+        isSource = try container.decodeIfPresent(Bool.self, forKey: .isSource) ?? false
     }
 
     public var isImage: Bool { imageSource != nil }
@@ -249,6 +254,9 @@ public enum BookHTML {
 
     /// True where the block is held off both edges, as a passage quoted at length is.
     private static func isInset(inside attributes: String) -> Bool { attributes.contains("data-inset=\"1\"") }
+
+    /// True where the block names whose words stand above it rather than adding to them.
+    private static func isSource(inside attributes: String) -> Bool { attributes.contains("data-source=\"1\"") }
 
     /// True where the block says it is written from the right.
     private static func isRightToLeft(inside attributes: String) -> Bool { attributes.contains("dir=\"rtl\"") }
@@ -483,7 +491,8 @@ public enum BookHTML {
                         links: read.links,
                         anchor: anchor(inside: attributes),
                         isRightAligned: isRightAligned(inside: attributes),
-                        isInset: isInset(inside: attributes)
+                        isInset: isInset(inside: attributes),
+                        isSource: isSource(inside: attributes)
                     ))
                     index += 1
             }

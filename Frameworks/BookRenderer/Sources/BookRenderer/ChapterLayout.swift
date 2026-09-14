@@ -295,13 +295,41 @@ public final class ChapterLayout {
     }
 
     /// What a kept column is filed against: the setting it was broken for, and the text it was broken
-    /// from. The setting carries the rules version, so a change to how a line is broken throws away
-    /// every column kept under the old rules rather than drawing yesterday's lines.
+    /// from, how that text is set included. The setting carries the rules version, so a change to how a
+    /// line is broken throws away every column kept under the old rules rather than drawing yesterday's
+    /// lines.
+    ///
+    /// The characters alone will not do. The same words held off both edges, or set apart in a face of
+    /// their own, break into altogether different lines, and a book read again from its file changes
+    /// how it is set far more often than it changes what it says.
     private lazy var keptUnder: String = {
         var hasher = SHA256()
+        let whole = NSRange(location: 0, length: text.length)
 
         hasher.update(data: Data(context.fingerprint.utf8))
         hasher.update(data: Data(text.string.utf8))
+
+        text.enumerateAttribute(.paragraphStyle, in: whole) { value, range, _ in
+            let style = value as? NSParagraphStyle
+
+            hasher.update(data: Data(
+                """
+                \(range.location):\(range.length):\(style?.alignment.rawValue ?? -1)\
+                :\(style?.firstLineHeadIndent ?? 0):\(style?.headIndent ?? 0):\(style?.tailIndent ?? 0)\
+                :\(style?.lineSpacing ?? 0):\(style?.paragraphSpacing ?? 0)\
+                :\(style?.paragraphSpacingBefore ?? 0):\(style?.baseWritingDirection.rawValue ?? -1)
+                """.utf8
+            ))
+        }
+
+        // The faces a stretch was set in, which is how a phrase set apart reaches the width of its line.
+        text.enumerateAttribute(.font, in: whole) { value, range, _ in
+            let font = value as? UIFont
+
+            hasher.update(data: Data(
+                "\(range.location):\(range.length):\(font?.fontName ?? "—"):\(font?.pointSize ?? 0)".utf8
+            ))
+        }
 
         return hasher.finalize().map { String(format: "%02x", $0) }.joined()
     }()

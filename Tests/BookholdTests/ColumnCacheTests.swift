@@ -66,6 +66,78 @@ struct ColumnCacheTests {
         )
     }
 
+    /// A chapter whose words are the same but whose setting is not gets its own column.
+    ///
+    /// What a re-read of a book changes is most often how it is set rather than what it says: an
+    /// epigraph that used to be centred is held off both edges, a phrase gains a face of its own. The
+    /// characters are identical, and lines composed for the one are nothing like the lines for the
+    /// other.
+    private static func layout(html: String, columns: (any ColumnStore)?) async -> ChapterLayout {
+        await ChapterLayout.make(
+            chapterId: 7,
+            content: await ChapterContent.prepare(html: html),
+            heading: ChapterHeading(),
+            context: Self.context,
+            columns: columns
+        )
+    }
+
+    @Test
+    func keepsAColumnAgainstHowTheTextIsSetAndNotOnlyItsWords() async throws {
+        let words = JustificationTests.words(90)
+        let plain = "<p>\(words)</p>"
+        let quoted = #"<p data-inset="1">\#(words)</p>"#
+        let columns = Columns()
+
+        _ = await Self.layout(html: plain, columns: columns)
+
+        #expect(await columns.kept.count == 1)
+
+        let held = await Self.layout(html: quoted, columns: columns)
+
+        #expect(await columns.kept.count == 2, "the quoted passage was given the plain one's lines")
+
+        let fresh = await Self.layout(html: quoted, columns: nil)
+
+        #expect(held.typesetLines.map(\.width) == fresh.typesetLines.map(\.width))
+        #expect(held.typesetLines.first?.origin ?? 0 > 0, "the quoted passage was not held off the edge")
+    }
+
+    /// The same words in a face of their own reach a different width, and so break differently.
+    @Test
+    func keepsAColumnAgainstTheFacesTheWordsAreSetIn() async throws {
+        let words = JustificationTests.words(90)
+        let columns = Columns()
+
+        _ = await Self.layout(html: "<p>\(words)</p>", columns: columns)
+        _ = await Self.layout(html: "<p><strong>\(words)</strong></p>", columns: columns)
+
+        #expect(await columns.kept.count == 2, "the bold passage was given the plain one's lines")
+    }
+
+    /// Two quotations one after another read as two, not as one run of text.
+    @Test
+    func standsAQuotationsSourceClearOfTheWordsItNames() async throws {
+        let quoted = #"<p data-inset="1">\#(JustificationTests.words(20))</p>"#
+        let source = #"<p data-source="1" data-inset="1"><em>Некто</em></p>"#
+        let layout = await Self.layout(html: quoted + source + quoted + source, columns: nil)
+        let lines = layout.typesetLines
+
+        let sources = lines.indices.filter { lines[$0].text.contains("Некто") }
+
+        try #require(sources.count == 2, "the two sources were not set")
+
+        // The air stands above the line, so a source and whatever follows one are taller than the
+        // lines of the quotation they part.
+        let ordinary = try #require(lines.filter { !$0.text.contains("Некто") }.map(\.height).min())
+
+        for index in sources { #expect(lines[index].height > ordinary, "the source stood in no air") }
+
+        let after = try #require(sources.first.map { $0 + 1 })
+
+        #expect(lines[after].height > ordinary, "what followed the source stood in no air")
+    }
+
     /// Every line of a restored layout stands where the composed one put it.
     @Test
     func aKeptColumnGivesBackTheSameLines() async throws {

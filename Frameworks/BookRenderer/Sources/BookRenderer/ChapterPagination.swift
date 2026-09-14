@@ -167,18 +167,13 @@ public enum ChapterPagination {
     ) -> TypesetText {
         let result = NSMutableAttributedString()
         let font = style.font
-        let bodyAlignment: NSTextAlignment = style.justifies(language) ? .justified : .natural
-        let indentsBody = style.indents(language)
-        let gap = style.paragraphGap(language)
         let read = reading(paragraphs, under: heading)
 
         append(read.heading, to: result, style: style)
         let headingLength = result.length
         let paragraphs = read.paragraphs
-        // Read once for the whole chapter: a paragraph's air depends on the titles it stands among.
-        let levels = paragraphs.map(\.titleLevel)
-        let opening = TitleBlock.opening(levels)
-        let closing = TitleBlock.closing(levels)
+        let setting = Setting(paragraphs, language: language, style: style)
+        let levels = setting.levels
 
         for (index, paragraph) in paragraphs.enumerated() {
             let suffix = index == paragraphs.count - 1 ? "" : "\n"
@@ -193,32 +188,7 @@ public enum ChapterPagination {
                 continue
             }
 
-            // A title stands in the middle of the measure whether or not the book said so: left where
-            // the paragraphs are, it reads as a line of text that lost its words.
-            let isCentered = paragraph.isCentered || levels[index] != nil
-            let air = Self.spacing(at: index, opening: opening, closing: closing, style: style, gap: gap)
-            let paragraphStyle = NSMutableParagraphStyle()
-            paragraphStyle.alignment = Self.alignment(of: paragraph, centred: isCentered, body: bodyAlignment)
-            paragraphStyle.lineSpacing = style.lineSpacing
-            paragraphStyle.paragraphSpacing = air.after
-            paragraphStyle.paragraphSpacingBefore = air.before
-            paragraphStyle.firstLineHeadIndent = isCentered || !indentsBody ? 0 : font.pointSize
-            paragraphStyle.lineBreakMode = .byWordWrapping
-
-            place(paragraph, in: paragraphStyle, font: font)
-
-            // Hyphenation, from the system's dictionary for the language the run carries. Without it a
-            // justified narrow column pulls the words apart instead of breaking them.
-            //
-            // Justified text asks for every break the dictionary can give: the factor is the fullness
-            // below which TextKit bothers to look for one, and the system's own value leaves lines it
-            // could have broken, which is where the stretched lines came from. Ragged-right keeps the
-            // system's restraint, since nothing there needs filling.
-            if bodyAlignment == .justified {
-                paragraphStyle.hyphenationFactor = 1
-            } else {
-                paragraphStyle.usesDefaultHyphenation = true
-            }
+            let paragraphStyle = Self.styling(paragraph, at: index, in: setting)
 
             // A book that names its own chapters is left to name them, so those lines have to read as
             // headings rather than as centred text that lost its face.
@@ -240,6 +210,70 @@ public enum ChapterPagination {
         }
 
         return TypesetText(attributed: result, headingLength: headingLength)
+    }
+
+    /// What every block of one chapter is set against: the reader's own answers for the language it is
+    /// written in, and where the titles and the quotations in it stand.
+    private struct Setting {
+        let style: ChapterTextStyle
+        let body: NSTextAlignment
+        let indentsBody: Bool
+        let gap: CGFloat
+        /// Read once for the whole chapter: a block's air depends on the titles it stands among.
+        let levels: [Int?]
+        let opening: [Int?]
+        let closing: [Bool]
+        /// Which blocks name whose words stood above them.
+        let sources: [Bool]
+
+        init(_ paragraphs: [Paragraph], language: String?, style: ChapterTextStyle) {
+            self.style = style
+            body = style.justifies(language) ? .justified : .natural
+            indentsBody = style.indents(language)
+            gap = style.paragraphGap(language)
+            levels = paragraphs.map(\.titleLevel)
+            opening = TitleBlock.opening(levels)
+            closing = TitleBlock.closing(levels)
+            sources = paragraphs.map(\.isSource)
+        }
+    }
+
+    /// How one block is set: which edge it stands against, how far in, and the air around it.
+    private static func styling(
+        _ paragraph: Paragraph,
+        at index: Int,
+        in setting: Setting
+    ) -> NSMutableParagraphStyle {
+        let font = setting.style.font
+        // A title stands in the middle of the measure whether or not the book said so: left where the
+        // paragraphs are, it reads as a line of text that lost its words.
+        let isCentered = paragraph.isCentered || setting.levels[index] != nil
+        let air = spacing(at: index, in: setting)
+        let style = NSMutableParagraphStyle()
+
+        style.alignment = alignment(of: paragraph, centred: isCentered, body: setting.body)
+        style.lineSpacing = setting.style.lineSpacing
+        style.paragraphSpacing = air.after
+        style.paragraphSpacingBefore = air.before
+        style.firstLineHeadIndent = isCentered || !setting.indentsBody ? 0 : font.pointSize
+        style.lineBreakMode = .byWordWrapping
+
+        place(paragraph, in: style, font: font)
+
+        // Hyphenation, from the system's dictionary for the language the run carries. Without it a
+        // justified narrow column pulls the words apart instead of breaking them.
+        //
+        // Justified text asks for every break the dictionary can give: the factor is the fullness below
+        // which TextKit bothers to look for one, and the system's own value leaves lines it could have
+        // broken, which is where the stretched lines came from. Ragged-right keeps the system's
+        // restraint, since nothing there needs filling.
+        if setting.body == .justified {
+            style.hyphenationFactor = 1
+        } else {
+            style.usesDefaultHyphenation = true
+        }
+
+        return style
     }
 
     /// Which edge a block is set against.
@@ -333,17 +367,17 @@ public enum ChapterPagination {
     ///
     /// A title block stands in air worked out from the biggest title in it, and is parted from the
     /// text under it by the same measure. Everything else takes the gap paragraphs take between them.
-    private static func spacing(
-        at index: Int,
-        opening: [Int?],
-        closing: [Bool],
-        style: ChapterTextStyle,
-        gap: CGFloat
-    ) -> (before: CGFloat, after: CGFloat) {
-        let line = style.pageLine
-        let air = opening[index].map { TitleBlock.air(forLevel: $0) } ?? 0
+    private static func spacing(at index: Int, in setting: Setting) -> (before: CGFloat, after: CGFloat) {
+        let line = setting.style.pageLine
+        let air = setting.opening[index].map { TitleBlock.air(forLevel: $0) } ?? 0
+        // A quotation's source stands clear of the words it names, and whatever comes after one is no
+        // longer part of that quotation, so it stands clear too. Without this two epigraphs over a
+        // chapter read as one run of text.
+        let apart = setting.sources[index] || (index > 0 && setting.sources[index - 1])
+        let quoted = apart && air == 0 ? line : 0
+        let after = setting.closing[index] ? setting.gap + TitleBlock.gap(after: air) * line : setting.gap
 
-        return (air * line, closing[index] ? gap + TitleBlock.gap(after: air) * line : gap)
+        return (air * line + quoted, after)
     }
 
     /// Sets the stretches a formula drops below the line or lifts above it.
