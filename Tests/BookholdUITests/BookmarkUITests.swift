@@ -28,6 +28,7 @@ final class BookmarkUITests: XCTestCase {
             "the page did not read as marked once it had been"
         )
 
+        app.buttons["More"].tap()
         app.buttons["Contents"].tap()
 
         let mark = app.buttons["Bookmark"].firstMatch
@@ -37,10 +38,7 @@ final class BookmarkUITests: XCTestCase {
         mark.swipeLeft()
         app.buttons["Remove"].firstMatch.tap()
 
-        XCTAssertFalse(
-            mark.waitForExistence(timeout: 2),
-            "the mark stayed in the contents after it was taken off"
-        )
+        XCTAssertFalse(mark.waitForExistence(timeout: 2), "the mark stayed in the contents after it was taken off")
     }
 
     /// Turns one page forward, by a tap in the outer third the way a reader does.
@@ -48,12 +46,12 @@ final class BookmarkUITests: XCTestCase {
         page.coordinate(withNormalizedOffset: CGVector(dx: 0.85, dy: 0.5)).tap()
     }
 
-    /// The reader opens with its bar away, and the button lives on that bar.
+    /// The reader opens with its bar away, and the glyph the chapter list lives under is on that bar.
     private func showChrome(on page: XCUIElement, in app: XCUIApplication) {
-        guard !app.buttons["Contents"].exists else { return }
+        guard !app.buttons["More"].exists else { return }
 
         page.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
-        _ = app.buttons["Contents"].waitForExistence(timeout: 5)
+        _ = app.buttons["More"].waitForExistence(timeout: 5)
     }
 
     private func launch() -> XCUIApplication {

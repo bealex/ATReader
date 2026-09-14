@@ -28,7 +28,7 @@ class CatalogUITestCase: XCTestCase {
             "-reader.face", "serif",
             "-reader.alignment.ru", "justified",
             "-reader.alignment.en", "justified",
-            "-reader.theme", "system"
+            "-reader.theme", "system",
         ]
         app.launch()
     }
@@ -51,10 +51,7 @@ class CatalogUITestCase: XCTestCase {
         let book = app.collectionViews.cells.element(boundBy: 1)
         XCTAssertTrue(book.waitForExistence(timeout: 30), "no book to open")
         book.tap()
-        XCTAssertTrue(
-            app.buttons["work.read"].waitForExistence(timeout: 30),
-            "book page never offered a read action"
-        )
+        XCTAssertTrue(app.buttons["work.read"].waitForExistence(timeout: 30), "book page never offered a read action")
     }
 
     fileprivate func openReader() {
@@ -75,11 +72,19 @@ class CatalogUITestCase: XCTestCase {
     }
 
     /// The reader opens with no chrome at all; a tap in the middle third brings the controls back.
+    ///
+    /// The bar itself carries the way out, the bookmark and one glyph for everything else, so what says
+    /// the controls are up is that glyph.
     fileprivate func showChrome() {
         app.otherElements["reader.page"].firstMatch
             .coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
             .tap()
-        XCTAssertTrue(app.buttons["Appearance"].waitForExistence(timeout: 5), "the reader controls never appeared")
+        XCTAssertTrue(app.buttons["More"].waitForExistence(timeout: 5), "the reader controls never appeared")
+    }
+
+    /// Opens the menu the chapter list and the appearance form live under.
+    fileprivate func openMore() {
+        app.buttons["More"].tap()
     }
 
     /// Turns one page forward. A book opens on its title page, so reading tests step past it first.
@@ -134,7 +139,6 @@ class CatalogUITestCase: XCTestCase {
 
         return false
     }
-
 }
 
 /// Searching the catalogue, the charts, and how deep the tab bar reaches.
@@ -174,10 +178,7 @@ final class CatalogUITests: CatalogUITestCase {
     func testTopChartLoadsAndFiltersByPeriod() {
         app.tab("Top").tap()
 
-        XCTAssertTrue(
-            app.collectionViews.cells.firstMatch.waitForExistence(timeout: 30),
-            "top chart never populated"
-        )
+        XCTAssertTrue(app.collectionViews.cells.firstMatch.waitForExistence(timeout: 30), "top chart never populated")
 
         let monthChip = app.buttons["This month"]
         XCTAssertTrue(monthChip.waitForExistence(timeout: 10))
@@ -300,6 +301,7 @@ final class ReaderControlsUITests: CatalogUITestCase {
         XCTAssertTrue(caption.waitForExistence(timeout: 20))
 
         showChrome()
+        openMore()
         app.buttons["Appearance"].tap()
         XCTAssertTrue(app.navigationBars["Appearance"].waitForExistence(timeout: 10))
 
@@ -325,14 +327,12 @@ final class ReaderControlsUITests: CatalogUITestCase {
         openReader()
 
         showChrome()
+        openMore()
         app.buttons["Appearance"].tap()
         XCTAssertTrue(app.navigationBars["Appearance"].waitForExistence(timeout: 10))
 
         XCTAssertTrue(scrollUntilVisible(app.sliders["reader.margins"]), "margin control missing")
-        XCTAssertTrue(
-            scrollUntilVisible(app.segmentedControls["reader.alignment.ru"]),
-            "alignment control missing"
-        )
+        XCTAssertTrue(scrollUntilVisible(app.segmentedControls["reader.alignment.ru"]), "alignment control missing")
         XCTAssertTrue(app.buttons["Justified"].exists, "justified option missing")
         XCTAssertTrue(app.buttons["Left-aligned"].exists, "left-aligned option missing")
     }
@@ -341,7 +341,7 @@ final class ReaderControlsUITests: CatalogUITestCase {
     func testMiddleTapTogglesTheControls() {
         openReader()
         XCTAssertTrue(app.staticTexts["reader.caption"].waitForExistence(timeout: 20))
-        XCTAssertFalse(app.buttons["Appearance"].exists, "the reader opened with its controls showing")
+        XCTAssertFalse(app.buttons["More"].exists, "the reader opened with its controls showing")
 
         showChrome()
 
@@ -349,7 +349,7 @@ final class ReaderControlsUITests: CatalogUITestCase {
             .coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
             .tap()
 
-        XCTAssertTrue(waitForAbsence(of: app.buttons["Appearance"]), "a second middle tap left the controls up")
+        XCTAssertTrue(waitForAbsence(of: app.buttons["More"]), "a second middle tap left the controls up")
     }
 
     /// The appearance sheet is capped to half the screen so the page stays visible, and every change
@@ -362,6 +362,7 @@ final class ReaderControlsUITests: CatalogUITestCase {
         let before = caption.label
 
         showChrome()
+        openMore()
         app.buttons["Appearance"].tap()
         let sheetBar = app.navigationBars["Appearance"]
         XCTAssertTrue(sheetBar.waitForExistence(timeout: 10), "appearance sheet never opened")
@@ -404,11 +405,7 @@ final class ReaderPlaceUITests: CatalogUITestCase {
             longest = longestPageLabel()
         }
 
-        XCTAssertGreaterThan(
-            longest.count,
-            200,
-            "page body looks empty — decryption or pagination may have failed"
-        )
+        XCTAssertGreaterThan(longest.count, 200, "page body looks empty — decryption or pagination may have failed")
     }
 
     /// Walks from a chart to a book to its reader — the path every reading test starts with.
@@ -448,6 +445,7 @@ final class ReaderPlaceUITests: CatalogUITestCase {
         openReader()
 
         showChrome()
+        openMore()
         app.buttons["Contents"].tap()
         XCTAssertTrue(app.navigationBars["Contents"].waitForExistence(timeout: 10))
         XCTAssertGreaterThan(app.collectionViews.cells.count, 0, "table of contents was empty")

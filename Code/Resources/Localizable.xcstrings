@@ -3743,6 +3743,17 @@
         }
       }
     },
+    "The chapter list, and how the page is set": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Оглавление и оформление страницы"
+          }
+        }
+      }
+    },
     "The session ran out. Sign in again.": {
       "extractionState": "manual",
       "localizations": {

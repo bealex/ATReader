@@ -699,22 +699,41 @@ enum ReaderScreen {
             .accessibilityHint("Marks the page, or clears the marks on it")
             .disabled(model?.canBookmarkPage != true)
 
-            Button("Contents", systemImage: "list.bullet") { isShowingContents = true }
-                .accessibilityHint("Shows the chapter list")
-                .popover(isPresented: $isShowingContents) {
-                    if let model {
-                        ContentsSheet(model: model, isPresented: $isShowingContents)
-                    }
+            more
+        }
+
+        /// Everything that opens something of its own, under one glyph.
+        ///
+        /// The bar is read over a page, so only what is wanted while reading stands on it: the way out,
+        /// whether the book is marked here, and this. The rest is a tap further away and the page keeps
+        /// the room.
+        ///
+        /// The two forms hang here rather than on the rows in the menu. A menu is gone by the moment
+        /// its row acts, and a popover hung on something gone has nothing left to point at, so it
+        /// points at this instead, which is what the reader touched.
+        private var more: some View {
+            Menu {
+                Button("Contents", systemImage: "list.bullet") { isShowingContents = true }
+
+                Button("Appearance", systemImage: "textformat.size") { isShowingSettings = true }
+
+                #if DEBUG
+                    Button("Debug info", systemImage: "ladybug") { collectReport() }
+                #endif
+            } label: {
+                Image(systemName: "ellipsis")
+                    .font(.system(size: Design.Size.glyph(in: Design.Size.touch)))
+                    .frame(width: Design.Size.touch, height: Design.Size.touch)
+                    .contentShape(.rect)
+            }
+            .accessibilityLabel("More")
+            .accessibilityHint("The chapter list, and how the page is set")
+            .popover(isPresented: $isShowingContents) {
+                if let model {
+                    ContentsSheet(model: model, isPresented: $isShowingContents)
                 }
-
-            Button("Appearance", systemImage: "textformat.size") { isShowingSettings = true }
-                .accessibilityHint("Font, margins and page settings")
-                .popover(isPresented: $isShowingSettings) { SettingsSheet() }
-
-            #if DEBUG
-                Button("Debug info", systemImage: "ladybug") { collectReport() }
-                    .accessibilityHint("Collects the page, its settings and a picture of it")
-            #endif
+            }
+            .popover(isPresented: $isShowingSettings) { SettingsSheet() }
         }
 
         /// Where the controls start, so that the middle of them lands on the middle of the line the
