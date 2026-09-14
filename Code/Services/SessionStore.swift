@@ -191,6 +191,15 @@ final class SessionStore {
                 return true
             }
 
+            // A reader who has never signed in, which is how the app opens for anyone with books of
+            // their own. A fresh install is already this, but the keychain outlives one.
+            if arguments.contains("-at-ui-test-signed-out") {
+                client.signOut()
+                KeychainStore.removeAll()
+                state = .signedOut
+                return true
+            }
+
             guard arguments.contains("-at-ui-test-guest") else { return false }
 
             client.signOut()

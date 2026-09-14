@@ -52,17 +52,19 @@ enum RootScreen {
             }
         }
 
+        /// The library opens whether or not anyone has signed in. A reader with books of their own has
+        /// no account to give, and signing in is offered from the profile instead of demanded at the
+        /// door.
         @ViewBuilder
         private var sessionRoot: some View {
             switch session.state {
                 case .restoring: restoring
-                case .signedOut: LoginScreen.Component()
-                case .signedIn: signedIn
+                case .signedOut, .signedIn: tabs
             }
         }
 
         @ViewBuilder
-        private var signedIn: some View {
+        private var tabs: some View {
             #if DEBUG
                 // `-at-ui-test-reader <workId>` opens straight into the reader, so the page layout can
                 // be inspected without walking the tabs first. Debug builds only.

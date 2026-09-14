@@ -3424,6 +3424,17 @@
         }
       }
     },
+    "Signs in so the books author.today holds appear on the shelf": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Вход, чтобы книги с author.today появились на полке"
+          }
+        }
+      }
+    },
     "Size": {
       "extractionState": "manual",
       "localizations": {

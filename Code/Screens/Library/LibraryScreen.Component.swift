@@ -19,6 +19,9 @@ enum LibraryScreen {
         @Environment(BookInbox.self)
         private var inbox
 
+        @Environment(SessionStore.self)
+        private var session
+
         @Environment(Navigator.self)
         private var navigator
 
@@ -65,6 +68,13 @@ enum LibraryScreen {
                     }
                 }
                 .task { await model.loadIfNeeded() }
+                // Signing in from the profile is what first gives the shelf an account to ask about,
+                // and the library behind it was settled before there was one.
+                .onChange(of: session.isSignedIn) { _, signedIn in
+                    guard signedIn else { return }
+
+                    Task { await model.signedIn() }
+                }
                 .onChange(of: inbox.importedAt) { _, _ in
                     // A book picked in the profile, or handed over by another app, lands in the store
                     // rather than in this screen.

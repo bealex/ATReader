@@ -19,6 +19,9 @@ enum ProfileScreen {
         @State
         private var isConfirmingSignOut = false
 
+        @State
+        private var isSigningIn = false
+
         @Environment(ShelfSettings.self)
         private var shelf
 
@@ -70,6 +73,13 @@ enum ProfileScreen {
             .frame(maxWidth: .infinity)
             .background(Design.Surface.screen)
             .navigationTitle("Profile")
+            .sheet(isPresented: $isSigningIn) {
+                LoginScreen.Component()
+            }
+            // The sheet has done its job the moment the session has a reader in it.
+            .onChange(of: session.isSignedIn) { _, signedIn in
+                if signedIn { isSigningIn = false }
+            }
             .task {
                 await refreshStats()
                 await UpdateBadge.requestBadgePermission()
@@ -110,7 +120,7 @@ enum ProfileScreen {
         /// The service: who is signed in and the way out, and what its shelf shows.
         private var authorToday: some View {
             Section {
-                if let user = session.user { profileRow(user) }
+                if let user = session.user { profileRow(user) } else { signIn }
 
                 Toggle(isOn: shelfBinding) {
                     Label("Show likes", systemImage: "heart")
@@ -175,6 +185,19 @@ enum ProfileScreen {
             } header: {
                 Text("Other")
             }
+        }
+
+        /// The way in, for a reader who opened the app without an account. The library reads books of
+        /// their own without one; an account is what adds the books author.today holds for them.
+        private var signIn: some View {
+            Button {
+                isSigningIn = true
+            } label: {
+                DisclosureLabel { Label("Sign in", systemImage: "person.crop.circle.badge.plus") }
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("profile.signIn")
+            .accessibilityHint("Signs in so the books author.today holds appear on the shelf")
         }
 
         /// Who is signed in, and the way out, centred on the avatar.

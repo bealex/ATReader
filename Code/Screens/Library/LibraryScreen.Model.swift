@@ -1197,6 +1197,13 @@ extension LibraryScreen {
         /// True for a book that came from a file rather than the service.
         func isLocal(_ work: Book) -> Bool { BookNumbering.isLocal(work.id) }
 
+        /// Loads the library again from the top, for a reader who has just signed in and whose books
+        /// the service is only now able to name.
+        func signedIn() async {
+            hasLoaded = false
+            await loadIfNeeded()
+        }
+
         func loadIfNeeded() async {
             guard !hasLoaded else { return }
 
@@ -1371,6 +1378,17 @@ extension LibraryScreen {
                 // The invented library stands in for the service's, which would replace it.
                 guard !DemoLibrary.isOn else { return }
             #endif
+
+            // Nothing to ask for. A reader who has not signed in has the books they imported, and the
+            // store has already put those on screen, so asking would only raise an error about an
+            // account they never claimed to have.
+            guard
+                session.isSignedIn
+            else {
+                isOffline = false
+                hasLoaded = true
+                return
+            }
 
             isLoading = true
             errorMessage = nil
