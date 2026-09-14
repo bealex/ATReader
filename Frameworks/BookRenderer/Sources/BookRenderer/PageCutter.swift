@@ -20,6 +20,9 @@ struct PageCutter: Sendable {
         var characters: NSRange
         /// How deep the line stands, the space under it included.
         var height: CGFloat
+        /// The least it may stand at. The same as `height` for text, which gives up nothing; a plate
+        /// may give up some of its own depth to finish the page it stands on.
+        var leastHeight: CGFloat
         /// How much air stands above the line, where it opens a title block.
         var titleAir: CGFloat
         var startsParagraph: Bool
@@ -80,6 +83,9 @@ struct PageCutter: Sendable {
 
         for index in cut.pages.indices {
             let available = depth - (index == 0 ? startOffset : 0)
+
+            cut.pages[index].plate = plate(on: cut.pages[index], available: available)
+
             let spread = spacing(
                 for: cut.pages[index],
                 available: available,
@@ -131,12 +137,13 @@ struct PageCutter: Sendable {
             while limit <= count {
                 used += slugs[limit - 1].height
                 let squeeze = CGFloat(limit - start - 1) * Rules.tightening
+                let filled = fitting(used, endingAt: limit - 1, in: depth + squeeze)
 
                 // Nothing longer will fit. One line always may, so a line taller than the page still
                 // lands on one instead of leaving the chapter with nowhere to break.
-                if used > depth + squeeze, limit > start + 1 { break }
+                if filled == nil, limit > start + 1 { break }
 
-                let total = cost(from: start, to: limit, available: depth, used: used) + best[limit]
+                let total = cost(from: start, to: limit, available: depth, used: filled ?? used) + best[limit]
 
                 if total < best[start] {
                     best[start] = total
@@ -165,10 +172,11 @@ struct PageCutter: Sendable {
         while limit <= count {
             used += slugs[limit - 1].height
             let squeeze = CGFloat(limit - 1) * Rules.tightening
+            let filled = fitting(used, endingAt: limit - 1, in: available + squeeze)
 
-            if used > available + squeeze, limit > 1 { break }
+            if filled == nil, limit > 1 { break }
 
-            let total = cost(from: 0, to: limit, available: available, used: used) + breaks.best[limit]
+            let total = cost(from: 0, to: limit, available: available, used: filled ?? used) + breaks.best[limit]
 
             if total < cheapest {
                 cheapest = total
@@ -179,6 +187,20 @@ struct PageCutter: Sendable {
         }
 
         return chosen
+    }
+
+    /// How deep a page from its first line to `limit` actually stands, letting a plate at its foot give
+    /// up depth to finish it. Nil where not even the plate's floor will fit, which is where a page has
+    /// to break earlier.
+    private func fitting(_ used: CGFloat, endingAt last: Int, in room: CGFloat) -> CGFloat? {
+        guard used > room else { return used }
+
+        let slug = slugs[last]
+        let canGive = slug.height - slug.leastHeight
+
+        guard canGive > 0, used - room <= canGive else { return nil }
+
+        return room
     }
 
     /// What one page costs: the rules it breaks, and how far short of its measure it comes.
@@ -257,7 +279,7 @@ struct PageCutter: Sendable {
         typealias Rules = ChapterLayout.Rules
 
         let gaps = page.lines.count - 1
-        let used = page.lines.reduce(CGFloat(0)) { $0 + slugs[$1].height }
+        let used = page.lines.reduce(CGFloat(0)) { $0 + depth(of: $1, on: page) }
         let slack = available - used
         // A page that ends a chapter keeps its ragged bottom: the text stops where the chapter stops,
         // and opening its gaps would only put air between the last lines the reader sees. Everywhere
@@ -273,6 +295,36 @@ struct PageCutter: Sendable {
 
         // Whatever no amount of leading could absorb is the pictures'.
         return Spacing(leading: leading, imagePadding: (slack - leading * CGFloat(gaps)) / CGFloat(2 * pictures))
+    }
+
+    /// What the plate at the foot of a page gave up to finish it, where it had to give anything.
+    ///
+    /// A plate standing alone on a page is left as it is: it already has the whole page, and one too
+    /// tall for even that gave up width when it was measured.
+    private func plate(on page: ChapterLayout.Page, available: CGFloat) -> ChapterLayout.Page.Plate? {
+        typealias Rules = ChapterLayout.Rules
+
+        let last = page.lines.upperBound - 1
+
+        guard page.lines.count > 1, slugs.indices.contains(last), slugs[last].isImage else { return nil }
+
+        let used = page.lines.reduce(CGFloat(0)) { $0 + slugs[$1].height }
+        let room = available + CGFloat(page.lines.count - 1) * Rules.tightening
+
+        guard used > room else { return nil }
+
+        let given = min(used - room, slugs[last].height - slugs[last].leastHeight)
+
+        guard given > 0 else { return nil }
+
+        return ChapterLayout.Page.Plate(line: last, height: slugs[last].height - given)
+    }
+
+    /// How deep a line stands on a page, which is less than its own depth for a plate that gave some up.
+    private func depth(of line: Int, on page: ChapterLayout.Page) -> CGFloat {
+        guard let plate = page.plate, plate.line == line else { return slugs[line].height }
+
+        return plate.height
     }
 
     /// How many pictures share what the lines left behind.
@@ -293,6 +345,7 @@ extension ColumnComposer.Line {
         PageCutter.Slug(
             characters: characters,
             height: height,
+            leastHeight: image == nil ? height : height - imageSize.height * ChapterLayout.Rules.plateGivesUp,
             titleAir: titleAir,
             startsParagraph: startsParagraph,
             endsParagraph: endsParagraph,

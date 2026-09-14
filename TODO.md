@@ -52,14 +52,6 @@ What's still open, roughly in the order it would bite. Finished work isn't liste
       one would need the layout to be redone when it lands.
 - [ ] **A book imported before its file was kept can't re-read itself.** The book screen's menu asks
       for the file instead of re-reading one it holds, so those books need finding once by hand.
-- [ ] **A plate that doesn't fit leaves the page it was on half empty.** `ColumnComposer.line(of:)`
-      sizes a picture against the whole page depth and freezes it as a fixed-height line, so one
-      standing at about two thirds of a page can never follow any text: it always lands alone and the
-      page before it ends early. Letting a plate give up height to finish the page it stands on is
-      about fifteen per cent in the case that was reported, but the height then depends on where the
-      break falls, so it belongs inside the break search rather than after it, with a floor below which
-      the plate takes a page of its own. Floating the text around it instead would break the one thing
-      everything else leans on, that a page is one contiguous range of the chapter.
 - [ ] The running head is the book's title on every page. A chapter title on the verso, the way a
       printed book does it, would be more use.
 - [ ] Dynamic Type does nothing in the reader. That may be right, since it has its own size control,

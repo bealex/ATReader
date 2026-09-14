@@ -100,7 +100,7 @@ public final class ChapterLayout {
     /// Measurements are kept against the setting they were made at, and the setting alone says nothing
     /// about the rules that read it. Without this, changing how far a mark hangs would leave every book
     /// on the device showing the breaks an older layout chose.
-    public nonisolated static let rulesVersion = "24"
+    public nonisolated static let rulesVersion = "25"
 
     public enum Rules {
         /// Lines that have to follow a heading rather than leaving it stranded at the foot of a page.
@@ -118,6 +118,13 @@ public final class ChapterLayout {
         static let brokenRule: Double = 1000
         /// What each line a chapter's last page falls short of a decent ending costs.
         static let thinLastPage: Double = 40
+        /// How much of its own depth a plate may give up to finish the page it stands on.
+        ///
+        /// A plate is sized against the whole page, so one standing at two thirds of it can follow no
+        /// text at all: it lands on a page of its own and leaves the page before it half empty. Letting
+        /// it give a little back is what closes that gap. Below this it is small enough to read as a
+        /// different picture, so it takes the page of its own instead.
+        static let plateGivesUp: CGFloat = 0.3
     }
 
     /// Text longer than this is worth telling the reader about while it is being laid out.
@@ -147,10 +154,38 @@ public final class ChapterLayout {
 
     /// One page: the lines it carries and the space added to (or taken from) each gap between them.
     struct Page: Sendable {
+        /// A plate at the foot of a page that gave up depth to finish it rather than taking a page of
+        /// its own and leaving this one half empty.
+        struct Plate: Sendable, Equatable {
+            var line: Int
+            var height: CGFloat
+        }
+
         var lines: Range<Int>
         var leading: CGFloat
         /// Air set above and below each picture on the page, which is what centres one in its space.
         var imagePadding: CGFloat = 0
+        var plate: Plate?
+    }
+
+    /// How deep a line stands on a page: its own depth, unless it is the plate that gave some up.
+    func depth(of line: Int, on page: Page) -> CGFloat {
+        guard let plate = page.plate, plate.line == line else { return lines[line].height }
+
+        return plate.height
+    }
+
+    /// How large the picture on a line is drawn. What the line gave up the picture gave up, the spacing
+    /// under it being no part of the picture, and the width follows so the plate keeps its shape.
+    func pictureSize(of line: Int, on page: Page) -> CGSize {
+        let natural = lines[line].imageSize
+        let given = lines[line].height - depth(of: line, on: page)
+
+        guard given > 0, natural.height > 0 else { return natural }
+
+        let height = max(1, natural.height - given)
+
+        return CGSize(width: natural.width * (height / natural.height), height: height)
     }
 
     init(
@@ -522,14 +557,15 @@ public final class ChapterLayout {
             if let picture = lines[line].image {
                 // The picture is centred in everything the page gave it, its own line's spacing
                 // included, so what stands above it matches what stands below.
-                let allotted = lines[line].height + page.imagePadding * 2
-                let top = cursor + (allotted - lines[line].imageSize.height) / 2
+                let size = pictureSize(of: line, on: page)
+                let allotted = depth(of: line, on: page) + page.imagePadding * 2
+                let top = cursor + (allotted - size.height) / 2
+                // Centred on the measure rather than on where it was set, since a plate that gave up
+                // depth gave up width with it.
+                let left = context.textRect.minX + (context.textSize.width - size.width) / 2
 
                 picture.draw(
-                    in: CGRect(
-                        origin: CGPoint(x: context.textRect.minX + lines[line].origin, y: top),
-                        size: lines[line].imageSize
-                    ),
+                    in: CGRect(origin: CGPoint(x: left, y: top), size: size),
                     palette: context.style.palette,
                     into: drawing
                 )
@@ -563,7 +599,8 @@ public final class ChapterLayout {
         var cursor = context.textRect.minY + (index == 0 ? startOffset : 0)
 
         for line in page.lines {
-            let allotted = lines[line].height + (lines[line].image != nil ? page.imagePadding * 2 : 0)
+            let deep = depth(of: line, on: page)
+            let allotted = deep + (lines[line].image != nil ? page.imagePadding * 2 : 0)
 
             defer { cursor += allotted + page.leading }
 
@@ -575,7 +612,7 @@ public final class ChapterLayout {
 
             return NoteHit(
                 id: found.id,
-                rect: CGRect(x: origin + found.start, y: cursor, width: found.width, height: lines[line].height)
+                rect: CGRect(x: origin + found.start, y: cursor, width: found.width, height: deep)
             )
         }
 
@@ -590,7 +627,8 @@ public final class ChapterLayout {
         var cursor = context.textRect.minY + (index == 0 ? startOffset : 0)
 
         for line in page.lines {
-            let allotted = lines[line].height + (lines[line].image != nil ? page.imagePadding * 2 : 0)
+            let deep = depth(of: line, on: page)
+            let allotted = deep + (lines[line].image != nil ? page.imagePadding * 2 : 0)
 
             defer { cursor += allotted + page.leading }
 
@@ -602,7 +640,7 @@ public final class ChapterLayout {
 
             return LinkHit(
                 target: found.target,
-                rect: CGRect(x: origin + found.start, y: cursor, width: found.width, height: lines[line].height)
+                rect: CGRect(x: origin + found.start, y: cursor, width: found.width, height: deep)
             )
         }
 

@@ -256,6 +256,28 @@ A picture takes the whole measure, but is never blown up past one of its own pix
 small decoration stays small rather than becoming a blurred plate. One too deep for the page gives up
 width until it fits.
 
+### A plate that will not fit the room left
+
+A picture is sized against the whole page, so one standing at two thirds of it can follow no text at
+all: it lands on a page of its own, and the page before it ends wherever the text ran out. That's the
+half-empty page a reader notices.
+
+So a plate at the foot of a page may give up depth to finish it. `PageCutter` settles that inside the
+break search rather than after it, because how much a plate gives up depends on which break falls, and
+the search is what's choosing the break. A page ending on a plate that can shrink enough is costed as
+full, so the run of breaks that closes the gap is the cheapest one and wins on its own merits.
+
+`Rules.plateGivesUp` is the floor: a third of its own depth. Past that it reads as a different picture
+rather than as the same one set smaller, so it keeps the page of its own and the page before it stays
+short. A plate standing alone is left as it is, since it's got the whole page already, and text gives
+up nothing at all, or a page would quietly set its own lines tighter than the column did.
+
+What the plate loses in depth it loses in width, so it keeps its shape, and it is drawn centred on the
+measure rather than on where it was first set. Four things walk a page's lines: the drawing, a tap
+looking for a note, a tap looking for a link, and the selection. They all read the depth through
+`ChapterLayout.depth(of:on:)`, since a walk that disagreed with the drawing by a plate's worth would
+put every tap below it on the wrong line.
+
 ### Which colours a picture takes
 
 Nothing in a file says whether a picture is colour art or line work, so `BookImages` reads it off the

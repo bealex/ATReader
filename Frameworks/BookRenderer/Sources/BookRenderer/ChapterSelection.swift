@@ -109,7 +109,7 @@ public extension ChapterLayout {
         var result: [PlacedLine] = []
 
         for line in page.lines {
-            let allotted = lines[line].height + (lines[line].image != nil ? page.imagePadding * 2 : 0)
+            let allotted = depth(of: line, on: page) + (lines[line].image != nil ? page.imagePadding * 2 : 0)
 
             result.append(PlacedLine(index: line, edge: cursor, height: allotted))
             cursor += allotted + page.leading
