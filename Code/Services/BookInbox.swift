@@ -77,6 +77,48 @@ final class BookInbox {
         }
     }
 
+    /// Reads again every book whose text this build would now make something different of.
+    ///
+    /// What a chapter holds is whatever the parser made of the file when it was read, so a parser that
+    /// has learned something reaches the books already on the shelf only by reading their files again.
+    /// This is what saves the reader doing it a book at a time; see ``BookReading``.
+    ///
+    /// One at a time and off the main thread, because a whole library can be behind at once and none of
+    /// it is urgent. A book whose file this device no longer has is left as it is, and one that fails to
+    /// read keeps its old version, so the next run tries it again.
+    @discardableResult
+    func rereadWhatIsBehind() async -> Int {
+        let behind = await store.localBooks()
+            .filter { $0.isBehindThisBuild && LocalBookFiles.hasKeptFile(workId: $0.workId) }
+            .sorted { $0.workId > $1.workId }
+
+        guard !behind.isEmpty else { return 0 }
+
+        Self.logger.info("reading \(behind.count) books again for this build")
+
+        var read = 0
+
+        for record in behind {
+            do {
+                let work = try await BookImporting.reimport(workId: record.workId, store: store)
+
+                await processor.start(workId: work.id, chapters: store.chapters(workId: work.id))
+                read += 1
+            } catch {
+                Self.logger.error(
+                    "reading \(record.workId) again failed: \(error.localizedDescription, privacy: .public)"
+                )
+            }
+
+            await Task.yield()
+        }
+
+        if read > 0 { libraryChanged() }
+
+        Self.logger.info("read \(read) of \(behind.count) books again")
+        return read
+    }
+
     /// Reads a file into the library and starts putting it through the typesetter.
     ///
     /// The book is on the shelf and readable as soon as its text is stored. Preparing it runs behind

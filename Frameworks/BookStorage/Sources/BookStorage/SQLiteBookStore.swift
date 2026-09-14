@@ -131,6 +131,13 @@ public actor SQLiteBookStore {
     private func filed(_ summary: Book, by custom: [Int: CustomSeries], edits: [Int: SeriesEdit]) -> Book {
         var result = summary
 
+        // A book off a file keeps its cover inside the app's own container, and the system gives the
+        // app a new container every time it is installed. The path written down when the book arrived
+        // names a directory that is no longer there, so it is worked out again from the book's number.
+        if BookNumbering.isLocal(summary.id), summary.coverURL != nil {
+            result.coverURL = LocalBookFiles.coverURL(workId: summary.id)
+        }
+
         if let edit = edits[summary.id] {
             if let series = edit.series { result.seriesTitle = series.isEmpty ? nil : series }
             if let volume = edit.volume { result.seriesOrder = volume }
@@ -491,7 +498,8 @@ public actor SQLiteBookStore {
     // MARK: - What the device holds, and where it came from
 
     private static let provenanceColumns =
-        "work_id, fingerprint, imported_at, source, source_id, source_updated_at, content_hash, archive_hash"
+        "work_id, fingerprint, imported_at, source, source_id, source_updated_at, content_hash, "
+        + "archive_hash, reading_version"
 
     public func localBook(fingerprint: String) -> LocalBookRecord? {
         localBook(where: "fingerprint = ?") { $0.bind(1, fingerprint) }
@@ -530,7 +538,8 @@ public actor SQLiteBookStore {
     public func store(provenance: LocalBookRecord) {
         let query = """
             UPDATE local_book
-            SET source = ?, source_id = ?, source_updated_at = ?, content_hash = ?, archive_hash = ?
+            SET source = ?, source_id = ?, source_updated_at = ?, content_hash = ?, archive_hash = ?,
+                reading_version = ?
             WHERE work_id = ?
             """
 
@@ -541,7 +550,8 @@ public actor SQLiteBookStore {
         _ = statement.bind(3, provenance.sourceUpdatedAt?.timeIntervalSince1970)
         _ = statement.bind(4, provenance.contentHash)
         _ = statement.bind(5, provenance.archiveHash)
-        _ = statement.bind(6, provenance.workId)
+        _ = statement.bind(6, provenance.readingVersion)
+        _ = statement.bind(7, provenance.workId)
         statement.execute()
     }
 
@@ -566,7 +576,8 @@ public actor SQLiteBookStore {
             sourceId: statement.string(4),
             sourceUpdatedAt: statement.date(5),
             contentHash: statement.string(6),
-            archiveHash: statement.string(7)
+            archiveHash: statement.string(7),
+            readingVersion: statement.integer(8)
         )
     }
 
@@ -1143,6 +1154,7 @@ public actor SQLiteBookStore {
         addReadingDates()
         addPutAwayDate()
         addProvenanceColumns()
+        addReadingVersion()
         repairProgress()
         markServiceBooksRead()
         countSeriesFromOne()
@@ -1165,6 +1177,16 @@ public actor SQLiteBookStore {
         execute("ALTER TABLE local_book ADD COLUMN archive_hash TEXT")
         execute("CREATE INDEX IF NOT EXISTS local_book_by_content ON local_book (content_hash)")
         execute("CREATE INDEX IF NOT EXISTS local_book_by_source ON local_book (source, source_id)")
+    }
+
+    /// Adds the column saying which build's reading of a file a book holds.
+    ///
+    /// Everything already here was read by a build that did not count, which is what a zero says, so
+    /// every book on the device is read again once and dated from then on.
+    private func addReadingVersion() {
+        guard !columns(of: "local_book").contains("reading_version") else { return }
+
+        execute("ALTER TABLE local_book ADD COLUMN reading_version INTEGER NOT NULL DEFAULT 0")
     }
 
     /// Adds the columns that date a book's writing, for a store made before they existed.

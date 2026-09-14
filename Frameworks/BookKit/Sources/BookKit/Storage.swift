@@ -153,6 +153,9 @@ public struct LocalBookRecord: Sendable, Equatable {
     public let contentHash: String?
     /// The container as it arrived, hashed. Nothing where the book arrived as plain text.
     public let archiveHash: String?
+    /// Which build's reading of the file this copy holds. Below ``BookReading/version`` it is behind
+    /// what this build would make of the same file, and the file is read again.
+    public let readingVersion: Int
 
     public init(
         workId: Int,
@@ -162,7 +165,8 @@ public struct LocalBookRecord: Sendable, Equatable {
         sourceId: String? = nil,
         sourceUpdatedAt: Date? = nil,
         contentHash: String? = nil,
-        archiveHash: String? = nil
+        archiveHash: String? = nil,
+        readingVersion: Int = 0
     ) {
         self.workId = workId
         self.fingerprint = fingerprint
@@ -172,7 +176,11 @@ public struct LocalBookRecord: Sendable, Equatable {
         self.sourceUpdatedAt = sourceUpdatedAt
         self.contentHash = contentHash
         self.archiveHash = archiveHash
+        self.readingVersion = readingVersion
     }
+
+    /// True where this build would make something different of the same file than this copy holds.
+    public var isBehindThisBuild: Bool { readingVersion < BookReading.version }
 
     /// True where the source has moved on since this copy was taken.
     ///

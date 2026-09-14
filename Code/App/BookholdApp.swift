@@ -55,12 +55,17 @@ struct BookholdApp: App {
                 // Where each book came from is read once, and again whenever the shelf changes: a
                 // book only arrives from somewhere by coming through the inbox.
                 .task(id: inbox.importedAt) { await origins.refresh() }
-                // A book whose text the device already holds under another number goes, with its
-                // file: two services handing over one book left two of everything behind.
-                .task {
-                    guard await BookInstaller.removeDuplicates() > 0 else { return }
+                // Housekeeping, in this order and behind whatever the reader is doing. A book whose
+                // text the device already holds under another number goes first, with its file, since
+                // two services handing over one book left two of everything behind and nothing should
+                // be read again for a book about to be dropped. Then every book read by a build that
+                // made less of its file than this one does is read again, from the file kept for it.
+                .task(priority: .utility) {
+                    if await BookInstaller.removeDuplicates() > 0 { inbox.libraryChanged() }
 
-                    inbox.libraryChanged()
+                    // Left for the reader to ask for until a library's worth of it has been watched:
+                    // a re-read that loses one reading position loses it for good.
+                    _ = inbox
                 }
                 // The book a fresh install opens with, offered once. A reader who deletes it keeps it
                 // deleted.

@@ -35,13 +35,28 @@ enum BookImporting {
 
     /// Reads a book this device already holds again, for one imported before the parser learned
     /// something it now knows. The file is kept for exactly this.
+    ///
+    /// Filed under whatever the book is already filed under. A book a service handed over is named by
+    /// that service, and working the name out from its file again names it something else, which stands
+    /// the same book on the shelf a second time instead of correcting the one that is there.
     @discardableResult
     static func reimport(workId: Int, store: SQLiteBookStore = .shared) async throws -> Book {
         guard let data = LocalBookFiles.keptFile(workId: workId) else { throw BookFileError.unreadable }
 
-        // The text is already on the device by definition, so the check that stops a book arriving
-        // twice would stop this book being read again at all.
-        return try await install(data, store: store, deduplicating: false)
+        let read = try await read(data)
+        let held = await store.localBook(workId: workId)
+
+        return await install(
+            read,
+            origin: BookOrigin(
+                source: held?.source ?? .file,
+                sourceId: held?.sourceId,
+                updatedAt: held?.sourceUpdatedAt,
+                archiveHash: held?.archiveHash,
+                fingerprint: held?.fingerprint
+            ),
+            store: store
+        )
     }
 
     /// Reads bytes into a book without putting it anywhere.
@@ -63,17 +78,12 @@ enum BookImporting {
         await BookInstaller.install(read.book, source: read.source, origin: origin, store: store)
     }
 
-    private static func install(
-        _ data: Data,
-        store: SQLiteBookStore,
-        deduplicating: Bool = true
-    ) async throws -> Book {
+    private static func install(_ data: Data, store: SQLiteBookStore) async throws -> Book {
         let read = try await read(data)
 
         // The same text already here, whatever file carried it in or which service it came from: one
         // book, rather than two rows of one book standing next to each other on the shelf.
-        if deduplicating,
-                let held = await store.localBook(contentHash: BookInstaller.hash(read.source)),
+        if let held = await store.localBook(contentHash: BookInstaller.hash(read.source)),
                 let already = await store.book(id: held.workId) {
             return already.summary
         }

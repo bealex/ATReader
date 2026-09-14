@@ -26,6 +26,9 @@ public struct BookOrigin: Sendable {
     /// The container the book arrived in, where it arrived in one. Hashed so the same download is
     /// recognised without being read again.
     public var archive: Data?
+    /// That hash where the container itself is long gone, which is what a book read again off the file
+    /// this device kept has of it.
+    public var archiveHash: String?
     /// What to file the book under, where the source names it better than the file can. A service's own
     /// id is steadier than a title and an author, which two editions of one book may share.
     public var fingerprint: String?
@@ -35,12 +38,14 @@ public struct BookOrigin: Sendable {
         sourceId: String? = nil,
         updatedAt: Date? = nil,
         archive: Data? = nil,
+        archiveHash: String? = nil,
         fingerprint: String? = nil
     ) {
         self.source = source
         self.sourceId = sourceId
         self.updatedAt = updatedAt
         self.archive = archive
+        self.archiveHash = archiveHash
         self.fingerprint = fingerprint
     }
 }
@@ -99,7 +104,9 @@ public enum BookInstaller {
             // The book's own text rather than what carried it, so the same book in a different wrapper
             // is still the same book.
             contentHash: hash(source),
-            archiveHash: origin.archive.map(hash)
+            archiveHash: origin.archive.map(hash) ?? origin.archiveHash,
+            // What this build made of the file, so a later one knows whether to read it again.
+            readingVersion: BookReading.version
         ))
 
         logger.info("installed \(book.sections.count) chapters as work \(workId)")
@@ -136,9 +143,14 @@ public enum BookInstaller {
 
         guard let index = chapters.firstIndex(where: { $0.id == position.chapterId }) else { return nil }
 
-        let before = chapters.prefix(index).reduce(0) { $0 + ($1.textLength ?? 0) }
+        let before = chapters.prefix(index).map(\.textLength)
 
-        return before + position.characterOffset
+        // Every chapter before it has to have been measured. Counting an unmeasured one as nothing
+        // leaves the place as the offset into its own chapter, which puts the reader back at the front
+        // of the book: better to say nothing and leave the position where it already is.
+        guard !before.contains(where: { $0 == nil }) else { return nil }
+
+        return before.compactMap { $0 }.reduce(0, +) + position.characterOffset
     }
 
     /// Puts the reader back at that character, in whichever piece now holds it.
@@ -203,7 +215,9 @@ public enum BookInstaller {
             status: nil,
             isPurchased: nil,
             adultOnly: nil,
-            lastUpdateTime: .now,
+            // When the book last changed, which reading its file again is not: a library that dates
+            // every book it re-read as changed today shuffles itself under the reader.
+            lastUpdateTime: existing?.lastUpdateTime ?? .now,
             readingProgress: existing?.readingProgress,
             hasStartedReading: existing?.hasStartedReading ?? false,
             lastReadTime: existing?.lastReadTime,
