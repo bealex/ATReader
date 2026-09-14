@@ -187,7 +187,7 @@ enum WorkScreen {
                 Button(summary.hasStartedReading ? "Continue" : "Read") {
                     navigator.present(
                         .reader(.init(workId: model.workId, title: summary.title, chapterId: chapterId)),
-                        from: { _ in cover.face }
+                        from: { cover.face(during: $0) }
                     )
                 }
                 .accessibilityIdentifier("work.read")
@@ -337,7 +337,7 @@ enum WorkScreen {
                 Button {
                     navigator.present(
                         .reader(.init(workId: model.workId, title: summary.title, chapterId: chapter.id)),
-                        from: { _ in cover.face }
+                        from: { cover.face(during: $0) }
                     )
                 } label: {
                     chapterLabel(chapter, named: name, marker: nil, state: model.state(of: chapter))
@@ -359,7 +359,7 @@ enum WorkScreen {
             Button {
                 navigator.present(
                     .reader(.init(workId: model.workId, title: summary.title, chapterId: mark.chapterId)),
-                    from: { _ in cover.face }
+                    from: { cover.face(during: $0) }
                 )
             } label: {
                 BookmarkLabel(share: mark.share(ofChapterLength: chapterLength(model, of: mark.chapterId)))

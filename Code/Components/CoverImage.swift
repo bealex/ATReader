@@ -26,6 +26,9 @@ struct CoverImage: View {
     @Environment(\.colorScheme)
     private var scheme
 
+    @Environment(\.displayScale)
+    private var displayScale
+
     @State
     private var face: UIImage?
 
@@ -41,6 +44,30 @@ struct CoverImage: View {
     }
 
     var body: some View {
+        ZStack {
+            if let anchor { CoverAnchorView(anchor: anchor) }
+
+            // While a zoom runs the anchor stands in for the cover, so the growing screen and the
+            // cover it grew out of are never both on the page.
+            if anchor?.isZooming != true { board }
+        }
+        .frame(width: width, height: height)
+        .accessibilityHidden(true)
+        // What shape this cover turned out to be, for a shelf that has to give every book on it the
+        // same slot. Nothing is reported until the picture is here to be measured.
+        .preference(key: CoverShape.self, value: artwork.map { $0.size.height / $0.size.width } ?? 0)
+        .task(id: Printing(url: url, width: width, isDark: scheme == .dark)) {
+            await press(url)
+        }
+        .onChange(of: Anchoring(face: face, reached: reading?.reached, width: width), initial: true) {
+            guard let anchor else { return }
+
+            anchor.picture = compose()
+        }
+    }
+
+    /// The cover as it is drawn: the face, what it is marked with, cut to the board.
+    private var board: some View {
         Group {
             if let face {
                 Image(uiImage: face)
@@ -54,9 +81,6 @@ struct CoverImage: View {
             }
         }
         .frame(width: width, height: height)
-        .background {
-            if let anchor { CoverAnchorView(anchor: anchor, face: face) }
-        }
         .overlay(alignment: .topLeading) {
             if let reading { mark(reading) }
         }
@@ -70,13 +94,21 @@ struct CoverImage: View {
         }
         // Cut with the board, which is square along its binding and rounded at its fore-edge.
         .clipShape(CoverBoard())
-        .accessibilityHidden(true)
-        // What shape this cover turned out to be, for a shelf that has to give every book on it the
-        // same slot. Nothing is reported until the picture is here to be measured.
-        .preference(key: CoverShape.self, value: artwork.map { $0.size.height / $0.size.width } ?? 0)
-        .task(id: Printing(url: url, width: width, isDark: scheme == .dark)) {
-            await press(url)
-        }
+    }
+
+    /// Everything the anchor's picture is of, so it is taken again when any of it changes.
+    private struct Anchoring: Equatable {
+        let face: UIImage?
+        let reached: Double?
+        let width: CGFloat
+    }
+
+    /// The whole cover as one picture, which is what a zoom shrinks a screen into.
+    private func compose() -> UIImage? {
+        let renderer = ImageRenderer(content: board)
+
+        renderer.scale = displayScale
+        return renderer.uiImage
     }
 
     /// What a printed face is asked for. A cover is printed again when the book, its size or the room's
