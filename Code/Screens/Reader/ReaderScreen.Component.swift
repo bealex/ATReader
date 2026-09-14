@@ -636,7 +636,9 @@ enum ReaderScreen {
 
                 Spacer(minLength: 0)
 
-                GlassRow { actions }
+                GlassRow { marking }
+
+                GlassRow { more }
             }
             // Clear of whatever the device keeps down either side, which on a phone turned on its side
             // is the sensor housing the close button was sitting under.
@@ -657,7 +659,9 @@ enum ReaderScreen {
 
                 Spacer(minLength: 0)
 
-                GlassRow(.down) { actions }
+                GlassRow(.down) { marking }
+
+                GlassRow(.down) { more }
             }
             .padding(.vertical, Design.Space.extraLarge)
             .padding(band == .leading ? .leading : .trailing, sideInset)
@@ -678,8 +682,12 @@ enum ReaderScreen {
                 .accessibilityHint("Closes the book")
         }
 
+        /// Whether the book is marked here, and whether it is being read off the device.
+        ///
+        /// Under a pane of its own. What it does happens on the page behind it, where the menu beside it
+        /// opens something over the page, and one glass holding both read as a bar of odds and ends.
         @ViewBuilder
-        private var actions: some View {
+        private var marking: some View {
             if model?.isOffline == true {
                 Image(systemName: "wifi.slash")
                     .font(.system(size: Design.Size.glyph(in: Design.Size.touch)))
@@ -698,8 +706,6 @@ enum ReaderScreen {
             }
             .accessibilityHint("Marks the page, or clears the marks on it")
             .disabled(model?.canBookmarkPage != true)
-
-            more
         }
 
         /// Everything that opens something of its own, under one glyph.

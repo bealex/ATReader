@@ -757,9 +757,17 @@ edge turns back a page, like any other sideways drag.
 A tap in the middle third brings back the status bar and the controls, a second tap sends them away,
 and turning a page sends them away too.
 
-The controls are the reader's own views rather than a toolbar: Close under one pane of glass on the
-leading side, and the bookmark, the contents and the appearance sheet under another on the trailing
-side, both `GlassRow`. They stand on the line the running head is set on, their middle on its middle,
+The controls are the reader's own views rather than a toolbar, and each is a `GlassRow` of its own:
+Close on the leading side, the bookmark on the trailing side, and one glyph beside it for everything
+that opens something. The chapter list, the appearance form and the debug report live under that glyph.
+
+Three panes rather than one. The bar is read over a page, so what stands on it is what's wanted while
+reading, and the two that stay are the two that act on the page behind them. Grouping the menu in with
+the bookmark read as a bar of odds and ends.
+
+The two forms hang on the glyph rather than on the rows in the menu. A menu is gone by the moment its
+row acts, and a popover hung on something gone has nothing left to point at, so it points at the glyph,
+which is what the reader touched. They stand on the line the running head is set on, their middle on its middle,
 so the two read as one line across the top of the page. A navigation bar can't do that: it centres what
 it is given on its own height and reads no offset asking for anything else, which is why toolbar items
 sat a bar's worth below the book's name.
