@@ -78,9 +78,14 @@ A `<subtitle>` carrying nothing but the marks of a scene break is one, which is 
 write them; a subtitle carrying words is a heading and cuts the chapter as it always did.
 
 The marks are the file's own. A book that parts its scenes with a single asterism is not a book of star
-rows, and writing a row where it wrote one mark would put on the page words that nobody wrote. A run of
-`<empty-line/>` is the one case with no marks to keep, having only a gap, so it is given the row of
-stars the service's own chapters use.
+rows, and writing a row where it wrote one mark would put on the page words that nobody wrote.
+
+Nothing at all is written for `<empty-line/>`. It holds no marks to keep, having only a gap, and a row
+of stars in its place is text the file never carried. One reported book wraps every plate in a blank
+line above and below, which came out as a row of stars over and under each of its twenty-nine pictures.
+What that costs is a book marking its scene breaks with nothing but blank lines, which now shows no
+break at all: the gap itself would have to be carried through as air rather than as text, and no file
+has yet asked for it.
 
 Which marks count is `BookHTML.isSceneBreak(_:)` and nothing else, so the test that centres a break and
 the test that keeps one off the top of a page can't drift apart and start disagreeing.

@@ -496,7 +496,7 @@ where it carries one, the book's own words are used: a book with a prologue in i
 count and is right.
 
 A break between scenes is drawn with the marks the book wrote it with, a row of stars or a single
-asterism alike. Which blocks are one is `BookHTML.isSceneBreak(_:)`, and it
+asterism alike, and a file that leaves only a blank line is drawn with nothing. Which blocks are one is `BookHTML.isSceneBreak(_:)`, and it
 is the only test: a row of asterisks, or the asterism, and nothing else. Books write a break either as
 a blank line or as a subtitle carrying those marks, and both arrive as the same thing.
 

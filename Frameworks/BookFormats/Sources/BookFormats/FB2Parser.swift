@@ -101,9 +101,6 @@ public enum FB2Parser {
 
         /// The sections the parser is inside, outermost first. Text lands in the innermost.
         private var open: [Open] = []
-        /// What a blank line is drawn as, having no marks of its own to be drawn with. The service's
-        /// own chapters write a row of stars, so a file that only leaves a gap is given the same.
-        private static let blankLineMarks = "* * *"
 
         /// Only the first `<body>` is the book. A body after it holds the notes the text points at,
         /// which are read into ``notes`` and handed to the chapters that refer to them.
@@ -264,7 +261,10 @@ public enum FB2Parser {
             switch element {
                 case "body": startBody()
                 case "section" where region == .body: startSection()
-                case "empty-line" where region == .body: markBreak(Self.blankLineMarks)
+                // A blank line is a gap and carries no marks, so nothing is written for it. Drawn as a
+                // row of stars it put on the page text that the file never held, and a book that wraps
+                // every plate in one came out with a row above and below each picture.
+                case "empty-line" where region == .body: break
                 case "image" where region == .body: startImage(attributes)
                 case "a" where region == .body: startMark(Self.note(in: attributes))
                 case "emphasis" where region == .body: startMark(Self.emphasis)
@@ -348,14 +348,14 @@ public enum FB2Parser {
             return String(href.dropFirst()).trimmed.nilWhenEmpty
         }
 
-        /// A blank line in the file is a break in the scene, written where the book put it.
+        /// A break in the scene, written where the book put it and with the marks the book used.
         ///
         /// Held over until the next paragraph, as it once was, a picture or the end of a section
         /// swallowed it and the reader met the break further down the chapter than the book wrote it,
         /// or never met it at all. Nothing may move what a book set in order.
         ///
-        /// A break opening a block divides nothing, having nothing above it, and a run of blank lines
-        /// is one break rather than several.
+        /// A break opening a block divides nothing, having nothing above it, and two running together
+        /// are one break rather than two.
         private func markBreak(_ marks: String) {
             guard !open.isEmpty, let last = open[open.count - 1].lines.last else { return }
             guard !Self.isBreakLine(last) else { return }

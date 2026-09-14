@@ -9,11 +9,17 @@ import Testing
 
 @testable import BookFormats
 
-/// Where a break in the scene ends up, which is exactly where the book wrote it.
+/// Where a break in the scene ends up, and what it is drawn with.
 ///
-/// A book that parts its scenes with a subtitle rather than a blank line had every one of them read
-/// as a heading, which cut the chapter in two at each break. The books here are written for the test.
+/// Two rules hold it together. A break stands where the book wrote it, and it is drawn with the marks
+/// the book used, never with any of the reader's own. The books here are written for the test.
 struct FB2SceneBreakTests {
+    private enum Place {
+        case before
+        case after
+        case missing
+    }
+
     private func book(_ body: String) throws -> ParsedBook {
         let document = """
             <?xml version="1.0" encoding="utf-8"?>
@@ -30,41 +36,102 @@ struct FB2SceneBreakTests {
         BookHTML.paragraphs(from: read.sections[section].html)
     }
 
-    /// The asterism means a scene break and nothing else, so a subtitle holding one is a break.
+    /// Which side of the picture the break came out on, so a break may never cross one.
+    private func place(of read: ParsedBook) -> Place {
+        let blocks = blocks(read)
+
+        guard
+            let mark = blocks.firstIndex(where: { $0.isSceneBreak }),
+            let plate = blocks.firstIndex(where: { $0.imageSource != nil })
+        else { return .missing }
+
+        return mark < plate ? .before : .after
+    }
+
+    /// The asterism means a scene break and nothing else, so a subtitle holding one is a break and the
+    /// chapter stands whole.
     @Test
     func readsAnAsterismSubtitleAsABreakRatherThanAHeading() throws {
         let read = try book(
             """
-            <section><title><p>Глава</p></title>\
-            <p>Раз.</p><subtitle>⁂</subtitle><p>Два.</p></section>
+            <section><title><p>Глава</p></title><p>Раз.</p><subtitle>⁂</subtitle><p>Два.</p></section>
             """
         )
 
         #expect(read.sections.count == 1, "the break cut the chapter in two")
-
-        let blocks = blocks(read)
-
-        #expect(blocks.contains { $0.isSceneBreak })
-        #expect(!blocks.contains { $0.isSceneBreak && $0.titleLevel != nil })
+        #expect(blocks(read).contains { $0.isSceneBreak })
+        #expect(!blocks(read).contains { $0.isSceneBreak && $0.titleLevel != nil })
     }
 
     /// The marks are the book's own. A file that parts its scenes with one asterism is not a file of
-    /// star rows, and writing a row where it wrote a single mark puts words on the page nobody wrote.
+    /// star rows, and writing a row where it wrote one mark puts on the page words nobody wrote.
     @Test
     func keepsTheMarksTheBookPartedItsScenesWith() throws {
         let read = try book("<section><p>Раз.</p><subtitle>⁂</subtitle><p>Два.</p></section>")
-        let mark = blocks(read).first { $0.isSceneBreak }
 
-        #expect(mark?.text == "⁂")
+        #expect(blocks(read).first { $0.isSceneBreak }?.text == "⁂")
     }
 
-    /// A blank line carries no marks of its own, so it is given the ones the service's chapters use.
+    /// A blank line is a gap and holds no marks, so nothing is written for it.
     @Test
-    func drawsABlankLineAsTheServicesOwnChaptersDo() throws {
+    func writesNothingForABlankLine() throws {
         let read = try book("<section><p>Раз.</p><empty-line/><p>Два.</p></section>")
-        let mark = blocks(read).first { $0.isSceneBreak }
 
-        #expect(mark?.text == "* * *")
+        #expect(!blocks(read).contains { $0.isSceneBreak })
+        #expect(blocks(read).map(\.text) == [ "Раз.", "Два." ])
+    }
+
+    /// The case that was reported: a book wrapping every plate in blank lines came out with a row of
+    /// stars above and below each picture, and none of them were in the file.
+    @Test
+    func writesNoMarksAroundAPlateWrappedInBlankLines() throws {
+        let read = try book(
+            """
+            <section><p>Раз.</p><empty-line/><image l:href="#plate.png"/><empty-line/><p>Два.</p></section>
+            """
+        )
+
+        #expect(!blocks(read).contains { $0.isSceneBreak })
+        #expect(blocks(read).count { $0.imageSource != nil } == 1)
+    }
+
+    /// A break stays on the side of the picture the book put it on. A picture is met where the file
+    /// defines it and never before, or the reader is shown what happens next.
+    @Test
+    func keepsABreakOnTheSideOfThePictureTheBookPutItOn() throws {
+        let before = try book(
+            """
+            <section><p>Раз.</p><subtitle>⁂</subtitle><image l:href="#plate.png"/><p>Два.</p></section>
+            """
+        )
+        let after = try book(
+            """
+            <section><p>Раз.</p><image l:href="#plate.png"/><subtitle>⁂</subtitle><p>Два.</p></section>
+            """
+        )
+
+        #expect(place(of: before) == .before, "the picture swallowed the break or stood in front of it")
+        #expect(place(of: after) == .after)
+    }
+
+    /// Two breaks running together part one pair of scenes, not two.
+    @Test
+    func collapsesBreaksThatRunTogether() throws {
+        let read = try book(
+            """
+            <section><p>Раз.</p><subtitle>⁂</subtitle><subtitle>⁂</subtitle><p>Два.</p></section>
+            """
+        )
+
+        #expect(blocks(read).count { $0.isSceneBreak } == 1)
+    }
+
+    /// A break opening a section divides nothing, having nothing above it.
+    @Test
+    func writesNoBreakAtTheHeadOfASection() throws {
+        let read = try book("<section><subtitle>⁂</subtitle><p>Раз.</p></section>")
+
+        #expect(!blocks(read).contains { $0.isSceneBreak })
     }
 
     /// A subtitle that carries words names a part of its own and opens one, the way it always has.
@@ -73,67 +140,12 @@ struct FB2SceneBreakTests {
     func letsASubtitleOfWordsOpenAPartOfItsOwn() throws {
         let read = try book(
             """
-            <section><title><p>Глава</p></title>\
-            <p>Раз.</p><subtitle>Вечер</subtitle><p>Два.</p></section>
+            <section><title><p>Глава</p></title><p>Раз.</p><subtitle>Вечер</subtitle><p>Два.</p></section>
             """
         )
 
         #expect(read.sections.count == 2)
         #expect(read.sections[1].title == "Вечер")
-        #expect(!blocks(read).contains { $0.isSceneBreak })
-    }
-
-    /// The order the book wrote is the order the reader meets. A break before a picture stayed before
-    /// it, where once the picture swallowed it.
-    @Test
-    func keepsABreakBeforeThePictureItStandsOver() throws {
-        let read = try book(
-            """
-            <section><p>Раз.</p><empty-line/>\
-            <image l:href="#plate.png"/><p>Два.</p></section>
-            """
-        )
-        let blocks = blocks(read)
-        let breakAt = blocks.firstIndex { $0.isSceneBreak }
-        let plateAt = blocks.firstIndex { $0.imageSource != nil }
-
-        #expect(breakAt != nil, "the picture swallowed the break")
-        #expect(plateAt != nil)
-
-        if let breakAt, let plateAt { #expect(breakAt < plateAt, "the break came out after the picture") }
-    }
-
-    @Test
-    func keepsABreakAfterThePictureItFollows() throws {
-        let read = try book(
-            """
-            <section><p>Раз.</p><image l:href="#plate.png"/>\
-            <empty-line/><p>Два.</p></section>
-            """
-        )
-        let blocks = blocks(read)
-
-        if let breakAt = blocks.firstIndex(where: { $0.isSceneBreak }),
-                let plateAt = blocks.firstIndex(where: { $0.imageSource != nil }) {
-            #expect(plateAt < breakAt)
-        } else {
-            Issue.record("the break or the picture went missing")
-        }
-    }
-
-    /// A run of blank lines parts two scenes once, not once for each line.
-    @Test
-    func collapsesARunOfBlankLinesIntoOneBreak() throws {
-        let read = try book("<section><p>Раз.</p><empty-line/><empty-line/><empty-line/><p>Два.</p></section>")
-
-        #expect(blocks(read).count { $0.isSceneBreak } == 1)
-    }
-
-    /// A break opening a section divides nothing, having nothing above it.
-    @Test
-    func writesNoBreakAtTheHeadOfASection() throws {
-        let read = try book("<section><empty-line/><p>Раз.</p></section>")
-
         #expect(!blocks(read).contains { $0.isSceneBreak })
     }
 }
