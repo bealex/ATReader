@@ -342,6 +342,10 @@ extension ReaderScreen {
 
         private(set) var picked: PickedText?
 
+        /// Folding a chapter costs a pass over all of it, and every redraw asks where its marks stand.
+        @ObservationIgnored
+        private var foldedChapters: [Int: BookSearch.Folded] = [:]
+
         /// Picks out everything between two points on one page, out to whole words.
         func pickOut(from start: CGPoint, to finish: CGPoint, onPage index: Int) {
             guard case let .text(pieces) = page(at: index) else { return }
@@ -398,8 +402,40 @@ extension ReaderScreen {
             let ranges = displayedRanges
 
             return bookmarks.filter { mark in
-                ranges.contains { mark.overlaps(chapterId: $0.chapterId, from: $0.start, to: $0.end) }
+                let place = place(of: mark)
+
+                return ranges.contains { shown in
+                    mark.chapterId == shown.chapterId
+                        && place.lowerBound < max(shown.end, shown.start + 1)
+                        && shown.start < max(place.upperBound, place.lowerBound + 1)
+                }
             }
+        }
+
+        /// Where a mark stands in the chapter as it reads now, which is where its words are.
+        ///
+        /// A mark carrying none falls back to the offsets it was written with, which is what it always
+        /// did, and a chapter nothing has laid out yet has no text to look in.
+        func place(of mark: Bookmark) -> Range<Int> {
+            guard
+                let chapter = folded(mark.chapterId)
+            else {
+                return mark.startOffset ..< max(mark.endOffset, mark.startOffset + 1)
+            }
+
+            return mark.place(in: chapter)
+        }
+
+        /// A chapter's text folded for finding a mark in it, kept so a redraw does not fold it again.
+        private func folded(_ chapterId: Int) -> BookSearch.Folded? {
+            if let held = foldedChapters[chapterId] { return held }
+
+            guard let built = layouts[chapterId] else { return nil }
+
+            let made = BookSearch.fold(built.sourceText)
+
+            foldedChapters[chapterId] = made
+            return made
         }
 
         var isPageBookmarked: Bool { !bookmarksOnPage.isEmpty }
@@ -416,14 +452,18 @@ extension ReaderScreen {
 
             guard standing.isEmpty else { return remove(standing) }
 
-            let made = displayedRanges.map {
-                Bookmark(
+            let made = displayedRanges.map { shown in
+                let bare = Bookmark(
                     workId: workId,
-                    chapterId: $0.chapterId,
-                    startOffset: $0.start,
-                    endOffset: $0.end,
+                    chapterId: shown.chapterId,
+                    startOffset: shown.start,
+                    endOffset: shown.end,
                     createdAt: .now
                 )
+
+                guard let built = layouts[shown.chapterId] else { return bare }
+
+                return words(for: bare, in: built, of: BookSearch.fold(built.sourceText)) ?? bare
             }
 
             bookmarks.append(contentsOf: made)
@@ -431,6 +471,55 @@ extension ReaderScreen {
             Task { [store] in
                 for mark in made { await store.store(bookmark: mark) }
             }
+        }
+
+        /// Gives a mark written before marks kept any the words it stands on.
+        ///
+        /// Done as the chapter is laid out, since the layout is the only thing that counts a position
+        /// the way a mark does: the text a page is set from carries the word joiners the binder put in,
+        /// and an offset counts those. A mark already carrying words is left alone.
+        ///
+        /// What it cannot do is undo a reading that has already moved the offsets under it. Those marks
+        /// are wrong before this runs and stay wrong after it, and the words it writes down are the
+        /// words they point at now. What it buys them is that they stop moving: a mark that knows its
+        /// own words is found by them, and no later reading of the book can shift it again.
+        private func rememberWords(in built: ChapterLayout) {
+            let standing = bookmarks.filter { $0.chapterId == built.chapterId && $0.text == nil }
+
+            guard !standing.isEmpty else { return }
+
+            let whole = BookSearch.fold(built.sourceText)
+            let written = standing.compactMap { mark in words(for: mark, in: built, of: whole) }
+
+            guard !written.isEmpty else { return }
+
+            for mark in written {
+                guard let at = bookmarks.firstIndex(where: { $0.id == mark.id }) else { continue }
+
+                bookmarks[at] = mark
+            }
+
+            Task { [store] in
+                for mark in written { await store.store(bookmark: mark) }
+            }
+        }
+
+        /// The same mark, carrying the opening of the stretch it stands on and which of those it is.
+        private func words(for mark: Bookmark, in built: ChapterLayout, of whole: BookSearch.Folded) -> Bookmark? {
+            let stop = min(mark.endOffset, mark.startOffset + Bookmark.wordsKept)
+            let words = built.sourceText(in: mark.startOffset ..< stop)
+
+            guard !BookSearch.fold(words).isEmpty else { return nil }
+
+            return Bookmark(
+                workId: mark.workId,
+                chapterId: mark.chapterId,
+                startOffset: mark.startOffset,
+                endOffset: mark.endOffset,
+                text: words,
+                occurrence: BookSearch.occurrence(of: words, at: mark.startOffset, in: whole),
+                createdAt: mark.createdAt
+            )
         }
 
         func remove(_ marks: [Bookmark]) {
@@ -1127,6 +1216,8 @@ extension ReaderScreen {
             layouts[built.chapterId] = built
             layout = built
             currentChapterId = built.chapterId
+
+            rememberWords(in: built)
 
             switch anchor {
                 case .first:

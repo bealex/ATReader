@@ -732,6 +732,25 @@ public final class ChapterLayout {
     }
 
     /// The page's text, for VoiceOver and for the reader's own accessibility label.
+    /// The chapter's own words over a stretch of it, counted the way a reading position and a mark are.
+    ///
+    /// The typesetter's own marks come out. They stand in the text a page is set from and are no part
+    /// of the book, so a passage carrying them would not be found again in a chapter set another way.
+    public func sourceText(in range: Range<Int>) -> String {
+        let string = text.string as NSString
+        let start = laidOutOffset(max(0, range.lowerBound))
+        let end = laidOutOffset(max(0, range.upperBound))
+
+        guard start < end, end <= string.length else { return "" }
+
+        return string.substring(with: NSRange(location: start, length: end - start))
+            .replacingOccurrences(of: String(Typography.softHyphen), with: "")
+            .replacingOccurrences(of: "\u{2060}", with: "")
+    }
+
+    /// The whole chapter as the book wrote it, for finding a passage in it again.
+    public var sourceText: String { sourceText(in: 0 ..< sourceLength) }
+
     public func pageText(_ index: Int) -> String {
         guard pageRanges.indices.contains(index) else { return "" }
 

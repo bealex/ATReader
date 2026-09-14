@@ -50,16 +50,24 @@ public struct Bookmark: Sendable, Equatable, Identifiable, Hashable {
     /// Where the mark stands in a chapter now: where its words are, rather than where its offsets once
     /// pointed. A mark with no words of its own falls back to the offsets it was written with.
     public func place(in chapter: BookSearch.Folded) -> Range<Int> {
+        let length = max(1, endOffset - startOffset)
+
         guard
             let text,
             !text.isEmpty,
             let found = BookSearch.match(of: text, occurrence: occurrence, in: chapter)
         else {
-            return startOffset ..< max(endOffset, startOffset + 1)
+            return startOffset ..< startOffset + length
         }
 
-        return found
+        // The words say where the mark begins; how far it ran is its own, a page having been what the
+        // reader could see when they made it.
+        return found.lowerBound ..< found.lowerBound + length
     }
+
+    /// How much of a marked stretch is kept as its words: enough to find it again, and not a page of
+    /// text in a column of the database.
+    public static let wordsKept = 120
 
     /// True where this mark and that stretch of the same chapter share any character at all.
     ///
