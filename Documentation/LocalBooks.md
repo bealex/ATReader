@@ -86,8 +86,15 @@ mark opened and closed. The words themselves are untouched, since a reading posi
 
 How a block is set comes from where the file put it rather than from anything it styles. A paragraph
 inside an `<epigraph>` or a `<cite>` is a passage quoted rather than told, and is held off the edge the
-way the reader already holds one. A `<poem>` is centred. A `<text-author>` stays with whatever it names
-and is set in italics, which is how a quotation gives its source. Everything else is a plain paragraph.
+way the reader already holds one. A `<poem>` is centred. A `<text-author>` stays with whatever it names,
+is set in italics and stands at the far edge of the passage it names, which is how a book gives a
+quotation its source. At the far edge of the quotation, not of the page: an epigraph is held off both
+edges and its attribution is set against the passage rather than against the margin. Everything else is a plain paragraph.
+
+A `<v>` inside a `<poem>` is a line of verse and says so with `data-verse="1"`, which is kept alongside
+whatever else the block is rather than instead of it: a poem quoted as an epigraph is both verse and a
+quotation, and the setting above answers only the second. See the Verse section of [Reader.md](Reader.md)
+for what the page then does with it.
 
 ### Where the pictures go
 

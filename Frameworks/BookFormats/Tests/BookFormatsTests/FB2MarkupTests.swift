@@ -81,6 +81,38 @@ struct FB2MarkupTests {
         #expect(!html.contains("text-align:center"))
     }
 
+    /// A poem says it is one, so its lines are marked as verse rather than being guessed at from how
+    /// short they are.
+    @Test
+    func marksTheLinesOfAPoemAsVerse() throws {
+        let read = try book("<section><poem><stanza><v>Тудым.</v><v>Сюдым.</v></stanza></poem></section>")
+        let html = try #require(read.sections.first).html
+
+        #expect(html.contains(#"data-verse="1""#))
+        #expect(html.components(separatedBy: #"data-verse="1""#).count == 3)
+    }
+
+    /// A poem quoted as an epigraph is both: held off the edge because it is quoted, and verse because
+    /// it is a poem. Taking only the first left it set as prose.
+    @Test
+    func marksAPoemQuotedAsAnEpigraphAsBoth() throws {
+        let read = try book(
+            """
+            <section>
+              <title><p>Глава</p></title>
+              <epigraph><poem><stanza><v>Тудым.</v></stanza></poem><text-author>Некто</text-author></epigraph>
+              <p>Раз.</p>
+            </section>
+            """
+        )
+        let html = try #require(read.sections.first).html
+
+        #expect(html.contains(#"<p data-verse="1" data-inset="1">Тудым.</p>"#))
+        // Whose words they were is not a line of the poem.
+        #expect(html.contains(#"<p data-source="1" data-inset="1"><em>Некто</em></p>"#))
+        #expect(html.contains("<p>Раз.</p>"))
+    }
+
     /// A passage quoted inside a chapter is held off the edge the same way.
     @Test
     func setsACitationAsAQuotation() throws {
@@ -92,11 +124,15 @@ struct FB2MarkupTests {
         )
     }
 
-    /// A poem is still set centred, which is the one place the file's own shape asks for it.
+    /// A poem is still set centred, which is the one place the file's own shape asks for it, and its
+    /// lines are marked as verse as well.
     @Test
     func setsAPoemCentred() throws {
         let read = try book("<section><poem><stanza><v>Раз.</v></stanza></poem></section>")
 
-        #expect(try #require(read.sections.first).html == #"<p style="text-align:center">Раз.</p>"#)
+        #expect(
+            try #require(read.sections.first).html
+                == #"<p data-verse="1" style="text-align:center">Раз.</p>"#
+        )
     }
 }

@@ -126,6 +126,35 @@ and leaves no gap between paragraphs; English parts its paragraphs with space an
 `ChapterTextStyle.indents(_:)` settles it from the language the chapter was read as, the way
 justification is already settled.
 
+### Verse
+
+A poem is set as the poet broke it, and the book says which blocks are poems rather than the reader
+guessing it from how short the lines are. FB2 marks verse outright, `<v>` inside a `<poem>`, and the
+parser carries that across as `data-verse="1"` on the block, which reaches the page as
+`Paragraph.isVerse`. A short-line heuristic would catch dialogue, list items, addresses and signatures,
+all of which are short for reasons of their own.
+
+Such a block is never justified and never hyphenated: a line of verse ends where it ends, and filling
+it to the measure or breaking a word across it are both the page overruling the poem.
+
+A line too long for the column runs over, and the runover stands against the far edge. Set at the near
+edge it reads as the next line of the poem rather than as the rest of this one, which is the whole
+complaint against wrapping verse like prose. A poem the book centred keeps its own axis, where a
+runover already reads as a continuation. `ColumnComposer.origin(of:drawn:ruler:)` settles it, off
+`ParagraphRuler.isVerse`, which the typesetter puts on the run as `.verseLine`.
+
+A quotation is held off both edges, but not evenly: the air is laid four parts at the near edge to one
+at the far, so it reads as a passage moved over rather than as text that was narrowed. The total is what
+it was, which matters because a poem quoted as an epigraph keeps the measure it had and every line it
+lost would be a line that had to run over. `ChapterPagination.insetBias` is the four.
+
+The name under a quotation stands at the far edge of that quotation rather than of the page, since an
+epigraph is held off both edges and its attribution belongs to the passage. The book says which block
+is one by what it is, `<text-author>`, so nothing has to be read off how the line was set.
+
+Verse keeps whatever else the block is. A poem quoted as an epigraph is both held off both edges and
+broken into lines, and taking only the first of those set it as justified prose.
+
 ### Links
 
 A stretch of words pointing somewhere else in the book is drawn underlined and carries where it points

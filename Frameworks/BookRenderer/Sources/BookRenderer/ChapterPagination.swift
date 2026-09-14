@@ -145,6 +145,12 @@ public struct ChapterHeading: Equatable, Sendable {
     }
 }
 
+extension NSAttributedString.Key {
+    /// Marks a block the book set as verse, so the composer runs its long lines over rather than
+    /// wrapping them like prose.
+    static let verseLine = NSAttributedString.Key("ATVerseLine")
+}
+
 /// Sets a chapter as text: the heading, then the body, styled as the reader asked.
 public enum ChapterPagination {
     /// A chapter set as one attributed string, with the length of its heading, which the page breaker
@@ -199,6 +205,8 @@ public enum ChapterPagination {
             ]
             attributes.merge(languageAttributes(language)) { current, _ in current }
             if style.letterSpacing != 0 { attributes[.kern] = style.letterSpacing }
+
+            if paragraph.isVerse { attributes[.verseLine] = true }
 
             let start = result.length
             result.append(NSAttributedString(string: paragraph.text + suffix, attributes: attributes))
@@ -267,7 +275,12 @@ public enum ChapterPagination {
         // which TextKit bothers to look for one, and the system's own value leaves lines it could have
         // broken, which is where the stretched lines came from. Ragged-right keeps the system's
         // restraint, since nothing there needs filling.
-        if setting.body == .justified {
+        if paragraph.isVerse {
+            // A poem's line is its own measure, and breaking a word across the end of one reads as a
+            // fault rather than as setting.
+            style.hyphenationFactor = 0
+            style.usesDefaultHyphenation = false
+        } else if setting.body == .justified {
             style.hyphenationFactor = 1
         } else {
             style.usesDefaultHyphenation = true
@@ -279,16 +292,24 @@ public enum ChapterPagination {
     /// Which edge a block is set against.
     ///
     /// A title stands in the middle of the measure whatever the book said, and a signature or a date
-    /// against the right where the book put it there. Everything else takes the reader's own answer
-    /// for the language it is written in.
+    /// against the right where the book put it there. So does the name under a quotation, which the
+    /// book states by what it is rather than by setting it. Everything else takes the reader's own
+    /// answer for the language it is written in.
     private static func alignment(
         of paragraph: Paragraph,
         centred: Bool,
         body: NSTextAlignment
     ) -> NSTextAlignment {
         if centred { return .center }
+        if paragraph.isRightAligned { return .right }
 
-        return paragraph.isRightAligned ? .right : body
+        // Whose words a quotation was stands at the far edge of the quotation, which is where a book
+        // sets an attribution. A quotation the book centred keeps its own axis, attribution and all.
+        if paragraph.isSource { return .right }
+
+        // A line of verse ends where the poet ended it, so filling it to the measure would be filling
+        // a line nobody asked to be full.
+        return paragraph.isVerse ? .natural : body
     }
 
     /// How a block stands among the text around it: how far in, and which way round.
@@ -311,12 +332,17 @@ public enum ChapterPagination {
         // measure of the text around it reads as the text rather than as something quoted.
         guard paragraph.isInset else { return }
 
-        let held = font.pointSize * insetMeasure
+        let held = font.pointSize * insetMeasure * 2
+        // The same air as before, laid four parts at the near edge to one at the far: a passage set
+        // evenly between the two reads as text that was narrowed, where one pushed over reads as
+        // quoted. Moving it rather than narrowing it leaves the measure alone, which a poem quoted as
+        // an epigraph needs, since every line it loses is a line that has to run over.
+        let near = held * insetBias / (insetBias + 1)
 
-        style.headIndent = held
-        style.firstLineHeadIndent = held
+        style.headIndent = near
+        style.firstLineHeadIndent = near
         // Counted from the right edge, which is what a negative tail indent means.
-        style.tailIndent = -held
+        style.tailIndent = -(held - near)
     }
 
     /// Sets the stretches a book marked apart in the face that says so.
@@ -362,6 +388,8 @@ public enum ChapterPagination {
     private static let listIndent: CGFloat = 1.4
     /// How far a quoted passage is held off each edge, against the size of the type.
     private static let insetMeasure: CGFloat = 1.6
+    /// How much further a quotation stands from the near edge than from the far one.
+    private static let insetBias: CGFloat = 4
 
     /// How deep the gap under a paragraph runs, and how much air stands above it.
     ///

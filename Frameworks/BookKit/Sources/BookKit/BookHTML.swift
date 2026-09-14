@@ -132,6 +132,9 @@ public struct Paragraph: Codable, Sendable, Identifiable, Hashable {
     public let isInset: Bool
     /// The block names whose words the quotation above it were, rather than being part of them.
     public let isSource: Bool
+    /// The block is a line the book set as verse, which is never justified and never broken to fill a
+    /// measure: a line too long for the column runs over rather than wrapping like prose.
+    public let isVerse: Bool
     /// The places in this block that point elsewhere in the book, in the order they stand in it.
     public let links: [LinkMark]
     /// What the book knows this block by, where something in it points here. A link lands on a block
@@ -153,7 +156,8 @@ public struct Paragraph: Codable, Sendable, Identifiable, Hashable {
         anchor: String? = nil,
         isRightAligned: Bool = false,
         isInset: Bool = false,
-        isSource: Bool = false
+        isSource: Bool = false,
+        isVerse: Bool = false
     ) {
         self.id = id
         self.text = text
@@ -170,6 +174,7 @@ public struct Paragraph: Codable, Sendable, Identifiable, Hashable {
         self.isRightAligned = isRightAligned
         self.isInset = isInset
         self.isSource = isSource
+        self.isVerse = isVerse
     }
 
     public init(from decoder: any Decoder) throws {
@@ -192,6 +197,7 @@ public struct Paragraph: Codable, Sendable, Identifiable, Hashable {
         isRightAligned = try container.decodeIfPresent(Bool.self, forKey: .isRightAligned) ?? false
         isInset = try container.decodeIfPresent(Bool.self, forKey: .isInset) ?? false
         isSource = try container.decodeIfPresent(Bool.self, forKey: .isSource) ?? false
+        isVerse = try container.decodeIfPresent(Bool.self, forKey: .isVerse) ?? false
     }
 
     public var isImage: Bool { imageSource != nil }
@@ -257,6 +263,9 @@ public enum BookHTML {
 
     /// True where the block names whose words stand above it rather than adding to them.
     private static func isSource(inside attributes: String) -> Bool { attributes.contains("data-source=\"1\"") }
+
+    /// A line the book set as verse, which the file said outright rather than it being guessed at.
+    private static func isVerse(inside attributes: String) -> Bool { attributes.contains("data-verse=\"1\"") }
 
     /// True where the block says it is written from the right.
     private static func isRightToLeft(inside attributes: String) -> Bool { attributes.contains("dir=\"rtl\"") }
@@ -492,7 +501,8 @@ public enum BookHTML {
                         anchor: anchor(inside: attributes),
                         isRightAligned: isRightAligned(inside: attributes),
                         isInset: isInset(inside: attributes),
-                        isSource: isSource(inside: attributes)
+                        isSource: isSource(inside: attributes),
+                        isVerse: isVerse(inside: attributes)
                     ))
                     index += 1
             }

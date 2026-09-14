@@ -429,6 +429,8 @@ public final class ColumnComposer {
         var isLast: Bool
         /// The book ended this line itself, so it takes whatever it has and is no worse for it.
         var isForced: Bool
+        /// The first line of its paragraph, as against a line carrying the one before it over.
+        var isFirst: Bool
         var indent: CGFloat
         var fill: LineFill
 
@@ -494,6 +496,7 @@ public final class ColumnComposer {
             isJustified: isJustified,
             isLast: isLast,
             isForced: stop.forced,
+            isFirst: isFirst,
             indent: indent,
             fill: fill
         )
@@ -689,6 +692,13 @@ public final class ColumnComposer {
     private func origin(of piece: Candidate, drawn width: CGFloat, ruler: ParagraphRuler) -> CGFloat {
         // The edge this paragraph reaches to, which a quoted passage holds off from the page's own.
         let held = measure - ruler.tailIndent
+
+        // A line of verse too long for the measure runs over, and the runover stands at the far edge:
+        // set at the near one it reads as the next line of the poem rather than as the rest of this
+        // one. A centred poem keeps its own axis, where the runover already reads as a continuation.
+        if ruler.isVerse, !piece.isFirst, ruler.alignment != .center {
+            return ruler.isRightToLeft ? piece.indent : held - width
+        }
 
         return switch ruler.alignment {
             case .center: piece.indent + (held - piece.indent - width) / 2
