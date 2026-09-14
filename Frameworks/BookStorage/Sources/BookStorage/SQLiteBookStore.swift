@@ -1044,7 +1044,7 @@ public actor SQLiteBookStore {
     /// Every mark in a book, in the order the chapters stand and then down each chapter.
     public func bookmarks(workId: Int) -> [Bookmark] {
         let query = """
-            SELECT chapter_id, start_offset, end_offset, created_at FROM bookmark
+            SELECT chapter_id, start_offset, end_offset, created_at, text, occurrence FROM bookmark
             WHERE work_id = ? ORDER BY chapter_id, start_offset
             """
 
@@ -1060,6 +1060,8 @@ public actor SQLiteBookStore {
                 chapterId: statement.integer(0),
                 startOffset: statement.integer(1),
                 endOffset: statement.integer(2),
+                text: statement.string(4),
+                occurrence: statement.integer(5),
                 createdAt: statement.date(3) ?? .now
             ))
         }
@@ -1070,11 +1072,13 @@ public actor SQLiteBookStore {
     /// Puts a mark in, or moves the end of the one already beginning there.
     public func store(bookmark: Bookmark) {
         let query = """
-            INSERT INTO bookmark (work_id, chapter_id, start_offset, end_offset, created_at)
-            VALUES (?, ?, ?, ?, ?)
+            INSERT INTO bookmark (work_id, chapter_id, start_offset, end_offset, created_at, text, occurrence)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(work_id, chapter_id, start_offset) DO UPDATE SET
                 end_offset = excluded.end_offset,
-                created_at = excluded.created_at
+                created_at = excluded.created_at,
+                text = excluded.text,
+                occurrence = excluded.occurrence
             """
 
         guard let statement = Statement(open(), query) else { return }
@@ -1084,6 +1088,8 @@ public actor SQLiteBookStore {
         statement.bind(3, bookmark.startOffset)
         statement.bind(4, bookmark.endOffset)
         statement.bind(5, bookmark.createdAt.timeIntervalSince1970)
+        statement.bind(6, bookmark.text)
+        statement.bind(7, bookmark.occurrence)
         statement.execute()
     }
 
@@ -1210,6 +1216,7 @@ public actor SQLiteBookStore {
         addPutAwayDate()
         addProvenanceColumns()
         addReadingVersion()
+        addBookmarkText()
         repairProgress()
         markServiceBooksRead()
         countSeriesFromOne()
@@ -1232,6 +1239,18 @@ public actor SQLiteBookStore {
         execute("ALTER TABLE local_book ADD COLUMN archive_hash TEXT")
         execute("CREATE INDEX IF NOT EXISTS local_book_by_content ON local_book (content_hash)")
         execute("CREATE INDEX IF NOT EXISTS local_book_by_source ON local_book (source, source_id)")
+    }
+
+    /// Adds the words a mark stands on, for a store made before a mark kept any.
+    ///
+    /// Nothing fills them in. A mark already here was written against offsets that the reading it was
+    /// made under has very likely moved since, so the words under those offsets now are not the words
+    /// that were marked, and writing them down would make a wrong mark look like a sure one.
+    private func addBookmarkText() {
+        guard !columns(of: "bookmark").contains("text") else { return }
+
+        execute("ALTER TABLE bookmark ADD COLUMN text TEXT")
+        execute("ALTER TABLE bookmark ADD COLUMN occurrence INTEGER NOT NULL DEFAULT 0")
     }
 
     /// Adds the column saying which build's reading of a file a book holds.
