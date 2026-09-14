@@ -9,29 +9,29 @@ import Testing
 
 @testable import Bookhold
 
-/// What the shelf's filters keep, and what they hide.
+/// What the Reading shelf keeps, and what it hides.
 ///
-/// A card is kept or hidden whole, so a series is judged by everything in it rather than book by book.
-/// The books are generated: only what has been read and whether the author has finished matters here.
+/// One rule for both: a book the shelf draws on its edge is one the shelf has let go of, and a card is
+/// kept or hidden whole, so a series is judged by everything in it rather than book by book. The books
+/// are generated: only what has been read and whether the author has finished matters here.
 struct LibraryFilterTests {
-    private typealias Filter = LibraryScreen.Model.Filter
 
     // MARK: - One book on its own
 
     @Test
     func readingKeepsABookWithSomethingLeft() {
-        #expect(Filter.reading.includes([ Self.book(read: 0.4, isFinished: true) ]))
+        #expect(!Self.book(read: 0.4, isFinished: true).standsOnItsEdge())
     }
 
     @Test
     func readingHidesABookReadToItsEnd() {
-        #expect(!Filter.reading.includes([ Self.book(read: 1, isFinished: true) ]))
+        #expect(Self.book(read: 1, isFinished: true).standsOnItsEdge())
     }
 
     /// Read to the end of a book the author is still writing is not finished with it.
     @Test
     func readingKeepsABookStillBeingWritten() {
-        #expect(Filter.reading.includes([ Self.book(read: 1, isFinished: false) ]))
+        #expect(!Self.book(read: 1, isFinished: false).standsOnItsEdge())
     }
 
     // MARK: - A series
@@ -45,7 +45,7 @@ struct LibraryFilterTests {
             Self.book(read: 0.2, isFinished: true),
         ]
 
-        #expect(Filter.reading.includes(series))
+        #expect(series.contains { !$0.standsOnItsEdge() })
     }
 
     @Test
@@ -55,7 +55,7 @@ struct LibraryFilterTests {
             Self.book(read: 1, isFinished: true),
         ]
 
-        #expect(!Filter.reading.includes(series))
+        #expect(!series.contains { !$0.standsOnItsEdge() })
     }
 
     /// A series read right through is off the Reading shelf; one with anything left in it is not.
@@ -64,17 +64,8 @@ struct LibraryFilterTests {
         let done = [ Self.book(read: 1, isFinished: true), Self.book(read: 1, isFinished: true) ]
         let partly = [ Self.book(read: 1, isFinished: true), Self.book(read: 0.2, isFinished: true) ]
 
-        #expect(!Filter.reading.includes(done))
-        #expect(Filter.reading.includes(partly))
-    }
-
-    /// All books is where a reader goes to find whatever the shelf is not showing, so it keeps every
-    /// card whatever has been read of it.
-    @Test(arguments: [
-        [ 0.1 ], [ 1.0 ], [ 1.0, 1.0 ], [ 1.0, 0.3 ], [ 0.2, 0.4 ],
-    ])
-    func everythingKeepsEveryCard(progress: [Double]) {
-        #expect(Filter.everything.includes(progress.map { Self.book(read: $0, isFinished: true) }))
+        #expect(!done.contains { !$0.standsOnItsEdge() })
+        #expect(partly.contains { !$0.standsOnItsEdge() })
     }
 
     // MARK: - Hiding what a series holds

@@ -102,8 +102,8 @@ struct ReadingMarkTests {
         let today = Self.book(read: 1, isFinished: true, readAt: .now)
         let before = Self.book(read: 1, isFinished: true, readAt: Self.twoDaysAgo)
 
-        #expect(LibraryScreen.Model.Filter.reading.includes(today))
-        #expect(!LibraryScreen.Model.Filter.reading.includes(before))
+        #expect(!today.standsOnItsEdge(), "a book read today left the Reading shelf the same day")
+        #expect(before.standsOnItsEdge())
     }
 
     // MARK: - The dates the store keeps

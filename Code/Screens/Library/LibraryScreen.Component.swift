@@ -243,8 +243,8 @@ enum LibraryScreen {
                 onName: { author in chose(author: author) },
                 onTurn: { author in switchMode(series: author) },
                 // Under the book's own name, so a menu pressed on a spine says which book it is of.
-                bookMenu: { work, face in
-                    bookDeeds(work: work, face: face).offered(under: work.title, and: work.series)
+                bookMenu: { work, hand in
+                    bookDeeds(work: work, hand: hand).offered(under: work.title, and: work.series)
                 },
                 runMenu: { run in
                     shelves.flatMap(\.runs).first { $0.id == run }
@@ -368,17 +368,14 @@ enum LibraryScreen {
             navigator.present(.reader(.init(workId: work.id, title: work.title)), from: face)
         }
 
-        private func bookDeeds(
-            work: Book,
-            face: @escaping @MainActor @Sendable (BookZoom) -> UIView?
-        ) -> [Deed] {
+        private func bookDeeds(work: Book, hand: BookInHand) -> [Deed] {
             var deeds: [Deed] = [
                 // Reaches a book standing on its edge, which a tap only turns round with its run. Out of
                 // the book it names, like a tap: a screen with nothing to grow out of cannot be dragged
                 // shut either, and this is the way in that a spine has.
                 .act(String(localized: "Read the book"), systemImage: "book") {
                     Task { await model.takeDown(work) }
-                    navigator.present(.reader(.init(workId: work.id, title: work.title)), from: face)
+                    navigator.present(.reader(.init(workId: work.id, title: work.title)), from: hand.face)
                 },
                 // The way to the book's own page. A tap on a cover opens the book itself, so without
                 // this there is nothing left that reaches what the book is.
@@ -390,7 +387,7 @@ enum LibraryScreen {
                     systemImage: "checkmark.circle",
                     isEnabled: !work.isReadToTheEnd
                 ) {
-                    Task { await model.markAsRead(work) }
+                    hand.settled { Task { await model.markAsRead(work) } }
                 },
                 .act(String(localized: "Series and volume"), systemImage: "number") { correcting = work },
                 .act(
@@ -400,32 +397,34 @@ enum LibraryScreen {
                     systemImage: "trash",
                     isDestructive: true
                 ) {
-                    Task { await model.remove(work) }
+                    hand.settled { Task { await model.remove(work) } }
                 },
             ]
 
-            // A book finished today stands out as a cover until tomorrow. This is for a reader who is
-            // done with it now.
+            // A book stands out as a cover while it is in play, and one read through stays out for the
+            // day after. This is for a reader who is done with it now, read through or not.
             if model.canPutAway(work) {
                 let spine = spine(of: work)
                 let isDark = colorScheme == .dark
 
                 deeds.insert(
                     .act(String(localized: "Put the book away"), systemImage: "books.vertical") {
-                        Task {
-                            // Printed before the book is told to turn, so it turns onto its own spine
-                            // rather than onto the bare board.
-                            if let spine {
-                                _ = await SpinePress.printed(
-                                    of: work,
-                                    number: spine.number,
-                                    title: spine.title,
-                                    size: spine.size,
-                                    isDark: isDark
-                                )
-                            }
+                        hand.settled {
+                            Task {
+                                // Printed before the book is told to turn, so it turns onto its own spine
+                                // rather than onto the bare board.
+                                if let spine {
+                                    _ = await SpinePress.printed(
+                                        of: work,
+                                        number: spine.number,
+                                        title: spine.title,
+                                        size: spine.size,
+                                        isDark: isDark
+                                    )
+                                }
 
-                            await model.putAway(work)
+                                await model.finishWith(work)
+                            }
                         }
                     },
                     at: deeds.count - 1

@@ -182,26 +182,6 @@ extension LibraryScreen {
                     case .everything: "books.vertical"
                 }
             }
-
-            func includes(_ work: Book) -> Bool {
-                switch self {
-                    case .reading: !work.isDone()
-                    case .everything: true
-                }
-            }
-
-            /// Whether a card belongs under this filter.
-            ///
-            /// A series is one thing on the shelf, so it is kept or hidden whole. One with anything
-            /// left in it is still being read, books already finished included: those are what the
-            /// reader is reading through, and a series that showed only its unread half would hide
-            /// where the reader had got to. Only a series read to its last book is finished.
-            func includes(_ works: [Book]) -> Bool {
-                switch self {
-                    case .reading: works.contains { !$0.isDone() }
-                    case .everything: true
-                }
-            }
         }
 
         var filter: Filter = .reading {
@@ -387,12 +367,12 @@ extension LibraryScreen {
             let series = held.filter { $0.value.count > 1 }
             let lonely = held.filter { $0.value.count == 1 }.values.flatMap { $0 }
             let grouped = series.compactMap { key, works -> Group? in
-                guard searchFilter.includes(works) else { return nil }
+                guard keeps(works, under: searchFilter) else { return nil }
 
                 return seriesGroup((key: key, value: works), whole: !hiding)
             }
             let alone = (searched.filter { $0.series == nil } + lonely)
-                .filter { searchFilter.includes([ $0 ]) }
+                .filter { keeps($0, under: searchFilter) }
                 .map { work in
                     Group(id: "work:\(work.id)", series: nil, works: [ work ], updated: Self.updated(work))
                 }
@@ -463,7 +443,7 @@ extension LibraryScreen {
 
             if let held = filedCounts[filter] { return held }
 
-            let counted = library.count(where: filter.includes)
+            let counted = library.count { keeps($0, under: filter) }
 
             filedCounts[filter] = counted
             return counted
@@ -728,16 +708,36 @@ extension LibraryScreen {
         /// a folded row is the wrong place to be told it landed. A reader who puts a book away by hand
         /// stands it up without waiting out that day.
         func isShelved(_ work: Book) -> Bool {
-            work.isComplete
-                && newChapters(for: work.id) == 0
-                && !work.isBeingRead
-                && !work.isStandingOut()
+            work.standsOnItsEdge() && newChapters(for: work.id) == 0
         }
 
-        /// True where putting a book away would stand it on its edge now: read and written to its end,
-        /// nothing new in it, and out as a cover only because its day has yet to run out.
+        /// Whether a book belongs under a filter: everything, or whatever the shelf is not standing on
+        /// its edge.
+        ///
+        /// The same rule the shelf draws by, so the two can never disagree. Asking whether the reader
+        /// had finished a book instead let the two part company: a book with nothing read against it is
+        /// not finished, so a shelf called Reading kept it, and it is not being read either, so that
+        /// same shelf drew it on its edge. One book, filed away and called unfinished reading at once.
+        private func keeps(_ work: Book, under filter: Filter) -> Bool {
+            filter == .everything || !isShelved(work)
+        }
+
+        /// Whether a card belongs under one.
+        ///
+        /// A series is one thing on the shelf, so it is kept or hidden whole. One with anything still in
+        /// play is kept, the books already read through included: those are what the reader is reading
+        /// through, and a series that showed only its unread half would hide where they had got to.
+        private func keeps(_ works: [Book], under filter: Filter) -> Bool {
+            filter == .everything || works.contains { !isShelved($0) }
+        }
+
+        /// True where the reader can say they are done with a book: it is written to its end, nothing
+        /// new is in it, and it is standing as a cover rather than on its edge already.
+        ///
+        /// The exact complement of what the Reading shelf keeps, so whatever that shelf holds carries a
+        /// way off it and nothing it has let go is offered one.
         func canPutAway(_ work: Book) -> Bool {
-            work.isFinishedReading && newChapters(for: work.id) == 0 && !isShelved(work)
+            work.isComplete && newChapters(for: work.id) == 0 && !isShelved(work)
         }
 
         /// One series as a card's run: its books in the order they stand in, and whatever numbering
@@ -1388,6 +1388,17 @@ extension LibraryScreen {
             if let index = works.firstIndex(where: { $0.id == work.id }) { works[index].takenDownAt = .now }
 
             await store.takeDown(workId: work.id)
+        }
+
+        /// Marks a book read and stands it on its edge, which is the whole of being done with one.
+        ///
+        /// The reading comes first, so the moment it is put away is the later of the two and the book
+        /// stays away: a book read through is out as a cover for the day, and this is the reader saying
+        /// they don't want that day.
+        func finishWith(_ work: Book) async {
+            if !work.isReadToTheEnd { await markAsRead(work) }
+
+            await putAway(work)
         }
 
         /// Stands a book on its edge now, for a reader who has finished with it and doesn't want to

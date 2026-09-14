@@ -14,7 +14,10 @@ public struct Book: Codable, Identifiable, Hashable, Sendable {
     public let id: Int
     public let title: String
     public let authorLine: String
-    public let coverURL: URL?
+    /// Where the book's artwork is. For a book off a file this is inside the app's own container, which
+    /// the system renames on every install, so a store reading one works it out again rather than
+    /// trusting what was written down.
+    public var coverURL: URL?
     public let annotation: String?
     /// The series the book is filed under. The service's own, unless the reader has put the book in a
     /// series of their making, which outlives every refresh because it is kept in a table of its own.
@@ -110,7 +113,13 @@ public struct Book: Codable, Identifiable, Hashable, Sendable {
     public var isComplete: Bool { isFinished == true }
 
     /// The reader has been through everything published so far.
-    public var isReadToTheEnd: Bool { (readingProgress ?? 0) >= Self.readThreshold }
+    ///
+    /// The shelf the book is filed on says so outright and outranks the count: a book on Finished is
+    /// finished whatever the characters add up to. The count is worked out again from where the reader
+    /// stands, so it can be lost where the shelf cannot, and a book that loses it is not unread.
+    public var isReadToTheEnd: Bool {
+        libraryState == .finished || (readingProgress ?? 0) >= Self.readThreshold
+    }
 
     /// Written to its end and read to its end. Only both together finish a book.
     public var isFinishedReading: Bool { isComplete && isReadToTheEnd }
@@ -140,6 +149,16 @@ public struct Book: Codable, Identifiable, Hashable, Sendable {
     /// Out as a cover: read through or asked for within the day, and not put away since.
     public func isStandingOut(at now: Date = .now) -> Bool {
         !isPutAway && (isJustRead(at: now) || isJustTakenDown(at: now))
+    }
+
+    /// Nothing about this book is in play: the author has written its last chapter, the reader is not
+    /// part way through it, and it is not out as a cover.
+    ///
+    /// What the shelf draws by, and what the Reading shelf keeps by, so the two can never say different
+    /// things about one book. Whether anything new has arrived in it is the library's to add, since a
+    /// book alone cannot know.
+    public func standsOnItsEdge(at now: Date = .now) -> Bool {
+        isComplete && !isBeingRead && !isStandingOut(at: now)
     }
 
     /// Finished reading, and either put away by hand or read more than a day ago: until then a book

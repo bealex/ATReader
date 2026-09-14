@@ -112,11 +112,20 @@ enum SpinePress {
         guard let url else { return nil }
 
         if let inMemory = await CoverImages.image(for: url) { return inMemory }
-        guard let stored = await CoverCache.shared.held(for: url) else { return nil }
+        guard let stored = await read(url) else { return nil }
 
         await CoverImages.remember(stored, for: url)
 
         return stored
+    }
+
+    /// What the device has of a cover without going to the network for it.
+    ///
+    /// A book off a file keeps its cover beside the book rather than in the cover cache, so that one is
+    /// read: it is already here, and a spine printed without it is filed as printed and never asked for
+    /// again. Anything else is taken only if it is at hand, so printing a shelf pulls nothing down.
+    nonisolated private static func read(_ url: URL) async -> UIImage? {
+        url.isFileURL ? await CoverCache.shared.image(for: url) : await CoverCache.shared.held(for: url)
     }
 
     /// The cover this device already has, from memory or from its own disk, and never off the network:
@@ -125,11 +134,12 @@ enum SpinePress {
         guard let url else { return nil }
 
         if let held = CoverImages.image(for: url) { return held }
-        guard let held = await CoverCache.shared.held(for: url) else { return nil }
 
-        CoverImages.remember(held, for: url)
+        guard let found = await read(url) else { return nil }
 
-        return held
+        CoverImages.remember(found, for: url)
+
+        return found
     }
 }
 
