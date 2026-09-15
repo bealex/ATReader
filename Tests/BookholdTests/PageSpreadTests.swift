@@ -16,17 +16,38 @@ struct PageSpreadTests {
     private static let padOnItsSide = CGSize(width: 1194, height: 834)
     private static let smallPad = CGSize(width: 744, height: 1133)
 
-    private func spread(_ sheet: CGSize, safeArea: EdgeInsets = EdgeInsets(), margins: Double = 24) -> PageSpread {
-        PageSpread(sheet: sheet, safeArea: safeArea, margins: margins)
+    private func spread(
+        _ sheet: CGSize,
+        safeArea: EdgeInsets = EdgeInsets(),
+        margins: Double = 24,
+        textSize: Double = PageSpreadTests.textSize
+    ) -> PageSpread {
+        PageSpread(sheet: sheet, safeArea: safeArea, margins: margins, textSize: textSize)
     }
 
     private func bands(top: CGFloat, sides: CGFloat = 0, bottom: CGFloat) -> EdgeInsets {
         EdgeInsets(top: top, leading: sides, bottom: bottom, trailing: sides)
     }
 
-    /// The widest a page ever comes out, which is the longest measure the spread allows. The margins
+    /// The air outside a page's text: what the spread left around it, and the page's own margin.
+    private func airAtTheEdge(_ spread: PageSpread, margins: CGFloat = PageSpreadTests.margins) -> CGFloat {
+        spread.inset + margins
+    }
+
+    /// The air between the two pages of a spread, which is both their margins and the binding.
+    private func airInTheBinding(_ spread: PageSpread, margins: CGFloat = PageSpreadTests.margins) -> CGFloat {
+        spread.gutter + margins * 2
+    }
+
+    private static let textSize: Double = 19
+    private static let margins: CGFloat = 24
+    /// A spread compares in `CGFloat`, and `#expect` reads a `Double` against one as unequal however
+    /// alike their bits.
+    private static let leastBinding: CGFloat = 16
+
+    /// The widest a page's text ever runs, which is the longest measure the spread allows. The margins
     /// are taken out of that measure rather than added around it, so they never widen the page.
-    private static let widestPage: CGFloat = 440
+    private static let widestMeasure: CGFloat = 36 * textSize
 
     @Test
     func standsOnePageOnAPhone() {
@@ -48,6 +69,18 @@ struct PageSpreadTests {
         #expect(one.gutter == 0)
     }
 
+    /// A phone is narrower than any measure, at every size the reader can set the text to, so nothing
+    /// about the measure ever reaches it.
+    @Test
+    func fillsAPhoneAtEverySize() {
+        for size in [ 14.0, 19.0, 30.0 ] {
+            let one = spread(Self.phone, safeArea: bands(top: 59, bottom: 34), textSize: size)
+
+            #expect(one.columns == 1)
+            #expect(one.pageSize.width == Self.phone.width)
+        }
+    }
+
     /// A large phone on its side has the width for two pages and the depth to keep them page-shaped,
     /// so it opens like a small book rather than running one line the whole way across.
     @Test
@@ -64,7 +97,7 @@ struct PageSpreadTests {
         let one = spread(CGSize(width: 1200, height: 380))
 
         #expect(one.columns == 1)
-        #expect(one.pageSize.width == Self.widestPage)
+        #expect(one.pageSize.width == Self.widestMeasure)
     }
 
     @Test
@@ -87,23 +120,41 @@ struct PageSpreadTests {
 
     @Test
     func standsTwoPagesOnAPad() {
-        for sheet in [ Self.pad, Self.padOnItsSide, Self.smallPad ] {
+        for sheet in [ Self.pad, Self.padOnItsSide ] {
             let two = spread(sheet, safeArea: bands(top: 24, bottom: 20))
 
             #expect(two.columns == 2)
-            // The air between the columns is the two pages' own margins, the same margin the sides
-            // have, so the gutter itself adds nothing to them unless they are too small for a binding.
-            #expect(two.gutter + Self.margins * 2 >= Self.leastBinding)
+            #expect(airInTheBinding(two) >= Self.leastBinding)
         }
     }
 
-    /// A reader who has turned the margins off altogether still gets the least a binding takes.
+    /// The air at the edges of a spread is the air in its binding, so the text stands evenly across the
+    /// sheet instead of being pushed out to the sides by whatever the measure left over.
+    @Test
+    func partsTheTwoPagesAsWidelyAsItPartsThemFromTheEdges() {
+        for sheet in [ Self.pad, Self.padOnItsSide, CGSize(width: 1366, height: 1024) ] {
+            for margins: CGFloat in [ 0, 24, 60 ] {
+                let two = spread(sheet, safeArea: bands(top: 24, bottom: 20), margins: margins)
+
+                guard two.columns == 2 else { continue }
+
+                #expect(
+                    abs(airAtTheEdge(two, margins: margins) - airInTheBinding(two, margins: margins)) < 0.001,
+                    "the bands came out uneven on \(sheet) at \(margins)"
+                )
+            }
+        }
+    }
+
+    /// A reader who has turned the margins off altogether still gets the least a binding takes, and
+    /// nothing more: the point of no margins is a page that runs to the edge of the glass.
     @Test
     func partsTwoPagesWhereThereAreNoMarginsToPartThem() {
         let two = spread(Self.pad, safeArea: bands(top: 24, bottom: 20), margins: 0)
 
         #expect(two.columns == 2)
-        #expect(two.gutter >= Self.leastBinding)
+        #expect(two.gutter == Self.leastBinding)
+        #expect(two.inset == Self.leastBinding)
     }
 
     /// Widening the margins narrows the text rather than widening the page around it, on one column or
@@ -112,17 +163,27 @@ struct PageSpreadTests {
     func theMarginsNarrowTheText() {
         for sheet in [ Self.phone, Self.pad, Self.padOnItsSide ] {
             let narrow = spread(sheet, margins: 8)
-            let wide = spread(sheet, margins: 60)
+            let wide = spread(sheet, margins: 24)
 
+            #expect(narrow.columns == wide.columns)
             #expect(
-                wide.pageSize.width - 60 * 2 < narrow.pageSize.width - 8 * 2,
+                wide.pageSize.width - 24 * 2 < narrow.pageSize.width - 8 * 2,
                 "the measure did not narrow on \(sheet)"
             )
         }
     }
 
-    private static let margins: Double = 24
-    private static let leastBinding: Double = 16
+    /// Where the margins narrow the columns past reading, the spread gives up the second page and the
+    /// measure comes out wider than it was, which is the one time a wider margin widens the text.
+    @Test
+    func widensTheTextWhereWideMarginsCostTheSecondPage() {
+        let two = spread(Self.pad, margins: 24)
+        let one = spread(Self.pad, margins: 60)
+
+        #expect(two.columns == 2)
+        #expect(one.columns == 1)
+        #expect(one.pageSize.width - 60 * 2 > two.pageSize.width - 24 * 2)
+    }
 
     /// Both pages are measured the same, or a chapter set for one would have to be set again for the
     /// other.
@@ -157,12 +218,31 @@ struct PageSpreadTests {
         #expect(spread(Self.pad, margins: 100).columns == 1)
     }
 
+    /// The measure is counted in the book's own text, so a reader who sets the text large enough gets
+    /// one page where the same device gave two. Two columns of a dozen words are worth less than one
+    /// page that reads.
+    @Test
+    func putsASheetBackToOnePageWhereTheTextOutgrewTheColumns() {
+        #expect(spread(Self.smallPad, textSize: 14).columns == 2)
+        #expect(spread(Self.smallPad, textSize: 24).columns == 1)
+        #expect(spread(Self.phoneOnItsSide, safeArea: bands(top: 0, sides: 59, bottom: 21), textSize: 26).columns == 1)
+    }
+
+    /// A page holds the same number of characters however large the text is set, which is what a
+    /// measure is for.
+    @Test
+    func widensThePageWithTheText() {
+        let sheet = CGSize(width: 1600, height: 1200)
+
+        #expect(spread(sheet, textSize: 14).pageSize.width < spread(sheet, textSize: 24).pageSize.width)
+    }
+
     @Test
     func neverRunsAPageWiderThanTheMeasureAllows() {
         for sheet in [ Self.phone, Self.phoneOnItsSide, Self.pad, Self.padOnItsSide, CGSize(width: 1024, height: 1366) ] {
             let laid = spread(sheet)
 
-            #expect(laid.pageSize.width <= Self.widestPage)
+            #expect(laid.pageSize.width <= Self.widestMeasure)
         }
     }
 

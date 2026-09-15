@@ -719,7 +719,12 @@ enum ReaderScreen {
 
         /// How the sheet is divided: one page, or two with the binding between them.
         private var spread: PageSpread {
-            PageSpread(sheet: sheetSize, safeArea: safeArea, margins: settings.settledMargins)
+            PageSpread(
+                sheet: sheetSize,
+                safeArea: safeArea,
+                margins: settings.settledMargins,
+                textSize: settings.fontSize
+            )
         }
 
         /// How long the controls take to fade in or out.

@@ -698,19 +698,46 @@ Drawn text is invisible to VoiceOver, so each page publishes its text as its own
 ## One page or two
 
 What fills the screen is a *sheet*, and a sheet carries one page or two. `PageSpread` settles which,
-from the size of the window, the device's own bands and the margins the reader chose. Two pages where
-each half still holds a column worth reading and stands taller than it is wide; one otherwise, held to
-a measure the eye can track back across and stood in the middle of whatever room is left.
+from the size of the window, the device's own bands, the size the book is set at and the margins the
+reader chose. Two pages where each half still holds a column worth reading and stands taller than it is
+wide; one otherwise, held to a measure the eye can track back across and stood in the middle of
+whatever room is left.
 
 A phone in portrait comes out exactly as it always did, to the point. That's deliberate rather than
 lucky: the page size is part of the layout fingerprint, so a page measured any differently would throw
-away every measurement on every phone at once.
+away every measurement on every phone at once. A phone is narrower than the shortest measure at every
+size the reader can choose, so nothing here ever reaches it.
 
 The shape test is what a window with plenty of width and little depth runs into. A large phone on its
 side has the width for two pages and just enough depth to keep them page-shaped, so it opens like a
 small book. Flatten that window further and the two halves would each come out landscape, which reads
 as a screen split down the middle rather than as a book, so one page is kept and held to a measure
 instead.
+
+### The measure, and the air around it
+
+The measure is counted in ems rather than points: 36 of them at the widest, 17 at the narrowest worth
+standing two of. A line holds about the same number of characters however large the reader sets the
+text, which is the only thing a measure is for, and 36 ems at the size most people read at is close to
+what the system's own readable width comes to. A measure in points would have been a comfortable line
+at 19 points and a dozen words at 30.
+
+The narrowest measure is what makes a spread give up its second page. A reader who widens the margins
+or the text past the point where two columns still read gets one page instead, and that page is wider
+than either column was. It's the one time a wider margin widens the text.
+
+A spread's air is one band, and it has three of them: the two edges and the binding. They are equal.
+Whatever the measure leaves over is parted between the three rather than pushed out to the sides, so
+the two pages stand evenly on the sheet instead of drifting apart with a hairline between them. No band
+is narrower than the two margins that meet in the binding, and none narrower than the least a binding
+takes, which is what a reader who has turned the margins off altogether still gets.
+
+The sides of the device's own safe area are spent outside all of this, so the bands are equal within
+the room the text may actually occupy: a phone on its side keeps its text clear of the notch and still
+parts its pages by what it parts them from the glass.
+
+One page on a sheet wider than 36 ems still has air at its edges with the margins turned off, and that
+air is the measure: the page is held to it and centred, and what's left over stands outside it.
 
 Both the head and the foot of a page keep a band of their own even where the device asks for none. An
 edge with no notch and no indicator behind it gave the running head four points of air and stood it

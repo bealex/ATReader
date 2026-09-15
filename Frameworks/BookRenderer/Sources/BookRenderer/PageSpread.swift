@@ -26,14 +26,18 @@ public struct PageSpread: Equatable, Sendable {
     /// The air between two pages, which is the binding of the book.
     public let gutter: CGFloat
 
-    public init(sheet: CGSize, safeArea: EdgeInsets, margins: Double) {
+    /// - Parameter textSize: the size the book is set at, which is what the measure is held against.
+    public init(sheet: CGSize, safeArea: EdgeInsets, margins: Double, textSize: Double) {
         let room = sheet.width - safeArea.leading - safeArea.trailing
-        // No gutter of its own beyond what the two pages' own margins already give: the air between the
-        // columns is the same margin the sides have. A reader who has turned the margins off altogether
-        // still gets the least a binding needs.
-        let gutter = max(0, Self.leastGutter - margins * 2)
-        let halved = (room - gutter) / 2
-        let twoUp = halved - margins * 2 >= Self.leastMeasure && halved * Self.leastShape <= sheet.height
+        let widest = Self.mostMeasure * textSize
+        // A spread has three bands of air: the two edges and the binding. Both pages' margins meet in
+        // the binding, so no band is narrower than two of them, and a reader who has turned the margins
+        // off altogether still gets the least a binding needs.
+        let leastAir = max(margins * 2, Self.leastAir)
+        let paired = min(widest, (room - leastAir * 3) / 2)
+        // A column too narrow to read is worth more as one page than as half a spread, and so is a pair
+        // that came out landscape: that reads as a screen split down the middle rather than as a book.
+        let twoUp = paired >= Self.leastMeasure * textSize && paired + margins * 2 <= sheet.height
 
         // A band of its own at the head and the foot, where the device leaves none. An edge with no
         // notch and no indicator behind it gave the running head four points of air and stood it against
@@ -44,19 +48,19 @@ public struct PageSpread: Equatable, Sendable {
             bottom: max(safeArea.bottom, Self.leastBand),
             trailing: 0
         )
-        self.gutter = twoUp ? gutter : 0
         columns = twoUp ? 2 : 1
 
-        // The margins act on the measure, not on the page: the text is what the column has room for less
+        // The margins act on the measure, not on the page: the text is what the sheet has room for less
         // the margins, held to a width the eye can track back across. So widening the margins narrows
-        // the text rather than widening the page around it, which is the whole point of a margin. What a
-        // wide sheet has over is laid outside the spread, where a book's own widest margins are.
-        let column = twoUp ? halved : room
-        let width = min(Self.mostMeasure, column)
-        let measure = width - margins * 2
+        // the text rather than widening the page around it, which is the whole point of a margin.
+        let measure = max(0, twoUp ? paired : min(widest, room) - margins * 2)
+        // What the measure leaves over is parted between the bands, so the air at the edges of a spread
+        // is the air in its binding and the two pages stand evenly on the sheet.
+        let air = twoUp ? (room - measure * 2) / 3 : (room - measure) / 2
 
-        pageSize = CGSize(width: max(0, measure + margins * 2), height: sheet.height)
-        inset = safeArea.leading + (room - width * CGFloat(columns) - self.gutter * CGFloat(columns - 1)) / 2
+        pageSize = CGSize(width: measure + margins * 2, height: sheet.height)
+        gutter = twoUp ? air - margins * 2 : 0
+        inset = safeArea.leading + air - margins
     }
 
     /// Where one of the pages stands on the sheet.
@@ -81,22 +85,19 @@ public struct PageSpread: Equatable, Sendable {
         rect.offsetBy(dx: origin(ofColumn: column), dy: 0)
     }
 
-    /// The narrowest column of text worth standing two of. Below this a spread reads as two gutters
-    /// with words caught between them.
-    private static let leastMeasure: CGFloat = 260
+    /// The narrowest column of text worth standing two of, in ems. Below this a spread reads as two
+    /// gutters with words caught between them.
+    private static let leastMeasure: CGFloat = 17
 
-    /// The widest a page's text runs. Past it the eye loses the start of the next line on the way back
-    /// across.
-    private static let mostMeasure: CGFloat = 440
-
-    /// A page is never wider than it is tall. Two pages that each came out landscape would read as a
-    /// screen split down the middle rather than as a book.
-    private static let leastShape: CGFloat = 1
+    /// The widest a page's text runs, in ems. Past it the eye loses the start of the next line on the
+    /// way back across. Measured against the book's own size rather than in points, so a column holds
+    /// the same number of characters however large the reader sets the text.
+    private static let mostMeasure: CGFloat = 36
 
     /// The least room kept at the head and the foot of a page for its running head and page number,
     /// where the device itself asks for none.
     private static let leastBand: CGFloat = 20
 
-    /// The least air between two pages, for a reader who has turned the margins off altogether.
-    private static let leastGutter: Double = 16
+    /// The least air at the side of a page, for a reader who has turned the margins off altogether.
+    private static let leastAir: Double = 16
 }
