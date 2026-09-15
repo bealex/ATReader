@@ -843,12 +843,24 @@ its own bar comes and goes, and a height read once is wrong from then on.
 
 Then SwiftUI has to be told to stop. It lifts a view it believes the keyboard covers, and this one is
 already moved by the measurement, so both at once is the same keyboard counted twice: about 110 points
-of it on a phone. `.ignoresSafeArea(.keyboard, edges: .bottom)` turns off that lift and nothing else,
-so the safe area still places the bar when no keyboard is up.
+of it on a phone. The bar stands at the foot of a layer of its own that turns the whole safe area down,
+so the layer's foot is the window's and nothing moves it but the measurement.
+
+That foot is the whole of the defect it had. Turning off the keyboard's lift alone left the bar keeping
+the device's band for its own floor, while the keyboard it was padded by was measured from the window's
+foot with that band already underneath it. The band was counted twice and the bar floated a home
+indicator's worth above the keys.
+
+Whichever stands deeper places it: the line the page number is set on, or the keyboard. Deeper rather
+than one or the other, since both are now measured from that same foot.
 
 With the keyboard away the bar stands where the page number does, an inset above the device's own
 band. Not where the round controls stand: those are centred on the running head's line and hang below
 it, which suits a mark the size of a fingertip and not a bar the width of the page.
+
+`ReaderSearchUITests` measures the gap, and the number it allows is wider than the design's own air. A
+test sees the keys alone, while the frame the keyboard publishes reaches about 44 points higher over the
+row of guesses above them, and that is what the bar is placed against.
 
 The search runs on the words submitted, not on every keystroke. It walks the book a chapter at a time,
 pulling any chapter that isn't on the device yet, and publishes what it has after each one, so the

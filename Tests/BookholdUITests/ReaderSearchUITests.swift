@@ -42,9 +42,14 @@ final class ReaderSearchUITests: XCTestCase {
         )
     }
 
-    /// The bar keeps a little air over the keyboard and no more. Anything past this reads as the bar
-    /// having been put somewhere else entirely, which is what it kept doing.
-    private static let mostItMayStandOff: CGFloat = 40
+    /// The bar keeps a little air over the keyboard and no more.
+    ///
+    /// Measured against the keyboard as a test sees it, which is the keys alone. The frame the keyboard
+    /// publishes reaches about 44 points higher, over the row of guesses above them, and that is the
+    /// frame the bar is placed against. Add the design's own air and the depth of the field inside its
+    /// capsule and a bar standing right reads as about 60 here, so the bound is set above that: it
+    /// catches a bar put somewhere else entirely, which is what it kept doing, and not the strip.
+    private static let mostItMayStandOff: CGFloat = 80
 
     private func showChrome(on page: XCUIElement, in app: XCUIApplication) {
         guard !app.buttons["More"].exists else { return }

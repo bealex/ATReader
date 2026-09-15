@@ -79,15 +79,15 @@ enum ReaderScreen {
         private var isSearching = false
 
         @State
+        private var keyboardCover: CGFloat = 0
+
+        @State
         private var query = ""
 
         @FocusState
         private var searchFocused: Bool
 
         /// How far up the screen the keyboard reaches, which is what the bar stands clear of.
-        @State
-        private var keyboardCover: CGFloat = 0
-
         @State
         private var isTranslating = false
 
@@ -116,10 +116,10 @@ enum ReaderScreen {
                     }
                 }
                 .background(settings.theme.background.ignoresSafeArea())
-                // Over the stack rather than over the page. Everything else the reader draws stands on
-                // a page that turned the safe area down, and nothing in one of those is ever lifted;
-                // this keeps its safe area, so the keyboard moves it without being measured.
-                .overlay(alignment: .bottom) { if let model { searching(model) } }
+                // Over the stack rather than over the page. Everything the reader draws is laid out
+                // against the window, this included, so the bar is stood at the foot of a layer of its
+                // own rather than handed to the safe area.
+                .overlay { if let model { searching(model) } }
                 // The stack is here for the window it gives the page, not for a bar. A bar centres its
                 // buttons on its own height and ignores anything asking them to sit elsewhere, so the
                 // reader draws its own and stands them on the line the running head is set on.
@@ -391,24 +391,25 @@ enum ReaderScreen {
         @ViewBuilder
         private func searching(_ model: Model) -> some View {
             if isSearching {
-                SearchBar(model: model, query: $query, focused: $searchFocused, onClose: stopSearching)
-                    .padding(.horizontal, safeArea.leading + Design.Space.extraLarge)
-                    // Where the page number stands, not where the glyphs do. A glyph is centred on the
-                    // head's line and hangs below it, which is right for a round mark and wrong for a
-                    // bar the width of the page: this one keeps clear of the device's own band.
-                    .padding(
-                        .bottom,
-                        keyboardCover > 0
-                            ? keyboardCover + Design.Space.medium
-                            : spread.pageSafeArea.bottom + Self.headInset
-                    )
-                    // SwiftUI lifts a view it thinks the keyboard covers, and this one is moved by the
-                    // measurement above; both at once is the same keyboard counted twice. Only the
-                    // keyboard's own region is turned down, so the safe area still places the bar when
-                    // there is no keyboard.
-                    .ignoresSafeArea(.keyboard, edges: .bottom)
-                    .keyboardCover($keyboardCover)
-                    .transition(.opacity)
+                VStack(spacing: 0) {
+                    Spacer(minLength: 0)
+
+                    SearchBar(model: model, query: $query, focused: $searchFocused, onClose: stopSearching)
+                        .padding(.horizontal, safeArea.leading + Design.Space.extraLarge)
+                        // Whichever stands deeper, the device's own band or the keyboard: the bar keeps
+                        // to the line the page number is set on until a keyboard reaches past it, and
+                        // then to the keyboard. Adding them instead counts the band twice, since the
+                        // keyboard is measured from the foot of the window and covers the band already.
+                        .padding(
+                            .bottom,
+                            max(spread.pageSafeArea.bottom + Self.headInset, keyboardCover + Design.Space.medium)
+                        )
+                }
+                // The layer is the window, as every other piece of the reader's chrome is. A bar that
+                // kept the safe area would be moved by the band and by the measurement of it both.
+                .ignoresSafeArea()
+                .keyboardCover($keyboardCover)
+                .transition(.opacity)
             }
         }
 
