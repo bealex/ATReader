@@ -344,6 +344,17 @@
         }
       }
     },
+    "Adds it again; the same text already here is not taken twice": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Добавит заново; тот же текст, который уже есть, не возьмётся дважды"
+          }
+        }
+      }
+    },
     "Adds the book to your library": {
       "extractionState": "manual",
       "localizations": {

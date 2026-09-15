@@ -20,6 +20,9 @@ enum OPDSFeedScreen {
         @Environment(BookInbox.self)
         private var inbox
 
+        @Environment(HeldBooks.self)
+        private var held
+
         @State
         private var model = FeedModel()
 
@@ -34,6 +37,7 @@ enum OPDSFeedScreen {
             }
             .task {
                 model.inbox = inbox
+                model.held = held
                 await model.open(url, at: address)
             }
         }
@@ -83,6 +87,15 @@ enum OPDSFeedScreen {
             }
         }
 
+        /// What pressing the row does, which is worth saying twice for a book already on the shelf.
+        private func hint(wanted: OPDSAcquisition?, held: Bool) -> String {
+            guard wanted != nil else { return "" }
+
+            return held
+                ? String(localized: "Adds it again; the same text already here is not taken twice")
+                : String(localized: "Adds the book to your library")
+        }
+
         private func section(_ entry: OPDSEntry) -> some View {
             VStack(alignment: .leading, spacing: Design.Space.extraSmall) {
                 Text(entry.title)
@@ -103,6 +116,7 @@ enum OPDSFeedScreen {
         /// missing books rather than as a book in the wrong wrapping.
         private func book(_ entry: OPDSEntry) -> some View {
             let wanted = entry.preferred(among: FeedModel.wanted)
+            let held = model.holds(entry)
 
             return Button {
                 Task { await model.take(entry) }
@@ -125,6 +139,18 @@ enum OPDSFeedScreen {
                                 .font(Design.Style.caption)
                                 .foregroundStyle(.secondary)
                         }
+
+                        if held {
+                            let title = String(localized: "In your library")
+
+                            Pill(
+                                title: title,
+                                systemImage: "checkmark.circle.fill",
+                                tint: Design.Palette.positive,
+                                label: title,
+                                beside: .caption
+                            )
+                        }
                     }
 
                     if model.fetching == entry.id {
@@ -139,7 +165,7 @@ enum OPDSFeedScreen {
             }
             .buttonStyle(.plain)
             .disabled(wanted == nil || model.fetching != nil)
-            .accessibilityHint(wanted == nil ? "" : String(localized: "Adds the book to your library"))
+            .accessibilityHint(hint(wanted: wanted, held: held))
         }
     }
 }

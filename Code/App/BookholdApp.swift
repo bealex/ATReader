@@ -36,6 +36,9 @@ struct BookholdApp: App {
     @State
     private var origins = BookOrigins()
 
+    @State
+    private var held = HeldBooks()
+
     /// Hands the typesetter the picture shelf before anything asks it to set a page.
     init() {
         Renderers.connect()
@@ -51,6 +54,7 @@ struct BookholdApp: App {
                 .environment(backup)
                 .environment(shelf)
                 .environment(origins)
+                .environment(held)
                 .environment(\.pagePictures, CoverPictures())
                 // Where each book came from is read once, and again whenever the shelf changes: a
                 // book only arrives from somewhere by coming through the inbox.

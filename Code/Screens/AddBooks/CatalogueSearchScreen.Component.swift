@@ -22,6 +22,9 @@ enum CatalogueSearchScreen {
         @Environment(BookInbox.self)
         private var inbox
 
+        @Environment(HeldBooks.self)
+        private var held
+
         @State
         private var model = FeedModel()
 
@@ -45,7 +48,10 @@ enum CatalogueSearchScreen {
             .overlay {
                 if model.isLoading { ProgressView().controlSize(.large) }
             }
-            .onAppear { model.inbox = inbox }
+            .onAppear {
+                model.inbox = inbox
+                model.held = held
+            }
         }
 
         private var catalogue: some View {

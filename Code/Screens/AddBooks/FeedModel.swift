@@ -58,6 +58,9 @@ final class FeedModel {
     /// Whoever reads a downloaded file into the library. Given by the view, which has the environment.
     var inbox: BookInbox?
 
+    /// What the library holds already, so a book the reader has can be marked. Given by the view.
+    var held: HeldBooks?
+
     /// What this reader can open, best first. A zipped FB2 is the same book as a bare one and a
     /// fraction of the bytes; EPUB comes last because a catalogue offering both usually holds a
     /// richer FB2, and it is what a catalogue of public-domain books offers on its own.
@@ -150,9 +153,15 @@ final class FeedModel {
             let file = try Self.write(data, named: entry.title, as: acquisition.kind)
 
             await inbox.accept([ file ])
+            await held?.refresh()
         } catch {
             message = Self.wording(of: error)
         }
+    }
+
+    /// Whether the library already holds the book this entry offers.
+    func holds(_ entry: OPDSEntry) -> Bool {
+        held?.holds(title: entry.title, authors: entry.authors) ?? false
     }
 
     private enum Failure: Error {
@@ -172,6 +181,7 @@ final class FeedModel {
         do {
             let page = try await work()
 
+            await held?.refresh()
             entries = page.entries
             next = page.next
         } catch {

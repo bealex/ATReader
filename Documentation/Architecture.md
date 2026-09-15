@@ -555,6 +555,11 @@ books and hands over a page.
 where its query goes, walks the tree of sections its root advertises, and reads the acquisition links
 at the end of them. Nothing about any one server is written into it.
 
+A hit says whether the reader has that book already. `HeldBooks` indexes the library by title and by
+the words of an author's name, and a row that matches carries a pill. The match is a guess, because a
+title and an author line are all a catalogue gives. The file settles it: `BookImporting` knows one by
+its content hash and files it on the row the book already stands on.
+
 ## The reader
 
 Chapters are paginated rather than scrolled, the column breaks its own lines, and a page fills the
