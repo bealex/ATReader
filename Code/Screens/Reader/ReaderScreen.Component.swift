@@ -94,6 +94,18 @@ enum ReaderScreen {
         @State
         private var translating = ""
 
+        /// True while something of the reader's own stands over the page.
+        ///
+        /// The press that picks text out hangs on the window, so anything shown over the page has to
+        /// say so here or a finger held on it goes on choosing words underneath.
+        private var isPageCovered: Bool {
+            #if DEBUG
+                if report != nil { return true }
+            #endif
+
+            return isShowingContents || isShowingSettings || lookedUp != nil || isTranslating
+        }
+
         /// The type size of the running head, which ``ChapterLayout/Context/runningHeadBand`` keeps the
         /// body text clear of. Both are read off the book's own text size, so the band is always as
         /// deep as the head standing in it.
@@ -232,7 +244,7 @@ enum ReaderScreen {
                 onPageTap: { point in follow(point, in: value) },
                 onPickOut: { start, finish in pickOut(from: start, to: finish, in: value) },
                 onPickedOut: { withAnimation(CalloutMotion.showing) { picked = value.picked } },
-                isCovered: value.picked != nil || note != nil,
+                isCovered: value.picked != nil || note != nil || isPageCovered,
                 onMiddleTap: toggleChrome,
                 onTurnStarted: {
                     hideChrome()
