@@ -65,10 +65,13 @@ enum SeriesSlot: Identifiable {
 
     var id: String {
         switch self {
-            case let .book(work, _, _, _): "book:\(work.id)"
+            case let .book(work, _, _, _): Self.id(ofBook: work.id)
             case let .missing(number): "gap:\(number)"
         }
     }
+
+    /// What a book's place is filed under, wherever on the shelf it has got to.
+    static func id(ofBook work: Int) -> String { "book:\(work)" }
 
     var isShelved: Bool {
         guard case let .book(_, _, _, isShelved) = self else { return false }

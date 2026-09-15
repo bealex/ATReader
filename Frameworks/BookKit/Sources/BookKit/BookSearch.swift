@@ -103,7 +103,10 @@ public enum BookSearch {
     }
 
     /// Which of the places a stretch of the text is, for a mark being written down.
+    ///
+    /// The one at or after where the stretch was taken from. A match begins at its first letter, and
+    /// the stretch usually begins on the space or the dash before that, so the two rarely meet exactly.
     public static func occurrence(of words: String, at start: Int, in text: Folded) -> Int {
-        matches(of: words, in: text).firstIndex { $0.lowerBound == start } ?? 0
+        matches(of: words, in: text).firstIndex { $0.lowerBound >= start } ?? 0
     }
 }

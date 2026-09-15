@@ -74,16 +74,32 @@ enum ReaderScreen {
         @State
         private var lookedUp: LookedUpTerm?
 
+        /// True while the bar for finding a passage stands at the foot of the page.
+        @State
+        private var isSearching = false
+
+        @State
+        private var query = ""
+
+        @FocusState
+        private var searchFocused: Bool
+
+        /// How far up the screen the keyboard reaches, which is what the bar stands clear of.
+        @State
+        private var keyboardCover: CGFloat = 0
+
         @State
         private var isTranslating = false
 
         @State
         private var translating = ""
 
-        /// The type size of the running head, which ``ChapterLayout/Context/runningHeadHeight`` keeps
-        /// the body text clear of.
-        @ScaledMetric(relativeTo: .caption2)
-        private var runningHeadSize: CGFloat = 18.7
+        /// The type size of the running head, which ``ChapterLayout/Context/runningHeadBand`` keeps the
+        /// body text clear of. Both are read off the book's own text size, so the band is always as
+        /// deep as the head standing in it.
+        private var runningHeadSize: CGFloat {
+            settings.fontSize * ChapterLayout.Context.runningHeadScale
+        }
 
         @Environment(\.dismiss)
         private var dismiss
@@ -100,6 +116,10 @@ enum ReaderScreen {
                     }
                 }
                 .background(settings.theme.background.ignoresSafeArea())
+                // Over the stack rather than over the page. Everything else the reader draws stands on
+                // a page that turned the safe area down, and nothing in one of those is ever lifted;
+                // this keeps its safe area, so the keyboard moves it without being measured.
+                .overlay(alignment: .bottom) { if let model { searching(model) } }
                 // The stack is here for the window it gives the page, not for a bar. A bar centres its
                 // buttons on its own height and ignores anything asking them to sit elsewhere, so the
                 // reader draws its own and stands them on the line the running head is set on.
@@ -111,7 +131,7 @@ enum ReaderScreen {
                     colorScheme: settings.theme.colorScheme,
                     isVisible: false
                 )
-                .statusBarHidden(isChromeHidden)
+                .statusBarHidden(hidesStatusBar)
                 #if DEBUG
                     .sheet(item: $report) { ShareSheet(url: $0.url) }
                 #endif
@@ -130,6 +150,10 @@ enum ReaderScreen {
                     let reader = model
 
                     navigator.aboutToGo = { [weak reader] in reader?.flushPosition() }
+
+                    #if DEBUG
+                        startSearchingIfAsked()
+                    #endif
                 }
                 .task { await model?.loadIfNeeded() }
                 // Where the reader stopped is worth writing the moment they stop: an app on its way to
@@ -337,7 +361,7 @@ enum ReaderScreen {
 
         @ViewBuilder
         private func wayBack(_ model: Model) -> some View {
-            if model.wayBack != nil {
+            if model.wayBack != nil, !isSearching {
                 GlassRow {
                     Button("Back to where you were", systemImage: "arrow.uturn.backward") {
                         wayBackFade?.cancel()
@@ -347,13 +371,67 @@ enum ReaderScreen {
                     .accessibilityHint("Returns to the page the link was followed from")
                 }
                 .padding(.leading, safeArea.leading + Design.Space.extraLarge)
-                .padding(.bottom, Self.controlsBottom(over: spread.pageSafeArea.bottom, headSize: runningHeadSize))
+                .padding(
+                    .bottom,
+                    Self.controlsBottom(
+                        over: spread.pageSafeArea.bottom,
+                        headSize: runningHeadSize,
+                        band: layoutContext.runningHeadBand
+                    )
+                )
                 // Counted from the foot of the screen, as the page number is: an overlay is given the
                 // safe area back even where the view under it turned it down.
                 .ignoresSafeArea()
                 .opacity(fading ? 0 : 1)
                 .transition(.opacity)
             }
+        }
+
+        /// The bar for finding a passage, standing on the line the page number is set on.
+        @ViewBuilder
+        private func searching(_ model: Model) -> some View {
+            if isSearching {
+                SearchBar(model: model, query: $query, focused: $searchFocused, onClose: stopSearching)
+                    .padding(.horizontal, safeArea.leading + Design.Space.extraLarge)
+                    // Where the page number stands, not where the glyphs do. A glyph is centred on the
+                    // head's line and hangs below it, which is right for a round mark and wrong for a
+                    // bar the width of the page: this one keeps clear of the device's own band.
+                    .padding(
+                        .bottom,
+                        keyboardCover > 0
+                            ? keyboardCover + Design.Space.medium
+                            : spread.pageSafeArea.bottom + Self.headInset
+                    )
+                    // SwiftUI lifts a view it thinks the keyboard covers, and this one is moved by the
+                    // measurement above; both at once is the same keyboard counted twice. Only the
+                    // keyboard's own region is turned down, so the safe area still places the bar when
+                    // there is no keyboard.
+                    .ignoresSafeArea(.keyboard, edges: .bottom)
+                    .keyboardCover($keyboardCover)
+                    .transition(.opacity)
+            }
+        }
+
+        #if DEBUG
+            /// `-at-ui-test-find YES` opens with the bar for finding a passage already up and the
+            /// keyboard with it, so where it stands can be looked at without walking the menu first.
+            private func startSearchingIfAsked() {
+                guard UserDefaults.standard.bool(forKey: "at-ui-test-find") else { return }
+
+                startSearching()
+            }
+        #endif
+
+        private func startSearching() {
+            query = model?.findQuery ?? ""
+            withAnimation(.easeInOut(duration: Self.chromeFade)) { isSearching = true }
+            searchFocused = true
+        }
+
+        private func stopSearching() {
+            searchFocused = false
+            withAnimation(.easeInOut(duration: Self.chromeFade)) { isSearching = false }
+            model?.stopFinding()
         }
 
         /// How long the way back stands before it starts to go.
@@ -407,6 +485,10 @@ enum ReaderScreen {
 
                         action("Copy", systemImage: "doc.on.doc") {
                             UIPasteboard.general.string = chosen.selection.text
+                        }
+
+                        action("Add bookmark", systemImage: "bookmark") {
+                            model?.bookmarkPicked()
                         }
                     }
                 }
@@ -483,7 +565,7 @@ enum ReaderScreen {
             // sheet the way a printed book sets it across the opening.
             .overlay(alignment: .top) {
                 if !alone, model.showsTitle(onSheet: sheet) {
-                    runningHead(model.bookTitle, edge: .top)
+                    runningHead(model.bookTitle, edge: .head)
                 }
             }
         }
@@ -503,11 +585,11 @@ enum ReaderScreen {
                         seriesTitle: model.book?.seriesTitle,
                         coverURL: model.book?.coverURL,
                         style: settings.textStyle,
-                        margins: settings.margins,
+                        margins: settings.settledMargins,
                         safeArea: spread.pageSafeArea
                     )
                     .background(settings.theme.background)
-                    .overlay(alignment: .bottom) { runningHead(footer, edge: .bottom, isCaption: isCurrent) }
+                    .overlay(alignment: .bottom) { runningHead(footer, edge: .foot, isCaption: isCurrent) }
                 case let .text(pieces):
                     // Two pieces where a chapter starts on the page the one before it ended on. Each
                     // draws only its own lines, in its own place on the page.
@@ -517,14 +599,26 @@ enum ReaderScreen {
                         }
 
                         if model.picked?.page == index { picking(model) }
+
+                        standingOn(model.foundRects(onPage: index))
+
+                        GutterMarks(
+                            marks: model.marks(onPage: index),
+                            textEdge: layoutContext.textRect.maxX,
+                            pageWidth: spread.pageSize.width,
+                            ink: settings.theme.foreground.opacity(Self.markInk)
+                        )
                     }
                     .background(settings.theme.background)
-                    .overlay(alignment: .top) { if titled { runningHead(model.bookTitle, edge: .top) } }
-                    .overlay(alignment: .bottom) { runningHead(footer, edge: .bottom, isCaption: isCurrent) }
+                    .overlay(alignment: .top) { if titled { runningHead(model.bookTitle, edge: .head) } }
+                    .overlay(alignment: .bottom) { runningHead(footer, edge: .foot, isCaption: isCurrent) }
                 case .blank:
                     settings.theme.background
             }
         }
+
+        /// A shade off the text's own ink: the mark is the reader's, not the book's.
+        private static let markInk: CGFloat = 0.55
 
         /// What the reader has drawn a finger across, painted under the words rather than over them.
         @ViewBuilder
@@ -540,26 +634,50 @@ enum ReaderScreen {
             }
         }
 
+        /// The words the reader was taken to by searching, painted under them as a selection is: the
+        /// page is drawn, so nothing on it can be given a colour of its own.
+        private func standingOn(_ rects: [CGRect]) -> some View {
+            ForEach(Array(rects.enumerated()), id: \.offset) { _, painted in
+                RoundedRectangle(cornerRadius: Design.Radius.small)
+                    .fill(Design.Surface.picked(settings.theme.foreground))
+                    .frame(width: painted.width, height: painted.height)
+                    .position(x: painted.midX, y: painted.midY)
+            }
+            .accessibilityHidden(true)
+        }
+
         /// The book title above the text, or the page number below it.
         @ViewBuilder
-        private func runningHead(_ text: String?, edge: VerticalEdge, isCaption: Bool = false) -> some View {
+        private func runningHead(_ text: String?, edge: RunningHead.Edge, isCaption: Bool = false) -> some View {
             if let text, !text.isEmpty {
-                Text(text)
-                    .font(.system(size: edge == .bottom ? runningHeadSize * Self.captionScale : runningHeadSize))
-                    .lineLimit(1)
+                RunningHead(
+                    text: text,
+                    edge: edge,
+                    size: edge == .foot ? runningHeadSize * Self.captionScale : runningHeadSize,
                     // With the controls away this is the only thing naming the page, so it takes a
                     // little more ink; with them up it steps back and lets them carry it.
-                    .foregroundStyle(settings.theme.foreground.opacity(isChromeHidden ? 0.6 : 0.4))
-                    .padding(.horizontal, settings.margins)
-                    .padding(.top, edge == .top ? spread.pageSafeArea.top + Self.headInset : 0)
-                    .padding(.bottom, edge == .bottom ? spread.pageSafeArea.bottom + Self.headInset : 0)
-                    .frame(maxWidth: .infinity)
-                    // Only the page the reader is on names itself, so a turn never puts two of these
-                    // on screen under the same identifier.
-                    .accessibilityIdentifier(isCaption ? "reader.caption" : "")
-                    .accessibilityHidden(!isCaption)
+                    ink: settings.theme.foreground.opacity(isChromeHidden ? 0.6 : 0.4),
+                    margins: settings.settledMargins,
+                    deviceInset: edge == .head ? spread.pageSafeArea.top : spread.pageSafeArea.bottom,
+                    band: layoutContext.runningHeadBand
+                )
+                // Only the page the reader is on names itself, so a turn never puts two of these on
+                // screen under the same identifier.
+                .accessibilityIdentifier(isCaption ? "reader.caption" : "")
+                .accessibilityHidden(!isCaption)
             }
         }
+
+        /// Whether the status bar goes away with the controls.
+        ///
+        /// Only where the device keeps a band of its own at that edge. A notch is there whether the
+        /// status bar shows or not, so hiding it moves nothing; an iPad has no notch and the status bar
+        /// is its whole top inset, so hiding it would shrink the safe area and set the page again under
+        /// the reader's eyes. There it stays.
+        private var hidesStatusBar: Bool { isChromeHidden && safeArea.top >= Self.deviceBandDepth }
+
+        /// Deeper than any status bar, shallower than any notch.
+        private static let deviceBandDepth: CGFloat = 40
 
         private func toggleChrome() {
             withAnimation(.easeInOut(duration: Self.chromeFade)) { isChromeHidden.toggle() }
@@ -578,7 +696,7 @@ enum ReaderScreen {
 
             return ChapterLayout.Context(
                 style: settings.textStyle,
-                margins: settings.margins,
+                margins: settings.settledMargins,
                 pageSize: spread.pageSize,
                 safeArea: spread.pageSafeArea
             )
@@ -601,7 +719,7 @@ enum ReaderScreen {
 
         /// How the sheet is divided: one page, or two with the binding between them.
         private var spread: PageSpread {
-            PageSpread(sheet: sheetSize, safeArea: safeArea, margins: settings.margins)
+            PageSpread(sheet: sheetSize, safeArea: safeArea, margins: settings.settledMargins)
         }
 
         /// How long the controls take to fade in or out.
@@ -644,7 +762,14 @@ enum ReaderScreen {
             // is the sensor housing the close button was sitting under.
             .padding(.leading, safeArea.leading + Design.Space.extraLarge)
             .padding(.trailing, safeArea.trailing + Design.Space.extraLarge)
-            .padding(.top, Self.controlsTop(under: spread.pageSafeArea.top, headSize: runningHeadSize))
+            .padding(
+                .top,
+                Self.controlsTop(
+                    under: spread.pageSafeArea.top,
+                    headSize: runningHeadSize,
+                    band: layoutContext.runningHeadBand
+                )
+            )
             // Counted from the top of the screen, as the running head is: an overlay is given the safe
             // area back even where the view under it turned it down.
             .ignoresSafeArea()
@@ -721,6 +846,8 @@ enum ReaderScreen {
             Menu {
                 Button("Contents", systemImage: "list.bullet") { isShowingContents = true }
 
+                Button("Find", systemImage: "magnifyingglass") { startSearching() }
+
                 Button("Appearance", systemImage: "textformat.size") { isShowingSettings = true }
 
                 #if DEBUG
@@ -744,23 +871,22 @@ enum ReaderScreen {
 
         /// Where the controls start, so that the middle of them lands on the middle of the line the
         /// running head is set on. The head sits its own inset below the safe area.
-        static func controlsTop(under safeAreaTop: CGFloat, headSize: CGFloat) -> CGFloat {
-            safeAreaTop + headInset + (headLine(headSize) - Design.Size.touch) / 2
+        static func controlsTop(under safeAreaTop: CGFloat, headSize: CGFloat, band: CGFloat) -> CGFloat {
+            safeAreaTop + RunningHead.air(band, headSize) + (headLine(headSize) - Design.Size.touch) / 2
         }
 
         /// Where the way back stands, so its middle lands on the middle of the line the page number is
         /// set on. The number sits its own inset above the safe area, as the running head sits below it.
-        static func controlsBottom(over safeAreaBottom: CGFloat, headSize: CGFloat) -> CGFloat {
-            safeAreaBottom + headInset + (headLine(headSize * captionScale) - Design.Size.touch) / 2
+        static func controlsBottom(over safeAreaBottom: CGFloat, headSize: CGFloat, band: CGFloat) -> CGFloat {
+            safeAreaBottom + RunningHead.air(band, headSize * captionScale)
+                + (headLine(headSize * captionScale) - Design.Size.touch) / 2
         }
 
         /// The line a running head of this size is set on, which is taller than the type itself.
-        static func headLine(_ headSize: CGFloat) -> CGFloat {
-            UIFont.systemFont(ofSize: headSize).lineHeight
-        }
+        static func headLine(_ headSize: CGFloat) -> CGFloat { RunningHead.line(headSize) }
 
         /// What the running head keeps between itself and the safe area.
-        static let headInset: CGFloat = 4
+        static let headInset: CGFloat = RunningHead.inset
 
         #if DEBUG
             /// The page, what it was set with and a picture of it, zipped and offered to share.
@@ -830,7 +956,7 @@ enum ReaderScreen {
                     safeArea: \(context.safeArea.top), \(context.safeArea.leading), \
                     \(context.safeArea.bottom), \(context.safeArea.trailing)
                     textSize: \(context.textSize.width) x \(context.textSize.height)
-                    runningHeadHeight: \(ChapterLayout.Context.runningHeadHeight)
+                    runningHeadBand: \(layoutContext.runningHeadBand)
                     rulesVersion: \(ChapterLayout.rulesVersion)
                     typographyVersion: \(Typography.version)
                     fingerprint: \(context.fingerprint)

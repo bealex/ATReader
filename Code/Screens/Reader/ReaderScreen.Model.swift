@@ -21,6 +21,9 @@ extension ReaderScreen {
             case page(Int)
             /// The character the reader stopped on, which survives a change of font.
             case offset(Int)
+            /// A passage found by searching, and roughly where it stood. The words say which passage it
+            /// is; the offset only tells two alike apart.
+            case passage(String, near: Int)
         }
 
         /// One chapter's page, drawn as part of a reader's page. A page carries two of these where a
@@ -336,6 +339,9 @@ extension ReaderScreen {
             /// Which page of the spread the words were taken off, so what is drawn over them and what
             /// is hung beside them both land on that page rather than on the sheet's first.
             let page: Int
+            let chapterId: Int
+            /// The stretch it covers, counted the way a mark and a reading position are.
+            let source: Range<Int>
 
             var id: String { "\(selection.range.location).\(selection.range.length)" }
         }
@@ -360,7 +366,10 @@ extension ReaderScreen {
                 picked = PickedText(
                     selection: chosen,
                     rects: piece.layout.rects(of: range, onPage: piece.page),
-                    page: index
+                    page: index,
+                    chapterId: piece.layout.chapterId,
+                    source: piece.layout.position(ofLaidOut: range.location)
+                        ..< piece.layout.position(ofLaidOut: NSMaxRange(range))
                 )
                 return
             }
@@ -427,7 +436,7 @@ extension ReaderScreen {
         }
 
         /// A chapter's text folded for finding a mark in it, kept so a redraw does not fold it again.
-        private func folded(_ chapterId: Int) -> BookSearch.Folded? {
+        func folded(_ chapterId: Int) -> BookSearch.Folded? {
             if let held = foldedChapters[chapterId] { return held }
 
             guard let built = layouts[chapterId] else { return nil }
@@ -470,6 +479,54 @@ extension ReaderScreen {
 
             Task { [store] in
                 for mark in made { await store.store(bookmark: mark) }
+            }
+        }
+
+        /// Marks the words the reader picked out, at the line they start on.
+        ///
+        /// A mark already standing exactly there is left alone: two marks of one book never share a
+        /// place, which is what lets one be found and taken away again.
+        func bookmarkPicked() {
+            guard let chosen = picked, let built = layouts[chosen.chapterId] else { return }
+
+            let bare = Bookmark(
+                workId: workId,
+                chapterId: chosen.chapterId,
+                startOffset: chosen.source.lowerBound,
+                endOffset: chosen.source.upperBound,
+                createdAt: .now
+            )
+
+            guard !bookmarks.contains(where: { $0.id == bare.id }) else { return }
+
+            let made = words(for: bare, in: built, of: BookSearch.fold(built.sourceText)) ?? bare
+
+            bookmarks.append(made)
+
+            Task { [store] in await store.store(bookmark: made) }
+        }
+
+        /// A mark as it stands on a page: where its line is, and how deep that line runs.
+        struct StandingMark: Identifiable {
+            let id: String
+            let top: CGFloat
+            let height: CGFloat
+        }
+
+        /// Every mark the page carries, against the line each one begins on.
+        ///
+        /// A mark covering a whole page hangs against its first line, which is where the reader made it.
+        func marks(onPage index: Int) -> [StandingMark] {
+            guard case let .text(pieces) = page(at: index) else { return [] }
+
+            return pieces.flatMap { piece in
+                bookmarks(inChapter: piece.layout.chapterId).compactMap { mark in
+                    guard
+                        let line = piece.layout.line(atPosition: place(of: mark).lowerBound, onPage: piece.page)
+                    else { return nil }
+
+                    return StandingMark(id: mark.id, top: line.edge, height: line.height)
+                }
             }
         }
 
@@ -540,6 +597,122 @@ extension ReaderScreen {
         /// How long a chapter's text runs, for saying how far into it a mark stands.
         func length(ofChapter id: Int) -> Int? {
             layouts[id]?.sourceLength ?? chapters.first { $0.id == id }?.textLength
+        }
+
+        // MARK: - Finding a passage in the book
+
+        /// What the reader is looking for, and every place the book says it.
+        private(set) var findQuery = ""
+        private(set) var found: [Found] = []
+        /// Which of them the reader has been taken to.
+        private(set) var foundAt: Int?
+        /// True while the rest of the book is still being looked through.
+        private(set) var isFinding = false
+
+        /// The words the reader stands on, and which chapter they stand in.
+        struct FoundPlace: Equatable {
+            let chapterId: Int
+            /// The stretch they cover, counted the way a reading position is.
+            let range: Range<Int>
+        }
+
+        /// Where the place the reader was taken to stands, worked out as they were taken there rather
+        /// than on every redraw: finding it costs a pass over the chapter, and a turn redraws each frame.
+        private(set) var foundPlace: FoundPlace?
+
+        @ObservationIgnored
+        private var finding: Task<Void, Never>?
+
+        /// Looks for a passage through the whole book, and takes the reader to the first one they have
+        /// not already read past.
+        func find(_ words: String) {
+            let wanted = words.trimmingCharacters(in: .whitespacesAndNewlines)
+
+            finding?.cancel()
+            findQuery = wanted
+            found = []
+            foundAt = nil
+            foundPlace = nil
+            isFinding = false
+
+            guard !BookSearch.fold(wanted).isEmpty else { return }
+
+            isFinding = true
+            finding = Task { [weak self] in await self?.walk(for: wanted) }
+        }
+
+        /// Puts the search away, and everything it found with it.
+        func stopFinding() {
+            finding?.cancel()
+            finding = nil
+            findQuery = ""
+            found = []
+            foundAt = nil
+            foundPlace = nil
+            isFinding = false
+        }
+
+        func showNextFound() {
+            guard !found.isEmpty else { return }
+
+            show(found: ((foundAt ?? -1) + 1) % found.count)
+        }
+
+        func showPreviousFound() {
+            guard !found.isEmpty else { return }
+
+            show(found: ((foundAt ?? 0) + found.count - 1) % found.count)
+        }
+
+        /// Takes the reader to one of the places found.
+        func show(found index: Int) {
+            guard found.indices.contains(index) else { return }
+
+            foundAt = index
+            let hit = found[index]
+
+            open(chapterId: hit.chapterId, anchor: .passage(findQuery, near: hit.offset))
+        }
+
+        /// Looks through the book a chapter at a time, telling the reader what it has as it goes.
+        ///
+        /// Chapter by chapter rather than all at once: a book whose later chapters are not on the device
+        /// has to fetch them, and a reader watching the count climb can use what is already found.
+        private func walk(for words: String) async {
+            var hits: [Found] = []
+
+            for chapter in readableChapters {
+                guard !Task.isCancelled else { return }
+
+                if let text = await findableText(of: chapter.id) {
+                    hits += BookSearch.matches(of: words, in: text)
+                        .map { Found(chapterId: chapter.id, offset: $0.lowerBound) }
+                }
+
+                guard !Task.isCancelled else { return }
+
+                found = hits
+
+                if foundAt == nil, let next = hits.firstIndex(where: isPastTheReader) { show(found: next) }
+
+                await Task.yield()
+            }
+
+            isFinding = false
+
+            // Nothing ahead of them, so the book is taken from the top rather than left saying it found
+            // something and showing none of it.
+            if foundAt == nil, !found.isEmpty { show(found: 0) }
+        }
+
+        /// True where a place found stands at or beyond the page the reader is on.
+        private func isPastTheReader(_ hit: Found) -> Bool {
+            guard
+                let here = currentIndex,
+                let there = readableChapters.firstIndex(where: { $0.id == hit.chapterId })
+            else { return true }
+
+            return there > here || (there == here && hit.offset >= storedOffset)
         }
 
         // MARK: - The notes the text points at
@@ -1229,6 +1402,11 @@ extension ReaderScreen {
                         offset < 0
                         ? 0
                         : built.pageIndex(containing: offset) + titlePageCount
+                case let .passage(words, near):
+                    let place = place(of: words, near: near, in: built)
+
+                    foundPlace = place.map { FoundPlace(chapterId: built.chapterId, range: $0) }
+                    currentPage = built.pageIndex(containing: place?.lowerBound ?? near) + titlePageCount
             }
 
             isLoading = false
@@ -1350,7 +1528,7 @@ extension ReaderScreen {
         }
 
         /// The chapter's text: prepared already, else stored on the device, else from the service.
-        private func content(for chapterId: Int) async -> ChapterContent? {
+        func content(for chapterId: Int) async -> ChapterContent? {
             if let cached = parsed[chapterId] { return cached }
 
             if let prepared = await processor.content(workId: workId, chapterId: chapterId) {

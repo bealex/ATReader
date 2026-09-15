@@ -625,11 +625,27 @@ struct LibraryList: UIViewControllerRepresentable {
             return made
         }
 
+        /// The face a book stands on, asked of the book rather than of the shelf it was tapped on.
+        ///
+        /// Opening a book writes where the reader got to, and that re-orders the shelves under the zoom
+        /// that is still running. The cell the tap knew has been reused for another author by then, and
+        /// a cover that is never told to stand aside goes on drawing behind the open book.
+        private func face(of work: Book, during zoom: BookZoom) -> UIView? {
+            ShelfView.face(of: work, during: zoom)
+        }
+
         /// Everything a card does when it is touched, which the cell forgets whenever it is reused.
         private func dress(_ cell: AuthorCardCell, with contents: AuthorCardView.Contents) {
             cell.card.shelf.onToggle = { [weak self] in self?.list.onTurn(contents.id) }
-            cell.card.shelf.onOpen = { [weak self] work, face in self?.list.onOpen(work, face) }
-            cell.card.shelf.bookMenu = { [weak self] work, hand in self?.list.bookMenu(work, hand) }
+            cell.card.shelf.onOpen = { [weak self] work, _ in
+                self?.list.onOpen(work) { [weak self] zoom in self?.face(of: work, during: zoom) }
+            }
+            cell.card.shelf.bookMenu = { [weak self] work, hand in
+                self?.list.bookMenu(
+                    work,
+                    BookInHand(face: { [weak self] zoom in self?.face(of: work, during: zoom) }, settled: hand.settled)
+                )
+            }
             cell.card.shelf.runMenu = { [weak self] run in self?.list.runMenu(run) }
         }
 

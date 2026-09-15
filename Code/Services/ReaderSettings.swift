@@ -101,8 +101,34 @@ final class ReaderSettings {
 
     /// Page inset in points, applied on every edge.
     var margins: Double {
-        didSet { defaults.set(margins, forKey: Keys.margins) }
+        didSet {
+            defaults.set(margins, forKey: Keys.margins)
+            settleMargins()
+        }
     }
+
+    /// The margin the page is actually set to, which follows the slider rather than keeping up with it.
+    ///
+    /// Setting a book costs a pass over the whole of it, and a slider dragged across its range would ask
+    /// for one at every step. The page waits until the reader has stopped moving it.
+    private(set) var settledMargins: Double
+
+    @ObservationIgnored
+    private var marginSettling: Task<Void, Never>?
+
+    private func settleMargins() {
+        marginSettling?.cancel()
+        marginSettling = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(Self.marginsSettle))
+
+            guard !Task.isCancelled, let self else { return }
+
+            settledMargins = margins
+        }
+    }
+
+    /// How long the reader has to leave the slider alone before the book is set again.
+    static let marginsSettle: Double = 2
 
     var face: Face {
         didSet {
@@ -203,7 +229,10 @@ final class ReaderSettings {
         lineSpacing = storedSpacing > 0 ? storedSpacing : 7
         // `double(forKey:)` coerces whatever type the value was stored as, but returns 0 when absent —
         // and 0 is a legitimate margin, so presence has to be checked separately.
-        margins = defaults.object(forKey: Keys.margins) == nil ? 24 : defaults.double(forKey: Keys.margins)
+        let storedMargins = defaults.object(forKey: Keys.margins) == nil ? 24 : defaults.double(forKey: Keys.margins)
+
+        margins = storedMargins
+        settledMargins = storedMargins
         letterSpacing = defaults.double(forKey: Keys.letterSpacing)
         face = defaults.string(forKey: Keys.face).flatMap(Face.init(rawValue:)) ?? .serif
         weight = defaults.string(forKey: Keys.weight).flatMap(Weight.init(rawValue:)) ?? .regular

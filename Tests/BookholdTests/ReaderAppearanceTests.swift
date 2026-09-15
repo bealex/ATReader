@@ -202,10 +202,43 @@ struct ReaderAppearanceTests {
 
         for safeAreaTop in [ 0.0, 62.0 ] {
             for headSize in [ 14.0, 18.7, 26.0 ] {
-                let controls = Reader.controlsTop(under: safeAreaTop, headSize: headSize) + Design.Size.touch / 2
-                let head = safeAreaTop + Reader.headInset + Reader.headLine(headSize) / 2
+                let band = ChapterLayout.Context.leastRunningHeadBand
+                let controls = Reader.controlsTop(under: safeAreaTop, headSize: headSize, band: band)
+                    + Design.Size.touch / 2
+                let head = safeAreaTop + RunningHead.air(band, headSize) + Reader.headLine(headSize) / 2
 
                 #expect(abs(controls - head) < 0.000_001, "head \(headSize) under \(safeAreaTop)")
+            }
+        }
+    }
+
+    /// The controls stand clear of the text, on a screen that keeps no band of its own.
+    ///
+    /// A control is a fingertip deep and centred on the running head's line, so it hangs below that
+    /// line however small the head is set. A phone lends it the notch's depth; an iPad keeps nothing at
+    /// the top, and only the band the layout reserves is between the control and the first line.
+    @Test
+    func theControlsClearTheTextTheyStandOver() {
+        typealias Reader = ReaderScreen.Component
+
+        for fontSize in [ 14.0, 19.0, 23.0, 30.0 ] {
+            for safeAreaTop in [ 0.0, 24.0, 62.0 ] {
+                for margins in [ 0.0, 24.0 ] {
+                    var context = JustificationTests.testContext
+
+                    context.style.fontSize = fontSize
+                    context.margins = margins
+                    context.safeArea = EdgeInsets(top: safeAreaTop, leading: 0, bottom: 0, trailing: 0)
+
+                    let head = fontSize * ChapterLayout.Context.runningHeadScale
+                    let foot = Reader.controlsTop(under: safeAreaTop, headSize: head, band: context.runningHeadBand)
+                        + Design.Size.touch
+
+                    #expect(
+                        foot <= context.textRect.minY,
+                        "controls reach \(foot), text starts \(context.textRect.minY), \(fontSize)pt under \(safeAreaTop)"
+                    )
+                }
             }
         }
     }

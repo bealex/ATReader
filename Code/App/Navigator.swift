@@ -99,6 +99,9 @@ final class Navigator {
         // around whatever the reading changed, so the board a book stood on when it opened is the
         // wrong size by the time the book closes, and the zoom landed on one and left the other.
         if let source {
+            // Asked for on the way in and again on the way out, a drag to dismiss included, and answered
+            // the same way both times: the stand-in, standing exactly where the cover stands. It is what
+            // the screen grows out of and what it shrinks back into, so it has to be there for both.
             screen.preferredTransition = .zoom(options: Self.zoom) { _ in source(.running) }
             // The book is taken down once the reader is over it, so it is never standing there behind
             // its own transition, and put back when the zoom has finished bringing it home.

@@ -24,8 +24,9 @@ struct PageSpreadTests {
         EdgeInsets(top: top, leading: sides, bottom: bottom, trailing: sides)
     }
 
-    /// The widest a page ever comes out: the longest measure the spread allows, plus its margins.
-    private static let widestPage: CGFloat = 440 + 24 * 2
+    /// The widest a page ever comes out, which is the longest measure the spread allows. The margins
+    /// are taken out of that measure rather than added around it, so they never widen the page.
+    private static let widestPage: CGFloat = 440
 
     @Test
     func standsOnePageOnAPhone() {
@@ -90,9 +91,38 @@ struct PageSpreadTests {
             let two = spread(sheet, safeArea: bands(top: 24, bottom: 20))
 
             #expect(two.columns == 2)
-            #expect(two.gutter > 0)
+            // The air between the columns is the two pages' own margins, the same margin the sides
+            // have, so the gutter itself adds nothing to them unless they are too small for a binding.
+            #expect(two.gutter + Self.margins * 2 >= Self.leastBinding)
         }
     }
+
+    /// A reader who has turned the margins off altogether still gets the least a binding takes.
+    @Test
+    func partsTwoPagesWhereThereAreNoMarginsToPartThem() {
+        let two = spread(Self.pad, safeArea: bands(top: 24, bottom: 20), margins: 0)
+
+        #expect(two.columns == 2)
+        #expect(two.gutter >= Self.leastBinding)
+    }
+
+    /// Widening the margins narrows the text rather than widening the page around it, on one column or
+    /// two. A margin that left the measure alone is the one thing a margin may not do.
+    @Test
+    func theMarginsNarrowTheText() {
+        for sheet in [ Self.phone, Self.pad, Self.padOnItsSide ] {
+            let narrow = spread(sheet, margins: 8)
+            let wide = spread(sheet, margins: 60)
+
+            #expect(
+                wide.pageSize.width - 60 * 2 < narrow.pageSize.width - 8 * 2,
+                "the measure did not narrow on \(sheet)"
+            )
+        }
+    }
+
+    private static let margins: Double = 24
+    private static let leastBinding: Double = 16
 
     /// Both pages are measured the same, or a chapter set for one would have to be set again for the
     /// other.

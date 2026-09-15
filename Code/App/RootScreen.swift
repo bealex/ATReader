@@ -70,7 +70,7 @@ enum RootScreen {
                 // be inspected without walking the tabs first. Debug builds only.
                 if let workId = Self.debugReaderWorkId {
                     NavigationStack {
-                        ReaderScreen.Component(workId: workId, title: "", initialChapterId: nil)
+                        ReaderScreen.Component(workId: workId, title: "", initialChapterId: Self.debugReaderChapterId)
                     }
                     // The reader pushes and presents like any screen, and there is no tab under this
                     // one to have handed it a navigator.
@@ -90,13 +90,16 @@ enum RootScreen {
                 UserDefaults.standard.bool(forKey: "at-design-system")
             }
 
-            private static var debugReaderWorkId: Int? {
+            private static var debugReaderWorkId: Int? { debugArgument("-at-ui-test-reader") }
+
+            /// `-at-ui-test-chapter <id>` says which chapter to open, so a picture of a page can be of
+            /// one with text on it rather than of the title page every book opens on.
+            private static var debugReaderChapterId: Int? { debugArgument("-at-ui-test-chapter") }
+
+            private static func debugArgument(_ name: String) -> Int? {
                 let arguments = ProcessInfo.processInfo.arguments
 
-                guard
-                    let index = arguments.firstIndex(of: "-at-ui-test-reader"),
-                    index + 1 < arguments.count
-                else { return nil }
+                guard let index = arguments.firstIndex(of: name), index + 1 < arguments.count else { return nil }
 
                 return Int(arguments[index + 1])
             }

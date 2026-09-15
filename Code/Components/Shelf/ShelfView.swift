@@ -69,6 +69,39 @@ final class ShelfView: UIView {
     /// author whole, and building a book costs more than dressing one again.
     private static var spare: [BookView] = []
 
+    /// Every book standing on any shelf, by the place it stands in.
+    ///
+    /// A zoom asks a book for its face again on the way out, and by then almost nothing the tap knew is
+    /// still true: closing a book re-orders the shelves, the cell that held this one has been reused for
+    /// another author, and the view itself may have been handed to the spare pile. The book's own place
+    /// is the one name that outlives all of that, so the face is looked up by that and by nothing else.
+    private static var standing: [String: Standing] = [:]
+
+    /// Held weakly: a shelf owns its books, and this only says where they are.
+    private struct Standing {
+        weak var view: BookView?
+    }
+
+    /// Where a zoom of each book has got to, kept by book rather than by the view standing for it.
+    ///
+    /// The shelf may build a book a new view at any moment, and opening one guarantees it: the reading
+    /// writes a position as soon as a chapter lands, which re-orders the shelves under the zoom that is
+    /// still running. A view knows only its own life, so a fresh one would stand the cover back up in
+    /// the middle of the zoom, behind the pages it grew into.
+    private static var zooming: [String: BookZoom] = [:]
+
+    /// The face a book stands on, wherever on whatever shelf it now stands.
+    ///
+    /// The stage is remembered whether or not there is a view to hand it to. A book whose row has been
+    /// scrolled away has none, and the one built for it next has to take up where this left off.
+    static func face(of work: Book, during zoom: BookZoom) -> UIView? {
+        let place = SeriesSlot.id(ofBook: work.id)
+
+        zooming[place] = zoom == .done ? nil : zoom
+
+        return standing[place]?.view?.face(during: zoom)
+    }
+
     /// Gives up every picture on its way, for a shelf that has left the screen.
     func pauseLoading() {
         for book in books.values { book.stopLoading() }
@@ -423,7 +456,10 @@ final class ShelfView: UIView {
 
             guard let book = view as? BookView else { continue }
 
-            book.stopLoading()
+            book.retire()
+            // Off the shelf is off the register: the next place to take this view would otherwise be
+            // found under the name of the book that just left it.
+            if Self.standing[id]?.view === book { Self.standing[id] = nil }
 
             if Self.spare.count < Self.spares { Self.spare.append(book) }
         }
@@ -462,6 +498,10 @@ final class ShelfView: UIView {
             isNew = true
         }
 
+        // Told again every time, new view or held one. A shelf that kept its view across a re-sort would
+        // otherwise never say so again, and the book would be struck off the register by the pass that
+        // tidied up around it and never put back.
+        Self.standing[place.id] = Standing(view: view)
         // Told again every time rather than only when the view is made: a place holds the book as it
         // was, so a view keeping its first closures opens and offers yesterday's copy of it.
         view.onTap = { [weak self] in self?.tapped(at: place) }
@@ -478,6 +518,14 @@ final class ShelfView: UIView {
         ))
 
         if isNew { view.turned = Self.standsAsCover(place.slot, in: contents) ? 1 : 0 }
+
+        // A book still being zoomed takes up where its last view left off: a view built in the middle
+        // of a zoom knows nothing of it, and the register is the only thing that does.
+        if let stage = Self.zooming[place.id] {
+            view.face(during: stage)
+        } else {
+            view.standAsTheZoomAsks()
+        }
     }
 
     private static func stands(_ slot: SeriesSlot, in contents: Contents) -> BookView.Contents.Stands {
@@ -513,6 +561,12 @@ final class ShelfView: UIView {
         guard books[place.id] != nil else { return }
 
         onOpen?(work) { [weak self] zoom in self?.books[place.id]?.face(during: zoom) }
+    }
+
+    /// The face a book stands on, wherever it stands on this shelf now, or nothing where it isn't on
+    /// this shelf at all.
+    func face(of work: Book, during zoom: BookZoom) -> UIView? {
+        books[SeriesSlot.id(ofBook: work.id)]?.face(during: zoom)
     }
 
     private func menu(at place: Place) -> UIMenu? {

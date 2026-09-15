@@ -182,6 +182,17 @@
         }
       }
     },
+    "%lld of %lld found": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld из %lld"
+          }
+        }
+      }
+    },
     "%lld points": {
       "extractionState": "manual",
       "localizations": {
@@ -1317,6 +1328,28 @@
         }
       }
     },
+    "Find": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Найти"
+          }
+        }
+      }
+    },
+    "Find in book": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Найти в книге"
+          }
+        }
+      }
+    },
     "Finished": {
       "extractionState": "manual",
       "localizations": {
@@ -1581,6 +1614,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Скрыть из «Читаю»"
+          }
+        }
+      }
+    },
+    "Hide keyboard": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Скрыть клавиатуру"
           }
         }
       }
@@ -2099,6 +2143,17 @@
       "extractionState": "manual",
       "shouldTranslate": false
     },
+    "Next": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Следующее"
+          }
+        }
+      }
+    },
     "Night": {
       "extractionState": "manual",
       "localizations": {
@@ -2528,6 +2583,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Книга готовится, обработано %1$lld из %2$lld глав"
+          }
+        }
+      }
+    },
+    "Previous": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Предыдущее"
           }
         }
       }

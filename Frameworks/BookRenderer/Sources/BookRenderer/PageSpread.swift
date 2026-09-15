@@ -28,7 +28,10 @@ public struct PageSpread: Equatable, Sendable {
 
     public init(sheet: CGSize, safeArea: EdgeInsets, margins: Double) {
         let room = sheet.width - safeArea.leading - safeArea.trailing
-        let gutter = max(margins, Self.leastGutter)
+        // No gutter of its own beyond what the two pages' own margins already give: the air between the
+        // columns is the same margin the sides have. A reader who has turned the margins off altogether
+        // still gets the least a binding needs.
+        let gutter = max(0, Self.leastGutter - margins * 2)
         let halved = (room - gutter) / 2
         let twoUp = halved - margins * 2 >= Self.leastMeasure && halved * Self.leastShape <= sheet.height
 
@@ -44,11 +47,15 @@ public struct PageSpread: Equatable, Sendable {
         self.gutter = twoUp ? gutter : 0
         columns = twoUp ? 2 : 1
 
-        // Held to a width the eye can track back across, whether there is one page or two. What a wide
-        // sheet has over is laid outside the spread, which is where a book's own widest margins are.
-        let width = min(twoUp ? halved : room, Self.mostMeasure + margins * 2)
+        // The margins act on the measure, not on the page: the text is what the column has room for less
+        // the margins, held to a width the eye can track back across. So widening the margins narrows
+        // the text rather than widening the page around it, which is the whole point of a margin. What a
+        // wide sheet has over is laid outside the spread, where a book's own widest margins are.
+        let column = twoUp ? halved : room
+        let width = min(Self.mostMeasure, column)
+        let measure = width - margins * 2
 
-        pageSize = CGSize(width: max(0, width), height: sheet.height)
+        pageSize = CGSize(width: max(0, measure + margins * 2), height: sheet.height)
         inset = safeArea.leading + (room - width * CGFloat(columns) - self.gutter * CGFloat(columns - 1)) / 2
     }
 

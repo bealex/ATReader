@@ -392,9 +392,34 @@ both stretches.
 A mark stopping exactly where the next page begins belongs to the page before it. Counted the other
 way, every page would open showing itself already marked.
 
+The words picked off the page can be marked from their own menu, which covers the stretch picked
+instead of the whole page it sits on. Two marks of one book never share a place, so a second one made
+exactly where one already stands is left alone.
+
+Every mark the page carries hangs as a ribbon in the gutter, against the line it begins on, so the
+page says which words are marked and not merely that it's marked somewhere. It's contoured in the
+page's own ink rather than filled, which keeps it a mark in the margin of the book instead of chrome
+laid over it. It shrinks with the margin it hangs in, and a page set with no margin at all keeps it at
+the page's edge. `ChapterLayout.line(atPosition:onPage:)` says which line that is, walking the page
+exactly as the page is drawn.
+
 They stand under their chapters in the contents and in the book's details, with how far into the
 chapter each one is, and open the book where they stand. `LocalStore` is where they live, like
 everything else the reader does.
+
+### Finding a mark once the offsets have moved
+
+A mark carries the words it stands on, and is found again by searching the chapter for them. Offsets
+survive a change of font, the text they count being unchanged, and they don't survive the book being
+read again: a parser that has learned something writes different text and everything past the change
+shifts.
+
+That search and the offsets a page is cut at have to count the same characters, which is the one thing
+that will quietly break it. `Typography.bound` puts a word joiner into every space that may not be
+broken at, a reading position counts those, and the text the search runs over has to keep them. It
+strips the soft hyphens, because a position doesn't count those either. `BookmarkOffsetTests` pins
+both halves: the chapter runs as long as the text a mark is found in, and a mark made on a page is
+found on the page it was made on.
 
 ## Picking text off the page
 
@@ -658,6 +683,16 @@ The page ignores the safe area, so its size and the notch and home-indicator ins
 window rather than from the layout. Two reasons: an overlay is laid out inside the safe area even when
 the view under it is not, and a toolbar coming and going would otherwise re-paginate the chapter.
 
+### The band the running heads stand in
+
+Both heads are set at `Context.runningHeadScale` of the book's own text size, and the band the layout
+keeps clear at the head and foot of the page is that head's line and three quarters as much again of
+air. One number sets both, so the band is always as deep as what stands in it. Set the head from
+anything the band can't see and it grows onto the first line of the page.
+
+Nothing on the page follows the system's type size. The reader sets the text's size themselves, the
+head follows that, and a head stays in proportion to the page it heads at every size they can choose.
+
 Drawn text is invisible to VoiceOver, so each page publishes its text as its own accessibility element.
 
 ## One page or two
@@ -751,6 +786,56 @@ settles where the reader asked.
 The system's swipe-from-the-edge-to-go-back gesture never reaches the page, since the reader is
 presented rather than pushed and the stack it would belong to is behind it. A drag in from the leading
 edge turns back a page, like any other sideways drag.
+
+## Finding a passage
+
+The glyph that opens things also opens a bar at the foot of the page, on the line the page number is
+set on. It holds the words to look for, how many places in the book carry them, and the way through
+those places.
+
+What stands at its far end depends on the keyboard, since the two are never both wanted. With the
+keyboard up the reader is still typing and wants it out of the way, so the bar offers that; with it
+down they're reading the places found and want the way to the next, so the bar offers the previous and
+the next.
+
+### Standing the bar clear of the keyboard
+
+Three things have to be true at once here, and each of them is easy to get wrong on its own.
+
+An overlay is laid out in the frame of what it covers. The page turns the safe area down, so the
+overlay carrying the bar has the window's own foot for a bottom: nothing lifts it, and the bar sits
+under the keyboard. So the keyboard is measured, in `KeyboardCover`.
+
+What is measured is the overlap with the window, not the keyboard's height. The frame it publishes is
+in screen coordinates and says how big the keyboard is, which is a different question: an iPad window
+that doesn't fill the screen is covered by only the part of the keyboard that reaches into it.
+Converting the frame into the window and intersecting is the only reading that holds in both cases,
+and that wants a real `UIWindow`, which is why a view of no size sits in the bar's background to own
+one. It listens for `keyboardWillChangeFrame`, not `keyboardWillShow`: a keyboard changes depth when
+its own bar comes and goes, and a height read once is wrong from then on.
+
+Then SwiftUI has to be told to stop. It lifts a view it believes the keyboard covers, and this one is
+already moved by the measurement, so both at once is the same keyboard counted twice: about 110 points
+of it on a phone. `.ignoresSafeArea(.keyboard, edges: .bottom)` turns off that lift and nothing else,
+so the safe area still places the bar when no keyboard is up.
+
+With the keyboard away the bar stands where the page number does, an inset above the device's own
+band. Not where the round controls stand: those are centred on the running head's line and hang below
+it, which suits a mark the size of a fingertip and not a bar the width of the page.
+
+The search runs on the words submitted, not on every keystroke. It walks the book a chapter at a time,
+pulling any chapter that isn't on the device yet, and publishes what it has after each one, so the
+count climbs while the reader reads and the way through works before the walk is done. It carries the
+reader to the first place at or past the page they were on the moment that much of the book has been
+looked through.
+
+The offsets are the trap. A chapter is searched as the book wrote its blocks, which carry no soft
+hyphens and no heading; the reader sets a heading above them, so the chapter as it's laid out counts a
+fixed amount more than the search did. So the jump doesn't trust the offset. It looks for the same
+words in the laid-out chapter and takes the match nearest that offset. The shift is the same
+everywhere in a chapter and separate sayings of a phrase are thousands of characters apart, which
+leaves the nearest match the one the search meant. `FindInBookTests` pins it: the blocks and the
+laid-out chapter agree on every place, and the nearest match is always the right one.
 
 ## The controls
 

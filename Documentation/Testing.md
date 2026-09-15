@@ -159,6 +159,37 @@ while it holds, and the half-finished gesture can be measured: that is how the i
 to sit 20pt to the left of the finger, and how the rubber band at the end of a book was measured at
 60.6pt against a predicted 60.3.
 
+### PageProof, and a picture of the same page on every screen
+
+`PageProof` is the second app in this project: the bundled book, the same packages, one page, and
+nothing else. No account, no library, no book to read in first. It builds in about three seconds and
+draws its page about six after launch, which is what makes looking at a layout cheap enough to do
+every time one changes.
+
+It draws the page through `ChapterPageView` and the two heads through `RunningHead`, so what it shows
+is what the reader shows. The colours are its own, being the one thing it can't read off the reader's
+settings.
+
+`UserDefaults` reads `-key value` launch arguments, so the page is set from the command line:
+`-proof.fontSize`, `-proof.lineSpacing`, `-proof.margins`, `-proof.page` and `-proof.chapter`. Without
+a chapter it takes the book's longest, a book's first sections being front matter set by rules of its
+own.
+
+`Scripts/shots.sh` puts that page on each simulator in turn and writes the screenshots to the
+gitignored `Fixtures/Reports/Shots/`. `--type` runs one screen through the system's type sizes
+instead, and anything after `--` goes to the app. It installs through `app.sh --scheme PageProof` and
+then drives simulators that are already running, which is what `simctl` is for here.
+
+```
+Scripts/shots.sh                                    # every screen
+Scripts/shots.sh --type "iPhone 17 Pro"             # one screen, every system type size
+Scripts/shots.sh "iPhone Air" -- -proof.margins 0   # one screen, set as asked
+```
+
+Running it across the type sizes is how the page was shown to be free of them: every size from `large`
+up gives a byte-identical screenshot. A picture that differs between two runs of the same size is the
+home indicator fading, not the page.
+
 ### Instrumenting instead of eyeballing
 
 Typographic rules are easier to count than to look at. A temporary `#if DEBUG` print in the page

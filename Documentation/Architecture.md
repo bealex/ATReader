@@ -454,6 +454,58 @@ A volume the reader doesn't hold is drawn as the book that isn't there would be:
 shading on the edge, a cover's on the face, both at half strength. It turns with its run rather than
 sitting still while the books either side of it move.
 
+### Opening a book, frame by frame
+
+A book grows into the reader and shrinks back out of it, and what the reader sees through that has to be
+one cover the whole way. There is more than one thing that could be drawn, so the order is written down
+here and pinned by `BookZoomSequenceTests`.
+
+1. The stand-in is put where the cover is, carrying a picture of it. Both are at the same place, so what
+   happens next is invisible.
+2. The cover goes. Only the stand-in is drawn, and it is what the zoom grows out of.
+3. The screen grows out of the stand-in into the page.
+4. On the way back the stand-in is what the screen shrinks into, so it is drawn again and the cover is
+   still not. A drag to dismiss is this step too: the zoom asks for its source afresh when the drag
+   begins, and the answer is the same one it got going in.
+5. Once the screen has settled in the cover's place the stand-in goes and the cover comes back, both in
+   one transaction with animation turned off, so no frame has two of them and none has neither.
+
+While the reader is over the shelf, in between, neither is drawn: there is nothing to see behind a
+covered screen, and a cover standing there is what a reader notices when they drag the screen down.
+
+**Three things recycle underneath this, and all three have broken it.** The Reading shelf is ordered by
+when the device last saw the reader in each book, and the reader writes that as soon as a chapter lands,
+so the shelves re-sort while the opening zoom is still running. The cell that held the book is reused
+for another author. And `ShelfView` keeps a pile of spare `BookView`s that any shelf may take from.
+
+So the stand-in is never looked for through a cell or through the shelf that was tapped. Every book on
+every shelf is registered under its own place, `SeriesSlot.id(ofBook:)`, and `ShelfView.face(of:during:)`
+reads that register. A book is registered on every layout pass rather than only when its view is made,
+since a shelf that keeps a view across a re-sort would otherwise never say so again and the pass that
+tidied up around it would have struck it off. A view laid with the spares is retired, clearing the zoom
+it was in, or the next book to take it inherits a stand-aside it was never part of.
+
+**Dressing a book must not stand it up.** The shelf dresses every book on every layout pass, and it
+used to put the panels back as it went, on the reasoning that a cell given a book to stand is showing
+that book. A zoom outlives any number of layout passes, so the pass that follows the re-sort undid the
+standing-aside and left the cover on the shelf behind the pages it had just grown into, while the book
+went on knowing it was mid-zoom the whole time. `BookView.show(_:)` asks the zoom what to stand on,
+which is what makes the order of the two calls stop mattering.
+
+This one hides well. Every other part of the chain can be correct and the symptom is identical, so it
+reads as the register having missed the book, not as the message being overwritten on arrival.
+
+**Which step a book is on belongs to the book, not to the view standing for it.** The shelf builds a
+book a new view whenever it wants one, and opening a book guarantees it: the position written when the
+chapter lands re-orders the shelves, the row is laid out again, and the view that was told to stand
+aside is gone. A new view knows only its own life, so it stands the cover up mid-zoom and puts it back
+on the shelf behind its own pages. `ShelfView` keeps the step against the book's place and hands it to
+whatever view the book has next, which also covers a book whose row was scrolled away while it was
+open.
+
+The failure all of that prevents is quiet: a book that misses its last step is left with its cover at no
+opacity, which is an empty board on the shelf, and nothing says so.
+
 ### The book page
 
 The page opens on the cover alone, centred across a third of the screen, with the book's name, its

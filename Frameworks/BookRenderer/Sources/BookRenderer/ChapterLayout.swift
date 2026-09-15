@@ -45,20 +45,44 @@ public final class ChapterLayout {
             self.hasRunningHeads = hasRunningHeads
         }
 
-        /// The band kept at the top and bottom of every page for the book title and the page number,
-        /// which is as deep as the head drawn in it and no deeper.
-        public static let runningHeadHeight: CGFloat = 26
+        /// How much smaller than the text its running head is set.
+        ///
+        /// Against the book's own text rather than against the system's type size. The band below is
+        /// measured from the same number, and a head that followed a setting the band couldn't see
+        /// would grow into the text.
+        public static let runningHeadScale: CGFloat = 0.93
+
+        /// How deep the head is drawn, which is what the band is built from.
+        public var runningHeadLine: CGFloat {
+            UIFont.systemFont(ofSize: style.fontSize * Self.runningHeadScale).lineHeight
+        }
+
+        /// The band kept at the top and bottom of every page for the book title and the page number:
+        /// as deep as the head set in it, and a third as much again of air between it and the text.
+        public var runningHeadBand: CGFloat {
+            hasRunningHeads ? max(Self.leastRunningHeadBand, runningHeadLine * Self.runningHeadBandLines) : 0
+        }
+
+        /// However shallow the head, the band holds the controls that stand on its line.
+        ///
+        /// They are a fingertip deep. A screen that keeps a band of its own at that edge lends them the
+        /// room, and an iPad keeps none at the top, so without a floor here the controls come down on
+        /// the first line of the page and the page moves under them.
+        public static let leastRunningHeadBand: CGFloat = 50
+
+        private static let runningHeadBandLines: CGFloat = 1.35
 
         /// Where the body text is laid out and drawn, in the page's own coordinates.
         public var textRect: CGRect {
-            let band = hasRunningHeads ? Self.runningHeadHeight : 0
+            let band = runningHeadBand
 
             return CGRect(origin: .zero, size: pageSize).inset(by: UIEdgeInsets(
-                // Half the margin above and below: the running head's own band already parts the text
-                // from the edge, where the sides have nothing but the margin to do it.
-                top: safeArea.top + margins / 2 + band,
+                // The band alone above and below. It holds the head in its middle, so it already parts
+                // the text from the edge by as much as stands over the head; adding the margin to that
+                // parts it twice. The sides have nothing but the margin to do it.
+                top: safeArea.top + band,
                 left: safeArea.leading + margins,
-                bottom: safeArea.bottom + margins / 2 + band,
+                bottom: safeArea.bottom + band,
                 right: safeArea.trailing + margins
             ))
         }
@@ -100,7 +124,7 @@ public final class ChapterLayout {
     /// Measurements are kept against the setting they were made at, and the setting alone says nothing
     /// about the rules that read it. Without this, changing how far a mark hangs would leave every book
     /// on the device showing the breaks an older layout chose.
-    public nonisolated static let rulesVersion = "25"
+    public nonisolated static let rulesVersion = "31"
 
     public enum Rules {
         /// Lines that have to follow a heading rather than leaving it stranded at the foot of a page.
@@ -125,6 +149,8 @@ public final class ChapterLayout {
         /// it give a little back is what closes that gap. Below this it is small enough to read as a
         /// different picture, so it takes the page of its own instead.
         static let plateGivesUp: CGFloat = 0.3
+        /// How far a picture stands off the text above and below it, against the gap between two lines.
+        static let pictureAir: CGFloat = 1.62
     }
 
     /// Text longer than this is worth telling the reader about while it is being laid out.
@@ -734,8 +760,9 @@ public final class ChapterLayout {
     /// The page's text, for VoiceOver and for the reader's own accessibility label.
     /// The chapter's own words over a stretch of it, counted the way a reading position and a mark are.
     ///
-    /// The typesetter's own marks come out. They stand in the text a page is set from and are no part
-    /// of the book, so a passage carrying them would not be found again in a chapter set another way.
+    /// Exactly what an offset skips comes out, and nothing else: a character an offset counts has to
+    /// stand in this text, or a mark found here lands somewhere else on the page. The word joiners the
+    /// binder put in are counted, so they stay, and folding drops them before anything is matched.
     public func sourceText(in range: Range<Int>) -> String {
         let string = text.string as NSString
         let start = laidOutOffset(max(0, range.lowerBound))
@@ -745,11 +772,33 @@ public final class ChapterLayout {
 
         return string.substring(with: NSRange(location: start, length: end - start))
             .replacingOccurrences(of: String(Typography.softHyphen), with: "")
-            .replacingOccurrences(of: "\u{2060}", with: "")
     }
 
     /// The whole chapter as the book wrote it, for finding a passage in it again.
     public var sourceText: String { sourceText(in: 0 ..< sourceLength) }
+
+    /// A place in the text as it was set, counted the way a reading position and a mark are.
+    public func position(ofLaidOut offset: Int) -> Int { sourceOffset(offset) }
+
+    /// The other way: a stretch counted as a reading position, as it stands in the text as it was set.
+    public func laidOutRange(of range: Range<Int>) -> NSRange {
+        let start = laidOutOffset(max(0, range.lowerBound))
+        let end = laidOutOffset(max(0, range.upperBound))
+
+        return NSRange(location: start, length: max(0, end - start))
+    }
+
+    /// The line a position stands on, where that line stands on this page.
+    ///
+    /// A position between two lines takes the one after it, so a mark made at the head of a paragraph
+    /// stands against its first line rather than against the end of the paragraph before.
+    public func line(atPosition position: Int, onPage index: Int) -> PlacedLine? {
+        let laidOut = laidOutOffset(position)
+        let placed = placedLines(onPage: index)
+
+        return placed.first { NSLocationInRange(laidOut, lines[$0.index].characters) }
+            ?? placed.first { laidOut <= lines[$0.index].characters.location }
+    }
 
     public func pageText(_ index: Int) -> String {
         guard pageRanges.indices.contains(index) else { return "" }

@@ -498,8 +498,11 @@ public enum ChapterPagination {
     private static func setting(_ picture: PageImage, suffix: String, style: ChapterTextStyle) -> NSAttributedString {
         let paragraphStyle = NSMutableParagraphStyle()
         paragraphStyle.alignment = .center
-        paragraphStyle.lineSpacing = style.lineSpacing
-        paragraphStyle.paragraphSpacing = style.lineSpacing * 0.8
+        // Split evenly, since the composer takes the pair as the picture's whole air and the page
+        // centres it in that.
+        let air = style.lineSpacing * ChapterLayout.Rules.pictureAir
+        paragraphStyle.lineSpacing = air
+        paragraphStyle.paragraphSpacing = air
 
         return NSAttributedString(
             string: String(Self.pictureMark) + suffix,

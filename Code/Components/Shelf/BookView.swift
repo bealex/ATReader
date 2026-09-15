@@ -109,8 +109,39 @@ final class BookView: UIView {
     /// reader covers the shelf the book shows nothing at all; when the zoom has come back the panels
     /// take over again. Both swaps are invisible, each side showing the same cover in the same place,
     /// and the last one leaves no frame with neither on it.
+    /// Where a zoom of this book has got to, and nothing where none is running.
+    private(set) var zoom: BookZoom?
+
+    /// True while the book draws its own cover, as against the stand-in that takes its place for a zoom.
+    var showsItsOwnCover: Bool { facePanel.alpha > 0 || edgePanel.alpha > 0 }
+
+    /// True while the stand-in is drawn in the cover's place.
+    var showsTheStandIn: Bool { zoomAnchor.alpha > 0 }
+
+    /// Taken off the shelf and laid with the spares. It stands for no book now, so it carries no zoom
+    /// either: the next book to take this view would otherwise inherit one it was never in.
+    func retire() {
+        zoom = nil
+        stopLoading()
+    }
+
+    /// Puts the book on whichever of its faces the zoom it is in calls for, or on its own panels where
+    /// it is in none.
+    ///
+    /// Said again after anything that redraws the book, since a zoom outlives any number of layout
+    /// passes and every one of them would otherwise stand the cover back up in the middle of it.
+    func standAsTheZoomAsks() {
+        switch zoom {
+            case .none, .done: show(panels: true, anchor: false)
+            case .running: show(panels: false, anchor: true)
+            case .covered: show(panels: false, anchor: false)
+        }
+    }
+
     @discardableResult
     func face(during zoom: BookZoom) -> UIView {
+        self.zoom = zoom
+
         switch zoom {
             case .running:
                 // A book standing on its edge grows out of its spine. Its cover is neither decoded nor
@@ -190,8 +221,10 @@ final class BookView: UIView {
 
     /// What stands here, and how. Told again for the same one, it keeps its turn.
     func show(_ contents: Contents) {
-        // Whatever a zoom left this view showing, a cell given a book to stand is showing the book.
-        show(panels: true, anchor: false)
+        // A cell given a book to stand is showing the book, unless a zoom is holding it aside: that
+        // outlives the dressing, and a book stood back up under its own zoom puts the cover on the
+        // shelf behind the pages it grew into.
+        standAsTheZoomAsks()
         self.contents = contents
 
         switch contents.stands {

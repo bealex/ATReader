@@ -14,7 +14,7 @@
 #
 # Target:    -s, --simulator (default)      -d, --device
 # Config:    --debug (default)              --release
-# Selector:  --sim NAME, --sim-id UDID, --device-id UDID
+# Selector:  --sim NAME, --sim-id UDID, --device-id UDID, --scheme NAME (default Bookhold)
 # Also:      -O, --optimized (compile Debug with the optimiser on, for an optimised build that keeps
 #            everything else about Debug), -v, --verbose (stream the log too), -h, --help
 #
@@ -36,6 +36,8 @@ set -uo pipefail
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SCHEME="Bookhold"
 PROJECT="$REPO/Bookhold.xcodeproj"
+# PageProof is the other app in this project: the packages, the bundled book and one page of it, with
+# no account and no library in the way. See Documentation/Testing.md.
 FRAMEWORKS="$REPO/Frameworks"
 # Overridable so two runs can be given separate derived data and not tread on each other. One run's
 # build under another's feet fails it in ways that read as real test failures.
@@ -101,6 +103,11 @@ while [ $# -gt 0 ]; do
       shift
       [ $# -gt 0 ] || die "--only needs a target, suite or case"
       ONLY+=("-only-testing:$1")
+      ;;
+    --scheme)
+      shift
+      [ "$#" -gt 0 ] || die "--scheme needs a name"
+      SCHEME="$1"
       ;;
     --sim)
       shift
