@@ -203,6 +203,10 @@ licensing rather than secrecy. An unconfigured build must keep working for every
   books count down from minus one and take their chapter ids from a block beneath their own. Ask
   `LocalBooks.isLocal` before calling the service about a book: its text is on the device and nowhere
   else, and there's nothing on the other end to answer.
+- **A path through the app's container is worthless in the next run.** The container's UUID changes
+  with every install, so nothing that outlives the process may be filed under a path to a local book's
+  file, cover or pictures. File it under the book's id instead. See the container section in
+  `Documentation/LocalBooks.md` for what this already cost.
 - **`LocalStore` is one SQLite file and the app's first source for everything.** Books, contents,
   chapter bodies and reading positions live there, and screens draw from it before the service answers.
   A change that only writes to the service leaves the app wrong offline.

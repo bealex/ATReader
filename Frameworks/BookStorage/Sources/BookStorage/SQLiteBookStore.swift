@@ -1210,6 +1210,7 @@ public actor SQLiteBookStore {
         createContentTable()
         createPlacementTable()
         createCoverShapeTable()
+        createBookShapeTable()
         createAuthorAliasTable()
         addCompletionColumns()
         addReadingDates()
@@ -1403,6 +1404,15 @@ public actor SQLiteBookStore {
         execute("CREATE TABLE IF NOT EXISTS cover_shape (url TEXT PRIMARY KEY, aspect REAL NOT NULL)")
     }
 
+    /// What shape each book stands in, kept by the book rather than by the address of its picture.
+    ///
+    /// A cover kept on this device is named by a path through the app's container, and that path is a
+    /// different one after every install. Anything filed under it is lost the next time the app is
+    /// built, which a shelf shows as books cut to a slot they were laid out in at a guess.
+    private func createBookShapeTable() {
+        execute("CREATE TABLE IF NOT EXISTS book_shape (work_id INTEGER PRIMARY KEY, cover REAL, spine REAL)")
+    }
+
     /// The names one writer goes by, and the one the reader picked to hold them under.
     ///
     /// Two services spell a name two ways, with a patronymic and without, and nothing in either of
@@ -1464,6 +1474,38 @@ public actor SQLiteBookStore {
 
         statement.bind(1, url)
         statement.bind(2, aspect)
+        statement.execute()
+    }
+
+    /// Every book's shape, read in one go: a shelf asks about all of its books at once and needs the
+    /// answer before it draws.
+    public func bookShapes() -> [Int: BookShape] {
+        guard let statement = Statement(open(), "SELECT work_id, cover, spine FROM book_shape") else { return [:] }
+
+        var found: [Int: BookShape] = [:]
+
+        while statement.step() {
+            found[statement.integer(0)] = BookShape(cover: statement.number(1), spine: statement.number(2))
+        }
+
+        return found
+    }
+
+    /// Keeps whichever of the two shapes is known, leaving the other as it stands: a spine is measured
+    /// from the book's own length and a cover from its picture, and the two are learned apart.
+    public func store(shape: BookShape, workId: Int) {
+        let query = """
+            INSERT INTO book_shape (work_id, cover, spine) VALUES (?, ?, ?)
+            ON CONFLICT(work_id) DO UPDATE SET
+                cover = COALESCE(excluded.cover, cover),
+                spine = COALESCE(excluded.spine, spine)
+            """
+
+        guard let statement = Statement(open(), query) else { return }
+
+        statement.bind(1, workId)
+        statement.bind(2, shape.cover)
+        statement.bind(3, shape.spine)
         statement.execute()
     }
 

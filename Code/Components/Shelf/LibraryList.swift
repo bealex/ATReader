@@ -4,6 +4,7 @@
 //
 
 import BookKit
+import BookStorage
 import DesignSystem
 import SwiftUI
 import UIKit
@@ -68,6 +69,8 @@ struct LibraryList: UIViewControllerRepresentable {
         /// The cards on their way off the list, which stand where they stood until they have gone.
         private var leaving: [Leaving] = []
         private var link: CADisplayLink?
+        /// The pass that lays the cards out again once the covers have stopped arriving.
+        private var relaying: Task<Void, Never>?
         /// A refresh that finished while the finger was still pulling, left to end once it lets go.
         private var endsRefreshingOnRelease = false
         /// How tall each card stands across the width it was measured at, and the shape of the shelf it
@@ -146,6 +149,16 @@ struct LibraryList: UIViewControllerRepresentable {
             )
             source = make(controller.collectionView)
             self.controller = controller
+
+            // A book whose cover nobody had measured stands in the slot the shelf guessed at, and its
+            // picture is cut to fill it. The picture is what says what shape the book is, so the cards
+            // are measured again once it is here.
+            NotificationCenter.default.addObserver(
+                self,
+                selector: #selector(coverShapeLearned),
+                name: CoverShapes.learned,
+                object: nil
+            )
 
             // The stand-ins every book shows until its own pictures arrive, printed before any is asked for.
             for isDark in [ false, true ] {
@@ -405,6 +418,24 @@ struct LibraryList: UIViewControllerRepresentable {
 
             measured = kept
         }
+
+        /// Shapes arrive in a burst as a screenful of covers lands, so the pass waits for the burst to
+        /// finish rather than laying every card out once per cover.
+        @objc
+        private func coverShapeLearned() {
+            relaying?.cancel()
+            relaying = Task { [weak self] in
+                try? await Task.sleep(for: .seconds(Self.settling))
+
+                guard !Task.isCancelled, let self else { return }
+
+                measure(across: cardWidth)
+                controller?.collectionView.collectionViewLayout.invalidateLayout()
+            }
+        }
+
+        /// How long the shelf waits for the covers to stop arriving before it lays itself out again.
+        private static let settling: Double = 0.2
 
         private func refresh() {
             Task {

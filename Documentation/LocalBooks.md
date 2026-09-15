@@ -299,3 +299,34 @@ was stale. Bumping a version makes every book prepare and measure itself once mo
 after that.
 
 Clearing downloads leaves local books alone. The service can send its text again and a file can't.
+
+## Paths through the container
+
+Everything a book from a file brings with it lives under Application Support, and the path to it runs
+through the app's container: `…/Containers/Data/Application/<UUID>/Library/Application Support/Books/…`.
+That UUID is a different one after every install, so a path held from one run of the app is a path to
+nothing in the next. Nothing that outlives the process may be filed under one.
+
+What was filed under one, and what it cost:
+
+- **A cover's shape**, in `cover_shape`, keyed by the address the picture came from. A book from a file
+  lost its shape at every install, and a shelf that doesn't know a book's shape stands it in the slot it
+  guessed and cuts its picture to fit, which is a cover with its title sliced off. Now kept in
+  `book_shape` under the book's own id, with the spine's shape beside it.
+- **The downsampled copy of a cover**, whose file name in `CoverCache` is a hash of that address. A
+  local cover is read and downsampled again after every install, and the copy made under the old name
+  sits in the cache until it is swept. Nothing shows, and it costs a decode and the room.
+
+What holds, and why:
+
+- **Pictures inside a chapter.** A stored body carries `"<book>/<name>"`, and `LocalBookFiles.imageURL`
+  builds the path when the picture is wanted. The book is named in the source rather than the disk.
+- **Everything else under `LocalBookFiles`.** The file, the cover and the images directory are all
+  worked out from the work id when they are asked for, never written down.
+- **The backup folder**, which is outside the container and belongs to the reader. `LibraryBackup` keeps
+  a security-scoped bookmark, which survives being moved as well as being reinstalled.
+- **Caches in memory** keyed by address (`CoverImages`, `BookImages`), and anything under a temporary
+  directory: the OPDS download, a debug report, the Litres sync log. All die with the run that made them.
+
+The rule: file it under the book, or keep the part of the path the app owns and build the rest when it
+is wanted.

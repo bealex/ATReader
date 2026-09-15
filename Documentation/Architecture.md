@@ -591,6 +591,20 @@ cover in its first frame. A page turn does exactly that to the reader's title pa
 through the actor made the cover blink each time. It is bounded by cost as well as by count, since
 warming a whole library would otherwise fill it with full-size bitmaps.
 
+### What shape a cover is
+
+A shelf gives every book on it the same width and each its own height, so it has to know how tall a
+cover stands against its width before it has the picture. `KeptShapes` answers from `book_shape`, read
+back as the app comes up: the cover's ratio and the spine's, under the book's own id rather than under
+the address of its picture, which for a book from a file is a path that changes with every install.
+
+A book whose shape nobody has measured stands in the slot the shelf measured for its tallest, and
+`CoverPrint` cuts its picture to fill that slot, so the cover loses its edges. The first picture to
+arrive for such a book is therefore news. `CoverShapes.remember` says so, the list waits for the burst
+of covers to finish, measures its cards again and lays itself out; the book then stands at its own shape
+and its face is printed again to fit. Laying out is also what writes the shape down, so the next launch
+has it before anything is drawn.
+
 `CoverURL` is the other half. The service returns two different shapes for `coverUrl`: `work/details`
 and the library give a full `https://cm.author.today/…` URL, while the catalogue gives a bare path like
 `2026/07/25/<hash>.jpg`. Feeding that path to `URL(string:)` produces a schemeless URL that

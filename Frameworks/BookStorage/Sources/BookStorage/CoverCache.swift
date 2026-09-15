@@ -319,6 +319,10 @@ public enum CoverShapes {
     /// Moves on whenever a shape is learned, for whatever keeps what it worked out from them.
     public private(set) static var version = 0
 
+    /// Posted when a cover turns out to be a shape nobody had measured, for whoever laid its book out
+    /// at a guess and has to lay it out again.
+    public static let learned = Notification.Name("bookhold.coverShapeLearned")
+
     /// How many times taller than wide this cover is, where it has been seen before.
     public static func aspect(for url: URL) -> CGFloat? {
         shapes[url.absoluteString].map { CGFloat($0) }
@@ -340,6 +344,7 @@ public enum CoverShapes {
 
         shapes[address] = aspect
         version += 1
+        NotificationCenter.default.post(name: learned, object: nil)
         Task { await SQLiteBookStore.shared.store(coverShape: aspect, url: address) }
     }
 }

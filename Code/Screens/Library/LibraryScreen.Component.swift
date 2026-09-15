@@ -228,6 +228,7 @@ enum LibraryScreen {
             // laid out before they arrive stands every book at the wrong height and shuffles them all
             // when they land.
             .task {
+                await KeptShapes.load()
                 await CoverShapes.load()
 
                 shapesKnown = true

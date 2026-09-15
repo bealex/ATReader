@@ -22,24 +22,31 @@ enum BookShapes {
     }
 
     private static var shapes: [Int: Shape] = [:]
-    /// Which cover shapes these were worked out from.
+    /// Which cover shapes these were worked out from, and which written-down ones.
     private static var version = -1
+    private static var kept = -1
 
     static func shape(of work: Book) -> Shape {
-        if version != CoverShapes.version {
+        if version != CoverShapes.version || kept != KeptShapes.version {
             shapes.removeAll(keepingCapacity: true)
             version = CoverShapes.version
+            kept = KeptShapes.version
         }
 
         if let known = shapes[work.id], known.coverURL == work.coverURL { return known }
 
+        // The picture this run has decoded, and otherwise what an earlier run wrote down. A cover kept
+        // on the device is named by a path that changes with every install, so the picture is no help
+        // until it has been read again, and the book's own record is.
+        let written = KeptShapes.shape(of: work.id)
         let shape = Shape(
             coverURL: work.coverURL,
-            cover: work.coverURL.flatMap(CoverShapes.aspect(for:)),
-            length: Shelf.lengthShare(of: work)
+            cover: work.coverURL.flatMap(CoverShapes.aspect(for:)) ?? written?.cover.map { CGFloat($0) },
+            length: Shelf.lengthShare(of: work) ?? written?.spine
         )
 
         shapes[work.id] = shape
+        KeptShapes.remember(BookShape(cover: shape.cover.map { Double($0) }, spine: shape.length), for: work.id)
         return shape
     }
 }
