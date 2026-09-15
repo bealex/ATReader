@@ -14,6 +14,17 @@ What's still open, roughly in the order it would bite. Finished work isn't liste
 - [ ] **Jumping backwards past the prepared window re-paginates.** A chapter's run-on offset comes from
       the chapter before it, so arriving from far away can lay it out differently than reading into it
       did. Harmless in practice, visible as a page count that shifts by one.
+- [ ] **A pinned author's name comes back from a book without its bar.** Only `scrollViewDidScroll`
+      works out `AuthorHeaderView.isFloating`, and `prepareForReuse` clears it while the reader
+      covers the list, so the scroll edge effect stays off until the shelf is next scrolled. Work it
+      out from the layout instead.
+- [ ] **The pinned name is pushed back with the books.** UIKit's zoom puts its pushback on the list's
+      `sublayerTransform`, so a name that's meant to read as part of the bar scales while the bar holds
+      still. Either counter-transform its contents while a zoom runs, or lift the pinned name out of
+      the scrolling list altogether.
+- [ ] **The shelf holds its shrunk size for over a second after a book closes.** Measured at 1.55
+      seconds of a still screen before the scale springs back. Time the main thread across `onGone`
+      and log what rect the zoom is shrinking into before changing anything.
 - [ ] **`LocalStore` has no size ceiling.** Chapter bodies accumulate for every book on the shelf, and
       only "Clear downloads" removes them.
 
