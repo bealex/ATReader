@@ -502,7 +502,11 @@ extension LibraryScreen {
             sameText: [Int: String] = [:],
             arranged: Set<String> = []
         ) -> [Book] {
-            byTitle(sameBooks(works, sameText: sameText), arranged: arranged)
+            // Counted over every copy, duplicates and all, and counted volume by volume: two copies of
+            // one volume have to meet, and two volumes of one work have to stay apart.
+            let scale = SeriesScale.volumesApart(of: works)
+
+            return byTitle(sameBooks(works, sameText: sameText), arranged: arranged, scale: scale)
         }
 
         /// Copies whose text is the very same text, folded into one.
@@ -539,7 +543,7 @@ extension LibraryScreen {
             (right.readingProgress ?? 0) > (left.readingProgress ?? 0) ? right : left
         }
 
-        private static func byTitle(_ works: [Book], arranged: Set<String>) -> [Book] {
+        private static func byTitle(_ works: [Book], arranged: Set<String>, scale: [Int: Int]) -> [Book] {
             var chosen: [String: Book] = [:]
             var order: [String] = []
 
@@ -548,7 +552,7 @@ extension LibraryScreen {
 
                 // Alike in name but not the same book. Keyed away under this copy's own id rather than
                 // dropped, so a third copy still meets whichever of the two it belongs with.
-                if let rival = chosen[name], !isTheSameBook(rival, work, arranged: arranged) {
+                if let rival = chosen[name], !isTheSameBook(rival, work, arranged: arranged, scale: scale) {
                     name += "#\(work.id)"
                 }
 
@@ -566,20 +570,24 @@ extension LibraryScreen {
             return order.compactMap { chosen[$0] }
         }
 
-        /// Which of two copies of one book the shelf holds: the one whose text is on the device.
+        /// Which of two copies of one book the shelf holds: the file where the book is written to its
+        /// end, the service where it is still being written.
         ///
-        /// A copy the reader owns as a file opens with no network and cannot be withdrawn, so where
-        /// the device holds the words there is nothing the service's copy is needed for. Each copy
-        /// keeps its own reading position, since a position is kept against a book rather than against
-        /// a title: a book read under the service's copy and shown as the file opens where the file
-        /// was last left.
+        /// A file opens with no network and cannot be withdrawn, so a finished book is better held as
+        /// one. A book still being written is a file that goes stale the next time its author posts,
+        /// and only the service's copy grows. Each copy keeps its own reading position, since a
+        /// position is kept against a book rather than against a title.
         private static func preferred(_ left: Book, over right: Book) -> Book {
             let leftIsFile = BookNumbering.isLocal(left.id)
 
             // Two of a kind. Nothing to choose between them, so the one already held stands.
             guard leftIsFile != BookNumbering.isLocal(right.id) else { return left }
 
-            return leftIsFile ? left : right
+            let file = leftIsFile ? left : right
+            let service = leftIsFile ? right : left
+
+            // An imported file is filed as finished whatever it holds, so only the service's word counts.
+            return service.isOngoing ? service : file
         }
 
         /// The copy that is kept, wearing the fuller of the two titles.
@@ -597,8 +605,13 @@ extension LibraryScreen {
         }
 
         /// Whether two copies alike in name are one book.
-        private static func isTheSameBook(_ left: Book, _ right: Book, arranged: Set<String>) -> Bool {
-            sameAuthor(left, right) && !areDifferentVolumes(left, right, arranged: arranged)
+        private static func isTheSameBook(
+            _ left: Book,
+            _ right: Book,
+            arranged: Set<String>,
+            scale: [Int: Int]
+        ) -> Bool {
+            sameAuthor(left, right) && !areDifferentVolumes(left, right, arranged: arranged, scale: scale)
         }
 
         /// Whether two copies name the same author.
@@ -624,10 +637,15 @@ extension LibraryScreen {
         /// a title and the other leaves it out, so a copy carrying the aside and a copy without it are
         /// one book whatever figures they state. What the aside tells apart is two volumes that share
         /// a base title, where the aside is the only thing that ever differed.
-        private static func areDifferentVolumes(_ left: Book, _ right: Book, arranged: Set<String>) -> Bool {
+        private static func areDifferentVolumes(
+            _ left: Book,
+            _ right: Book,
+            arranged: Set<String>,
+            scale: [Int: Int]
+        ) -> Bool {
             guard
-                let mine = volume(of: left, arranged: arranged),
-                let theirs = volume(of: right, arranged: arranged),
+                let mine = volume(of: left, arranged: arranged, scale: scale),
+                let theirs = volume(of: right, arranged: arranged, scale: scale),
                 mine != theirs,
                 let myAside = aside(of: left.title),
                 let theirAside = aside(of: right.title)
@@ -654,8 +672,8 @@ extension LibraryScreen {
         /// What is filed for one of those is each book's place in the list they arranged, and two
         /// copies of one book are given two places. Read as volumes, those places say the copies are
         /// different books, which is exactly the pair that most needs joining.
-        private static func volume(of work: Book, arranged: Set<String>) -> Int? {
-            guard let series = work.series, arranged.contains(series) else { return work.seriesOrder }
+        private static func volume(of work: Book, arranged: Set<String>, scale: [Int: Int]) -> Int? {
+            guard let series = work.series, arranged.contains(series) else { return scale[work.id] ?? work.seriesOrder }
 
             return nil
         }
@@ -681,13 +699,36 @@ extension LibraryScreen {
 
             guard trimmed.hasSuffix(")"), let opening = trimmed.lastIndex(of: "(") else { return title }
 
+            let inside = trimmed[trimmed.index(after: opening) ..< trimmed.index(before: trimmed.endIndex)]
+
+            // An aside naming a volume is the book's own number rather than its series, and one library
+            // brackets it where the other writes it after a stop. Kept, so both spell the same key.
+            guard !statesAVolume(String(inside)) else { return title }
+
             let kept = trimmed[..<opening].trimmingCharacters(in: .whitespaces)
 
             // A title that is nothing but its aside keeps it: there would be nothing left to match on.
             return kept.isEmpty ? title : kept
         }
 
+        /// Whether a stretch of a title names a volume, as "том 2" does and "Зимпель-1" does not.
+        ///
+        /// Read off the bare words rather than ``plain(_:)``, which is the one thing that takes a
+        /// volume word out and so could never find one.
+        private static func statesAVolume(_ text: String) -> Bool {
+            let words = letters(of: text)
+
+            return words.enumerated().contains { index, word in
+                index + 1 < words.count && volumeWords.contains(word) && words[index + 1].allSatisfy(\.isNumber)
+            }
+        }
+
         private static func plain(_ text: String) -> String {
+            withoutVolumeWords(letters(of: text)).joined(separator: " ")
+        }
+
+        /// A text's bare words: lowercased, with the punctuation between them dropped.
+        private static func letters(of text: String) -> [String] {
             var letters: [Character] = []
 
             for scalar in text.lowercased().unicodeScalars {
@@ -696,8 +737,7 @@ extension LibraryScreen {
                 letters.append(CharacterSet.alphanumerics.contains(scalar) ? Character(scalar) : " ")
             }
 
-            return withoutVolumeWords(String(letters).split(separator: " ").map(String.init))
-                .joined(separator: " ")
+            return String(letters).split(separator: " ").map(String.init)
         }
 
         /// One library writes a volume as "Том 2" where the other writes it as "-2", so the word is

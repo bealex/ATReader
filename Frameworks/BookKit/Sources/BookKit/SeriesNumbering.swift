@@ -59,8 +59,9 @@ public enum SeriesNumbering {
         return Reading(books: numbered, missing: Self.missing(among: numbered.map(\.number)))
     }
 
-    /// Each book's volume, keyed by book: what the book states first, as its file or the service gives it,
-    /// and what its title says only for a book that states none. A book with neither is left out.
+    /// Each book's volume, keyed by book: the figure its own side states, brought onto the one scale a
+    /// series holding books from both sides is counted on, and what its title says for a book stating
+    /// none. A book with neither is left out.
     ///
     /// - Parameter reading: the series read with ``read(_:)``, which is where the titles' figures come from.
     public static func volumes(of books: [Book], reading: Reading?) -> [Int: Int] {
@@ -68,12 +69,13 @@ public enum SeriesNumbering {
             (reading?.books ?? []).map { ($0.book.id, $0.number) },
             uniquingKeysWith: { first, _ in first }
         )
+        let scaled = SeriesScale.volumes(of: books)
 
         return books.reduce(into: [:]) { volumes, book in
             // A stated nought is absence written as a figure: a series counts from one.
             let stated = book.seriesOrder.flatMap { $0 > 0 ? $0 : nil }
 
-            volumes[book.id] = stated ?? titled[book.id]
+            volumes[book.id] = scaled[book.id] ?? stated ?? titled[book.id]
         }
     }
 

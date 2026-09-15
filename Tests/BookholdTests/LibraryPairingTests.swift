@@ -11,9 +11,9 @@ import Testing
 
 /// One book owned in both libraries is one book on the shelf.
 ///
-/// Which copy is shown turns on where the reader has got to: a book being read stays with the service,
-/// which is the only thing that knows their place; a book finished is better held as a file. Every
-/// title here is invented.
+/// Which copy is shown turns on whether the book is written to its end: a finished one is better held
+/// as a file, and one still being written stays with the service, which is the only copy that grows.
+/// Every title here is invented.
 @MainActor
 struct LibraryPairingTests {
     private typealias Model = LibraryScreen.Model
@@ -26,7 +26,8 @@ struct LibraryPairingTests {
         series: String? = nil,
         order: Int? = nil,
         read: Double = 0,
-        started: Bool = false
+        started: Bool = false,
+        written: Bool = true
     ) -> Book {
         Book(
             id: id,
@@ -38,7 +39,7 @@ struct LibraryPairingTests {
             seriesOrder: order,
             textLength: 1000,
             likeCount: nil,
-            isFinished: true,
+            isFinished: written,
             status: nil,
             isPurchased: nil,
             adultOnly: nil,
@@ -237,6 +238,29 @@ struct LibraryPairingTests {
         ]
 
         #expect(Model.oneOfEach(paired).map(\.id) == [ -1 ])
+    }
+
+    /// Still being written: the service's copy stands, since the file stops at the chapters it was
+    /// made from and only the service's grows.
+    @Test
+    func abookStillBeingWrittenIsHeldOnTheService() {
+        let paired = [
+            Self.book(id: -1, read: 1),
+            Self.book(id: 7, read: 0.4, started: true, written: false),
+        ]
+
+        #expect(Model.oneOfEach(paired).map(\.id) == [ 7 ])
+    }
+
+    /// The file an import filed as finished says nothing about the book: the service is asked instead.
+    @Test
+    func afileCallingItselfFinishedDoesNotSettleAnUnfinishedBook() {
+        let paired = [
+            Self.book(id: -1, read: 1, written: true),
+            Self.book(id: 7, read: 1, started: true, written: false),
+        ]
+
+        #expect(Model.oneOfEach(paired).map(\.id) == [ 7 ])
     }
 
     /// Not opened yet is not being read, so the file stands: a book brought across arrives read.

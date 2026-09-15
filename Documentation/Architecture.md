@@ -147,6 +147,34 @@ the odd one out is held a tenth, so nothing sits near the line. A third rather t
 measurement could not separate them and a test could: `LibraryFilterTests` holds two volumes of a
 five-wide run, which is a reader missing three books rather than an imprint.
 
+**A book owned as a file and again on the service is one book, and the shelf shows one.**
+`LibraryScreen.Model.oneOfEach` joins the copies: first by text, where two files hash alike, then by
+title, with the author compared afterwards because the two libraries rarely spell a name the same way.
+
+Which copy stands turns on whether the book is written to its end. A finished one is held as the file,
+which opens with no network and can't be withdrawn; one still being written stays with the service,
+whose copy is the only one that grows. `BookInstaller` files every import as finished whatever it
+holds, so only the service copy's word counts. Each copy keeps its own reading position, a position
+being kept against a book rather than against a title.
+
+**The two sides number a series differently.** The service gives every volume its own place, so a work
+running to two volumes takes two; a file gives the work one place however far it runs. A series held
+partly each way reads as one numbering with gaps in it and two books standing on one place.
+
+`SeriesScale` puts both on the printed scale, where a work holds one place and its volumes share it.
+It walks the file-numbered works in order to learn where each starts on the service's scale, then
+walks everything by that start and takes off the volumes that ran ahead. A work the reader doesn't
+hold is taken to run to a single volume, which is the one thing nothing on the device can answer, so
+a library holding little of a series is the case this serves worst.
+
+It's published both ways. `volumes(of:)` is the place a work stands on, which is what a shelf draws
+and what a gap is counted from; `volumesApart(of:)` counts every volume separately, which is what
+tells one volume of a work from another when two copies are compared. Pairing reads the second, a
+work's volumes being different books.
+
+Where a work has a figure from both sides the service's wins, a file's figure being whatever whoever
+made the file wrote in it.
+
 All books stands the hiding aside and the switch is offered disabled there: that filter is where a
 reader goes to find whatever the shelf is not showing. A search stands it aside for the same reason.
 
