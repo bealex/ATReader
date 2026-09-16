@@ -157,8 +157,6 @@ extension LibraryScreen {
             /// bracket: there is no run for a bracket to hold.
             let alone: [Group]
             let updated: Date
-            /// When this device last saw the reader in any book of theirs.
-            let lastRead: Date
 
             var id: String { "author:\(key)" }
             var works: [Book] { (runs + alone).flatMap(\.works) }
@@ -276,14 +274,6 @@ extension LibraryScreen {
             }
         }
 
-        /// When this device last saw the reader in each book, which is the order the Reading shelf
-        /// stands in. The service's own `lastReadTime` cannot do it: nothing writes back to it, so it
-        /// never moves for reading done here and an imported book has none of it at all.
-        private var readingTimes: [Int: Date] = [:] {
-            didSet {
-                if oldValue != readingTimes { forgetFiling() }
-            }
-        }
         private(set) var isLoading = false
         private(set) var errorMessage: String?
         private(set) var hasLoaded = false
@@ -979,17 +969,17 @@ extension LibraryScreen {
                         name: name(among: held, filedUnder: key),
                         runs: held.filter { $0.series != nil }.sorted(by: Self.byUpdate),
                         alone: held.filter { $0.series == nil }.sorted(by: Self.byUpdate),
-                        updated: held.map(\.updated).max() ?? .distantPast,
-                        lastRead: held.flatMap(\.works).compactMap { readingTimes[$0.id] }.max() ?? .distantPast
+                        updated: held.map(\.updated).max() ?? .distantPast
                     )
                 }
-                .sorted(by: filter == .reading ? Self.byLastRead : Self.byName)
+                .sorted(by: filter == .reading ? Self.byUpdate : Self.byName)
         }
 
-        /// Reading stands in the order the reader last had each writer open, newest first, so the book
-        /// they are in the middle of is the one at the top.
-        private static func byLastRead(_ left: AuthorShelf, _ right: AuthorShelf) -> Bool {
-            guard left.lastRead == right.lastRead else { return left.lastRead > right.lastRead }
+        /// Reading stands by when the service last changed a writer's books, newest first, so a run
+        /// that has just grown a chapter is the one at the top. Reading a book is not a change to it,
+        /// so the shelf holds still while the reader reads.
+        private static func byUpdate(_ left: AuthorShelf, _ right: AuthorShelf) -> Bool {
+            guard left.updated == right.updated else { return left.updated > right.updated }
 
             return byName(left, right)
         }
@@ -1271,7 +1261,6 @@ extension LibraryScreen {
             let stored = await store.books()
 
             await readTextHashes()
-            readingTimes = await store.readingTimes()
             // Which series the reader put together, read back with everything else: filing one is
             // what decides whether a card is theirs to order, and it can be filed from the series'
             // own screen while the shelf stands behind it.
@@ -1332,7 +1321,6 @@ extension LibraryScreen {
             let stored = await store.books()
 
             await readTextHashes()
-            readingTimes = await store.readingTimes()
 
             guard !stored.isEmpty, works.isEmpty else { return }
 
@@ -1445,7 +1433,6 @@ extension LibraryScreen {
                 let merged = await store.books()
 
                 await readTextHashes()
-                readingTimes = await store.readingTimes()
                 apply(entries: merged.isEmpty ? entries : merged)
                 isOffline = false
                 hasLoaded = true

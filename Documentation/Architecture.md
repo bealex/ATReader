@@ -215,12 +215,9 @@ a fixed order.
 
 The cards themselves stand differently under each filter, because the two filters answer different
 questions. All books is where a reader goes to look someone up, so it stands by the name on the card.
-Reading is where they go to carry on, so it stands by when this device last saw them in a book of that
-writer's, newest first, and a writer nothing has been read of stands after the ones that have been.
-
-That time is `reading_position.updated_at`, read in bulk by `SQLiteBookStore.readingTimes()`. The
-service's own `lastReadTime` can't answer it: nothing is ever written back to the service, so it doesn't
-move for reading done here, and a book from a file has none of it at all.
+Reading is where they go to carry on, so it stands by when the service last changed a book of that
+writer's, newest first, and a writer whose books stopped years ago stands after the ones still being
+written. Reading a book is no change to it, so the shelf holds still while the reader reads.
 
 Inside a series a book is called by its title with the series' name and index taken off
 (`SeriesNumbering.title`):
@@ -501,10 +498,10 @@ here and pinned by `BookZoomSequenceTests`.
 While the reader is over the shelf, in between, neither is drawn: there is nothing to see behind a
 covered screen, and a cover standing there is what a reader notices when they drag the screen down.
 
-**Three things recycle underneath this, and all three have broken it.** The Reading shelf is ordered by
-when the device last saw the reader in each book, and the reader writes that as soon as a chapter lands,
-so the shelves re-sort while the opening zoom is still running. The cell that held the book is reused
-for another author. And `ShelfView` keeps a pile of spare `BookView`s that any shelf may take from.
+**Three things recycle underneath this, and all three have broken it.** The cards are rebuilt
+whenever the store changes, and the reader writes a position as soon as a chapter lands, so they refold
+while the opening zoom is still running. The cell that held the book is reused for another author. And
+`ShelfView` keeps a pile of spare `BookView`s that any shelf may take from.
 
 So the stand-in is never looked for through a cell or through the shelf that was tapped. Every book on
 every shelf is registered under its own place, `SeriesSlot.id(ofBook:)`, and `ShelfView.face(of:during:)`

@@ -964,24 +964,6 @@ public actor SQLiteBookStore {
         )
     }
 
-    /// When this device last saw the reader in each book it holds a position for.
-    ///
-    /// The service's own `lastReadTime` says nothing about reading done here: it arrives in the payload
-    /// and is never written back, so an imported book has none of it at all.
-    public func readingTimes() -> [Int: Date] {
-        guard let statement = Statement(open(), "SELECT work_id, updated_at FROM reading_position") else { return [:] }
-
-        var times: [Int: Date] = [:]
-
-        while statement.step() {
-            guard let read = statement.date(1) else { continue }
-
-            times[statement.integer(0)] = read
-        }
-
-        return times
-    }
-
     public func store(position: ReadingPosition) {
         let query = """
             INSERT INTO reading_position (work_id, chapter_id, character_offset, updated_at)

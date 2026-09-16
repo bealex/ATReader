@@ -20,20 +20,21 @@ struct ShelfOrderTests {
 
     private static let writers = [ 1: "Авдей Абрикос", 2: "Мирон Маслов", 3: "Ярослав Ясень" ]
 
-    /// All books stands by name, whatever has been read and whenever.
+    /// All books stands by name, whenever anything of the writer's last changed.
     @Test
     func standsAllBooksByAuthorName() async {
-        let model = await Self.shelf(read: [ 3: .now, 1: .now.addingTimeInterval(-86400) ])
+        let model = await Self.shelf(updated: [ 3: .now, 1: .now.addingTimeInterval(-86400) ])
 
         model.filter = .everything
 
         #expect(model.shelves.map(\.name) == [ "Авдей Абрикос", "Мирон Маслов", "Ярослав Ясень" ])
     }
 
-    /// Reading stands by what was read last, so the book in the middle of being read is at the top.
+    /// Reading stands by what the service last changed, so the writer whose book grew a chapter is at
+    /// the top.
     @Test
-    func standsReadingByWhatWasReadLast() async {
-        let model = await Self.shelf(read: [
+    func standsReadingByWhatChangedLast() async {
+        let model = await Self.shelf(updated: [
             1: .now.addingTimeInterval(-3600),
             2: .now,
             3: .now.addingTimeInterval(-86400),
@@ -44,25 +45,38 @@ struct ShelfOrderTests {
         #expect(model.shelves.map(\.name) == [ "Мирон Маслов", "Авдей Абрикос", "Ярослав Ясень" ])
     }
 
-    /// A writer this device has never had open stands after the ones it has, rather than among them.
+    /// A writer the service gives no date for stands after the ones it does, rather than among them.
     @Test
-    func standsAWriterWithNothingReadAfterTheRest() async {
-        let model = await Self.shelf(read: [ 3: .now.addingTimeInterval(-86400) ])
+    func standsAWriterWithNoDateAfterTheRest() async {
+        let model = await Self.shelf(updated: [ 1: .now.addingTimeInterval(-86400), 2: .now ])
 
         model.filter = .reading
 
-        #expect(model.shelves.first?.name == "Ярослав Ясень")
+        #expect(model.shelves.map(\.name) == [ "Мирон Маслов", "Авдей Абрикос", "Ярослав Ясень" ])
     }
 
-    /// A shelf of one book a writer, reading from a store of its own, with the reader last seen in each
-    /// of the named books at the time given.
-    private static func shelf(read: [Int: Date]) async -> Model {
+    /// Reading a book is no change to it, so the shelf holds still under the reader.
+    @Test
+    func leavesReadingWhereItStandsWhenABookIsRead() async {
+        let model = await Self.shelf(
+            updated: [ 1: .now.addingTimeInterval(-3600), 2: .now, 3: .now.addingTimeInterval(-86400) ],
+            read: [ 3: .now ]
+        )
+
+        model.filter = .reading
+
+        #expect(model.shelves.map(\.name) == [ "Мирон Маслов", "Авдей Абрикос", "Ярослав Ясень" ])
+    }
+
+    /// A shelf of one book a writer, reading from a store of its own, with each of the named books last
+    /// changed at the time given and the rest carrying no date at all.
+    private static func shelf(updated: [Int: Date], read: [Int: Date] = [:]) async -> Model {
         let database = FileManager.default.temporaryDirectory
             .appendingPathComponent("order-\(UUID().uuidString).sqlite")
         let store = SQLiteBookStore(fileURL: database)
         let model = Model(session: SessionStore(), store: store)
 
-        await store.store(books: writers.keys.sorted().map(book(id:)))
+        await store.store(books: writers.keys.sorted().map { book(id: $0, updated: updated[$0]) })
 
         for (workId, at) in read {
             await store.store(position: .init(workId: workId, chapterId: workId, characterOffset: 1, updatedAt: at))
@@ -72,7 +86,7 @@ struct ShelfOrderTests {
         return model
     }
 
-    private static func book(id: Int) -> Book {
+    private static func book(id: Int, updated: Date?) -> Book {
         Book(
             id: id,
             title: "Зимпель \(id)",
@@ -87,7 +101,7 @@ struct ShelfOrderTests {
             status: nil,
             isPurchased: nil,
             adultOnly: nil,
-            lastUpdateTime: .now,
+            lastUpdateTime: updated,
             readingProgress: 0.5,
             hasStartedReading: true,
             lastReadTime: nil,
