@@ -644,8 +644,8 @@ larger share of the work, and it depends on nothing about the page.
 The foot of a page says how far into the book it stands: a bar, the share of the book up to the end of
 the page, and how many pages the whole book comes to. A page number would need every page before it cut,
 which is what the reader no longer does. While the controls are away, and the status bar with them, the
-bar stands alone; the figures come with the controls, at half the running head's size, off its ends so
-it doesn't move: how long the book is before the bar, how far in the reader is after it.
+bar alone spans the measure; the figures come with the controls, at half the running head's size and at
+either end of the line: how long the book is before the bar, how far in the reader is after it.
 
 The share is counted in characters. Each chapter carries its length and a place in it counts its own,
 so the figure is exact wherever the reader is and however little has been laid out.
