@@ -91,8 +91,19 @@ public struct PageTurnView<Page: View>: View {
         case backward
     }
 
+    /// A turn the finger has let go of, which may be landed before its animation gets there.
+    private struct Settle: Equatable {
+        let id = UUID()
+        let turn: Turn
+        let commits: Bool
+    }
+
     @State
     private var turn: Turn?
+
+    /// Set from the moment a turn is let go of until it lands.
+    @State
+    private var settling: Settle?
 
     /// True while a finger is drawing text out of the page, which is not a turn however far it moves.
     @State
@@ -117,6 +128,10 @@ public struct PageTurnView<Page: View>: View {
     @State
     private var queued = 0
 
+    /// True once the touch on the page has been taken as a drag, so its lifting is not a tap as well.
+    @State
+    private var hasDragged = false
+
     /// When the current drag took hold of a page, so the page's run in from the screen edge can be
     /// animated and the tracking that follows cannot be.
     @State
@@ -127,7 +142,7 @@ public struct PageTurnView<Page: View>: View {
     private var overscroll: CGFloat = 0
 
     private static var commitThreshold: CGFloat { 0.3 }
-    private static var flickVelocity: CGFloat { 120 }
+    private static var flickVelocity: CGFloat { 30 }
     /// A flick against the turn this small still cancels it.
     private static var reverseFlickVelocity: CGFloat { 20 }
     /// How far inside its leading edge the incoming page is held.
@@ -173,6 +188,8 @@ public struct PageTurnView<Page: View>: View {
         // Watched rather than caught: everything else on the page still answers its own taps.
         .overlay { press }
         .onTapGesture(coordinateSpace: .local) { location in
+            // A short flick lifts inside a tap's tolerance, and has turned the page already.
+            guard !hasDragged else { return }
             // The layer over the page answers this tap. Taking it here too would put the aside away and
             // turn the page in one go.
             guard !isCovered else { return }
@@ -233,10 +250,19 @@ public struct PageTurnView<Page: View>: View {
 
     private var drag: some View {
         PageDragGesture(
+            onTouchDown: { hasDragged = false },
             onChanged: { value in
+                hasDragged = true
+
                 // A finger picking text out, or moving over a covered page, is not turning it however
                 // far it travels.
                 guard !isPickingOut, !isCovered else { return }
+
+                // A turn still running is not this finger's to steer: it lands, and the next move takes a page.
+                if settling != nil {
+                    queued = 0
+                    return land()
+                }
 
                 let translation = value.translation.width * mirror
 
@@ -359,7 +385,11 @@ public struct PageTurnView<Page: View>: View {
 
         queued = 0
         grabbedAt = nil
+        rest()
+    }
 
+    /// Stands the page still at once, whatever was moving it.
+    private func rest() {
         var transaction = Transaction()
         transaction.disablesAnimations = true
         withTransaction(transaction) {
@@ -397,15 +427,28 @@ public struct PageTurnView<Page: View>: View {
     }
 
     private func finish(_ turn: Turn, committing: Bool) {
+        let settle = Settle(turn: turn, commits: committing)
+
+        settling = settle
         withAnimation(.easeOut(duration: turnDuration), completionCriteria: .logicallyComplete) {
             progress = committing ? 1 : 0
         } completion: {
-            if committing { commit(turn) }
+            // A finger that arrived first has landed it already.
+            guard settling == settle else { return }
 
-            self.turn = nil
-            progress = 0
-            drainQueue()
+            land()
         }
+    }
+
+    /// Puts the turn that was let go of where it was going, without waiting for it to get there.
+    private func land() {
+        guard let settling else { return }
+
+        self.settling = nil
+        if settling.commits { commit(settling.turn) }
+
+        rest()
+        drainQueue()
     }
 
     /// Lands the turn. Crossing out of the chapter hands over to the reader, which swaps in the chapter

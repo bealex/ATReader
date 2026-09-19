@@ -457,6 +457,11 @@ every direction and takes the touch at eight points, and the book could never be
 it. The recognizer hangs on the window as the press does, so it also asks whether anything is
 presented over the page before taking a touch.
 
+The pan watches the touches without taking them, so the page's tap still hears a touch the pan has
+begun on, and a flick of a few points lifts inside a tap's tolerance. `PageTurnView` drops the tap from
+any touch it has taken as a drag, or a short flick forward turns two pages. The recognizer reports
+each finger coming down, and that clears the mark for the next touch.
+
 The transition answers only a drag going down. Its dismissal takes one in any direction by default,
 so a drag in from the leading edge closed the book instead of turning back a page; `Navigator` gives
 every zoomed screen an `interactiveDismissShouldBegin` that asks for down.
@@ -792,6 +797,9 @@ it smooth however fast the finger moves.
 What lands the turn is the finger's own travel, not how far the page has come, and a flick back cancels
 it however far it had got. A turn in flight is dropped when the app leaves the screen, since the
 gesture that would have finished it is gone.
+
+A turn the finger has let go of runs on for a fifth of a second, and a finger that arrives inside it
+lands that turn at once and takes a page of its own. A drag only ever steers the turn it began.
 
 The page behind draws back by 5% and darkens as the page in front covers it, and the page in front
 carries a shadow along its edge, so the two read as one in front of the other whichever way the turn is

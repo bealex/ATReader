@@ -26,6 +26,8 @@ public struct PageDrag {
 /// the page was the page's before anything else could ask for it, and the zoom transition's own way
 /// out of the book could never begin. This one fails on a drag up or down, which hands that drag on.
 struct PageDragGesture: UIViewRepresentable {
+    /// A finger coming down with no drag under way, before anything is known of what it will do.
+    var onTouchDown: () -> Void
     var onChanged: (PageDrag) -> Void
     var onEnded: (PageDrag) -> Void
 
@@ -40,6 +42,7 @@ struct PageDragGesture: UIViewRepresentable {
         recognizer.maximumNumberOfTouches = 1
         recognizer.delegate = context.coordinator
         recognizer.page = view
+        recognizer.onTouchDown = { [weak coordinator = context.coordinator] in coordinator?.owner?.onTouchDown() }
 
         view.recognizer = recognizer
         context.coordinator.owner = self
@@ -116,6 +119,7 @@ struct PageDragGesture: UIViewRepresentable {
 final class HorizontalPan: UIPanGestureRecognizer {
     /// The page, which decides whether a touch is this one's and is the space it reports in.
     weak var page: UIView?
+    var onTouchDown: (() -> Void)?
 
     /// How far a finger travels before its direction is read. Under the pan's own threshold, so the
     /// answer is in before the drag would have begun.
@@ -129,6 +133,9 @@ final class HorizontalPan: UIPanGestureRecognizer {
     }
 
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent) {
+        // A second finger joining a drag leaves the state past possible, and is not a touch of its own.
+        if state == .possible { onTouchDown?() }
+
         super.touchesBegan(touches, with: event)
 
         guard
