@@ -645,17 +645,17 @@ enum ReaderScreen {
         }
 
         /// How far into the book a page stands: a bar, and with the controls up the share of the book
-        /// behind the reader and how many pages the whole book runs to at this setting.
+        /// behind the reader after it and how many pages the whole book runs to before it.
         ///
-        /// Set on the line the running head stands on at the foot. The figures hang off the bar's end,
+        /// Set on the line the running head stands on at the foot. The figures hang off the bar's ends,
         /// so the bar stays put as they come and go.
         private func readingProgress(_ model: Model, at position: BookPosition, isCaption: Bool) -> some View {
             let size = runningHeadSize * Self.captionScale
             let share = model.progress(at: position)
             let percent = share.formatted(.percent.precision(.fractionLength(0)))
-            let ink = settings.theme.foreground.opacity(isChromeHidden ? 0.6 : 0.4)
-            let bar = layoutContext.textSize.width * Self.progressBarShare
             let figures = size * Self.figureScale
+            let air = figures * Self.progressSpacing
+            let bar = layoutContext.textSize.width * Self.progressBarShare
 
             return ProgressBar(
                 value: share,
@@ -663,23 +663,10 @@ enum ReaderScreen {
                 track: settings.theme.foreground.opacity(isChromeHidden ? Self.trackInk : Self.trackInkShown)
             )
             .frame(width: bar)
-            .overlay(alignment: .leading) {
-                if !isChromeHidden {
-                    HStack(spacing: figures * Self.progressSpacing) {
-                        Text(verbatim: percent)
-
-                        if let pages = model.bookPages {
-                            Text(verbatim: "(\(pages.formatted(.number)))")
-                        }
-                    }
-                    .font(.system(size: figures).monospacedDigit())
-                    .foregroundStyle(ink)
-                    .lineLimit(1)
-                    .fixedSize()
-                    .offset(x: bar + figures * Self.progressSpacing)
-                    .transition(.opacity)
-                }
+            .overlay(alignment: .trailing) {
+                figure(model.bookPages.map { "(\($0.formatted(.number)))" }, at: -(bar + air), size: figures)
             }
+            .overlay(alignment: .leading) { figure(percent, at: bar + air, size: figures) }
             .frame(height: RunningHead.line(size))
             .padding(.bottom, spread.pageSafeArea.bottom + RunningHead.air(layoutContext.runningHeadBand, size))
             .frame(maxWidth: .infinity)
@@ -689,10 +676,24 @@ enum ReaderScreen {
                 model.bookPages.map { String(localized: "\(percent) of the book, \($0) pages in all") }
                     ?? String(localized: "\(percent) of the book")
             )
-            // Only the sheet the reader is on names itself, so a turn never puts two of these on
-            // screen under the same identifier.
+            // Only the sheet the reader is on names itself, so a turn never puts two of these on screen
+            // under the same identifier.
             .accessibilityIdentifier(isCaption ? "reader.caption" : "")
             .accessibilityHidden(!isCaption)
+        }
+
+        /// One figure beside the bar, standing `at` points from the edge it is hung on.
+        @ViewBuilder
+        private func figure(_ text: String?, at offset: CGFloat, size: CGFloat) -> some View {
+            if let text, !isChromeHidden {
+                Text(verbatim: text)
+                    .font(.system(size: size).monospacedDigit())
+                    .foregroundStyle(settings.theme.foreground.opacity(Self.readInkShown))
+                    .lineLimit(1)
+                    .fixedSize()
+                    .offset(x: offset)
+                    .transition(.opacity)
+            }
         }
 
         /// How much of the measure the bar takes.
