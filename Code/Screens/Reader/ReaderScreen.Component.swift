@@ -644,46 +644,59 @@ enum ReaderScreen {
             }
         }
 
-        /// How far into the book a page stands: a bar, the share of the book behind the reader, and how
-        /// many pages the whole book runs to at this setting.
+        /// How far into the book a page stands: a bar, and with the controls up the share of the book
+        /// behind the reader and how many pages the whole book runs to at this setting.
         ///
-        /// Set on the line the running head stands on at the foot, in its type and ink.
+        /// Set on the line the running head stands on at the foot. The figures hang off the bar's end,
+        /// so the bar stays put as they come and go.
         private func readingProgress(_ model: Model, at position: BookPosition, isCaption: Bool) -> some View {
             let size = runningHeadSize * Self.captionScale
             let share = model.progress(at: position)
             let percent = share.formatted(.percent.precision(.fractionLength(0)))
             let ink = settings.theme.foreground.opacity(isChromeHidden ? 0.6 : 0.4)
+            let bar = layoutContext.textSize.width * Self.progressBarShare
+            let figures = size * Self.figureScale
 
-            return HStack(spacing: size * Self.progressSpacing) {
-                ProgressBar(value: share, tint: ink)
-                    .frame(width: layoutContext.textSize.width * Self.progressBarShare)
+            return ProgressBar(value: share, tint: ink)
+                .frame(width: bar)
+                .overlay(alignment: .leading) {
+                    if !isChromeHidden {
+                        HStack(spacing: figures * Self.progressSpacing) {
+                            Text(verbatim: percent)
 
-                Text(verbatim: percent)
-
-                if let pages = model.bookPages {
-                    Text(verbatim: "(\(pages.formatted(.number)))")
+                            if let pages = model.bookPages {
+                                Text(verbatim: "(\(pages.formatted(.number)))")
+                            }
+                        }
+                        .font(.system(size: figures).monospacedDigit())
+                        .foregroundStyle(ink)
+                        .lineLimit(1)
+                        .fixedSize()
+                        .offset(x: bar + figures * Self.progressSpacing)
+                        .transition(.opacity)
+                    }
                 }
-            }
-            .font(.system(size: size).monospacedDigit())
-            .foregroundStyle(ink)
-            .lineLimit(1)
-            .padding(.horizontal, settings.settledMargins)
-            .padding(.bottom, spread.pageSafeArea.bottom + RunningHead.air(layoutContext.runningHeadBand, size))
-            .frame(maxWidth: .infinity)
-            .accessibilityElement(children: .ignore)
-            .accessibilityAddTraits(.isStaticText)
-            .accessibilityLabel(
-                model.bookPages.map { String(localized: "\(percent) of the book, \($0) pages in all") }
-                    ?? String(localized: "\(percent) of the book")
-            )
-            // Only the sheet the reader is on names itself, so a turn never puts two of these on screen
-            // under the same identifier.
-            .accessibilityIdentifier(isCaption ? "reader.caption" : "")
-            .accessibilityHidden(!isCaption)
+                .frame(height: RunningHead.line(size))
+                .padding(.bottom, spread.pageSafeArea.bottom + RunningHead.air(layoutContext.runningHeadBand, size))
+                .frame(maxWidth: .infinity)
+                .accessibilityElement(children: .ignore)
+                .accessibilityAddTraits(.isStaticText)
+                .accessibilityLabel(
+                    model.bookPages.map { String(localized: "\(percent) of the book, \($0) pages in all") }
+                        ?? String(localized: "\(percent) of the book")
+                )
+                // Only the sheet the reader is on names itself, so a turn never puts two of these on
+                // screen under the same identifier.
+                .accessibilityIdentifier(isCaption ? "reader.caption" : "")
+                .accessibilityHidden(!isCaption)
         }
 
         /// How much of the measure the bar takes.
         private static let progressBarShare: CGFloat = 0.3
+
+        /// The figures beside the bar are set at half the running head's size: they are read once in a
+        /// while, and the bar says the rest.
+        private static let figureScale: CGFloat = 0.5
 
         /// The air between the bar and the figures beside it, against the size they are set in.
         private static let progressSpacing: CGFloat = 0.6
