@@ -659,8 +659,8 @@ enum ReaderScreen {
 
             return ProgressBar(
                 value: share,
-                tint: settings.theme.foreground.opacity(Self.readInk),
-                track: settings.theme.foreground.opacity(Self.trackInk)
+                tint: settings.theme.foreground.opacity(isChromeHidden ? Self.readInk : Self.readInkShown),
+                track: settings.theme.foreground.opacity(isChromeHidden ? Self.trackInk : Self.trackInkShown)
             )
             .frame(width: bar)
             .overlay(alignment: .leading) {
@@ -696,11 +696,14 @@ enum ReaderScreen {
         }
 
         /// How much of the measure the bar takes.
-        private static let progressBarShare: CGFloat = 0.45
+        private static let progressBarShare: CGFloat = 0.65
 
-        /// The bar's ink, read part and the rest: quiet enough to sit under a page of text.
-        private static let readInk: CGFloat = 0.3
-        private static let trackInk: CGFloat = 0.1
+        /// The bar's ink, read part and the rest: quiet enough to sit under a page being read, and a
+        /// shade firmer once the controls are up and the reader has asked where they are.
+        private static let readInk: CGFloat = 0.18
+        private static let trackInk: CGFloat = 0.07
+        private static let readInkShown: CGFloat = 0.4
+        private static let trackInkShown: CGFloat = 0.12
 
         /// The figures beside the bar are set at half the running head's size: they are read once in a
         /// while, and the bar says the rest.
