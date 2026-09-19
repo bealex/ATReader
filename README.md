@@ -79,7 +79,8 @@ these need an `xcodegen` step first. `Scripts/app.sh --help` lists the rest.
 
 ```sh
 Scripts/app.sh build                # simulator, Debug
-Scripts/app.sh deploy --device      # build, install and launch on a connected device
+Scripts/app.sh deploy               # build, install and launch on the device .env names
+Scripts/app.sh deploy --simulator   # or on a simulator, which is also where it goes with no device named
 Scripts/app.sh test --unit          # package unit tests
 
 # UI tests (the catalogue suite runs against the live service with a guest token)

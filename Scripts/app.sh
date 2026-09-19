@@ -13,6 +13,8 @@
 #   Scripts/app.sh clean
 #
 # Target:    -s, --simulator (default)      -d, --device
+#            A deploy goes to the device `.env` names as AT_DEVICE_ID, when it names one and no
+#            target is given. Naming a simulator or a device chooses that target too.
 # Config:    --debug (default)              --release
 # Selector:  --sim NAME, --sim-id UDID, --device-id UDID, --scheme NAME (default Bookhold)
 # Also:      -O, --optimized (compile Debug with the optimiser on, for an optimised build that keeps
@@ -45,7 +47,7 @@ DD="${DD:-$REPO/build/dd}"
 MAX_ERRORS=12
 
 COMMAND=""
-TARGET="simulator"
+TARGET=""
 CONFIG="Debug"
 SIM_NAME="iPhone 17"
 SIM_ID=""
@@ -113,16 +115,19 @@ while [ $# -gt 0 ]; do
       shift
       [ $# -gt 0 ] || die "--sim needs a simulator name"
       SIM_NAME="$1"
+      TARGET="${TARGET:-simulator}"
       ;;
     --sim-id)
       shift
       [ $# -gt 0 ] || die "--sim-id needs a UDID"
       SIM_ID="$1"
+      TARGET="${TARGET:-simulator}"
       ;;
     --device-id)
       shift
       [ $# -gt 0 ] || die "--device-id needs a UDID"
       DEVICE_ID="$1"
+      TARGET="${TARGET:-device}"
       ;;
     -O | --optimized)
       SIGNING=(
@@ -142,6 +147,18 @@ while [ $# -gt 0 ]; do
 done
 
 [ -n "$COMMAND" ] || die "no command given (try --help)"
+
+# One value out of the gitignored .env, read as data rather than sourced.
+env_value() {
+  [ -f "$REPO/.env" ] || return 0
+  sed -n "s/^$1=//p" "$REPO/.env" | tail -1
+}
+
+if [ "$COMMAND" = deploy ] && [ -z "$DEVICE_ID" ] && [ "$TARGET" != simulator ]; then
+  DEVICE_ID="$(env_value AT_DEVICE_ID)"
+  [ -n "$DEVICE_ID" ] && TARGET="device"
+fi
+TARGET="${TARGET:-simulator}"
 
 if [ "$PARALLEL" -eq 1 ]; then
   PARALLEL_FLAGS=(-parallel-testing-enabled YES)

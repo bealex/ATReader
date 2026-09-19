@@ -44,7 +44,8 @@ its own.
 
 - `Scripts/app.sh build` compiles. Add `-d` for hardware and `--release` for the Release configuration;
   both default to a simulator in Debug.
-- `Scripts/app.sh deploy` builds, installs and launches on a simulator or a device.
+- `Scripts/app.sh deploy` builds, installs and launches. With no target it goes to the device `.env`
+  names as `AT_DEVICE_ID`, or to a simulator when it names none; `-s` and `-d` still choose.
 - `Scripts/app.sh test` runs the package unit tests and everything in the Xcode project. `--unit` and
   `--ui` pick one, `--only SPEC` runs a single target or suite, and `--build-only` with `--no-build`
   splits building the tests from running them. **`--unit` is the packages alone.** The app's own unit
@@ -77,9 +78,9 @@ Every run prints one line per phase and a final `RESULT` line, and writes the fu
 `$TMPDIR/bookhold-logs`. When the summary isn't enough, read that log instead of reaching for the
 underlying tool.
 
-The script refuses to choose between several connected devices, so pass `--device-id` when more than one
-is plugged in. Release signs with the development profile, there being no distribution one yet, so it
-installs on hardware like Debug does.
+`deploy -d` with no `AT_DEVICE_ID` refuses to choose between several connected devices, so pass
+`--device-id` when more than one is plugged in. Release signs with the development profile, there
+being no distribution one yet, so it installs on hardware like Debug does.
 
 ## Style
 
