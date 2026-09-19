@@ -57,6 +57,7 @@ public struct BookTextView<Painting: View>: View {
     /// A piece of text once it has been set, how deep it came out, and where its pick stands.
     private struct Laid {
         let layout: ChapterLayout
+        let page: ChapterLayout.Page
         let height: CGFloat
         let picked: [CGRect]
     }
@@ -73,7 +74,7 @@ public struct BookTextView<Painting: View>: View {
                             .offset(x: box.minX, y: box.minY)
                     }
 
-                    ChapterPageView(layout: laid.layout, pageIndex: 0)
+                    ChapterPageView(layout: laid.layout, page: laid.page)
                         .frame(width: width, height: laid.height)
                 }
                 .frame(width: width, height: laid.height, alignment: .topLeading)
@@ -106,18 +107,22 @@ public struct BookTextView<Painting: View>: View {
             context: context
         )
 
-        let lines = layout.typesetLines(onPage: 0)
+        guard let page = layout.pages.first else { return }
+
+        let lines = layout.typesetLines(on: page)
 
         laid = Laid(
             layout: layout,
+            page: page,
             height: lines.reduce(0) { $0 + $1.height },
-            picked: picked(in: layout, lines: lines, context: context)
+            picked: picked(in: layout, on: page, lines: lines, context: context)
         )
     }
 
     /// The boxes the pick covers, found the way a finger finds them.
     private func picked(
         in layout: ChapterLayout,
+        on page: ChapterLayout.Page,
         lines: [ChapterLayout.TypesetLine],
         context: ChapterLayout.Context
     ) -> [CGRect] {
@@ -133,11 +138,11 @@ public struct BookTextView<Painting: View>: View {
             let range = layout.words(
                 from: point(line: pick.fromLine, across: pick.fromAcross),
                 to: point(line: pick.toLine, across: pick.toAcross),
-                onPage: 0
+                on: page
             )
         else { return [] }
 
-        return layout.rects(of: range, onPage: 0)
+        return layout.rects(of: range, on: page)
     }
 
     /// However long the text runs, it is set as one page.

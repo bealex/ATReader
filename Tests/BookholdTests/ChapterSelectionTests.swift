@@ -42,7 +42,7 @@ struct ChapterSelectionTests {
 
     private func bodyLine(_ layout: ChapterLayout) throws -> Line {
         let all = layout.typesetLines
-        let placed = layout.placedLines(onPage: 0)
+        let placed = layout.placedLines(on: layout.pages[0])
         let found = try #require(
             placed.first { !all[$0.index].isHeading && all[$0.index].width > 200 },
             "no body line was set on the first page"
@@ -56,7 +56,7 @@ struct ChapterSelectionTests {
     func aPointOverAWordTakesTheWholeWord() async throws {
         let layout = await layout()
         let line = try bodyLine(layout)
-        let range = try #require(layout.word(at: CGPoint(x: line.left, y: line.middle), onPage: 0))
+        let range = try #require(layout.word(at: CGPoint(x: line.left, y: line.middle), on: layout.pages[0]))
         let picked = layout.selection(of: range)
 
         #expect(!picked.isEmpty)
@@ -72,7 +72,7 @@ struct ChapterSelectionTests {
         let range = try #require(layout.words(
             from: CGPoint(x: line.left, y: line.middle),
             to: CGPoint(x: line.right, y: line.middle),
-            onPage: 0
+            on: layout.pages[0]
         ))
         let picked = layout.selection(of: range)
 
@@ -88,8 +88,8 @@ struct ChapterSelectionTests {
         let start = CGPoint(x: line.left, y: line.middle)
         let end = CGPoint(x: line.right, y: line.middle)
 
-        let forwards = layout.words(from: start, to: end, onPage: 0)
-        let backwards = layout.words(from: end, to: start, onPage: 0)
+        let forwards = layout.words(from: start, to: end, on: layout.pages[0])
+        let backwards = layout.words(from: end, to: start, on: layout.pages[0])
 
         #expect(forwards == backwards)
     }
@@ -102,12 +102,12 @@ struct ChapterSelectionTests {
         let range = try #require(layout.words(
             from: CGPoint(x: line.left + 3, y: line.middle),
             to: CGPoint(x: line.right + 3, y: line.middle),
-            onPage: 0
+            on: layout.pages[0]
         ))
         let wider = try #require(layout.words(
             from: CGPoint(x: line.left, y: line.middle),
             to: CGPoint(x: line.right, y: line.middle),
-            onPage: 0
+            on: layout.pages[0]
         ))
 
         // Two points a few points apart inside the same pair of words come to the same words.
@@ -122,7 +122,7 @@ struct ChapterSelectionTests {
         let range = try #require(layout.words(
             from: CGPoint(x: line.left, y: line.middle),
             to: CGPoint(x: line.right, y: line.middle),
-            onPage: 0
+            on: layout.pages[0]
         ))
         let picked = layout.selection(of: range)
 
@@ -137,9 +137,9 @@ struct ChapterSelectionTests {
         let range = try #require(layout.words(
             from: CGPoint(x: line.left, y: line.middle),
             to: CGPoint(x: line.right, y: line.middle),
-            onPage: 0
+            on: layout.pages[0]
         ))
-        let boxes = layout.rects(of: range, onPage: 0)
+        let boxes = layout.rects(of: range, on: layout.pages[0])
 
         #expect(boxes.count == 1)
         #expect((boxes.first?.width ?? 0) > 0)
@@ -151,7 +151,7 @@ struct ChapterSelectionTests {
     func aStretchDownThePageIsABoxPerLine() async throws {
         let layout = await layout()
         let all = layout.typesetLines
-        let placed = layout.placedLines(onPage: 0)
+        let placed = layout.placedLines(on: layout.pages[0])
         let body = placed.filter { !all[$0.index].isHeading && all[$0.index].width > 200 }
 
         try #require(body.count >= 3, "the page is too short to drag down")
@@ -160,9 +160,9 @@ struct ChapterSelectionTests {
         let range = try #require(layout.words(
             from: CGPoint(x: start, y: body[0].edge + body[0].height / 2),
             to: CGPoint(x: start + 100, y: body[2].edge + body[2].height / 2),
-            onPage: 0
+            on: layout.pages[0]
         ))
 
-        #expect(layout.rects(of: range, onPage: 0).count >= 3)
+        #expect(layout.rects(of: range, on: layout.pages[0]).count >= 3)
     }
 }

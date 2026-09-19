@@ -223,14 +223,14 @@ public final class ColumnComposer {
         return paragraphs
     }
 
-    /// How many paragraphs a worker takes at a time, which is also how often the reader is told how far
-    /// the chapter has got.
+    /// How many paragraphs a worker takes at a time.
     private static let paragraphsPerTurn = 16
 
     /// Past this many, a worker spends what it gains waiting on the lock every attributed-string change takes.
     private static let mostWorkers = 4
 
-    /// Sets a whole chapter, its paragraphs shared out between as many workers as the device has cores.
+    /// Sets a whole chapter, its paragraphs shared out between as many workers as the device has cores,
+    /// and gives back each paragraph's lines.
     ///
     /// A paragraph's lines depend on nothing outside it. An attributed string can't be handed from one
     /// thread to another, so each worker typesets its own copy of the chapter from `typesetting`, which
@@ -239,9 +239,8 @@ public final class ColumnComposer {
         paragraphs: [NSRange],
         typesetting: @escaping @Sendable () -> NSAttributedString,
         headingLength: Int,
-        size: CGSize,
-        onProgress: (@MainActor (Double) -> Void)?
-    ) async -> [Line] {
+        size: CGSize
+    ) async -> [[Line]] {
         let turns = stride(from: 0, to: paragraphs.count, by: paragraphsPerTurn).map { first in
             first ..< min(first + paragraphsPerTurn, paragraphs.count)
         }
@@ -251,19 +250,15 @@ public final class ColumnComposer {
         let tally = Tally()
         let workers = min(turns.count, Self.mostWorkers, max(1, ProcessInfo.processInfo.activeProcessorCount))
 
-        let settled = await withTaskGroup(of: [ (turn: Int, lines: [ Line ]) ].self) { group in
+        let settled = await withTaskGroup(of: [ (turn: Int, lines: [ [ Line ] ]) ].self) { group in
             for _ in 0 ..< workers {
                 group.addTask {
                     let text = typesetting()
                     let composer = ColumnComposer(measure: size.width, depth: size.height, headingLength: headingLength)
-                    var done: [(turn: Int, lines: [Line])] = []
+                    var done: [(turn: Int, lines: [[Line]])] = []
 
                     while let turn = tally.nextTurn(of: turns.count) {
-                        done.append((turn, composer.lines(in: text, paragraphs: paragraphs[turns[turn]])))
-
-                        let finished = tally.finishTurn()
-
-                        await onProgress?(Double(finished) / Double(turns.count))
+                        done.append((turn, paragraphs[turns[turn]].map { composer.lines(in: text, paragraph: $0) }))
                         await Task.yield()
                     }
 
@@ -271,7 +266,7 @@ public final class ColumnComposer {
                 }
             }
 
-            var settled: [(turn: Int, lines: [Line])] = []
+            var settled: [(turn: Int, lines: [[Line]])] = []
 
             for await done in group { settled += done }
 
@@ -281,10 +276,9 @@ public final class ColumnComposer {
         return settled.sorted { $0.turn < $1.turn }.flatMap(\.lines)
     }
 
-    /// Which turns of a chapter have been handed out and how many are finished, shared between workers.
+    /// Hands out a chapter's turns between workers.
     private final class Tally: Sendable {
         private let handedOut = Mutex(0)
-        private let finished = Mutex(0)
 
         /// The next turn nobody has taken, or `nil` once all of them have been.
         func nextTurn(of count: Int) -> Int? {
@@ -296,29 +290,46 @@ public final class ColumnComposer {
                 return next
             }
         }
+    }
 
-        /// Counts a turn as done, and says how many are.
-        func finishTurn() -> Int {
-            finished.withLock { done in
-                done += 1
-                return done
-            }
+    /// One chapter's composer for a few paragraphs at a time, kept off the main actor with a copy of
+    /// the chapter's text of its own.
+    ///
+    /// The text is set the first time a paragraph is asked for, from `typesetting`, which has to give
+    /// the same text the page draws from.
+    actor Setter {
+        private let typesetting: @Sendable () -> NSAttributedString
+        private let headingLength: Int
+        private let size: CGSize
+        private var text: NSAttributedString?
+        private var composer: ColumnComposer?
+
+        init(typesetting: @escaping @Sendable () -> NSAttributedString, headingLength: Int, size: CGSize) {
+            self.typesetting = typesetting
+            self.headingLength = headingLength
+            self.size = size
+        }
+
+        /// Each paragraph's lines, in the order the paragraphs were given.
+        func lines(of paragraphs: [NSRange]) -> [[Line]] {
+            let text = self.text ?? typesetting()
+            let composer =
+                self.composer ?? ColumnComposer(measure: size.width, depth: size.height, headingLength: headingLength)
+
+            self.text = text
+            self.composer = composer
+
+            return paragraphs.map { composer.lines(in: text, paragraph: $0) }
         }
     }
 
-    /// The lines of a run of paragraphs, pictures included.
-    private func lines(in text: NSAttributedString, paragraphs: ArraySlice<NSRange>) -> [Line] {
-        var result: [Line] = []
-
-        for range in paragraphs {
-            if let picture = text.attribute(.pageImage, at: range.location, effectiveRange: nil) as? PageImage {
-                result.append(line(of: picture, in: text, range: range))
-            } else if let ruler = ParagraphRuler(text: text, range: range) {
-                result.append(contentsOf: lines(of: ruler))
-            }
+    /// The lines of one paragraph: a picture's one line, or however many its text breaks into.
+    private func lines(in text: NSAttributedString, paragraph range: NSRange) -> [Line] {
+        if let picture = text.attribute(.pageImage, at: range.location, effectiveRange: nil) as? PageImage {
+            return [ line(of: picture, in: text, range: range) ]
         }
 
-        return result
+        return ParagraphRuler(text: text, range: range).map(lines(of:)) ?? []
     }
 
     // MARK: - Setting one paragraph

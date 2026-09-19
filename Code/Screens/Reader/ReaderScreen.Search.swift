@@ -44,12 +44,12 @@ extension ReaderScreen.Model {
     ///
     /// Only the place they were taken to. The others are elsewhere in the book, and painting every
     /// saying of a word on the page would leave it looking marked up rather than searched.
-    func foundRects(onPage index: Int) -> [CGRect] {
-        guard let place = foundPlace, case let .text(pieces) = page(at: index) else { return [] }
+    func foundRects(on page: BookPage) -> [CGRect] {
+        guard let place = foundPlace else { return [] }
 
         return
-            pieces
+            page.pieces
             .filter { $0.layout.chapterId == place.chapterId }
-            .flatMap { $0.layout.rects(of: $0.layout.laidOutRange(of: place.range), onPage: $0.page) }
+            .flatMap { $0.layout.rects(of: $0.layout.laidOutRange(of: place.range), on: $0.page) }
     }
 }

@@ -648,7 +648,7 @@ public actor SQLiteBookStore {
         let list = kept.isEmpty ? "0" : kept
 
         transaction {
-            for table in [ "chapter_body", "chapter_content", "chapter_placement", "chapter" ] {
+            for table in [ "chapter_body", "chapter_content", "chapter" ] {
                 let column = table == "chapter" ? "id" : "chapter_id"
                 execute("DELETE FROM \(table) WHERE work_id = \(workId) AND \(column) NOT IN (\(list))")
             }
@@ -668,7 +668,7 @@ public actor SQLiteBookStore {
     /// putting it back doesn't cost a fresh download.
     public func removeBook(id: Int) {
         transaction {
-            for table in [ "chapter_body", "chapter_content", "chapter_placement", "chapter", "reading_position" ] {
+            for table in [ "chapter_body", "chapter_content", "chapter", "reading_position" ] {
                 if let statement = Statement(open(), "DELETE FROM \(table) WHERE work_id = ?") {
                     statement.bind(1, id)
                     statement.execute()
@@ -867,61 +867,6 @@ public actor SQLiteBookStore {
         return statement.string(0)
     }
 
-    // MARK: - Chapters already measured
-
-    /// Where a chapter sat last time the book was measured, if the book and the setting are both still
-    /// the ones it was measured against.
-    public func placement(workId: Int, chapterId: Int, chain: String, style: String) -> ChapterPlacement? {
-        let query = """
-            SELECT start_offset, page_count, next_offset FROM chapter_placement
-            WHERE chapter_id = ? AND work_id = ? AND chain_hash = ? AND style_hash = ?
-            """
-
-        guard let statement = Statement(open(), query) else { return nil }
-
-        statement.bind(1, chapterId)
-        statement.bind(2, workId)
-        statement.bind(3, chain)
-        statement.bind(4, style)
-
-        guard statement.step(), let start = statement.number(0), let next = statement.number(2) else { return nil }
-
-        return ChapterPlacement(startOffset: start, pageCount: statement.integer(1), nextOffset: next)
-    }
-
-    public func store(
-        placement: ChapterPlacement,
-        workId: Int,
-        chapterId: Int,
-        chain: String,
-        style: String
-    ) {
-        let query = """
-            INSERT INTO chapter_placement
-                (chapter_id, style_hash, work_id, chain_hash, start_offset, page_count, next_offset, stored_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            ON CONFLICT(chapter_id, style_hash) DO UPDATE SET
-                work_id = excluded.work_id,
-                chain_hash = excluded.chain_hash,
-                start_offset = excluded.start_offset,
-                page_count = excluded.page_count,
-                next_offset = excluded.next_offset,
-                stored_at = excluded.stored_at
-            """
-
-        guard let statement = Statement(open(), query) else { return }
-
-        statement.bind(1, chapterId)
-        statement.bind(2, style)
-        statement.bind(3, workId)
-        statement.bind(4, chain)
-        statement.bind(5, placement.startOffset)
-        statement.bind(6, placement.pageCount)
-        statement.bind(7, placement.nextOffset)
-        statement.bind(8, Date.now.timeIntervalSince1970)
-        statement.execute()
-    }
-
     public func store(prepared: PreparedChapter, workId: Int) {
         let query = """
             INSERT INTO chapter_content (chapter_id, work_id, content_hash, chain_hash, content, stored_at)
@@ -982,43 +927,6 @@ public actor SQLiteBookStore {
         statement.bind(4, position.updatedAt.timeIntervalSince1970)
         statement.execute()
         recomputeProgress(workId: position.workId)
-    }
-
-    // MARK: - Chapters already broken into lines
-
-    /// The lines a chapter was broken into, where they were broken for this text at this setting.
-    public func column(chapterId: Int, fingerprint: String) -> Data? {
-        let query = "SELECT lines FROM chapter_column WHERE chapter_id = ? AND fingerprint = ?"
-
-        guard let statement = Statement(open(), query) else { return nil }
-
-        statement.bind(1, chapterId)
-        statement.bind(2, fingerprint)
-
-        guard statement.step() else { return nil }
-
-        return statement.data(0)
-    }
-
-    /// Keeps one layout a chapter. A reader who changes the type has a different one, and what was
-    /// kept for the setting before it will not be wanted again.
-    public func store(column: Data, chapterId: Int, fingerprint: String) {
-        let query = """
-            INSERT INTO chapter_column (chapter_id, fingerprint, lines, stored_at)
-            VALUES (?, ?, ?, ?)
-            ON CONFLICT(chapter_id) DO UPDATE SET
-                fingerprint = excluded.fingerprint,
-                lines = excluded.lines,
-                stored_at = excluded.stored_at
-            """
-
-        guard let statement = Statement(open(), query) else { return }
-
-        statement.bind(1, chapterId)
-        statement.bind(2, fingerprint)
-        statement.bind(3, column)
-        statement.bind(4, Date.now.timeIntervalSince1970)
-        statement.execute()
     }
 
     // MARK: - Bookmarks
@@ -1136,8 +1044,6 @@ public actor SQLiteBookStore {
     public func clearDownloads() {
         execute("DELETE FROM chapter_body WHERE work_id NOT IN (SELECT work_id FROM local_book)")
         execute("DELETE FROM chapter_content WHERE work_id NOT IN (SELECT work_id FROM local_book)")
-        // Measurements are worked out again from text the device still has, so they always go.
-        execute("DELETE FROM chapter_placement")
         execute("VACUUM")
     }
 
@@ -1188,9 +1094,7 @@ public actor SQLiteBookStore {
         createSeriesEditTable()
         createLocalBookTable()
         createBookmarkTable()
-        createColumnTable()
         createContentTable()
-        createPlacementTable()
         createCoverShapeTable()
         createBookShapeTable()
         createAuthorAliasTable()
@@ -1205,6 +1109,7 @@ public actor SQLiteBookStore {
         countSeriesFromOne()
         forgetArrangedOrders()
         foldMergesIntoOverrides()
+        dropLayoutCaches()
     }
 
     /// Adds the columns that say where a book came from, for a store made before it could tell.
@@ -1491,25 +1396,6 @@ public actor SQLiteBookStore {
         statement.execute()
     }
 
-    private func createPlacementTable() {
-        execute(
-            """
-            CREATE TABLE IF NOT EXISTS chapter_placement (
-                chapter_id INTEGER NOT NULL,
-                style_hash TEXT NOT NULL,
-                work_id INTEGER NOT NULL,
-                chain_hash TEXT NOT NULL,
-                start_offset REAL NOT NULL,
-                page_count INTEGER NOT NULL,
-                next_offset REAL NOT NULL,
-                stored_at REAL NOT NULL,
-                PRIMARY KEY (chapter_id, style_hash)
-            )
-            """
-        )
-        execute("CREATE INDEX IF NOT EXISTS placement_by_work ON chapter_placement (work_id)")
-    }
-
     private func createContentTable() {
         execute(
             """
@@ -1576,19 +1462,6 @@ public actor SQLiteBookStore {
             """
         )
         execute("CREATE INDEX IF NOT EXISTS body_by_work ON chapter_body (work_id)")
-    }
-
-    private func createColumnTable() {
-        execute(
-            """
-            CREATE TABLE IF NOT EXISTS chapter_column (
-                chapter_id INTEGER PRIMARY KEY,
-                fingerprint TEXT NOT NULL,
-                lines BLOB NOT NULL,
-                stored_at REAL NOT NULL
-            )
-            """
-        )
     }
 
     private func createBookmarkTable() {
@@ -1700,6 +1573,17 @@ public actor SQLiteBookStore {
         execute("DROP TABLE book_series")
         execute("ALTER TABLE book_series_kept RENAME TO book_series")
         execute("PRAGMA user_version = 4")
+    }
+
+    /// Drops the chapters kept broken into lines and the places every chapter was measured at.
+    ///
+    /// A book is cut into pages around the reader now, a page at a time, and nothing reads either back.
+    private func dropLayoutCaches() {
+        guard userVersion() < 6 else { return }
+
+        execute("DROP TABLE IF EXISTS chapter_column")
+        execute("DROP TABLE IF EXISTS chapter_placement")
+        execute("PRAGMA user_version = 6")
     }
 
     private func userVersion() -> Int {

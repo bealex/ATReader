@@ -6,17 +6,17 @@
 import SwiftUI
 import UIKit
 
-/// Draws one page of a chapter.
+/// Draws one chapter's share of a page.
 ///
-/// The page holds a laid-out chapter rather than raw text, so a turn draws a page TextKit has already
-/// measured, and a page can never show something pagination didn't.
+/// The page holds lines the chapter has already composed and cut, so a turn draws what was measured
+/// and a page can never show something the cutting didn't.
 public struct ChapterPageView: UIViewRepresentable {
     public let layout: ChapterLayout
-    public let pageIndex: Int
+    public let page: ChapterLayout.Page
 
-    public init(layout: ChapterLayout, pageIndex: Int) {
+    public init(layout: ChapterLayout, page: ChapterLayout.Page) {
         self.layout = layout
-        self.pageIndex = pageIndex
+        self.page = page
     }
 
     public func makeUIView(context: Context) -> PageView {
@@ -27,22 +27,22 @@ public struct ChapterPageView: UIViewRepresentable {
     }
 
     public func updateUIView(_ view: PageView, context: Context) {
-        view.apply(layout: layout, pageIndex: pageIndex)
+        view.apply(layout: layout, page: page)
     }
 
     public final class PageView: UIView {
         private var layout: ChapterLayout?
-        private var pageIndex = -1
+        private var page: ChapterLayout.Page?
 
-        func apply(layout: ChapterLayout, pageIndex: Int) {
-            guard layout !== self.layout || pageIndex != self.pageIndex else { return }
+        func apply(layout: ChapterLayout, page: ChapterLayout.Page) {
+            guard layout !== self.layout || page != self.page else { return }
 
             self.layout = layout
-            self.pageIndex = pageIndex
+            self.page = page
             isAccessibilityElement = true
             accessibilityTraits = .staticText
             accessibilityIdentifier = "reader.pageText"
-            accessibilityLabel = layout.pageText(pageIndex)
+            accessibilityLabel = layout.pageText(page)
             setNeedsDisplay()
         }
 
@@ -52,7 +52,9 @@ public struct ChapterPageView: UIViewRepresentable {
         }
 
         override public func draw(_ rect: CGRect) {
-            layout?.draw(page: pageIndex)
+            guard let layout, let page else { return }
+
+            layout.draw(page)
         }
     }
 }

@@ -43,10 +43,10 @@ struct PlateFittingTests {
         )
     }
 
-    private func cut(_ slugs: [PageCutter.Slug], depth: CGFloat) -> PageCutter.Cut {
+    private func cut(_ slugs: [PageCutter.Slug], depth: CGFloat) -> CutPages {
         let cutter = PageCutter(slugs: slugs, depth: depth, pageLine: Self.line, referenceLineHeight: Self.line)
 
-        return cutter.cut(from: 0, using: cutter.search())
+        return cutter.cutFromTheStart()
     }
 
     /// The case that was reported: five lines and a plate that wants more room than is left.

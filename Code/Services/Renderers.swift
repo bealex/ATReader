@@ -16,13 +16,6 @@ extension BookProcessor {
     static let shared = BookProcessor(store: SQLiteBookStore.shared)
 }
 
-extension BookPagination {
-    /// The paginator over this app's store.
-    static func make(workId: Int, context: ChapterLayout.Context) -> BookPagination {
-        make(workId: workId, context: context, store: SQLiteBookStore.shared)
-    }
-}
-
 /// The page's covers, from the shelf the app keeps them on.
 ///
 /// Downsampled once and kept on disk by CoverCache, then held to the page's own two colours by the

@@ -69,7 +69,7 @@ struct BackupBooksTests {
 
         try FileManager.default.copyItem(at: backup.appendingPathComponent("library.sqlite"), to: copy)
         // What the device prepared and measured is dropped, so every chapter is set again by this build.
-        Self.execute("DELETE FROM chapter_content; DELETE FROM chapter_placement;", in: copy)
+        Self.execute("DELETE FROM chapter_content;", in: copy)
 
         let store = SQLiteBookStore(fileURL: copy)
         let books = await store.books().filter { !BookNumbering.isLocal($0.id) && Self.isWanted("\($0.id)") }
@@ -83,7 +83,7 @@ struct BackupBooksTests {
         #expect(faults.isEmpty, "\(faults.joined(separator: "\n"))")
     }
 
-    /// Measures a book one chapter at a time, as the reader's pass does, and says what went wrong.
+    /// Lays a book out one chapter at a time, each composed and cut whole, and says what went wrong.
     private func measure(
         _ workId: Int,
         named name: String,
@@ -92,7 +92,6 @@ struct BackupBooksTests {
     ) async -> [String] {
         let chapters = await store.chapters(workId: workId).filter(\.isReadable)
         let processor = BookProcessor(store: store)
-        let pagination = BookPagination.make(workId: workId, context: context, store: store)
         let bodies = await store.storedBodyIds(workId: workId)
         var faults: [String] = []
 
@@ -102,10 +101,18 @@ struct BackupBooksTests {
             let content = await processor.content(workId: workId, chapterId: chapter.id)
             let started = ContinuousClock.now
 
-            await pagination.measure(chapters: chapters, through: index + 1, content: { _ in content })
+            var pages = 0
+
+            if let content {
+                pages = await ChapterLayout.make(
+                    chapterId: chapter.id,
+                    content: content,
+                    heading: ChapterHeading.make(position: index + 1, title: chapter.title),
+                    context: context
+                ).pageCount
+            }
 
             let took = started.duration(to: .now)
-            let pages = pagination.placement(of: chapter.id)?.pageCount ?? 0
 
             Self.log("  \(pages) pages in \(took.formatted(.units(allowed: [ .seconds, .milliseconds ])))")
 
@@ -138,16 +145,11 @@ struct BackupBooksTests {
         environment["AT_BACKUP"].map { URL(fileURLWithPath: ($0 as NSString).expandingTildeInPath) }
     }
 
-    /// The report's setting, checked against the fingerprint the device wrote for it.
+    /// The setting the report was made at.
     private static var setting: ChapterLayout.Context? {
-        guard
-            let path = environment["AT_BACKUP_SETTINGS"],
-            let read = PageReport.setting(ofReportAt: URL(fileURLWithPath: (path as NSString).expandingTildeInPath))
-        else { return nil }
-
-        #expect(read.fingerprint == nil || read.fingerprint == read.context.fingerprint)
-
-        return read.context
+        environment["AT_BACKUP_SETTINGS"].flatMap { path in
+            PageReport.setting(ofReportAt: URL(fileURLWithPath: (path as NSString).expandingTildeInPath))
+        }
     }
 
     private static func scratch(_ name: String) -> URL {

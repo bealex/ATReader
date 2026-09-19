@@ -310,8 +310,8 @@ struct ImageTests {
             context: JustificationTests.testContext
         )
 
-        #expect(layout.pageText(0).contains(String(localized: "Picture.")))
-        #expect(!layout.pageText(0).contains(ChapterPagination.pictureMark))
+        #expect(layout.pageText(layout.pages[0]).contains(String(localized: "Picture.")))
+        #expect(!layout.pageText(layout.pages[0]).contains(ChapterPagination.pictureMark))
     }
 
     // MARK: - Reading a picture in
@@ -428,7 +428,7 @@ struct ImageTests {
         let page = UIGraphicsImageRenderer(size: context.pageSize, format: format).image { drawing in
             UIColor.white.setFill()
             drawing.fill(CGRect(origin: .zero, size: context.pageSize))
-            layout.draw(page: 0)
+            layout.draw(layout.pages[0])
         }
 
         guard let drawn = page.cgImage else { return [] }

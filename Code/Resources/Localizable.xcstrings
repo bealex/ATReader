@@ -2,6 +2,28 @@
   "sourceLanguage": "en",
   "strings": {
     "": {},
+    "%@ of the book": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ книги"
+          }
+        }
+      }
+    },
+    "%@ of the book, %lld pages in all": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ книги, всего страниц: %2$lld"
+          }
+        }
+      }
+    },
     "%@ points": {
       "extractionState": "manual",
       "localizations": {
@@ -4351,17 +4373,6 @@
     "mail@example.com": {
       "extractionState": "manual",
       "shouldTranslate": false
-    },
-    "page %lld of %lld": {
-      "extractionState": "manual",
-      "localizations": {
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "страница %lld из %lld"
-          }
-        }
-      }
     },
     "still being written": {
       "extractionState": "manual",

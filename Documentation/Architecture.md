@@ -589,9 +589,10 @@ its content hash and files it on the row the book already stands on.
 
 Chapters are paginated rather than scrolled, the column breaks its own lines, and a page fills the
 screen. `ChapterContent` parses and binds the text away from the main actor, `ChapterPagination` sets
-it, `ParagraphRuler` measures a paragraph once, `ColumnComposer` chooses every break in it together
-with how each line is filled, several paragraphs at once and off the main actor, `ChapterLayout` cuts the column into pages under a compositor's rules,
-`PageTurnView` turns them and `ChapterPageView` draws one.
+it, `ParagraphRuler` measures a paragraph once, and `ColumnComposer` chooses every break in it together
+with how each line is filled, off the main actor. `ChapterLayout` composes only the paragraphs around a
+page and cuts it under a compositor's rules, forwards or backwards; `BookLayout` strings those pages
+across chapters from wherever the reader is, `PageTurnView` turns them and `ChapterPageView` draws one.
 
 A picture is a line of that column with a depth of its own, so the page breaker treats a plate the way
 it treats any other line. `BookImages` reads one, decides whether it is colour art or line work, and

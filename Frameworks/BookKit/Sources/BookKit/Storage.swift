@@ -49,21 +49,6 @@ public struct StoredBook: Sendable {
     }
 }
 
-/// Where one chapter sat when the book was last measured at a given setting.
-public struct ChapterPlacement: Sendable, Equatable {
-    public let startOffset: Double
-    public let pageCount: Int
-    /// Where the chapter after this one begins, so a run of cached chapters can carry on without
-    /// laying any of them out.
-    public let nextOffset: Double
-
-    public init(startOffset: Double, pageCount: Int, nextOffset: Double) {
-        self.startOffset = startOffset
-        self.pageCount = pageCount
-        self.nextOffset = nextOffset
-    }
-}
-
 /// A chapter's text, parsed and ready to lay out.
 public struct ChapterContent: Codable, Sendable {
     public var paragraphs: [Paragraph]

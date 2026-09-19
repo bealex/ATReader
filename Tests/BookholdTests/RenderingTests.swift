@@ -101,7 +101,7 @@ struct RenderingTests {
     @Test(arguments: renderingSettings)
     func thePagesCoverEveryLineOnce(setting: Setting) async {
         let layout = await layout(setting)
-        let counted = (0 ..< layout.pageCount).reduce(0) { $0 + layout.typesetLines(onPage: $1).count }
+        let counted = (0 ..< layout.pageCount).reduce(0) { $0 + layout.typesetLines(on: layout.pages[$1]).count }
 
         #expect(counted == layout.typesetLines.count)
     }

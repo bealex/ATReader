@@ -5,17 +5,17 @@
 
 import BookKit
 import CoreText
-import CryptoKit
 import SwiftUI
 import UIKit
 
-/// One chapter, laid out for one style and one page size.
+/// One chapter, set as text for one style and one page size, and cut into pages wherever it is read.
 ///
-/// `ColumnComposer` sets the chapter as a single column, choosing every break in a paragraph together
-/// with how each of its lines is filled. This cuts that column into pages line by line, so the page
-/// breaks can follow the rules a compositor would: no line of a paragraph left alone at either end of a
-/// page, no hyphen at the foot of a page, no heading stranded without its text. The slack those rules
-/// leave behind is spread between the lines of the page rather than dumped at the bottom.
+/// Only the paragraphs around the pages asked for are composed. `ColumnComposer` breaks a paragraph
+/// into lines, choosing every break in it together with how each line is filled, and `PageCutter` cuts
+/// the lines into a page by the rules a compositor keeps: no line of a paragraph left alone at either
+/// end of a page, no hyphen at the foot of one, no heading stranded without its text. Lines are
+/// numbered from the first paragraph composed, so a number keeps naming the same line as the composed
+/// stretch grows at either end.
 @MainActor
 public final class ChapterLayout {
     /// How the pages of a chapter are laid out, before any text is fetched.
@@ -28,7 +28,7 @@ public final class ChapterLayout {
         public var pageSize: CGSize
         public var safeArea: EdgeInsets
         /// False for text that is not a page of the book: a note in a popup has no title above it and
-        /// no page number below, so it keeps the band those would have stood in.
+        /// no progress below, so it keeps the band those would have stood in.
         public var hasRunningHeads: Bool
 
         public init(
@@ -57,8 +57,9 @@ public final class ChapterLayout {
             UIFont.systemFont(ofSize: style.fontSize * Self.runningHeadScale).lineHeight
         }
 
-        /// The band kept at the top and bottom of every page for the book title and the page number:
-        /// as deep as the head set in it, and a third as much again of air between it and the text.
+        /// The band kept at the top and bottom of every page for the book title and how far into the
+        /// book the page is: as deep as the head set in it, and a third as much again of air between
+        /// it and the text.
         public var runningHeadBand: CGFloat {
             hasRunningHeads ? max(Self.leastRunningHeadBand, runningHeadLine * Self.runningHeadBandLines) : 0
         }
@@ -90,42 +91,10 @@ public final class ChapterLayout {
         public var textSize: CGSize { textRect.size }
 
         public var isUsable: Bool { textRect.width > 1 && textRect.height > 1 }
-
-        /// Everything about the setting that moves where a line breaks, as one string.
-        ///
-        /// Measurements a book has already been through are kept against this, so a book reopened at
-        /// the same settings costs a read rather than laying every chapter out again. The page's
-        /// colours and how its pictures take them are deliberately absent: they change nothing about
-        /// where anything sits, and including them would throw the whole book away every time the
-        /// reader crossed into the dark.
-        public var fingerprint: String {
-            [
-                ChapterLayout.rulesVersion,
-                style.face.rawValue,
-                style.weight.rawValue,
-                "\(style.fontSize)", "\(style.lineSpacing)", "\(style.letterSpacing)",
-                "\(style.justifiesRussian)", "\(style.justifiesEnglish)",
-                style.hyphenates ? nil : "nohyphens",
-                "\(margins)", "\(pageSize.width)x\(pageSize.height)",
-                "\(safeArea.top),\(safeArea.leading),\(safeArea.bottom),\(safeArea.trailing)",
-                // Only a page that is not one of the book's own says so, which leaves every book
-                // already measured with the fingerprint it was measured under.
-                hasRunningHeads ? nil : "noheads",
-                style.indentsParagraphs ? nil : "noindent",
-            ].compactMap { $0 }.joined(separator: "|")
-        }
     }
 
     /// What a compositor would not allow: line counts, the points a line gap may give or take, and what
     /// breaking a rule costs against letting a page come out the wrong depth.
-    /// Bumped whenever a rule here or in `ColumnComposer` changes where a line breaks or how far one is
-    /// opened.
-    ///
-    /// Measurements are kept against the setting they were made at, and the setting alone says nothing
-    /// about the rules that read it. Without this, changing how far a mark hangs would leave every book
-    /// on the device showing the breaks an older layout chose.
-    public nonisolated static let rulesVersion = "31"
-
     public enum Rules {
         /// Lines that have to follow a heading rather than leaving it stranded at the foot of a page.
         static let linesAfterHeading = 2
@@ -153,33 +122,8 @@ public final class ChapterLayout {
         static let pictureAir: CGFloat = 1.62
     }
 
-    /// Text longer than this is worth telling the reader about while it is being laid out.
-    public static let progressThreshold = 239 * 1024
-
-    public nonisolated let chapterId: Int
-    public let context: Context
-
-    /// What the previous chapter already used on this chapter's first page, when the chapter runs on
-    /// from it rather than starting a page of its own.
-    public private(set) var startOffset: CGFloat
-    /// Where columns already broken into lines are kept, where there is anywhere to keep them.
-    private let columns: (any ColumnStore)?
-
-    /// The character range each page covers, so a reading position survives a change of font.
-    public private(set) var pageRanges: [NSRange] = []
-
-    let text: NSAttributedString
-    private let headingLength: Int
-
-    private(set) var lines: [ColumnComposer.Line] = []
-    private(set) var pages: [Page] = []
-    /// Each line's CoreText line, built the first time a page draws the line or looks into it.
-    private var drawnLines: [Int: CTLine] = [:]
-    /// The break search's own table, kept so a chapter cut again at another offset is not searched twice.
-    private var breaks: PageCutter.Breaks?
-
-    /// One page: the lines it carries and the space added to (or taken from) each gap between them.
-    struct Page: Sendable {
+    /// One page's worth of a chapter: the lines it carries, and where and how they stand.
+    public struct Page: Sendable, Equatable {
         /// A plate at the foot of a page that gave up depth to finish it rather than taking a page of
         /// its own and leaving this one half empty.
         struct Plate: Sendable, Equatable {
@@ -187,60 +131,75 @@ public final class ChapterLayout {
             var height: CGFloat
         }
 
-        var lines: Range<Int>
-        var leading: CGFloat
+        public internal(set) var lines: Range<Int>
+        /// How far below the top of the text the first line stands: under a chapter that ended higher
+        /// up the page, or over an opening set at the foot of it.
+        public internal(set) var top: CGFloat = 0
+        var leading: CGFloat = 0
         /// Air set above and below each picture on the page, which is what centres one in its space.
         var imagePadding: CGFloat = 0
         var plate: Plate?
+        /// The page opens on the chapter's title, which leaves most of its air above the top edge.
+        var trimsTitle = false
     }
 
-    /// How deep a line stands on a page: its own depth, unless it is the plate that gave some up.
-    func depth(of line: Int, on page: Page) -> CGFloat {
-        guard let plate = page.plate, plate.line == line else { return lines[line].height }
+    public nonisolated let chapterId: Int
+    public let context: Context
 
-        return plate.height
-    }
+    let text: NSAttributedString
+    private let headingLength: Int
+    /// Where each paragraph stands in the text, its closing newline included.
+    private let paragraphs: [NSRange]
+    /// Where every soft hyphen stands in the text, which is all that parts a place in it from a
+    /// reading position.
+    private let softHyphens: [Int]
+    private let typesetting: @Sendable () -> NSAttributedString
+    private let setter: ColumnComposer.Setter
 
-    /// How large the picture on a line is drawn. What the line gave up the picture gave up, the spacing
-    /// under it being no part of the picture, and the width follows so the plate keeps its shape.
-    func pictureSize(of line: Int, on page: Page) -> CGSize {
-        let natural = lines[line].imageSize
-        let given = lines[line].height - depth(of: line, on: page)
+    /// The lines composed so far, in order, the first of them numbered `runStart`.
+    private var run: [ColumnComposer.Line] = []
+    private var runStart = 0
+    /// Which paragraphs those lines are, and the number of each one's first line.
+    private var composed = 0 ..< 0
+    private var paragraphStarts: [Int] = []
+    /// The composing under way, which the next one waits for so the run grows one piece at a time.
+    private var composing: Task<Void, Never>?
+    /// Each line's CoreText line, built the first time a page draws the line or looks into it.
+    private var drawnLines: [Int: CTLine] = [:]
+    /// How much of the air over the chapter's title goes where the title opens a page.
+    private var titleTrim: CGFloat = 0
 
-        guard given > 0, natural.height > 0 else { return natural }
+    /// Every page of a chapter laid out whole, which only ``make(chapterId:content:heading:context:startOffset:)``
+    /// fills. The reader cuts its pages one at a time instead.
+    public private(set) var pages: [Page] = []
 
-        let height = max(1, natural.height - given)
-
-        return CGSize(width: natural.width * (height / natural.height), height: height)
-    }
-
-    init(
+    private init(
         chapterId: Int,
         text: ChapterPagination.TypesetText,
         context: Context,
-        startOffset: CGFloat = 0,
-        columns: (any ColumnStore)? = nil
+        typesetting: @escaping @Sendable () -> NSAttributedString
     ) {
         self.chapterId = chapterId
         self.context = context
-        self.startOffset = max(0, startOffset)
-        self.columns = columns
-        self.headingLength = text.headingLength
         self.text = text.attributed
+        self.headingLength = text.headingLength
+        self.paragraphs = ColumnComposer.paragraphs(in: text.attributed)
+        self.softHyphens = Self.softHyphens(in: text.attributed.string as NSString)
+        self.typesetting = typesetting
+        self.setter = ColumnComposer.Setter(
+            typesetting: typesetting,
+            headingLength: text.headingLength,
+            size: context.textSize
+        )
     }
 
-    /// Lays a chapter out and cuts it into pages.
-    ///
-    /// The paragraphs are set away from the main actor, on every core at once; only cutting the column
-    /// into pages and drawing them happen here.
-    public static func make(
+    /// A chapter ready to be cut into pages anywhere: set as text, its pictures read, and none of it
+    /// composed yet.
+    public static func prepare(
         chapterId: Int,
         content: ChapterContent,
         heading: ChapterHeading,
-        context: Context,
-        startOffset: CGFloat = 0,
-        columns: (any ColumnStore)? = nil,
-        onProgress: (@MainActor (Double) -> Void)? = nil
+        context: Context
     ) async -> ChapterLayout {
         // The pictures are read off the device before anything is measured: a line as deep as a plate
         // cannot be set without knowing how deep the plate is.
@@ -259,174 +218,484 @@ public final class ChapterLayout {
                 images: images
             )
         }
-        let layout = ChapterLayout(
+
+        return ChapterLayout(
             chapterId: chapterId,
             text: typesetting(),
             context: context,
-            startOffset: startOffset,
-            columns: columns
+            typesetting: { typesetting().attributed }
         )
-        await layout.build(typesetting: { typesetting().attributed }, onProgress: onProgress)
+    }
+
+    /// A chapter composed whole and cut from its first line, for text that is shown all at once.
+    ///
+    /// - Parameter startOffset: how far down its first page the chapter begins.
+    public static func make(
+        chapterId: Int,
+        content: ChapterContent,
+        heading: ChapterHeading,
+        context: Context,
+        startOffset: CGFloat = 0
+    ) async -> ChapterLayout {
+        let layout = await prepare(chapterId: chapterId, content: content, heading: heading, context: context)
+
+        guard context.isUsable, !layout.isEmpty else { return layout }
+
+        layout.append(await ColumnComposer.compose(
+            paragraphs: layout.paragraphs,
+            typesetting: layout.typesetting,
+            headingLength: layout.headingLength,
+            size: context.textSize
+        ))
+        layout.pages = layout.cutWhole(top: max(0, startOffset))
         return layout
     }
 
-    /// True when laying this chapter out takes long enough that the reader should be told.
-    public var isLong: Bool { text.string.utf8.count > Self.progressThreshold }
+    /// True where the chapter has no text at all to set.
+    public var isEmpty: Bool { paragraphs.isEmpty }
 
-    private func build(
-        typesetting: @escaping @Sendable () -> NSAttributedString,
-        onProgress: (@MainActor (Double) -> Void)?
-    ) async {
-        guard context.isUsable, text.length > 0 else { return }
+    public var pageCount: Int { pages.count }
 
-        if let kept = await keptLines() {
-            lines = kept
-        } else {
-            lines = await ColumnComposer.compose(
-                paragraphs: ColumnComposer.paragraphs(in: text),
-                typesetting: typesetting,
-                headingLength: headingLength,
-                size: context.textSize,
-                onProgress: isLong ? onProgress : nil
-            )
-            await keep(lines)
+    // MARK: - The lines composed
+
+    /// The line a number names, which has to be one already composed.
+    func line(_ number: Int) -> ColumnComposer.Line { run[number - runStart] }
+
+    /// The chapter's first line, once the paragraph it stands in has been composed.
+    var firstLine: Int? { composed.lowerBound == 0 && !run.isEmpty ? runStart : nil }
+
+    /// The number past the chapter's last line, once the paragraph it ends has been composed.
+    var endLine: Int? { composed.upperBound == paragraphs.count && !run.isEmpty ? runStart + run.count : nil }
+
+    private var runEnd: Int { runStart + run.count }
+
+    /// Composes the paragraphs asked for, and every one between them and what already is.
+    private func compose(_ wanted: Range<Int>) async {
+        let previous = composing
+        let task = Task { [self] in
+            await previous?.value
+            await extend(to: wanted.clamped(to: 0 ..< paragraphs.count))
         }
 
-        dropTheAirAtTheTop()
-        await cutPages()
+        composing = task
+        await task.value
     }
 
-    /// Cuts the chapter again for a different opening offset.
+    private func extend(to wanted: Range<Int>) async {
+        guard !wanted.isEmpty else { return }
+
+        if composed.isEmpty {
+            composed = wanted.lowerBound ..< wanted.lowerBound
+            append(await setter.lines(of: Array(paragraphs[wanted])))
+            return
+        }
+
+        if wanted.lowerBound < composed.lowerBound {
+            prepend(await setter.lines(of: Array(paragraphs[wanted.lowerBound ..< composed.lowerBound])))
+        }
+
+        if wanted.upperBound > composed.upperBound {
+            append(await setter.lines(of: Array(paragraphs[composed.upperBound ..< wanted.upperBound])))
+        }
+    }
+
+    private func append(_ groups: [[ColumnComposer.Line]]) {
+        for group in groups {
+            paragraphStarts.append(runEnd)
+            run += group
+        }
+
+        composed = composed.lowerBound ..< composed.upperBound + groups.count
+        noteTheTitle()
+    }
+
+    private func prepend(_ groups: [[ColumnComposer.Line]]) {
+        var number = runStart - groups.reduce(0) { $0 + $1.count }
+        var starts: [Int] = []
+
+        runStart = number
+
+        for group in groups {
+            starts.append(number)
+            number += group.count
+        }
+
+        run.insert(contentsOf: groups.joined(), at: 0)
+        paragraphStarts.insert(contentsOf: starts, at: 0)
+        composed = composed.lowerBound - groups.count ..< composed.upperBound
+        noteTheTitle()
+    }
+
+    /// Works out how much of the air above the chapter's first line it gives up at the head of a page.
     ///
-    /// Only the first page's depth turns on that offset, so the column stands, the search's table
-    /// stands, and all that is worked out again is where the first page ends.
-    public func recut(startOffset: CGFloat) async {
-        guard startOffset != self.startOffset, !lines.isEmpty else { return }
+    /// A title keeps its air by standing in it, and at the top of a page there is nothing above it to
+    /// stand clear of: the eight lines a chapter keeps would push its title well down its own opening
+    /// page. Two are left, so the title is not hard against the top edge.
+    private func noteTheTitle() {
+        guard let first = firstLine else { return }
 
-        self.startOffset = startOffset
-        dropTheAirAtTheTop()
-        await cutPages()
+        let air = line(first).titleAir
+
+        titleTrim = air - min(air, TitleBlock.atTheTopOfAPage * context.style.pageLine)
     }
 
-    private func cutPages() async {
-        let cutting = cutter
-        let known = breaks
-        let offset = startOffset
-        let (found, cut) = await cutting.away(from: offset, using: known)
-
-        breaks = found
-        pages = cut.pages
-        pageRanges = cut.ranges
+    /// Composes forward from line `start` until `depth` of lines stand there, or the chapter ends.
+    private func compose(from start: Int, covering depth: CGFloat) async {
+        while composed.upperBound < paragraphs.count, self.depth(of: start ..< runEnd) < depth {
+            await compose(composed.lowerBound ..< composed.upperBound + batch(from: composed.upperBound, by: 1))
+        }
     }
 
-    /// The lines this chapter was broken into last time, where they were broken for this text at this
-    /// setting. Nothing else will do: the whole point of them is that they are what would be composed.
-    private func keptLines() async -> [ColumnComposer.Line]? {
-        guard
-            let columns,
-            let kept = await columns.column(chapterId: chapterId, fingerprint: keptUnder)
-        else {
-            return nil
+    /// Composes backward from line `limit` until `depth` of lines stand before it, or the chapter starts.
+    private func compose(to limit: Int, covering depth: CGFloat) async {
+        while composed.lowerBound > 0, self.depth(of: runStart ..< limit) < depth {
+            await compose(composed.lowerBound - batch(from: composed.lowerBound - 1, by: -1) ..< composed.upperBound)
+        }
+    }
+
+    /// How many paragraphs from `first` hold about a page of text, counting in the direction `step` goes.
+    private func batch(from first: Int, by step: Int) -> Int {
+        let style = context.style
+        let perLine = max(1, context.textSize.width / (style.fontSize * Self.averageAdvance))
+        let perPage = Int(perLine * max(1, context.textSize.height / style.pageLine))
+        var characters = 0
+        var index = first
+        var count = 0
+
+        while paragraphs.indices.contains(index), characters < perPage {
+            characters += paragraphs[index].length
+            count += 1
+            index += step
         }
 
-        let column = await Task.detached(priority: .userInitiated) { () -> ColumnComposer.Column? in
-            guard let unpacked = try? (kept as NSData).decompressed(using: .zlib) as Data else { return nil }
-
-            return try? JSONDecoder().decode(ColumnComposer.Column.self, from: unpacked)
-        }.value
-
-        guard let column, !column.lines.isEmpty else { return nil }
-
-        return column.lines
+        return max(1, count)
     }
 
-    private func keep(_ lines: [ColumnComposer.Line]) async {
-        guard let columns, !lines.isEmpty, ColumnComposer.isKeepable(lines) else { return }
+    /// How wide a character of running text is, against the type size. Only for guessing how many
+    /// paragraphs make a page; the guess is checked against the lines composed.
+    private static let averageAdvance: CGFloat = 0.5
 
-        let column = ColumnComposer.Column(lines: lines)
-        let squeezed = await Task.detached(priority: .utility) { () -> Data? in
-            guard let written = try? JSONEncoder().encode(column) else { return nil }
-
-            return try? (written as NSData).compressed(using: .zlib) as Data
-        }.value
-
-        guard let squeezed else { return }
-
-        await columns.store(column: squeezed, chapterId: chapterId, fingerprint: keptUnder)
+    private func depth(of numbers: Range<Int>) -> CGFloat {
+        numbers.reduce(CGFloat(0)) { $0 + line($1).height }
     }
 
-    /// What a kept column is filed against: the setting it was broken for, and the text it was broken
-    /// from, how that text is set included. The setting carries the rules version, so a change to how a
-    /// line is broken throws away every column kept under the old rules rather than drawing yesterday's
-    /// lines.
+    // MARK: - Cutting a page
+
+    /// How deep the stretch the cutter looks over runs: the page and the pages it is weighed against.
+    private func horizon(for room: CGFloat) -> CGFloat { room + PageCutter.lookahead * context.textSize.height }
+
+    /// The line that stands at a reading position, composing the paragraph it is in.
+    func line(at position: Int) async -> Int? {
+        guard !paragraphs.isEmpty else { return nil }
+
+        let laidOut = laidOutOffset(max(0, position))
+        let paragraph = paragraphIndex(containing: laidOut)
+
+        await compose(paragraph ..< paragraph + 1)
+
+        let numbers = lines(of: paragraph)
+
+        return numbers.first { laidOut < NSMaxRange(line($0).characters) } ?? numbers.last ?? nearestLine(to: paragraph)
+    }
+
+    /// The chapter's first line, composing the paragraphs at its head until one gives any.
+    func openingLine() async -> Int? {
+        var count = 1
+
+        while firstLine == nil, count <= paragraphs.count {
+            await compose(0 ..< count)
+            count += 1
+        }
+
+        return firstLine
+    }
+
+    /// The number past the chapter's last line, composing the paragraphs at its end until one gives any.
+    func closingLine() async -> Int? {
+        var count = 1
+
+        while endLine == nil, count <= paragraphs.count {
+            await compose(paragraphs.count - count ..< paragraphs.count)
+            count += 1
+        }
+
+        return endLine
+    }
+
+    /// The page that starts at line `start`, `top` points down the text.
     ///
-    /// The characters alone will not do. The same words held off both edges, or set apart in a face of
-    /// their own, break into altogether different lines, and a book read again from its file changes
-    /// how it is set far more often than it changes what it says.
-    private lazy var keptUnder: String = {
-        var hasher = SHA256()
-        let whole = NSRange(location: 0, length: text.length)
+    /// - Parameter opens: the page opens on the chapter's title, so the air above the title can go.
+    func page(from start: Int, top: CGFloat, opens: Bool) async -> Page {
+        await compose(from: start, covering: horizon(for: context.textSize.height - top))
 
-        hasher.update(data: Data(context.fingerprint.utf8))
-        hasher.update(data: Data(text.string.utf8))
-
-        text.enumerateAttribute(.paragraphStyle, in: whole) { value, range, _ in
-            let style = value as? NSParagraphStyle
-
-            hasher.update(data: Data(
-                """
-                \(range.location):\(range.length):\(style?.alignment.rawValue ?? -1)\
-                :\(style?.firstLineHeadIndent ?? 0):\(style?.headIndent ?? 0):\(style?.tailIndent ?? 0)\
-                :\(style?.lineSpacing ?? 0):\(style?.paragraphSpacing ?? 0)\
-                :\(style?.paragraphSpacingBefore ?? 0):\(style?.baseWritingDirection.rawValue ?? -1)
-                """.utf8
-            ))
-        }
-
-        // The faces a stretch was set in, which is how a phrase set apart reaches the width of its line.
-        text.enumerateAttribute(.font, in: whole) { value, range, _ in
-            let font = value as? UIFont
-
-            hasher.update(data: Data(
-                "\(range.location):\(range.length):\(font?.fontName ?? "—"):\(font?.pointSize ?? 0)".utf8
-            ))
-        }
-
-        return hasher.finalize().map { String(format: "%02x", $0) }.joined()
-    }()
-
-    /// Cuts the air above the chapter's first line back where the chapter starts a page of its own.
-    ///
-    /// A title keeps its air by standing in it, and at the head of a page there is nothing above it to
-    /// stand clear of: the eight lines a chapter keeps would push its title well down
-    /// its own opening page. Two are left, so the title is not hard against the top edge. A chapter
-    /// that runs on from the one before it keeps every bit of its air, which is the point of having it.
-    private func dropTheAirAtTheTop() {
-        guard startOffset == 0, let first = lines.indices.first, lines[first].titleAir > 0 else { return }
-
-        let kept = min(lines[first].titleAir, TitleBlock.atTheTopOfAPage * context.style.pageLine)
-        let dropped = lines[first].titleAir - kept
-
-        lines[first].height -= dropped
-        lines[first].baseline -= dropped
-        lines[first].titleAir = kept
+        return cut(from: start, top: top, opens: opens)
     }
 
-    // MARK: - Cutting the column into pages
+    /// The page that ends just before line `limit`, `room` deep.
+    ///
+    /// - Parameter opens: where the page turns out to open the chapter, it opens it at the top of a
+    ///   page rather than under the end of the chapter before.
+    func page(to limit: Int, room: CGFloat, opens: Bool) async -> Page {
+        await compose(to: limit, covering: horizon(for: room))
 
-    /// This chapter's column, flattened to what the cutting reads.
-    private var cutter: PageCutter {
-        PageCutter(
-            slugs: lines.map(\.slug),
+        return cut(to: limit, room: room, opens: opens)
+    }
+
+    private func cut(from start: Int, top: CGFloat, opens: Bool) -> Page {
+        let room = context.textSize.height - top
+        var reach = start
+        var covered: CGFloat = 0
+
+        while reach < runEnd, covered < horizon(for: room) {
+            covered += line(reach).height
+            reach += 1
+        }
+
+        let cutting = cutter(over: start ..< reach, trimsTitle: opens)
+        let limit = cutting.end(from: 0, room: room)
+        let page = cutting.page(
+            0 ..< limit,
+            room: room,
+            endsTheChapter: cutting.reachesEnd && limit == cutting.slugs.count,
+            opensTheChapter: false
+        )
+
+        return placed(page, from: start, top: top, trimsTitle: opens && start == firstLine)
+    }
+
+    private func cut(to limit: Int, room: CGFloat, opens: Bool) -> Page {
+        var from = limit
+        var covered: CGFloat = 0
+
+        while from > runStart, covered < horizon(for: room) {
+            from -= 1
+            covered += line(from).height
+        }
+
+        // The line after the page comes along where there is one, so the break at its foot can be judged.
+        let past = limit < runEnd ? limit + 1 : limit
+        let cutting = cutter(over: from ..< past, trimsTitle: opens)
+        let local = limit - from
+        let start = cutting.start(to: local, room: room)
+        let opensTheChapter = cutting.reachesStart && start == 0
+        let page = cutting.page(
+            start ..< local,
+            room: room,
+            endsTheChapter: limit == endLine,
+            opensTheChapter: opensTheChapter
+        )
+
+        return placed(page, from: from, top: 0, trimsTitle: opens && opensTheChapter)
+    }
+
+    /// A cutter over a stretch of composed lines.
+    private func cutter(over numbers: Range<Int>, trimsTitle: Bool) -> PageCutter {
+        let style = context.style
+        var slugs = numbers.map { line($0).slug }
+
+        if trimsTitle, let first = firstLine, numbers.contains(first) {
+            slugs[first - numbers.lowerBound].height -= titleTrim
+            slugs[first - numbers.lowerBound].leastHeight -= titleTrim
+        }
+
+        return PageCutter(
+            slugs: slugs,
             depth: context.textSize.height,
-            pageLine: context.style.pageLine,
-            referenceLineHeight: max(1, context.style.fontSize + context.style.lineSpacing)
+            pageLine: style.pageLine,
+            referenceLineHeight: max(1, style.fontSize + style.lineSpacing),
+            reachesEnd: numbers.upperBound == endLine,
+            reachesStart: numbers.lowerBound == firstLine
         )
     }
 
-    private func height(ofPageAt index: Int) -> CGFloat {
-        context.textSize.height - (index == 0 ? startOffset : 0)
+    /// A page the cutter made over a stretch starting at line `base`, as it stands in the chapter.
+    private func placed(_ cut: Page, from base: Int, top: CGFloat, trimsTitle: Bool) -> Page {
+        var page = cut
+
+        page.lines = cut.lines.lowerBound + base ..< cut.lines.upperBound + base
+        page.top = cut.top + top
+        page.plate = cut.plate.map { Page.Plate(line: $0.line + base, height: $0.height) }
+        page.trimsTitle = trimsTitle
+        return page
     }
+
+    /// Every page of the chapter, cut one after another from its first line.
+    private func cutWhole(top: CGFloat) -> [Page] {
+        guard let first = firstLine, let end = endLine else { return [] }
+
+        var pages: [Page] = []
+        var start = first
+        var top = top
+
+        while start < end {
+            let page = cut(from: start, top: top, opens: start == first && top == 0)
+
+            pages.append(page)
+            start = page.lines.upperBound
+            top = 0
+        }
+
+        return pages
+    }
+
+    /// The same lines standing somewhere else on a page: at their own spacing, from `top` down.
+    ///
+    /// A chapter's opening cut from behind is made to stand on a page of its own, and is moved down
+    /// under the end of the chapter before it where the two share the page instead.
+    func moved(_ page: Page, to top: CGFloat) -> Page {
+        var moved = page
+
+        moved.top = top
+        moved.leading = 0
+        moved.imagePadding = 0
+        moved.trimsTitle = false
+        return moved
+    }
+
+    /// True where a page carries the chapter's last line.
+    func ends(_ page: Page) -> Bool { page.lines.upperBound == endLine }
+
+    /// True where a page carries the chapter's first line.
+    func opens(_ page: Page) -> Bool { page.lines.lowerBound == firstLine }
+
+    /// How far down the text a page's lines reach, the room above them included.
+    public func bottom(of page: Page) -> CGFloat {
+        let depths = page.lines.reduce(CGFloat(0)) { total, number in
+            total + depth(of: number, on: page) + (line(number).image != nil ? page.imagePadding * 2 : 0)
+        }
+
+        return page.top + depths + CGFloat(max(0, page.lines.count - 1)) * page.leading
+    }
+
+    /// How deep a line stands on a page: less than its own for the plate that gave some up, or for the
+    /// title that left its air above the top of the page.
+    func depth(of number: Int, on page: Page) -> CGFloat {
+        if let plate = page.plate, plate.line == number { return plate.height }
+
+        return line(number).height - trim(of: number, on: page)
+    }
+
+    /// Where a line's baseline stands below its own top on a page.
+    func baseline(of number: Int, on page: Page) -> CGFloat {
+        line(number).baseline - trim(of: number, on: page)
+    }
+
+    private func trim(of number: Int, on page: Page) -> CGFloat {
+        page.trimsTitle && number == page.lines.lowerBound && number == firstLine ? titleTrim : 0
+    }
+
+    /// How large the picture on a line is drawn. What the line gave up the picture gave up, the spacing
+    /// under it being no part of the picture, and the width follows so the plate keeps its shape.
+    func pictureSize(of number: Int, on page: Page) -> CGSize {
+        let natural = line(number).imageSize
+        let given = line(number).height - depth(of: number, on: page)
+
+        guard given > 0, natural.height > 0 else { return natural }
+
+        let height = max(1, natural.height - given)
+
+        return CGSize(width: natural.width * (height / natural.height), height: height)
+    }
+
+    // MARK: - Paragraphs and positions
+
+    private func paragraphIndex(containing laidOut: Int) -> Int {
+        var low = 0
+        var high = paragraphs.count - 1
+
+        while low < high {
+            let middle = (low + high + 1) / 2
+
+            if paragraphs[middle].location <= laidOut { low = middle } else { high = middle - 1 }
+        }
+
+        return low
+    }
+
+    /// The numbers of a composed paragraph's lines.
+    private func lines(of paragraph: Int) -> Range<Int> {
+        guard composed.contains(paragraph) else { return runStart ..< runStart }
+
+        let index = paragraph - composed.lowerBound
+        let end = index + 1 < paragraphStarts.count ? paragraphStarts[index + 1] : runEnd
+
+        return paragraphStarts[index] ..< end
+    }
+
+    /// The first line at or after a paragraph that gave none of its own.
+    private func nearestLine(to paragraph: Int) -> Int? {
+        run.isEmpty ? nil : min(max(runStart, lines(of: paragraph).lowerBound), runEnd - 1)
+    }
+
+    /// How far the chapter's own text runs, counted the way a reading position is.
+    public var sourceLength: Int { sourceOffset(text.length) }
+
+    /// Where a page starts, counted the way a reading position is.
+    public func startOffset(of page: Page) -> Int { sourceOffset(line(page.lines.lowerBound).characters.location) }
+
+    /// Where a page stops, counted the way a reading position is.
+    public func endOffset(of page: Page) -> Int {
+        sourceOffset(NSMaxRange(line(page.lines.upperBound - 1).characters))
+    }
+
+    /// Which of the pages of a chapter laid out whole a reading position falls on.
+    public func pageIndex(containing position: Int) -> Int {
+        let laidOut = laidOutOffset(position)
+
+        return pages.firstIndex { NSLocationInRange(laidOut, range(of: $0)) } ?? max(0, pages.count - 1)
+    }
+
+    /// The stretch of the text a page covers.
+    func range(of page: Page) -> NSRange {
+        let first = line(page.lines.lowerBound).characters
+        let last = line(page.lines.upperBound - 1).characters
+
+        return NSRange(location: first.location, length: NSMaxRange(last) - first.location)
+    }
+
+    /// A position is counted in the text as it arrived, not in the text as it was set.
+    ///
+    /// Justified text carries a soft hyphen at every break the dictionary allows, roughly one character
+    /// in eight. Counting those would move a stored position whenever the alignment changed, which is
+    /// the one thing a stored position must never do.
+    private func sourceOffset(_ laidOut: Int) -> Int {
+        let bounded = min(max(0, laidOut), text.length)
+
+        return bounded - hyphens(before: bounded)
+    }
+
+    /// The first place in the set text where `source` characters of the text as it arrived stand behind.
+    private func laidOutOffset(_ source: Int) -> Int {
+        var low = max(0, min(source, text.length))
+        var high = min(text.length, max(0, source) + softHyphens.count)
+
+        while low < high {
+            let middle = (low + high) / 2
+
+            if sourceOffset(middle) < source { low = middle + 1 } else { high = middle }
+        }
+
+        return low
+    }
+
+    private func hyphens(before laidOut: Int) -> Int {
+        var low = 0
+        var high = softHyphens.count
+
+        while low < high {
+            let middle = (low + high) / 2
+
+            if softHyphens[middle] < laidOut { low = middle + 1 } else { high = middle }
+        }
+
+        return low
+    }
+
+    private static func softHyphens(in string: NSString) -> [Int] {
+        (0 ..< string.length).filter { string.character(at: $0) == softHyphen }
+    }
+
+    private static let softHyphen = unichar(0x00AD)
 
     // MARK: - What the reader asks for
 
@@ -458,15 +727,19 @@ public final class ChapterLayout {
         public var baseline: CGFloat
     }
 
-    /// The lines that fall on one page, in the order they were set.
-    public func typesetLines(onPage index: Int) -> [TypesetLine] {
-        guard pages.indices.contains(index) else { return [] }
+    /// The lines that fall on a page, in the order they were set.
+    public func typesetLines(on page: Page) -> [TypesetLine] {
+        page.lines.map { number in
+            var typeset = described(line(number))
 
-        return pages[index].lines.map { described(lines[$0]) }
+            typeset.height = depth(of: number, on: page)
+            typeset.baseline = baseline(of: number, on: page)
+            return typeset
+        }
     }
 
-    /// Every line of the chapter, in the order it was set.
-    public var typesetLines: [TypesetLine] { lines.map { described($0) } }
+    /// Every line of the chapter composed so far, in the order it was set.
+    public var typesetLines: [TypesetLine] { run.map { described($0) } }
 
     private func described(_ line: ColumnComposer.Line) -> TypesetLine {
         TypesetLine(
@@ -490,79 +763,20 @@ public final class ChapterLayout {
     ///
     /// What decides whether a chapter may share the page the one before it ended on: the free space
     /// says nothing on its own, because a heading is far taller than the lines it is measured in.
-    public func bodyLineCount(onPage index: Int) -> Int {
-        guard pages.indices.contains(index) else { return 0 }
-
-        return lines[pages[index].lines].filter { !$0.isHeading }.count
+    public func bodyLineCount(on page: Page) -> Int {
+        page.lines.count { !line($0).isHeading }
     }
-
-    public var pageCount: Int { pages.count }
-
-    public var isEmpty: Bool { pages.isEmpty }
-
-    /// What is left on the last page, for deciding whether the next chapter can run on from here.
-    public var tailFreeSpace: CGFloat {
-        guard let page = pages.last else { return 0 }
-
-        let used = page.lines.reduce(CGFloat(0)) { $0 + lines[$1].height }
-        return max(0, height(ofPageAt: pages.count - 1) - used)
-    }
-
-    /// The page a character offset falls on, so a change of font keeps the reader's place.
-    public func pageIndex(containing offset: Int) -> Int {
-        let laidOut = laidOutOffset(offset)
-        return pageRanges.firstIndex { NSLocationInRange(laidOut, $0) } ?? max(0, min(offset, pageCount - 1))
-    }
-
-    /// How far the chapter's own text runs, counted the way a reading position is.
-    public var sourceLength: Int { sourceOffset((text.string as NSString).length) }
-
-    public func characterOffset(ofPage index: Int) -> Int {
-        pageRanges.indices.contains(index) ? sourceOffset(pageRanges[index].location) : 0
-    }
-
-    /// A position is counted in the text as it arrived, not in the text as it was set.
-    ///
-    /// Justified text carries a soft hyphen at every break the dictionary allows, roughly one character
-    /// in eight. Counting those would move a stored position whenever the alignment changed, which is
-    /// the one thing a stored position must never do.
-    private func sourceOffset(_ laidOut: Int) -> Int {
-        let string = text.string as NSString
-        var result = 0
-
-        for index in 0 ..< min(laidOut, string.length) where string.character(at: index) != Self.softHyphen {
-            result += 1
-        }
-
-        return result
-    }
-
-    private func laidOutOffset(_ source: Int) -> Int {
-        let string = text.string as NSString
-        var remaining = source
-        var index = 0
-
-        while index < string.length, remaining > 0 {
-            if string.character(at: index) != Self.softHyphen { remaining -= 1 }
-
-            index += 1
-        }
-
-        return index
-    }
-
-    private static let softHyphen = unichar(0x00AD)
 
     /// A line's CoreText line, set from the chapter's own text the first time anything asks for it.
-    func drawnLine(_ index: Int) -> CTLine? {
-        if let held = drawnLines[index] { return held }
+    func drawnLine(_ number: Int) -> CTLine? {
+        if let held = drawnLines[number] { return held }
 
         guard
-            let setting = lines[index].setting,
+            let setting = line(number).setting,
             let built = ParagraphRuler.line(in: text, setting: setting)
         else { return nil }
 
-        drawnLines[index] = built
+        drawnLines[number] = built
         return built
     }
 
@@ -570,21 +784,22 @@ public final class ChapterLayout {
     ///
     /// The text matrix is flipped because a UIKit context counts downwards and CoreText sets glyphs
     /// upwards; without it every line draws on its head.
-    public func draw(page index: Int) {
-        guard pages.indices.contains(index), let drawing = UIGraphicsGetCurrentContext() else { return }
+    public func draw(_ page: Page) {
+        guard let drawing = UIGraphicsGetCurrentContext() else { return }
 
-        let page = pages[index]
-        var cursor = context.textRect.minY + (index == 0 ? startOffset : 0)
+        var cursor = context.textRect.minY + page.top
 
         drawing.saveGState()
         drawing.textMatrix = CGAffineTransform(scaleX: 1, y: -1)
 
-        for line in page.lines {
-            if let picture = lines[line].image {
+        for number in page.lines {
+            let line = self.line(number)
+
+            if let picture = line.image {
                 // The picture is centred in everything the page gave it, its own line's spacing
                 // included, so what stands above it matches what stands below.
-                let size = pictureSize(of: line, on: page)
-                let allotted = depth(of: line, on: page) + page.imagePadding * 2
+                let size = pictureSize(of: number, on: page)
+                let allotted = depth(of: number, on: page) + page.imagePadding * 2
                 let top = cursor + (allotted - size.height) / 2
                 // Centred on the measure rather than on where it was set, since a plate that gave up
                 // depth gave up width with it.
@@ -599,15 +814,15 @@ public final class ChapterLayout {
                 continue
             }
 
-            if let drawn = drawnLine(line) {
+            if let drawn = drawnLine(number) {
                 drawing.textPosition = CGPoint(
-                    x: context.textRect.minX + lines[line].origin,
-                    y: cursor + lines[line].baseline
+                    x: context.textRect.minX + line.origin,
+                    y: cursor + baseline(of: number, on: page)
                 )
                 CTLineDraw(drawn, drawing)
             }
 
-            cursor += lines[line].height + page.leading
+            cursor += depth(of: number, on: page) + page.leading
         }
 
         drawing.restoreGState()
@@ -618,59 +833,37 @@ public final class ChapterLayout {
     /// Walked the same way the page is drawn, so what a finger finds is what the reader can see. The
     /// marker carries the note on its own glyph run, which saves counting characters back through the
     /// soft hyphens the line was set with.
-    public func note(at point: CGPoint, onPage index: Int) -> NoteHit? {
-        guard pages.indices.contains(index) else { return nil }
+    public func note(at point: CGPoint, on page: Page) -> NoteHit? {
+        guard
+            let placed = placedLines(on: page).first(where: { point.y >= $0.edge && point.y < $0.edge + $0.height }),
+            let drawn = drawnLine(placed.index)
+        else { return nil }
 
-        let page = pages[index]
-        var cursor = context.textRect.minY + (index == 0 ? startOffset : 0)
+        let origin = context.textRect.minX + line(placed.index).origin
 
-        for line in page.lines {
-            let deep = depth(of: line, on: page)
-            let allotted = deep + (lines[line].image != nil ? page.imagePadding * 2 : 0)
+        guard let found = note(at: point.x - origin, in: drawn) else { return nil }
 
-            defer { cursor += allotted + page.leading }
-
-            guard point.y >= cursor, point.y < cursor + allotted, let drawn = drawnLine(line) else { continue }
-
-            let origin = context.textRect.minX + lines[line].origin
-
-            guard let found = note(at: point.x - origin, in: drawn) else { return nil }
-
-            return NoteHit(
-                id: found.id,
-                rect: CGRect(x: origin + found.start, y: cursor, width: found.width, height: deep)
-            )
-        }
-
-        return nil
+        return NoteHit(
+            id: found.id,
+            rect: CGRect(x: origin + found.start, y: placed.edge, width: found.width, height: placed.height)
+        )
     }
 
     /// The link a finger found on a page, or nothing where it landed on ordinary words.
-    public func link(at point: CGPoint, onPage index: Int) -> LinkHit? {
-        guard pages.indices.contains(index) else { return nil }
+    public func link(at point: CGPoint, on page: Page) -> LinkHit? {
+        guard
+            let placed = placedLines(on: page).first(where: { point.y >= $0.edge && point.y < $0.edge + $0.height }),
+            let drawn = drawnLine(placed.index)
+        else { return nil }
 
-        let page = pages[index]
-        var cursor = context.textRect.minY + (index == 0 ? startOffset : 0)
+        let origin = context.textRect.minX + line(placed.index).origin
 
-        for line in page.lines {
-            let deep = depth(of: line, on: page)
-            let allotted = deep + (lines[line].image != nil ? page.imagePadding * 2 : 0)
+        guard let found = link(at: point.x - origin, in: drawn) else { return nil }
 
-            defer { cursor += allotted + page.leading }
-
-            guard point.y >= cursor, point.y < cursor + allotted, let drawn = drawnLine(line) else { continue }
-
-            let origin = context.textRect.minX + lines[line].origin
-
-            guard let found = link(at: point.x - origin, in: drawn) else { return nil }
-
-            return LinkHit(
-                target: found.target,
-                rect: CGRect(x: origin + found.start, y: cursor, width: found.width, height: deep)
-            )
-        }
-
-        return nil
+        return LinkHit(
+            target: found.target,
+            rect: CGRect(x: origin + found.start, y: placed.edge, width: found.width, height: placed.height)
+        )
     }
 
     /// A link found in a line: where it points, and where along the line its words stand.
@@ -712,13 +905,11 @@ public final class ChapterLayout {
     ///
     /// Drawn text is invisible to VoiceOver, so a marker cannot be reached by touch there. The reader
     /// offers these as actions on the page instead.
-    public func notes(onPage index: Int) -> [String] {
-        guard pages.indices.contains(index) else { return [] }
-
+    public func notes(on page: Page) -> [String] {
         var result: [String] = []
 
-        for line in pages[index].lines {
-            guard let runs = drawnLine(line).flatMap({ CTLineGetGlyphRuns($0) as? [CTRun] }) else { continue }
+        for number in page.lines {
+            guard let runs = drawnLine(number).flatMap({ CTLineGetGlyphRuns($0) as? [CTRun] }) else { continue }
 
             for glyphs in runs {
                 let attributes = CTRunGetAttributes(glyphs) as NSDictionary
@@ -757,7 +948,6 @@ public final class ChapterLayout {
         return nil
     }
 
-    /// The page's text, for VoiceOver and for the reader's own accessibility label.
     /// The chapter's own words over a stretch of it, counted the way a reading position and a mark are.
     ///
     /// Exactly what an offset skips comes out, and nothing else: a character an offset counts has to
@@ -788,25 +978,24 @@ public final class ChapterLayout {
         return NSRange(location: start, length: max(0, end - start))
     }
 
-    /// The line a position stands on, where that line stands on this page.
+    /// The line a position stands on, where that line stands on a page.
     ///
     /// A position between two lines takes the one after it, so a mark made at the head of a paragraph
     /// stands against its first line rather than against the end of the paragraph before.
-    public func line(atPosition position: Int, onPage index: Int) -> PlacedLine? {
+    public func line(atPosition position: Int, on page: Page) -> PlacedLine? {
         let laidOut = laidOutOffset(position)
-        let placed = placedLines(onPage: index)
+        let placed = placedLines(on: page)
 
-        return placed.first { NSLocationInRange(laidOut, lines[$0.index].characters) }
-            ?? placed.first { laidOut <= lines[$0.index].characters.location }
+        return placed.first { NSLocationInRange(laidOut, line($0.index).characters) }
+            ?? placed.first { laidOut <= line($0.index).characters.location }
     }
 
-    public func pageText(_ index: Int) -> String {
-        guard pageRanges.indices.contains(index) else { return "" }
-
+    /// The page's text, for VoiceOver and for the reader's own accessibility label.
+    public func pageText(_ page: Page) -> String {
         // Without stripping them, VoiceOver reads a page full of soft hyphens. A picture is drawn and
         // so invisible to it, and is named instead: the page says one is there rather than skipping it.
-        return (text.string as NSString)
-            .substring(with: pageRanges[index])
+        (text.string as NSString)
+            .substring(with: range(of: page))
             .replacingOccurrences(of: String(Typography.softHyphen), with: "")
             .replacingOccurrences(of: "\u{2060}", with: "")
             .replacingOccurrences(

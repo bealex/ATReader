@@ -66,7 +66,7 @@ struct IllustratedBookTests {
             let layout = await Self.layout(chapter, theme: .paper)
 
             for page in 0 ..< layout.pageCount {
-                let lines = layout.typesetLines(onPage: page)
+                let lines = layout.typesetLines(on: layout.pages[page])
                 let depth = lines.reduce(CGFloat(0)) { $0 + $1.height }
                 // A page may pull its gaps in to take one more line, so it can stand a little deeper
                 // than its measure before anything is actually running off it.
@@ -105,7 +105,7 @@ struct IllustratedBookTests {
 
             let layout = await Self.layout(chapter, theme: theme, monochrome: monochrome)
             let pages = (0 ..< layout.pageCount).filter { page in
-                layout.typesetLines(onPage: page).contains { $0.isImage }
+                layout.typesetLines(on: layout.pages[page]).contains { $0.isImage }
             }
 
             for page in pages.prefix(1) {
@@ -153,7 +153,7 @@ struct IllustratedBookTests {
 
         let layout = await Self.layout(first, theme: .paper)
         let pages = (0 ..< layout.pageCount).filter { page in
-            layout.typesetLines(onPage: page).contains { $0.isImage }
+            layout.typesetLines(on: layout.pages[page]).contains { $0.isImage }
         }
 
         #expect(!pages.isEmpty)
@@ -280,7 +280,7 @@ struct IllustratedBookTests {
         UIGraphicsImageRenderer(size: context.pageSize).image { drawing in
             UIColor(theme.background).setFill()
             drawing.fill(CGRect(origin: .zero, size: context.pageSize))
-            layout.draw(page: page)
+            layout.draw(layout.pages[page])
         }
     }
 }

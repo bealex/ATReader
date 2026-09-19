@@ -31,13 +31,13 @@ struct SceneBreakPagingTests {
         )
     }
 
-    private func cut(_ slugs: [PageCutter.Slug], depth: CGFloat) -> PageCutter.Cut {
+    private func cut(_ slugs: [PageCutter.Slug], depth: CGFloat) -> CutPages {
         let cutter = PageCutter(slugs: slugs, depth: depth, pageLine: Self.line, referenceLineHeight: Self.line)
 
-        return cutter.cut(from: 0, using: cutter.search())
+        return cutter.cutFromTheStart()
     }
 
-    private func opensOnABreak(_ laid: PageCutter.Cut, _ slugs: [PageCutter.Slug]) -> Bool {
+    private func opensOnABreak(_ laid: CutPages, _ slugs: [PageCutter.Slug]) -> Bool {
         laid.pages.dropFirst().contains { slugs[$0.lines.lowerBound].isSceneBreak }
     }
 

@@ -115,7 +115,7 @@ struct PageRenderTests {
                 drawing.fill(CGRect(x: x, y: 0, width: 0.5, height: rect.height))
             }
 
-            layout.draw(page: page)
+            layout.draw(layout.pages[page])
         }
     }
 }

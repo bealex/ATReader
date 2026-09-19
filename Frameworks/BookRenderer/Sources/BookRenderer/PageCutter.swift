@@ -6,16 +6,20 @@
 import CoreGraphics
 import Foundation
 
-/// Cuts a chapter's column into pages.
+/// Cuts one page out of a stretch of a chapter's lines, forwards from where the page starts or
+/// backwards from where it ends.
 ///
-/// All of it is arithmetic over one line's depth and the handful of things a rule asks about a line,
-/// so it takes a flattened copy of the column and runs away from the main actor. Cutting a chapter
-/// there is what took the gestures off the reader while the book behind them was being measured.
+/// Only the lines near a page are composed, so the page is chosen against the few pages beside it
+/// rather than against the whole chapter. Every run of breaks over the stretch is costed, a page's
+/// shortfall counted in lines and squared, and the page at the near end of the cheapest run is the one
+/// cut. Squaring shares a loss out between pages instead of leaving the page a rule bit to pay all of
+/// it, and breaking a rule costs so much more than any unevenness that the rules still decide where a
+/// page may break.
 struct PageCutter: Sendable {
     /// One line, flattened to what the cutting reads.
     ///
-    /// A `ColumnComposer.Line` carries a picture and a string, so each of the hundreds of thousands of
-    /// reads the search makes would be two reference counts on top of the comparison it came for.
+    /// A `ColumnComposer.Line` carries a picture and a string, so each of the many reads the search
+    /// makes would be two reference counts on top of the comparison it came for.
     struct Slug: Sendable {
         var characters: NSRange
         /// How deep the line stands, the space under it included.
@@ -34,12 +38,6 @@ struct PageCutter: Sendable {
         var isSceneBreak: Bool = false
     }
 
-    /// Where the pages fall and what each one covers.
-    struct Cut: Sendable {
-        var pages: [ChapterLayout.Page] = []
-        var ranges: [NSRange] = []
-    }
-
     let slugs: [Slug]
     /// How deep a full page runs.
     let depth: CGFloat
@@ -47,143 +45,85 @@ struct PageCutter: Sendable {
     let pageLine: CGFloat
     /// The depth of an ordinary line of the body, which is the unit a page's shortfall is counted in.
     let referenceLineHeight: CGFloat
+    /// The slugs run to the chapter's last line, so a page ending with them ends the chapter.
+    var reachesEnd = true
+    /// The slugs start at the chapter's first line.
+    var reachesStart = true
 
-    /// The cheapest run of breaks from each line of the chapter to its end, for every line but the first.
+    /// How many pages past the one being cut the search looks at, which is how far a loss is shared.
+    static let lookahead: CGFloat = 2
+
+    // MARK: - Where a page breaks
+
+    /// Where the page starting at slug `start` ends, `room` deep.
     ///
-    /// Only a chapter's first page is ever short, and only where the chapter before it left it
-    /// something, so every row of the search but its first is the same wherever the chapter starts. A
-    /// chapter that runs on and turns out to need a page of its own is cut again from this rather than
-    /// searched a second time.
-    struct Breaks: Sendable {
-        fileprivate var best: [Double] = []
-        fileprivate var next: [Int] = []
-    }
-
-    /// The cut, made off the main actor, with the search's table to cut from again.
-    func away(from startOffset: CGFloat, using known: Breaks?) async -> (breaks: Breaks, cut: Cut) {
-        guard !slugs.isEmpty else { return (Breaks(), Cut()) }
-
-        return await Task.detached(priority: .userInitiated) {
-            let breaks = known ?? search()
-
-            return (breaks, cut(from: startOffset, using: breaks))
-        }.value
-    }
-
-    func cut(from startOffset: CGFloat, using breaks: Breaks) -> Cut {
-        guard !slugs.isEmpty else { return Cut() }
-
-        var cut = Cut()
-        var start = 0
-        var limit = firstBreak(from: startOffset, using: breaks)
-
-        while start < slugs.count, limit > start {
-            cut.pages.append(ChapterLayout.Page(lines: start ..< limit, leading: 0))
-            start = limit
-            limit = breaks.next[start]
-        }
-
-        for index in cut.pages.indices {
-            let available = depth - (index == 0 ? startOffset : 0)
-
-            cut.pages[index].plate = plate(on: cut.pages[index], available: available)
-
-            let spread = spacing(
-                for: cut.pages[index],
-                available: available,
-                endsTheChapter: index == cut.pages.count - 1
-            )
-
-            cut.pages[index].leading = spread.leading
-            cut.pages[index].imagePadding = spread.imagePadding
-        }
-
-        cut.ranges = cut.pages.map { page in
-            let first = slugs[page.lines.lowerBound].characters
-            let last = slugs[page.lines.upperBound - 1].characters
-
-            return NSRange(location: first.location, length: last.location + last.length - first.location)
-        }
-
-        return cut
-    }
-
-    // MARK: - Where the pages break
-
-    /// Where every page of the chapter breaks, chosen so the pages come out the same depth.
-    ///
-    /// Filling each page in turn and handing whatever a rule rejects to the next one is what left a page
-    /// four lines short between two full ones: wherever the rule bit, that page paid all of it. So every
-    /// run of breaks is costed instead, a page's shortfall counted in lines and squared, and the cheapest
-    /// run wins. Squaring is what shares the loss out, since one line missing from each of four pages
-    /// costs a quarter of what four missing from one does.
-    ///
-    /// The rules are not traded against depth. Breaking one costs so much more than any unevenness that
-    /// they still decide where a page may break, and evenness only chooses among the breaks they allow.
-    ///
-    /// The search runs back to the chapter's second line and stops. The first line is the only one whose
-    /// page can be short, so its row is worked out when the chapter is cut and the rest of the table
-    /// stands however the chapter opens.
-    func search() -> Breaks {
-        typealias Rules = ChapterLayout.Rules
-
+    /// Past the last slug the chapter goes on where the slugs don't reach its end, so a run may stop on
+    /// any page the remaining slugs would fit on: that page is finished by lines nobody has composed.
+    func end(from start: Int, room: CGFloat) -> Int {
         let count = slugs.count
+        let sums = runningDepths
         var best = [Double](repeating: .infinity, count: count + 1)
-        var next = [Int](repeating: count, count: count + 1)
-        best[count] = 0
 
-        for start in stride(from: count - 1, through: 1, by: -1) {
-            var used: CGFloat = 0
-            var limit = start + 1
+        if reachesEnd { best[count] = 0 }
 
-            while limit <= count {
-                used += slugs[limit - 1].height
-                let squeeze = CGFloat(limit - start - 1) * Rules.tightening
-                let filled = fitting(used, over: start ..< limit, in: depth + squeeze)
-
-                // Nothing longer will fit. One line always may, so a line taller than the page still
-                // lands on one instead of leaving the chapter with nowhere to break.
-                if filled == nil, limit > start + 1 { break }
-
-                let total = cost(from: start, to: limit, available: depth, used: filled ?? used) + best[limit]
-
-                if total < best[start] {
-                    best[start] = total
-                    next[start] = limit
-                }
-
-                limit += 1
+        for next in stride(from: count - 1, to: start, by: -1) {
+            if !reachesEnd, fits(next ..< count, sums: sums, in: depth) {
+                best[next] = 0
+                continue
             }
+
+            best[next] = cheapestPage(from: next, room: depth, best: best).cost
         }
 
-        return Breaks(best: best, next: next)
+        return cheapestPage(from: start, room: room, best: best).limit
     }
 
-    /// Where the chapter's first page ends: the one row of the search that depends on how much of that
-    /// page the chapter before it already used.
-    private func firstBreak(from startOffset: CGFloat, using breaks: Breaks) -> Int {
+    /// Where the page ending at slug `limit` starts, `room` deep.
+    ///
+    /// The mirror of ``end(from:room:)``. A page that opens the chapter may come out short, since that
+    /// is where a chapter read from behind begins: its lines stand at the foot of the page, and the
+    /// pages after it stay full.
+    func start(to limit: Int, room: CGFloat) -> Int {
+        guard limit > 1 else { return 0 }
+
+        let sums = runningDepths
+        var best = [Double](repeating: .infinity, count: limit + 1)
+
+        if reachesStart { best[0] = 0 }
+
+        for end in 1 ..< limit {
+            // A page ending here that the slugs would fit on is finished above them. The break at its
+            // foot still answers to the rules, since that break is one the reader sees.
+            if !reachesStart, fits(0 ..< end, sums: sums, in: depth) {
+                best[end] = Double(brokenRules(breakingAt: end, from: 0)) * ChapterLayout.Rules.brokenRule
+                continue
+            }
+
+            best[end] = cheapestPage(to: end, room: depth, best: best).cost
+        }
+
+        return cheapestPage(to: limit, room: room, best: best).start
+    }
+
+    private func cheapestPage(from start: Int, room: CGFloat, best: [Double]) -> (cost: Double, limit: Int) {
         typealias Rules = ChapterLayout.Rules
 
-        let count = slugs.count
-        let available = depth - startOffset
-        var cheapest = Double.infinity
-        var chosen = count
+        var chosen = (cost: Double.infinity, limit: start + 1)
         var used: CGFloat = 0
-        var limit = 1
+        var limit = start + 1
 
-        while limit <= count {
+        while limit <= slugs.count {
             used += slugs[limit - 1].height
-            let squeeze = CGFloat(limit - 1) * Rules.tightening
-            let filled = fitting(used, over: 0 ..< limit, in: available + squeeze)
+            let squeeze = CGFloat(limit - start - 1) * Rules.tightening
+            let filled = fitting(used, over: start ..< limit, in: room + squeeze)
 
-            if filled == nil, limit > 1 { break }
+            // Nothing longer will fit. One line always may, so a line taller than the page still lands
+            // on one instead of leaving the chapter with nowhere to break.
+            if filled == nil, limit > start + 1 { break }
 
-            let total = cost(from: 0, to: limit, available: available, used: filled ?? used) + breaks.best[limit]
+            let total = cost(from: start, to: limit, available: room, used: filled ?? used) + best[limit]
 
-            if total < cheapest {
-                cheapest = total
-                chosen = limit
-            }
+            if total < chosen.cost { chosen = (total, limit) }
 
             limit += 1
         }
@@ -191,13 +131,53 @@ struct PageCutter: Sendable {
         return chosen
     }
 
+    private func cheapestPage(to limit: Int, room: CGFloat, best: [Double]) -> (cost: Double, start: Int) {
+        typealias Rules = ChapterLayout.Rules
+
+        var chosen = (cost: Double.infinity, start: limit - 1)
+        var used: CGFloat = 0
+        var start = limit - 1
+
+        while start >= 0 {
+            used += slugs[start].height
+            let squeeze = CGFloat(limit - start - 1) * Rules.tightening
+            let filled = fitting(used, over: start ..< limit, in: room + squeeze)
+
+            if filled == nil, start < limit - 1 { break }
+
+            let opens = reachesStart && start == 0
+            let total = best[start] + cost(from: start, to: limit, available: room, used: filled ?? used, opens: opens)
+
+            if total < chosen.cost { chosen = (total, start) }
+
+            start -= 1
+        }
+
+        return chosen
+    }
+
+    /// How deep the slugs before each index stand, so a stretch's depth is a subtraction.
+    private var runningDepths: [CGFloat] {
+        var sums = [CGFloat](repeating: 0, count: slugs.count + 1)
+
+        for index in slugs.indices { sums[index + 1] = sums[index] + slugs[index].height }
+
+        return sums
+    }
+
+    private func fits(_ lines: Range<Int>, sums: [CGFloat], in room: CGFloat) -> Bool {
+        let used = sums[lines.upperBound] - sums[lines.lowerBound]
+        let squeeze = CGFloat(max(0, lines.count - 1)) * ChapterLayout.Rules.tightening
+
+        return fitting(used, over: lines, in: room + squeeze) != nil
+    }
+
     /// How deep the page over `lines` actually stands, letting the plate nearest its foot give up depth
     /// to finish it. Nil where not even that plate's floor will fit, which is where a page has to break
     /// earlier.
     ///
-    /// The plate is not always the last line: a scene break closing the passage stands under it, and
-    /// the reported page had exactly that. So the page is searched for one rather than only asking
-    /// whatever happens to be at the foot.
+    /// The plate is not always the last line: a scene break closing the passage can stand under it, so
+    /// the page is searched for one rather than only asking whatever happens to be at the foot.
     private func fitting(_ used: CGFloat, over lines: Range<Int>, in room: CGFloat) -> CGFloat? {
         guard used > room else { return used }
         guard let plate = givingPlate(in: lines) else { return nil }
@@ -215,20 +195,28 @@ struct PageCutter: Sendable {
     }
 
     /// What one page costs: the rules it breaks, and how far short of its measure it comes.
-    private func cost(from start: Int, to limit: Int, available: CGFloat, used: CGFloat) -> Double {
+    ///
+    /// A page ending the chapter stops where the text stops, and one opening it reached from behind
+    /// stands at the foot of its page, so neither is short of anything; only a stub of one is a fault.
+    private func cost(
+        from start: Int,
+        to limit: Int,
+        available: CGFloat,
+        used: CGFloat,
+        opens: Bool = false
+    ) -> Double {
         typealias Rules = ChapterLayout.Rules
 
         let count = limit - start
-        let endsTheChapter = limit == slugs.count
+        let endsTheChapter = reachesEnd && limit == slugs.count
         var penalty = Double(brokenRules(breakingAt: limit, from: start)) * Rules.brokenRule
 
         if count < Rules.minimumLines, !endsTheChapter { penalty += Rules.brokenRule }
 
         guard
-            !endsTheChapter
+            !endsTheChapter,
+            !opens
         else {
-            // A chapter ending in a line or two on a page of its own reads as a mistake, so the page
-            // before it is worth shortening to feed it.
             return penalty + Double(max(0, Rules.shortLastPage + 1 - count)) * Rules.thinLastPage
         }
 
@@ -238,8 +226,9 @@ struct PageCutter: Sendable {
 
     /// How many of a compositor's rules breaking here would break.
     private func brokenRules(breakingAt limit: Int, from start: Int) -> Int {
-        // The end of the chapter is where the text stops, not a break that has to answer for itself.
-        guard limit < slugs.count else { return 0 }
+        // The end of the slugs is where the text stops, or where nobody has composed on from, and
+        // neither is a break that has to answer for itself.
+        guard limit < slugs.count, limit > 0 else { return 0 }
 
         let last = slugs[limit - 1]
         let following = slugs[limit]
@@ -283,6 +272,35 @@ struct PageCutter: Sendable {
 
     // MARK: - What is left over
 
+    /// The page over `lines`, with its spare room shared out.
+    ///
+    /// A page that ends the chapter keeps its ragged foot: the text stops where the chapter stops. One
+    /// that opens the chapter from behind and is short of more than its gaps can take up sinks instead,
+    /// its lines standing at the foot so they run straight on to the page after it.
+    func page(_ lines: Range<Int>, room: CGFloat, endsTheChapter: Bool, opensTheChapter: Bool) -> ChapterLayout.Page {
+        typealias Rules = ChapterLayout.Rules
+
+        var page = ChapterLayout.Page(lines: lines)
+
+        page.plate = plate(on: page, available: room)
+
+        let spread = spacing(for: page, available: room, endsTheChapter: endsTheChapter)
+        let gaps = CGFloat(max(0, lines.count - 1))
+        let used = lines.reduce(CGFloat(0)) { $0 + depth(of: $1, on: page) }
+        let sinks = opensTheChapter && !endsTheChapter && room - used > gaps * Rules.loosening
+
+        guard
+            !sinks
+        else {
+            page.top = room - used
+            return page
+        }
+
+        page.leading = spread.leading
+        page.imagePadding = spread.imagePadding
+        return page
+    }
+
     /// Where a page's spare room goes: between its lines, and around the pictures standing on it.
     private struct Spacing {
         var leading: CGFloat = 0
@@ -297,10 +315,8 @@ struct PageCutter: Sendable {
         let gaps = page.lines.count - 1
         let used = page.lines.reduce(CGFloat(0)) { $0 + depth(of: $1, on: page) }
         let slack = available - used
-        // A page that ends a chapter keeps its ragged bottom: the text stops where the chapter stops,
-        // and opening its gaps would only put air between the last lines the reader sees. Everywhere
-        // else the lines take their share first, so a page of text carrying a picture comes down to the
-        // same depth as every other page.
+        // Everywhere but the end of a chapter the lines take their share first, so a page of text
+        // carrying a picture comes down to the same depth as every other page.
         let leading =
             endsTheChapter || gaps <= 0
             ? 0

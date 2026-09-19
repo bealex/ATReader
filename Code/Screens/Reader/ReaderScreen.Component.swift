@@ -191,32 +191,26 @@ enum ReaderScreen {
             pageArea($model)
                 .overlay {
                     if model.isOpening {
-                        openingCard(model.paginationProgress)
-                    } else if let message = model.errorMessage, model.layout == nil {
+                        openingCard
+                    } else if let message = model.errorMessage, model.currentSheet == nil {
                         ContentUnavailableView("Couldn’t open", systemImage: "book.closed", description: Text(message))
                     }
                 }
         }
 
-        /// The one thing the reader sees between tapping a book and reading it.
-        ///
-        /// Fetching the chapter and measuring the book are one wait to whoever is waiting, so they get
-        /// one card: the bar runs on its own until the measuring can say how far along it is.
+        /// The one thing the reader sees between tapping a book and reading it, which is fetching the
+        /// chapter it opens on where the device doesn't have it yet.
         ///
         /// On a card, because the first page it covers is the title page and a bar drawn straight onto
         /// the cover is unreadable. The page's own colours rather than a material, which would follow
         /// the system's light or dark instead of the theme the reader chose.
-        private func openingCard(_ progress: Double?) -> some View {
+        private var openingCard: some View {
             VStack(spacing: 12) {
                 Text("Setting the pages…")
                     .font(.subheadline.weight(.medium))
                     .foregroundStyle(settings.theme.foreground)
 
-                ProgressBar(value: progress, tint: settings.theme.foreground)
-
-                Text(progress?.formatted(.percent.precision(.fractionLength(0))) ?? " ")
-                    .font(.caption.monospacedDigit())
-                    .foregroundStyle(settings.theme.foreground.opacity(0.55))
+                ProgressBar(value: nil, tint: settings.theme.foreground)
             }
             .padding(.horizontal, 28)
             .padding(.vertical, 22)
@@ -231,32 +225,29 @@ enum ReaderScreen {
             .accessibilityElement(children: .ignore)
             .accessibilityIdentifier("reader.pagination")
             .accessibilityLabel("Setting the pages")
-            .accessibilityValue(progress?.formatted(.percent.precision(.fractionLength(0))) ?? "")
         }
 
         @ViewBuilder
         private func pageArea(_ model: Bindable<Model>) -> some View {
             let value = model.wrappedValue
 
+            // One sheet at a time: every turn lands past the end of it, and the model moves on a sheet.
             PageTurnView(
-                pageCount: value.sheetCount,
-                index: model.currentSheet,
-                hasPageBefore: value.hasPageBefore,
-                hasPageAfter: value.hasPageAfter,
-                onPastEnd: value.goToNextChapter,
-                onPastStart: value.goToPreviousChapter,
+                pageCount: 1,
+                index: .constant(0),
+                hasPageBefore: value.canTurnBack,
+                hasPageAfter: value.canTurnForward,
+                onPastEnd: value.turnForward,
+                onPastStart: value.turnBack,
                 onPageTap: { point in follow(point, in: value) },
                 onPickOut: { start, finish in pickOut(from: start, to: finish, in: value) },
                 onPickedOut: { withAnimation(CalloutMotion.showing) { picked = value.picked } },
                 isCovered: value.picked != nil || note != nil || isPageCovered,
                 onMiddleTap: toggleChrome,
-                onTurnStarted: {
-                    hideChrome()
-                    value.noteTurn()
-                },
+                onTurnStarted: hideChrome,
                 readsRightToLeft: value.readsRightToLeft,
                 advancesOnLeftTap: settings.advancesOnLeftTap,
-                page: { sheet in sheetContent(value, at: sheet) }
+                page: { step in sheetContent(value, at: step) }
             )
             .accessibilityIdentifier("reader.page")
             .ignoresSafeArea()
@@ -307,12 +298,12 @@ enum ReaderScreen {
         private func pickedBox(_ chosen: Model.PickedText?) -> CGRect? {
             guard let chosen, let bounds = CalloutPlacement.bounds(around: chosen.rects) else { return nil }
 
-            return spread.onSheet(bounds, column: column(of: chosen.page))
+            return spread.onSheet(bounds, column: column(of: chosen.pageId))
         }
 
         /// Which column of the spread a page stands in.
-        private func column(of page: Int) -> Int {
-            model?.pagesOnScreen.firstIndex(of: page) ?? 0
+        private func column(of pageId: String) -> Int {
+            model?.pagesOnScreen.firstIndex { $0.id == pageId } ?? 0
         }
 
         /// Opens a note where one was tapped. Reports whether there was one, since the page turns if not.
@@ -336,12 +327,13 @@ enum ReaderScreen {
         private func follow(_ point: CGPoint, in model: Model) -> Bool {
             let spread = spread
             let column = spread.column(containing: point.x)
-            let index = model.page(inColumn: column)
             let onPage = spread.onPage(point, column: column)
 
-            if show(model.note(at: onPage, onPage: index), in: column) { return true }
+            guard let page = model.page(inColumn: column) else { return false }
 
-            guard let target = model.link(at: onPage, onPage: index) else { return false }
+            if show(model.note(at: onPage, on: page), in: column) { return true }
+
+            guard let target = model.link(at: onPage, on: page) else { return false }
 
             model.follow(target)
             offerTheWayBack()
@@ -353,10 +345,12 @@ enum ReaderScreen {
             let spread = spread
             let column = spread.column(containing: start.x)
 
+            guard let page = model.page(inColumn: column) else { return }
+
             model.pickOut(
                 from: spread.onPage(start, column: column),
                 to: spread.onPage(finish, column: column),
-                onPage: model.page(inColumn: column)
+                on: page
             )
         }
 
@@ -564,43 +558,47 @@ enum ReaderScreen {
         private static let noteScale = 0.88
 
         /// One sheet, which is what a turn moves: a single page, or two standing side by side with the
-        /// binding between them.
+        /// binding between them. `step` says which: the one in front of the reader, or one either side.
         ///
         /// The pages are placed rather than stacked in a row, since each one is measured against its own
         /// width and a spread's outer margins are whatever the sheet had over.
         @ViewBuilder
-        private func sheetContent(_ model: Model, at sheet: Int) -> some View {
+        private func sheetContent(_ model: Model, at step: Int) -> some View {
             let spread = spread
             let alone = spread.columns == 1
+            let sheet = model.sheet(at: step)
+            let isCurrent = step == 0
 
             settings.theme.background
                 // Laid over, not stacked: a page as tall as the window would push the sheet off its corner.
                 .overlay(alignment: .topLeading) {
-                    ZStack(alignment: .topLeading) {
-                        ForEach(Array(model.pages(onSheet: sheet).enumerated()), id: \.offset) { column, index in
-                            pageContent(model, at: index, titled: alone)
-                                .frame(width: spread.pageSize.width, height: spread.pageSize.height)
-                                .offset(x: spread.origin(ofColumn: column))
+                    if let sheet {
+                        ZStack(alignment: .topLeading) {
+                            ForEach(Array(sheet.pages.enumerated()), id: \.offset) { column, page in
+                                pageContent(model, page: page, alone: alone, isCurrent: isCurrent)
+                                    .frame(width: spread.pageSize.width, height: spread.pageSize.height)
+                                    .offset(x: spread.origin(ofColumn: column))
+                            }
                         }
                     }
                 }
                 // One title over the spread rather than the same words twice, set in the middle of the
-                // sheet the way a printed book sets it across the opening.
+                // sheet the way a printed book sets it across the opening, and one line under it saying
+                // how far into the book the opening stands.
                 .overlay(alignment: .top) {
-                    if !alone, model.showsTitle(onSheet: sheet) {
-                        runningHead(model.bookTitle, edge: .head)
-                    }
+                    if !alone, sheet?.showsTitle == true { runningHead(model.bookTitle, edge: .head) }
+                }
+                .overlay(alignment: .bottom) {
+                    if !alone, let sheet { readingProgress(model, at: sheet.end, isCaption: isCurrent) }
                 }
         }
 
-        /// One page, drawn edge to edge: the text, the book's title above it and the page number below.
-        /// Both run with the page rather than sitting in chrome around it, so a turn moves everything.
+        /// One page, drawn edge to edge: the text, the book's title above it and how far into the book
+        /// it stands below. Both run with the page rather than sitting in chrome around it, so a turn
+        /// moves everything.
         @ViewBuilder
-        private func pageContent(_ model: Model, at index: Int, titled: Bool) -> some View {
-            let footer = model.caption(at: index, expanded: !isChromeHidden)
-            let isCurrent = index == model.currentPage
-
-            switch model.page(at: index) {
+        private func pageContent(_ model: Model, page: BookPage, alone: Bool, isCurrent: Bool) -> some View {
+            switch page.content {
                 case .title:
                     BookTitlePageView(
                         title: model.bookTitle,
@@ -612,33 +610,83 @@ enum ReaderScreen {
                         safeArea: spread.pageSafeArea
                     )
                     .background(settings.theme.background)
-                    .overlay(alignment: .bottom) { runningHead(footer, edge: .foot, isCaption: isCurrent) }
+                    .overlay(alignment: .bottom) {
+                        if alone { readingProgress(model, at: page.end, isCaption: isCurrent) }
+                    }
                 case let .text(pieces):
                     // Two pieces where a chapter starts on the page the one before it ended on. Each
                     // draws only its own lines, in its own place on the page.
                     ZStack {
                         ForEach(pieces) { piece in
-                            ChapterPageView(layout: piece.layout, pageIndex: piece.page)
+                            ChapterPageView(layout: piece.layout, page: piece.page)
                         }
 
-                        if model.picked?.page == index { picking(model) }
+                        if model.picked?.pageId == page.id { picking(model) }
 
-                        standingOn(model.foundRects(onPage: index))
+                        standingOn(model.foundRects(on: page))
 
                         GutterMarks(
-                            marks: model.marks(onPage: index),
+                            marks: model.marks(on: page),
                             textEdge: layoutContext.textRect.maxX,
                             pageWidth: spread.pageSize.width,
                             ink: settings.theme.foreground.opacity(Self.markInk)
                         )
                     }
                     .background(settings.theme.background)
-                    .overlay(alignment: .top) { if titled { runningHead(model.bookTitle, edge: .head) } }
-                    .overlay(alignment: .bottom) { runningHead(footer, edge: .foot, isCaption: isCurrent) }
-                case .blank:
-                    settings.theme.background
+                    .overlay(alignment: .top) { if alone { runningHead(model.bookTitle, edge: .head) } }
+                    .overlay(alignment: .bottom) {
+                        if alone { readingProgress(model, at: page.end, isCaption: isCurrent) }
+                    }
+                case .missing:
+                    ContentUnavailableView("Couldn’t load this chapter.", systemImage: "book.closed")
+                        .foregroundStyle(settings.theme.foreground)
+                        .background(settings.theme.background)
             }
         }
+
+        /// How far into the book a page stands: a bar, the share of the book behind the reader, and how
+        /// many pages the whole book runs to at this setting.
+        ///
+        /// Set on the line the running head stands on at the foot, in its type and ink.
+        private func readingProgress(_ model: Model, at position: BookPosition, isCaption: Bool) -> some View {
+            let size = runningHeadSize * Self.captionScale
+            let share = model.progress(at: position)
+            let percent = share.formatted(.percent.precision(.fractionLength(0)))
+            let ink = settings.theme.foreground.opacity(isChromeHidden ? 0.6 : 0.4)
+
+            return HStack(spacing: size * Self.progressSpacing) {
+                ProgressBar(value: share, tint: ink)
+                    .frame(width: layoutContext.textSize.width * Self.progressBarShare)
+
+                Text(verbatim: percent)
+
+                if let pages = model.bookPages {
+                    Text(verbatim: "(\(pages.formatted(.number)))")
+                }
+            }
+            .font(.system(size: size).monospacedDigit())
+            .foregroundStyle(ink)
+            .lineLimit(1)
+            .padding(.horizontal, settings.settledMargins)
+            .padding(.bottom, spread.pageSafeArea.bottom + RunningHead.air(layoutContext.runningHeadBand, size))
+            .frame(maxWidth: .infinity)
+            .accessibilityElement(children: .ignore)
+            .accessibilityAddTraits(.isStaticText)
+            .accessibilityLabel(
+                model.bookPages.map { String(localized: "\(percent) of the book, \($0) pages in all") }
+                    ?? String(localized: "\(percent) of the book")
+            )
+            // Only the sheet the reader is on names itself, so a turn never puts two of these on screen
+            // under the same identifier.
+            .accessibilityIdentifier(isCaption ? "reader.caption" : "")
+            .accessibilityHidden(!isCaption)
+        }
+
+        /// How much of the measure the bar takes.
+        private static let progressBarShare: CGFloat = 0.3
+
+        /// The air between the bar and the figures beside it, against the size they are set in.
+        private static let progressSpacing: CGFloat = 0.6
 
         /// A shade off the text's own ink: the mark is the reader's, not the book's.
         private static let markInk: CGFloat = 0.55
@@ -669,9 +717,9 @@ enum ReaderScreen {
             .accessibilityHidden(true)
         }
 
-        /// The book title above the text, or the page number below it.
+        /// The book title above the text.
         @ViewBuilder
-        private func runningHead(_ text: String?, edge: RunningHead.Edge, isCaption: Bool = false) -> some View {
+        private func runningHead(_ text: String?, edge: RunningHead.Edge) -> some View {
             if let text, !text.isEmpty {
                 RunningHead(
                     text: text,
@@ -684,10 +732,7 @@ enum ReaderScreen {
                     deviceInset: edge == .head ? spread.pageSafeArea.top : spread.pageSafeArea.bottom,
                     band: layoutContext.runningHeadBand
                 )
-                // Only the page the reader is on names itself, so a turn never puts two of these on
-                // screen under the same identifier.
-                .accessibilityIdentifier(isCaption ? "reader.caption" : "")
-                .accessibilityHidden(!isCaption)
+                .accessibilityHidden(true)
             }
         }
 
@@ -754,7 +799,7 @@ enum ReaderScreen {
         /// How long the controls take to fade in or out.
         private static let chromeFade: Double = 0.25
 
-        /// The page number sits a little smaller than the book's title above it.
+        /// How far into the book the page is sits a little smaller than the book's title above it.
         private static let captionScale: CGFloat = 0.9
 
         /// The reader's own controls, standing on the line the running head is set on.
@@ -985,11 +1030,9 @@ enum ReaderScreen {
                     \(context.safeArea.bottom), \(context.safeArea.trailing)
                     textSize: \(context.textSize.width) x \(context.textSize.height)
                     runningHeadBand: \(layoutContext.runningHeadBand)
-                    rulesVersion: \(ChapterLayout.rulesVersion)
                     typographyVersion: \(Typography.version)
-                    fingerprint: \(context.fingerprint)
                     chapter: \(model?.currentChapterId.map(String.init) ?? "nil")
-                    page: \((model?.currentPage ?? 0) + 1) of \(model?.pageCount ?? 0)
+                    offset: \(model?.currentSheet?.start.offset.description ?? "nil")
                     """
             }
         #endif

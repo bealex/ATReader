@@ -134,7 +134,7 @@ struct TitleBlockTests {
     func theHeadingKeepsTwoLinesAtTheTopOfItsOwnPage() async {
         let laid = await layout(of: "<p>Один</p><p>Два</p>")
 
-        guard let first = laid.typesetLines.first else {
+        guard let first = laid.pages.first.flatMap({ laid.typesetLines(on: $0).first }) else {
             Issue.record("the chapter came out empty")
             return
         }
@@ -144,7 +144,7 @@ struct TitleBlockTests {
         let runsOn = await layout(of: "<p>Один</p><p>Два</p>", startOffset: Self.context.textSize.height * 0.2)
         let reference = Self.context.style.pageLine
 
-        guard let carried = runsOn.typesetLines.first else {
+        guard let carried = runsOn.pages.first.flatMap({ runsOn.typesetLines(on: $0).first }) else {
             Issue.record("the running-on chapter came out empty")
             return
         }
@@ -168,7 +168,7 @@ struct TitleBlockTests {
         let laid = await layout(of: body + "<h2>Часть вторая</h2>" + rest)
 
         for page in 0 ..< laid.pageCount {
-            guard let first = laid.typesetLines(onPage: page).first else { continue }
+            guard let first = laid.typesetLines(on: laid.pages[page]).first else { continue }
 
             #expect(first.text.hasPrefix("Часть вторая") == false, "page \(page) opened on a title")
         }

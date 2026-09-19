@@ -33,8 +33,8 @@ struct BookmarkOffsetTests {
         let whole = BookSearch.fold(laid.sourceText)
 
         for page in 0 ..< laid.pageCount {
-            let start = laid.characterOffset(ofPage: page)
-            let end = page + 1 < laid.pageCount ? laid.characterOffset(ofPage: page + 1) : laid.sourceLength
+            let start = laid.startOffset(of: laid.pages[page])
+            let end = page + 1 < laid.pageCount ? laid.startOffset(of: laid.pages[page + 1]) : laid.sourceLength
             let words = laid.sourceText(in: start ..< min(end, start + Bookmark.wordsKept))
 
             let mark = Bookmark(

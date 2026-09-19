@@ -176,10 +176,10 @@ without storing anything belonging to the service.
 ## Reading
 
 The reader paginates rather than scrolls, breaks its own lines, and gives the page the whole screen:
-the book's title and the page number are drawn on the page itself, and a tap in the middle brings the
-controls back. Every arrangement of a paragraph's breaks is costed by how hard its lines have to be
-pushed to reach the measure, and the cheapest wins, so a line is neither pulled apart nor left holding
-too little. Pages break the way a compositor would, with no widows, orphans or hyphens left at the foot
+the book's title and how far into the book the page stands are drawn on the page itself, and a tap in
+the middle brings the controls back. Every arrangement of a paragraph's breaks is costed by how hard
+its lines have to be pushed to reach the measure, and the cheapest wins, so a line is neither pulled
+apart nor left holding too little. Pages break the way a compositor would, with no widows, orphans or hyphens left at the foot
 of a page, and a chapter starts on the page the one before it ended on when there's room for a decent
 piece of it. Hyphenation comes from the system dictionaries, in English and Russian, and a chapter's
 pictures are set in the column beside its text.

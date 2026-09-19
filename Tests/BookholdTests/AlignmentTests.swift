@@ -100,10 +100,4 @@ struct AlignmentTests {
         #expect(!body.isEmpty)
         #expect(justified == 0, "\(justified) lines were justified with the setting off")
     }
-
-    /// Measurements are kept against the setting, so the two must not share a key.
-    @Test
-    func theSettingChangesTheLayoutFingerprint() {
-        #expect(context(justifiesRussian: true).fingerprint != context(justifiesRussian: false).fingerprint)
-    }
 }

@@ -25,15 +25,15 @@ public extension ChapterLayout {
     }
 
     /// The word under a point on a page.
-    func word(at point: CGPoint, onPage index: Int) -> NSRange? {
-        words(from: point, to: point, onPage: index)
+    func word(at point: CGPoint, on page: Page) -> NSRange? {
+        words(from: point, to: point, on: page)
     }
 
     /// Everything between two points, opened out to whole words at either end.
-    func words(from start: CGPoint, to finish: CGPoint, onPage index: Int) -> NSRange? {
+    func words(from start: CGPoint, to finish: CGPoint, on page: Page) -> NSRange? {
         guard
-            let first = characterIndex(at: start, onPage: index),
-            let last = characterIndex(at: finish, onPage: index)
+            let first = characterIndex(at: start, on: page),
+            let last = characterIndex(at: finish, on: page)
         else { return nil }
 
         let lower = min(first, last)
@@ -47,11 +47,11 @@ public extension ChapterLayout {
     }
 
     /// Where a stretch sits on a page: one box per line it runs through, in the page's own coordinates.
-    func rects(of range: NSRange, onPage index: Int) -> [CGRect] {
+    func rects(of range: NSRange, on page: Page) -> [CGRect] {
         var result: [CGRect] = []
 
-        for placed in placedLines(onPage: index) {
-            let line = lines[placed.index]
+        for placed in placedLines(on: page) {
+            let line = self.line(placed.index)
             let shared = NSIntersectionRange(line.characters, range)
 
             guard shared.length > 0, let drawn = drawnLine(placed.index) else { continue }
@@ -101,17 +101,14 @@ public extension ChapterLayout {
     }
 
     /// Every line of a page with the place it was drawn at, walked exactly as the page is drawn.
-    func placedLines(onPage index: Int) -> [PlacedLine] {
-        guard pages.indices.contains(index) else { return [] }
-
-        let page = pages[index]
-        var cursor = context.textRect.minY + (index == 0 ? startOffset : 0)
+    func placedLines(on page: Page) -> [PlacedLine] {
+        var cursor = context.textRect.minY + page.top
         var result: [PlacedLine] = []
 
-        for line in page.lines {
-            let allotted = depth(of: line, on: page) + (lines[line].image != nil ? page.imagePadding * 2 : 0)
+        for number in page.lines {
+            let allotted = depth(of: number, on: page) + (line(number).image != nil ? page.imagePadding * 2 : 0)
 
-            result.append(PlacedLine(index: line, edge: cursor, height: allotted))
+            result.append(PlacedLine(index: number, edge: cursor, height: allotted))
             cursor += allotted + page.leading
         }
 
@@ -122,8 +119,8 @@ public extension ChapterLayout {
     ///
     /// A point past the end of a line takes that line's last character, and a point above or below the
     /// text takes the nearest line, so a finger dragging off the edge keeps choosing rather than stops.
-    func characterIndex(at point: CGPoint, onPage index: Int) -> Int? {
-        let placed = placedLines(onPage: index)
+    func characterIndex(at point: CGPoint, on page: Page) -> Int? {
+        let placed = placedLines(on: page)
 
         guard !placed.isEmpty else { return nil }
 
@@ -133,7 +130,7 @@ public extension ChapterLayout {
 
         guard let over, let drawn = drawnLine(over.index) else { return nil }
 
-        let line = lines[over.index]
+        let line = self.line(over.index)
         let along = point.x - context.textRect.minX - line.origin
         let found = CTLineGetStringIndexForPosition(drawn, CGPoint(x: along, y: 0))
 

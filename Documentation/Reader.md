@@ -28,12 +28,13 @@ column is narrow, and a justified line that can't break a word has to stretch in
 `Typography.hyphenated` walks every word through the system's dictionary for the language the text is
 in and marks every break that dictionary allows.
 
-`ColumnComposer` sets a chapter's paragraphs away from the main actor, on up to four workers at once,
-since a paragraph's lines depend on nothing outside it. An attributed string can't cross from one thread to
-another, so each worker typesets its own copy of the chapter and hands back plain values: where each
-line breaks and how it's filled. `ChapterLayout` builds a line's `CTLine` from those only when a page
-draws it, so measuring a book draws nothing. A fifth worker adds no speed, because every change to an
-attributed string takes a lock UIFoundation shares across the process.
+A paragraph's lines depend on nothing outside it, so the reader composes only the paragraphs around the
+page being read, away from the main actor. An attributed string can't cross from one thread to another,
+so each chapter's `ColumnComposer.Setter` sets its own copy of the chapter and hands back plain values:
+where each line breaks and how it's filled. `ChapterLayout` builds a line's `CTLine` from those only
+when a page draws it. Text laid out whole, a note in an aside, is composed on up to four workers at
+once; a fifth adds no speed, because every change to an attributed string takes a lock UIFoundation
+shares across the process.
 
 ## Setting the text
 
@@ -478,16 +479,10 @@ taken in after it, softer again when the aside arrives.
 
 ## Cutting the column into pages
 
-`ColumnComposer` sets the chapter as a single column, and `PageCutter` cuts that column into pages
-line by line, away from the main actor. The search that chooses the breaks reads each line twenty-odd
-times, so it takes a flattened copy of the column, `PageCutter.Slug`, carrying a line's depth and the
-handful of things a rule asks about it and nothing that has to be reference-counted.
-
-Only a chapter's first page is ever short, and only where the chapter before it left it something, so
-every row of the search but its first is the same wherever the chapter starts. `PageCutter.Breaks` is
-that table, and `ChapterLayout.recut(startOffset:)` cuts the chapter again from it. A chapter that
-tries to run on and turns out to need a page of its own is the case: it is cut twice and searched
-once.
+`ColumnComposer` breaks the chapter's paragraphs into lines, and `PageCutter` cuts one page out of
+those lines at a time: forwards from where the page starts, or backwards from where it ends. The search
+reads each line many times, so it takes a flattened copy of the lines, `PageCutter.Slug`, carrying a
+line's depth and the handful of things a rule asks about it and nothing that has to be reference-counted.
 
 Cutting by hand rather than flowing the text through page-sized containers is what makes the rules
 possible. None of these is allowed at a break:
@@ -541,12 +536,22 @@ a paragraph is centred for all sorts of reasons.
 A book filed before that was written carries its subtitles as centred paragraphs, and its breaks
 stand in no air until the file it came from is read again.
 
-The breaks are chosen for the chapter at once rather than a page at a time. Filling each page in turn
-and handing whatever a rule rejects to the next one meant that wherever a rule bit, that one page paid
-all of it: a page four lines short between two full ones. So every run of breaks is costed instead, a
-page's shortfall counted in lines and squared, and the cheapest run wins. Squaring is what shares the
-loss out, since one line missing from each of four pages costs a quarter of what four missing from one
-does.
+A page is chosen against the two pages beyond it rather than on its own. Filling each page in turn and
+handing whatever a rule rejects to the next one meant that wherever a rule bit, that one page paid all
+of it: a page four lines short between two full ones. So every run of breaks over the page and the two
+after it is costed, a page's shortfall counted in lines and squared, and the page at the near end of
+the cheapest run is the one cut. Squaring is what shares the loss out, since one line missing from each
+of four pages costs a quarter of what four missing from one does. Past the lines composed the chapter
+goes on, so the run may stop on any page the last of them would fit on.
+
+Cut backwards the same way, the chapter's start is the one edge that doesn't go on. A chapter reached
+from behind begins wherever its lines run out, so its opening page may come out short. That page sinks:
+its lines stand at the foot of it and run straight on to the page after, and the air falls above the
+title, where a printed book leaves it.
+
+Forwards and backwards needn't agree about where a page breaks, and the reader never has to find out.
+It keeps the sheets it has shown until the page changes shape, so a turn back and forth shows the same
+pages, and a page further off is cut afresh from the one beside it.
 
 Rules aren't traded against depth. Breaking one costs so much more than any unevenness that they still
 decide where a page may break, and evenness only chooses among the breaks they allow. Grading them, so
@@ -561,56 +566,25 @@ foot. Every page but a chapter's last comes down to the same depth: each gets it
 3pt of air per gap, and a gap may be squeezed by 0.75pt to pull one more line on. A page that ends a
 chapter keeps its ragged bottom, since it stops where the chapter stops.
 
-Measured over eight generated chapters at 19pt serif and 24pt margins, a measure of about 26 lines:
-every one of the 25 pages that doesn't end a chapter carries 24, 25 or 26 lines, and the leading closes
-that spread. The eight short pages are the eight chapter endings, which stop where their chapters stop.
-
 ## Chapters that run on
 
 A chapter starts on the page the one before it ended on when what is left of that page holds a decent
-piece of it: six lines and a quarter of the page, after the air between them. That measurement counts lines, and
-a heading stands far taller than a line, so the page answers instead of the arithmetic: the chapter is laid out at that offset and asked
-how much of its own text landed. Fewer than three lines and it takes a page of its own, which is what
-keeps a title from standing alone at the foot of a page with its text overleaf.
+piece of it: six lines and a quarter of the page, after the air between them. That measurement counts
+lines, and a heading stands far taller than a line, so the page answers instead of the arithmetic: the
+chapter's opening is cut into the room left and asked how much of its own text landed. Fewer than three
+lines and it takes a page of its own, which is what keeps a title from standing alone at the foot of a
+page with its text overleaf. A division the book names among its top ones always opens a page.
 
-A chapter of a heading and nothing else, which is how a part title is filed, runs to a single page and
-lets the chapter after it follow on the same one.
+A chapter of a heading and nothing else, which is how a part title is filed, lets the chapter after it
+follow on the same page.
 
-`ChapterLayout` takes a `startOffset` for that and makes its first page shorter by exactly that much,
-and the reader draws such a page from two pieces, one per chapter. Whether a page gets its second piece
-is settled from the offsets the two layouts were built at rather than from `BookPagination`'s pass,
-because the layouts are what draw: `BookPagination.sharesLastPage(of:with:context:)` asks whether the
-next chapter was set to begin at or below where the previous one's text stops.
+`BookLayout` does this in both directions. Forwards, the page that ends a chapter takes the next
+chapter's opening under it, set to start `Page.top` points down. Backwards, a chapter's opening that
+came out short, at the foot of its page, takes the end of the chapter before it above. A page shared that
+way is drawn from two pieces, one per chapter, and each draws only its own lines.
 
-That offset is what makes a chapter's page breaks depend on the chapter before it, whose breaks depend
-on the one before that. Measuring a chapter on its own therefore answers differently from measuring it
-after reading into it, and the text used to move under the reader when the two disagreed: a chapter
-opened from the contents took a page of its own and then jumped up the page as soon as the reader
-turned back into the chapter before it.
-
-So `BookPagination` measures the book in one pass, in order from its first chapter, and keeps only
-where each chapter starts and how far it runs. Preparing a chapter's text depends on nothing else in
-the book, so the pass reads the next chapter's while it lays this one out, and a book measured for the
-first time waits for one of the two rather than both. Only behind a chapter it had to lay out: a book
-reopened unchanged reads its measurements back and never touches its text. Every layout afterwards takes its offset from that pass,
-so a chapter sits in the same place however the reader reaches it. A chapter the pass hasn't reached
-has no offset to take, and isn't laid out at all until it does: the reader reads two chapters ahead,
-and one set from a guessed offset is drawn over the page it turns out to share. The pass throws each layout away as
-it goes, so a book of any length costs one chapter's memory at a time, and it runs again whenever the
-style or the page size changes, which is what those measurements depend on.
-
-It measures only text the device already holds. Fetching a whole book to find out where its pages fall
-would turn opening one chapter into a download of all of them, so a chapter that isn't here yet ends
-the run-on and the chapter after it starts a page of its own.
-
-The book's length in the footer is the pages the pass has measured plus a guess for the rest. Every
-chapter carries its length in characters, and within one book set one way pages follow characters
-closely, so the unmeasured text is counted at the rate the measured text ran. Each chapter the pass
-measures behind the reader turns part of the guess into pages, and a chapter the device hasn't got yet
-stays a guess.
-
-Because a page can show a chapter that hasn't arrived yet, the model's layout cache is observed, not
-ignored: a neighbour landing has to redraw the page already on screen.
+A chapter whose text the device hasn't got, and can't fetch, is a page of its own saying so, and the
+book goes on either side of it.
 
 ## What the reader can set
 
@@ -638,8 +612,8 @@ and never up to the scene it sits in. The answer is taken when the app becomes a
 scene's traits change. "Match the system" used to be a theme of its
 own and meant exactly what the switch does; a reader who chose it keeps what they chose.
 
-Hyphenation is the reader's to turn off, and it is part of what a layout is filed under: the chapter is
-composed from the text as hyphenated or as bound, so turning it off re-breaks every line. A justified
+Hyphenation is the reader's to turn off. The chapter is composed from the text as hyphenated or as
+bound, so turning it off re-breaks every line. A justified
 column reads far better with it, since the only other way to reach the measure is to pull the words
 apart.
 
@@ -654,35 +628,39 @@ presented screen's `viewWillDisappear`, a drag's included, and the reader writes
 a cover's mark from the store and the zoom photographs that cover as the book starts closing, so a
 shelf told afterwards animates the old mark home and corrects it once the book has landed.
 
-## Keeping the lines
+## Nothing is measured ahead
 
-Where a chapter's lines fall depends on the text and the setting, and not on where the chapter starts
-on its page. So the lines are what is kept, in `chapter_column`, and cutting them into pages is done
-afresh every time.
+The book is never laid out as a whole. Opening it cuts the page the reader stopped on, starting on the
+line their position falls in, and the sheet either side of it after that. A turn moves onto a sheet
+already cut and cuts the next one behind it. A change of size or style, a folding screen opening
+included, throws away the few sheets around the reader and cuts the one on screen again at the same
+place. Composing a page costs a few milliseconds, so none of it is kept between openings.
 
-A column is filed under a hash of the setting's fingerprint and the chapter's own text. The
-fingerprint carries `ChapterLayout.rulesVersion`, so a change to where a line may break throws away
-every column broken under the old rules instead of drawing yesterday's lines. The rows are written as
-zlib-compressed JSON by `ColumnCoding`.
+The chapters' prepared text is still kept, in `chapter_content`: parsing and hyphenating it is the
+larger share of the work, and it depends on nothing about the page.
 
-A chapter carrying a picture is composed the long way and nothing is kept: what such a line holds is a
-decoded image, and writing one down would put the picture in the database twice.
+## How far into the book
 
-Only the reader keeps columns. The pass that measures a book throws every layout away as it goes, so
-it is handed a `ColumnsToRead` and writes nothing: a column from it would be written once per chapter
-and read back for the one or two the reader goes on to open.
+The foot of a page says how far into the book it stands: a bar, the share of the book up to the end of
+the page, and how many pages the whole book comes to. A page number would need every page before it cut,
+which is what the reader no longer does.
 
-`ColumnCacheTests` sets a chapter twice and compares the second run to the first line for line, then
-shortens the kept column to prove the second run is set from it rather than composed again and
-happening to agree. A mistake here reads as text laid out subtly wrong, never as a crash, so the check
-has to be that exact.
+The share is counted in characters. Each chapter carries its length and a place in it counts its own,
+so the figure is exact wherever the reader is and however little has been laid out.
+
+The length in pages comes from `BookLength`, from the book's length and the setting alone: how many
+characters of ordinary prose one line holds, measured on a sample in the book's language, times the
+lines a page holds, less a hundredth for openings, pictures and the air between paragraphs. It changes
+with the type and the size of the page, so unfolding a screen changes it too.
+
+On a spread the bar stands once, under both pages, as the title stands once over them.
 
 ## The page
 
 A page fills the screen. There is no navigation bar and no strip below the text: the book's title and
-the page number are drawn on the page itself, so a turn carries them along with everything else. Each
-page names its own chapter and number, since the pages either side of it are on screen during a turn
-and belong to their own chapters.
+how far into the book the page stands are drawn on the page itself, so a turn carries them along with
+everything else. Each page says where it stands, since the pages either side of it are on screen during
+a turn.
 
 The page ignores the safe area, so its size and the notch and home-indicator insets come from the
 window rather than from the layout. Two reasons: an overlay is laid out inside the safe area even when
@@ -708,10 +686,8 @@ reader chose. Two pages where each half still holds a column worth reading and s
 wide; one otherwise, held to a measure the eye can track back across and stood in the middle of
 whatever room is left.
 
-A phone in portrait comes out exactly as it always did, to the point. That's deliberate rather than
-lucky: the page size is part of the layout fingerprint, so a page measured any differently would throw
-away every measurement on every phone at once. A phone is narrower than the shortest measure at every
-size the reader can choose, so nothing here ever reaches it.
+A phone in portrait comes out exactly as it always did, to the point. A phone is narrower than the
+shortest measure at every size the reader can choose, so nothing here ever reaches it.
 
 The shape test is what a window with plenty of width and little depth runs into. A large phone on its
 side has the width for two pages and just enough depth to keep them page-shaped, so it opens like a
@@ -753,8 +729,7 @@ which is what keeps a control on the line its head is set on.
 Everything below the spread knows only about a page. A page is measured, drawn and hit-tested in its
 own coordinates, and the spread's whole job is to say how big one is and where on the sheet it stands.
 So the sides of the device's safe area are spent outside the spread rather than in its gutter, which is
-what makes both pages the same size: a chapter set for one is set for the other, and the book is
-measured once.
+what makes both pages the same size: a chapter set for one is set for the other.
 
 A tap arrives in the sheet's coordinates and is carried onto whichever page it landed on before
 anything is asked about it. What comes back out, a note's marker or the box around picked words, is
@@ -762,31 +737,31 @@ carried the other way, since an aside is hung over the sheet.
 
 ### What each page names, and what the sheet names
 
-The page number belongs to the page: a spread shows two of them, one under each, because they are
-different numbers. The book's title belongs to the sheet and is set once, in the middle, over the
-binding. Drawn per page it came out as the same words twice a few inches apart, which reads as a fault
-rather than as a running head.
+The book's title and how far into it the reader is both belong to the sheet on a spread, each set once
+in the middle: the title over the binding, the bar under it. Drawn per page the title came out as the
+same words twice a few inches apart, which reads as a fault rather than as a running head. On a phone the
+sheet is the page, and the page carries both.
 
 A sheet carrying the book's own title page takes no running head at all, since that page already says
-what the book is called, and neither does one carrying no text. `Model.showsTitle(onSheet:)` is the
-whole of that rule. The band each page keeps for a head is unchanged either way, so the text still
-starts where it always did and nothing is re-measured.
+what the book is called, and neither does one carrying no text. `Sheet.showsTitle` is the whole of that
+rule. The band each page keeps for a head is unchanged either way, so the text still starts where it
+always did.
 
 ## Turning a page
 
 A turn moves a sheet, so on a spread both pages go at once, the way they do in a book. `PageTurnView`
 counts in sheets and knows nothing else about them: what it's handed is a count, an index and a
-builder, and on a phone a sheet is simply a page.
+builder, and on a phone a sheet is simply a page. The reader hands it one sheet and the two beside it,
+so every turn lands past the end of the one and the model moves along its own run of sheets.
 
 The whole effect comes from one rule: sheet `n + 1` always sits above sheet `n`. Turning forward slides
 sheet `n + 1` in from the right; turning back slides that same sheet off to the right and uncovers
 sheet `n`. One offset drives both directions, so a half-finished turn can be reversed with no special
 handling.
 
-Inside a chapter a sheet is the next pages of that chapter's own grid. The sheets either side of the
-chapter belong to the chapters either side, and are counted on *their* grids rather than by carrying on
-past the end of this one. That's what makes a turn out of a chapter land on the very sheet it had
-already brought in, instead of settling half a page off it.
+A sheet is cut before it is needed, so a turn draws pages that already exist. Where one isn't ready, a
+chapter still on its way from the service, the turn lands on a blank sheet that fills in as the text
+arrives.
 
 Dragging forward, the incoming page eases in from the right edge to meet the finger over 0.3s and from
 then on is held 20pt inside its own leading edge, so the finger is on the page it is pulling. Sliding
@@ -824,7 +799,7 @@ edge turns back a page, like any other sideways drag.
 
 ## Finding a passage
 
-The glyph that opens things also opens a bar at the foot of the page, on the line the page number is
+The glyph that opens things also opens a bar at the foot of the page, on the line the progress is
 set on. It holds the words to look for, how many places in the book carry them, and the way through
 those places.
 
@@ -859,10 +834,10 @@ the device's band for its own floor, while the keyboard it was padded by was mea
 foot with that band already underneath it. The band was counted twice and the bar floated a home
 indicator's worth above the keys.
 
-Whichever stands deeper places it: the line the page number is set on, or the keyboard. Deeper rather
+Whichever stands deeper places it: the line the progress is set on, or the keyboard. Deeper rather
 than one or the other, since both are now measured from that same foot.
 
-With the keyboard away the bar stands where the page number does, an inset above the device's own
+With the keyboard away the bar stands where the progress does, an inset above the device's own
 band. Not where the round controls stand: those are centred on the running head's line and hang below
 it, which suits a mark the size of a fingertip and not a bar the width of the page.
 

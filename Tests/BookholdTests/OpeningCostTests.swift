@@ -68,10 +68,7 @@ struct OpeningCostTests {
 
         try FileManager.default.copyItem(at: backup.appendingPathComponent("library.sqlite"), to: copy)
         // Everything the device had already worked out is dropped, so this is a book opened cold.
-        Self.execute(
-            "DELETE FROM chapter_content; DELETE FROM chapter_placement; DELETE FROM chapter_column;",
-            in: copy
-        )
+        Self.execute("DELETE FROM chapter_content;", in: copy)
 
         let store = SQLiteBookStore(fileURL: copy)
         let chapters = await store.chapters(workId: wanted).filter(\.isReadable)
@@ -84,11 +81,10 @@ struct OpeningCostTests {
         await Self.run("warm", workId: wanted, chapters: chapters, store: store, at: setting)
     }
 
-    /// One pass over the whole book, timed and watched.
+    /// Opens the book at every chapter and turns a few pages each way from there, timed and watched.
     ///
-    /// A chapter per call, which is how the pass behind the reader measures, and the pass prepares its
-    /// own text, which is how the reader gives it to it. Preparing and measuring overlap, so the two
-    /// cannot be told apart here and the total is the honest number.
+    /// The reader cuts a page when it is turned onto, so an opening costs the page opened on and the
+    /// ones beside it; the book behind them is never measured.
     private static func run(
         _ name: String,
         workId: Int,
@@ -97,25 +93,45 @@ struct OpeningCostTests {
         at context: ChapterLayout.Context
     ) async {
         let processor = BookProcessor(store: store)
-        let pagination = BookPagination.make(workId: workId, context: context, store: store)
+        let book = BookLayout(
+            chapters: chapters.enumerated().map { place, chapter in
+                BookLayout.Chapter(
+                    id: chapter.id,
+                    heading: ChapterHeading.make(position: place + 1, title: chapter.title),
+                    opensItsOwnPage: max(1, chapter.level ?? 1) <= 1
+                )
+            },
+            context: context,
+            content: { await processor.content(workId: workId, chapterId: $0) }
+        )
         let beat = Heartbeat()
         let started = ContinuousClock.now
         var slowest: (chapter: Int, took: Duration) = (0, .zero)
+        var turned = 0
 
         beat.start()
 
-        for index in chapters.indices {
+        for (index, chapter) in chapters.enumerated() {
             let step = ContinuousClock.now
 
-            await pagination.measure(
-                chapters: chapters,
-                through: index + 1,
-                content: { await processor.content(workId: workId, chapterId: $0) }
-            )
+            guard var ahead = await book.page(at: BookPosition(chapterId: chapter.id, offset: 0)) else { continue }
 
             let took = step.duration(to: .now)
+            var behind = ahead
 
             if took > slowest.took { slowest = (index + 1, took) }
+
+            for _ in 0 ..< turns {
+                if let next = await book.page(after: ahead) {
+                    ahead = next
+                    turned += 1
+                }
+
+                if let previous = await book.page(before: behind) {
+                    behind = previous
+                    turned += 1
+                }
+            }
         }
 
         beat.stop()
@@ -124,13 +140,16 @@ struct OpeningCostTests {
 
         say(
             """
-            \(name): \(show(total)) for \(chapters.count) chapters
-              slowest chapter \(slowest.chapter) at \(show(slowest.took))
+            \(name): \(show(total)) for \(chapters.count) openings and \(turned) turns
+              slowest opening chapter \(slowest.chapter) at \(show(slowest.took))
               main actor held past 100ms \(beat.stalls) times, \(show(beat.blocked)) in all, \
             worst \(show(beat.worst))
             """
         )
     }
+
+    /// How many pages each opening is turned through in each direction.
+    private static let turns = 5
 
     private static func show(_ duration: Duration) -> String {
         duration.formatted(.units(allowed: [ .seconds, .milliseconds ], fractionalPart: .show(length: 0)))
@@ -150,7 +169,7 @@ struct OpeningCostTests {
             let read = PageReport.setting(ofReportAt: URL(fileURLWithPath: (path as NSString).expandingTildeInPath))
         else { return nil }
 
-        return read.context
+        return read
     }
 
     private static func scratch(_ name: String) -> URL {

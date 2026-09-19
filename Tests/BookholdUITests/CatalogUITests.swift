@@ -128,6 +128,28 @@ class CatalogUITestCase: XCTestCase {
         return false
     }
 
+    /// What says where the reader is: the text of the page in front of them, and how far into the book
+    /// it stands. The share alone moves only every few pages, and a title page has no text.
+    fileprivate var place: String {
+        let text = app.staticTexts["reader.pageText"].firstMatch
+        let caption = app.staticTexts["reader.caption"]
+
+        return "\(text.exists ? text.label : "")|\(caption.exists ? caption.label : "")"
+    }
+
+    /// Waits for the reader to be somewhere other than `previous`.
+    fileprivate func waitForPlaceChange(from previous: String, timeout: TimeInterval = 10) -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+
+        while Date() < deadline {
+            if place != previous { return true }
+
+            Thread.sleep(forTimeInterval: 0.3)
+        }
+
+        return false
+    }
+
     fileprivate func waitForChange(of element: XCUIElement, from previous: String, timeout: TimeInterval = 10) -> Bool {
         let deadline = Date().addingTimeInterval(timeout)
 
@@ -215,12 +237,12 @@ final class ReaderTurningUITests: CatalogUITestCase {
         let caption = app.staticTexts["reader.caption"]
         XCTAssertTrue(caption.waitForExistence(timeout: 20), "page caption missing")
 
-        let first = caption.label
+        let first = place
         let page = app.otherElements["reader.page"].firstMatch
         page.coordinate(withNormalizedOffset: CGVector(dx: 0.85, dy: 0.5)).tap()
 
         XCTAssertTrue(
-            waitForChange(of: caption, from: first),
+            waitForPlaceChange(from: first),
             "tapping the right third did not turn the page (was \(first))"
         )
     }
@@ -231,11 +253,11 @@ final class ReaderTurningUITests: CatalogUITestCase {
         let caption = app.staticTexts["reader.caption"]
         XCTAssertTrue(caption.waitForExistence(timeout: 20))
 
-        let first = caption.label
+        let first = place
         let page = app.otherElements["reader.page"].firstMatch
         page.coordinate(withNormalizedOffset: CGVector(dx: 0.15, dy: 0.5)).tap()
 
-        XCTAssertTrue(waitForChange(of: caption, from: first), "tapping the left third did not turn the page")
+        XCTAssertTrue(waitForPlaceChange(from: first), "tapping the left third did not turn the page")
     }
 
     /// Tapping faster than a turn animates has to land every tap rather than drop the extras.
@@ -245,13 +267,13 @@ final class ReaderTurningUITests: CatalogUITestCase {
         let caption = app.staticTexts["reader.caption"]
         XCTAssertTrue(caption.waitForExistence(timeout: 20))
 
-        let first = caption.label
+        let first = place
         let page = app.otherElements["reader.page"].firstMatch
         let forward = page.coordinate(withNormalizedOffset: CGVector(dx: 0.85, dy: 0.5))
 
         for _ in 0 ..< 8 { forward.tap() }
 
-        XCTAssertTrue(waitForChange(of: caption, from: first), "a burst of taps left the page where it started")
+        XCTAssertTrue(waitForPlaceChange(from: first), "a burst of taps left the page where it started")
     }
 
     func testSwipingTurnsThePageBothWays() {
@@ -260,14 +282,14 @@ final class ReaderTurningUITests: CatalogUITestCase {
         let caption = app.staticTexts["reader.caption"]
         XCTAssertTrue(caption.waitForExistence(timeout: 20))
 
-        let first = caption.label
+        let first = place
         let page = app.otherElements["reader.page"].firstMatch
         page.swipeLeft()
-        XCTAssertTrue(waitForChange(of: caption, from: first), "swiping left did not advance the page")
+        XCTAssertTrue(waitForPlaceChange(from: first), "swiping left did not advance the page")
 
-        let second = caption.label
+        let second = place
         page.swipeRight()
-        XCTAssertTrue(waitForChange(of: caption, from: second), "swiping right did not go back a page")
+        XCTAssertTrue(waitForPlaceChange(from: second), "swiping right did not go back a page")
     }
 
     /// A rightward swipe from the leading edge would normally pop the screen. In the reader it has to
@@ -293,7 +315,7 @@ final class ReaderTurningUITests: CatalogUITestCase {
 
 /// The reader's controls and its appearance settings.
 final class ReaderControlsUITests: CatalogUITestCase {
-    /// Changing the typeface re-paginates, which shows up as a different page count in the caption.
+    /// Changing the typeface sets the page again, and the page still says how far into the book it is.
     func testChangingTypefaceRepaginates() {
         openReader()
 
@@ -378,7 +400,7 @@ final class ReaderControlsUITests: CatalogUITestCase {
         XCTAssertTrue(app.buttons["reader.face"].exists, "typeface dropdown missing")
         XCTAssertTrue(caption.exists, "page caption hidden behind the sheet")
 
-        // Growing the type re-paginates, which shows up as a different page count in the caption.
+        // Growing the type sets the page again, which shows in how many pages the caption says the book is.
         let slider = app.sliders["reader.fontSize"]
         XCTAssertTrue(slider.waitForExistence(timeout: 10), "font size control missing")
         slider.adjust(toNormalizedSliderPosition: 1.0)
@@ -421,7 +443,7 @@ final class ReaderPlaceUITests: CatalogUITestCase {
         turnPage()
         turnPage()
         sleep(1)
-        let stoppedAt = caption.label
+        let stoppedAt = place
 
         XCUIDevice.shared.press(.home)
         sleep(2)
@@ -438,7 +460,8 @@ final class ReaderPlaceUITests: CatalogUITestCase {
 
         app.buttons["work.read"].tap()
         XCTAssertTrue(caption.waitForExistence(timeout: 40), "reader never rendered a page")
-        XCTAssertEqual(caption.label, stoppedAt, "the reader did not reopen where it stopped")
+        XCTAssertTrue(waitForPlaceChange(from: "|"), "reader never drew its page")
+        XCTAssertEqual(place, stoppedAt, "the reader did not reopen where it stopped")
     }
 
     func testChapterListNavigation() {

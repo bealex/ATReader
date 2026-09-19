@@ -122,21 +122,7 @@ struct ReaderAppearanceTests {
         #expect(settings.textStyle.hyphenates)
     }
 
-    /// Turning it off has to throw the measurements away, and turning it on has to leave every book
-    /// already measured where it was: the flag is written into the fingerprint only when it is off.
-    @Test
-    func onlyTurningHyphenationOffChangesWhatALayoutIsFiledUnder() {
-        var context = JustificationTests.testContext
-        let hyphenated = context.fingerprint
-
-        context.style.hyphenates = false
-
-        #expect(context.fingerprint != hyphenated)
-        #expect(context.fingerprint.contains("nohyphens"))
-        #expect(!hyphenated.contains("nohyphens"))
-    }
-
-    /// And it reaches the column: the same text breaks into different lines with it and without it.
+    /// It reaches the column: the same text breaks into different lines with it and without it.
     @Test
     func aChapterSetWithoutHyphensBreaksElsewhere() async {
         let content = await ChapterContent.prepare(html: "<p>\(Self.prose)</p>")

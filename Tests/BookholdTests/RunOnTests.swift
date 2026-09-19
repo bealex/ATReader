@@ -19,7 +19,7 @@ import UIKit
 ///
 /// The free space cannot answer this on its own: it is measured in body lines, and a heading stands far
 /// taller than those, so a gap that looks like six lines can hold a heading and nothing else. These
-/// check the count the rule actually reads.
+/// check the count the rule actually reads, and then the pages the book makes of it either way round.
 @MainActor
 struct RunOnTests {
     static let context = JustificationTests.testContext
@@ -39,35 +39,17 @@ struct RunOnTests {
     func aChapterOnItsOwnPageCarriesItsText() async {
         let layout = await layout(startOffset: 0)
 
-        #expect(layout.bodyLineCount(onPage: 0) >= BookPagination.runOnLineMinimum)
+        #expect(layout.bodyLineCount(on: layout.pages[0]) >= BookLayout.runOnLineMinimum)
     }
 
-    /// The case in the screenshot: a gap deep enough to look inviting, which the heading fills on its
-    /// own. The count has to come back below the minimum so the chapter is moved off the shared page.
+    /// A gap deep enough to look inviting, which the heading fills on its own. The count has to come
+    /// back below the minimum so the chapter is moved off the shared page.
     @Test(arguments: [ 30.0, 60.0, 90.0 ])
     func aGapThatOnlyFitsAHeadingBringsTooFewLines(free: CGFloat) async {
-        let offset = Self.context.textSize.height - free
-        let layout = await layout(startOffset: offset)
+        let layout = await layout(startOffset: Self.context.textSize.height - free)
+        let lines = layout.bodyLineCount(on: layout.pages[0])
 
-        #expect(
-            layout.bodyLineCount(onPage: 0) < BookPagination.runOnLineMinimum,
-            "\(Int(free))pt held \(layout.bodyLineCount(onPage: 0)) lines, so the chapter would run on"
-        )
-    }
-
-    /// A part title is a chapter of a heading and nothing else. It used to hold a page to itself and
-    /// send the chapter after it to the next one, leaving most of a page empty.
-    @Test
-    func aChapterOfOnlyAHeadingLetsTheNextFollowIt() async {
-        let layout = await ChapterLayout.make(
-            chapterId: 1,
-            content: await ChapterContent.prepare(html: ""),
-            heading: ChapterHeading.make(position: 2, title: "Часть вторая"),
-            context: Self.context
-        )
-
-        #expect(layout.pageCount == 1)
-        #expect(BookPagination.startOffset(after: layout, context: Self.context) > 0, "the page after it is wasted")
+        #expect(lines < BookLayout.runOnLineMinimum, "\(Int(free))pt held \(lines) lines, so the chapter would run on")
     }
 
     /// Given real room, a chapter is allowed to share the page.
@@ -78,108 +60,82 @@ struct RunOnTests {
     func aDeepGapLetsTheChapterRunOn() async {
         let layout = await layout(startOffset: Self.context.textSize.height * 0.15)
 
-        #expect(layout.bodyLineCount(onPage: 0) >= BookPagination.runOnLineMinimum)
+        #expect(layout.bodyLineCount(on: layout.pages[0]) >= BookLayout.runOnLineMinimum)
     }
 
     // MARK: - Two chapters on one page
 
-    /// The reported page: the end of one chapter and the whole of the next drawn over the same lines.
-    ///
-    /// The reader lays the chapters either side of the one on screen out before they are needed, and
-    /// took each one's offset from the book pass. A chapter the pass had not reached yet answered zero,
-    /// the same as one that starts a page of its own, so it was set from the top of a page it in fact
-    /// shares. What decides the stacking is therefore where the two layouts were actually set, which is
-    /// what will be drawn, and a chapter set for its own page is never put on someone else's.
+    /// A section inside a chapter carries on under the end of the one before it.
     @Test
-    func aChapterSetForItsOwnPageIsNeverStackedOnAnother() async {
-        // Short enough that most of its last page is left over, which is what a chapter runs on into.
-        let previous = await layout(words: 40, startOffset: 0)
-        let offset = BookPagination.startOffset(after: previous, context: Self.context)
-        let runsOn = await layout(startOffset: offset)
-        let ownPage = await layout(startOffset: 0)
+    func aSectionRunsOnUnderAShortChapter() async throws {
+        let book = await Self.book([ (words: 12, level: 1), (words: 400, level: 2) ])
+        let first = try #require(await book.page(at: BookPosition(chapterId: 1, offset: 0)))
 
-        #expect(offset > 0, "the chapter leaves room for a neighbour on its last page")
-        #expect(BookPagination.sharesLastPage(of: previous, with: runsOn, context: Self.context))
+        #expect(first.pieces.map(\.layout.chapterId) == [ 1, 2 ])
+    }
+
+    /// A part title is a chapter of a heading and nothing else. The chapter after it follows it down the
+    /// page rather than leaving the page empty under it.
+    @Test
+    func aPartTitleLetsItsFirstChapterFollowIt() async throws {
+        let book = await Self.book([ (words: 0, level: 1), (words: 400, level: 2) ])
+        let first = try #require(await book.page(at: BookPosition(chapterId: 1, offset: 0)))
+
+        #expect(first.pieces.map(\.layout.chapterId) == [ 1, 2 ])
+    }
+
+    /// A division the book names among its own top ones opens a page, however much room is left above.
+    @Test
+    func aTopDivisionOpensItsOwnPage() async throws {
+        let book = await Self.book([ (words: 12, level: 1), (words: 400, level: 1) ])
+        let first = try #require(await book.page(at: BookPosition(chapterId: 1, offset: 0)))
+
+        #expect(first.pieces.map(\.layout.chapterId) == [ 1 ])
+    }
+
+    /// Reached from behind, the page the two share is the same page: the end of the one above, and the
+    /// opening of the other at the foot, running straight on to the page after it.
+    @Test
+    func turningBackOntoASharedPageStacksTheTwoAgain() async throws {
+        let book = await Self.book([ (words: 12, level: 1), (words: 400, level: 2) ])
+        let shared = try #require(await book.page(at: BookPosition(chapterId: 1, offset: 0)))
+        let after = try #require(await book.page(after: shared))
+        let back = try #require(await book.page(before: after))
+        let pieces = back.pieces
+
+        #expect(pieces.map(\.layout.chapterId) == [ 1, 2 ])
+        #expect(back.end == after.start, "the opening reaches the page after it")
+
+        let head = try #require(pieces.last)
+
         #expect(
-            !BookPagination.sharesLastPage(of: previous, with: ownPage, context: Self.context),
-            "it would be drawn from the top of the page, over the chapter ending there"
+            abs(head.layout.bottom(of: head.page) - Self.context.textSize.height) < 0.5,
+            "the opening stands at the foot of the page"
         )
     }
 
-    /// Where that wrong offset came from: reading ahead of the pass. An unmeasured chapter has no
-    /// placement at all, so the reader has nothing to lay it out from until the pass reaches it.
-    ///
-    /// What the place turns out to be is `aDeepGapLetsTheChapterRunOn`'s business. A heading stands in
-    /// twelve lines of air, so whether a chapter this short runs on depends on where the one before it
-    /// happened to stop, which is not what this is asking about.
-    @Test
-    func aChapterThePassHasNotReachedHasNoPlaceYet() async {
-        let chapters = Self.book(of: 3)
-        let pagination = Self.pagination()
+    /// A book of chapters of generated words, each as long and as deep in the book as asked.
+    static func book(_ shapes: [(words: Int, level: Int)]) async -> BookLayout {
+        var contents: [Int: ChapterContent] = [:]
 
-        await pagination.measure(chapters: chapters, through: 1, content: Self.content)
+        for (index, shape) in shapes.enumerated() {
+            let html = shape.words > 0 ? "<p>\(JustificationTests.words(shape.words))</p>" : ""
 
-        #expect(pagination.placement(of: chapters[0].id) != nil)
-        #expect(pagination.placement(of: chapters[1].id) == nil, "the reader could lay it out at the wrong offset")
-
-        await pagination.measure(chapters: chapters, through: chapters.count, content: Self.content)
-
-        #expect(pagination.placement(of: chapters[1].id) != nil, "the pass reached it and still gave it no place")
-    }
-
-    /// Chapters short enough that each one leaves room for the next on its last page.
-    private static func book(of count: Int) -> [BookChapter] {
-        (1 ... count).map {
-            BookChapter(id: $0, workId: 1, title: "Глава \($0)", sortOrder: $0, textLength: nil)
-        }
-    }
-
-    /// Chapters of a few lines each, so one ends high enough on its page for the next to follow it.
-    /// A chapter that turns out to need a page of its own is cut again rather than laid out again, and
-    /// the pages that come out have to be the pages a chapter laid out at that offset would have had.
-    ///
-    /// The search's table is reused across the two cuts, since only the first page's depth turns on
-    /// where the chapter starts. Getting that wrong would move page breaks rather than fail outright.
-    @Test
-    func aRecutChapterFallsWhereOneCutFromTheStartFalls() async throws {
-        let recut = await layout(startOffset: Self.context.textSize.height * 0.7)
-        let fresh = await layout(startOffset: 0)
-
-        await recut.recut(startOffset: 0)
-
-        #expect(recut.pageCount == fresh.pageCount)
-        #expect(recut.pageRanges == fresh.pageRanges)
-
-        let was = fresh.typesetLines
-        let now = recut.typesetLines
-
-        try #require(now.count == was.count)
-
-        for (index, line) in now.enumerated() {
-            #expect(line.text == was[index].text, "line \(index)")
-            #expect(line.height == was[index].height, "line \(index) height")
+            contents[index + 1] = await ChapterContent.prepare(html: html)
         }
 
-        for page in 0 ..< fresh.pageCount {
-            #expect(recut.pageText(page) == fresh.pageText(page), "page \(page)")
-        }
-    }
+        let texts = contents
 
-    /// A heading stands in twelve lines of air, so a chapter that ends much below the first third of
-    /// a page leaves nowhere for the next one to begin.
-    private static let content: BookPagination.ContentProvider = { _ in
-        await ChapterContent.prepare(html: "<p>\(JustificationTests.words(12))</p>")
-    }
-
-    /// A pass over a store with nothing in it, so every chapter is measured rather than read back.
-    private static func pagination() -> BookPagination {
-        BookPagination.make(
-            workId: 1,
+        return BookLayout(
+            chapters: shapes.enumerated().map { index, shape in
+                BookLayout.Chapter(
+                    id: index + 1,
+                    heading: ChapterHeading.make(position: index + 1, title: "Часть \(index + 1)"),
+                    opensItsOwnPage: shape.level <= 1
+                )
+            },
             context: context,
-            store: SQLiteBookStore(
-                fileURL: URL(fileURLWithPath: NSTemporaryDirectory())
-                    .appendingPathComponent("run-on-\(UUID().uuidString).sqlite")
-            )
+            content: { texts[$0] }
         )
     }
 }

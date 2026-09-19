@@ -142,8 +142,8 @@ cover, so a spine that waited for one to arrive waited for ever and stood bare f
 whatever the parser made of the file when it was read, so re-measuring sets the words it holds again and
 cannot add words it never held. Raise that number whenever a change puts something different into a
 chapter's stored text, and `local_book.reading_version` then dates every copy that is behind it.
-Changes to how text is set rather than to what it holds belong in `Typography.version` and
-`ChapterLayout.rulesVersion` instead, which re-measure without reading anything again.
+Changes to how text is set rather than to what it holds belong in `Typography.version` instead, which
+prepares the text again without reading the file.
 
 A book behind that number is read again as it opens. `ReaderScreen.Model.rereadIfBehind()` does it
 before the chapters come out of the store, so what the reader turns to is what this build makes of the
@@ -250,53 +250,26 @@ Two hashes ride with each stored chapter:
   changed chapter through to the end of the book, and says the book's *shape* has moved even where a
   later chapter's own words have not.
 
-Both matter because pagination is order-dependent: a chapter laid out after a longer neighbour starts
-further down its first page. So a chapter whose words are unchanged but whose chain has moved keeps its
-prepared text and gets a fresh chain, and only chapters that actually changed go through the typesetter
-again. That is what lets a corrected file re-use everything it didn't touch.
+A chapter whose words are unchanged but whose chain has moved keeps its prepared text and gets a fresh
+chain, and only chapters that actually changed go through the typesetter again. That is what lets a
+corrected file re-use everything it didn't touch.
 
 The walk runs at utility priority and yields between chapters, so a book being prepared never holds up
 a page turn. A book opens on its first chapter as soon as that one chapter is ready; the shelf shows a
 bar under the book while the rest arrives, and it stays readable throughout.
 
-### Measurements
-
-Preparing the text is the cheaper half. The other half is `BookPagination`, which lays out every
-chapter in order to find where each one starts and how many pages it runs to, and that runs whenever a
-book is opened: the pagination lives on the reader's model, which goes when the screen does.
-
-So a measurement is kept too, against two keys. The chain hash says the book is the same book up to
-this chapter, which is what a chapter's start position depends on. A style fingerprint says the setting
-is the same setting: face, weight, size, line and letter spacing, justification, margins, page size and
-safe area. The text colour is deliberately absent, so crossing into the dark doesn't throw the book's
-measurements away.
-
-The chapter's hash is read before its text, because the hash is one small row and the prepared text is
-a large one. A book reopened unchanged never loads its own text at all: it reads a measurement per
-chapter and lays out only the chapter on screen.
-
-Measuring starts when a book is opened and gets no further than it must. A chapter's place depends on
-every chapter before it and on none of the ones after, so the run ending at the chapter being opened is
-enough to put the reader on a page. The chapter after that one is measured too, since whether it begins
-on this chapter's last page has to be settled before the reader can turn onto that page. Opening at the
-first chapter therefore measures two, whatever the length of the book.
-
-The rest follows behind the reader, a chapter at a time at utility priority, and never while a page is
-turning. Laying a chapter out runs on the main actor, so a chapter measured mid-turn would take its
-frames from the animation. Every turn pushes the background pass off for a moment, which also keeps it
-off a reader turning steadily rather than letting it in between two quick turns.
-
 ### Rules count as input
 
-What is stored is the output of the rules on the source, so both are in the key. `Typography.version`
-rides in the content hash and `ChapterLayout.rulesVersion` in the style fingerprint, and each is bumped
-by hand whenever a rule changes what comes out.
+What is stored is the output of the rules on the source, so both are in the key: `Typography.version`
+rides in the content hash, and it is bumped by hand whenever a rule changes what comes out.
 
-Without them the cache is a trap rather than a saving. Correcting the dashes changed the prepared text
+Without it the store is a trap rather than a saving. Correcting the dashes changed the prepared text
 without touching a byte of any chapter's source, so every book already on the device would have gone on
-showing the marks and the line breaks an older typesetter chose, with nothing in the source to say it
-was stale. Bumping a version makes every book prepare and measure itself once more, and be quick again
-after that.
+showing the marks an older typesetter chose, with nothing in the source to say it was stale. Bumping
+the version makes every book prepare itself once more, and be quick again after that.
+
+Nothing about pages is stored. The reader cuts a book into pages around wherever the reader is, a few
+milliseconds a page, so a change of font or of screen costs the page in front of them and nothing else.
 
 Clearing downloads leaves local books alone. The service can send its text again and a file can't.
 
