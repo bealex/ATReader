@@ -12,6 +12,8 @@ import SwiftUI
 public struct ProgressBar: View {
     public let value: Double?
     public var tint: Color
+    /// The part not yet filled. A faint wash of the tint unless said otherwise.
+    public var track: Color?
 
     @State
     private var slid = false
@@ -20,9 +22,10 @@ public struct ProgressBar: View {
     private static let share: CGFloat = 0.35
     private static let slide = Animation.easeInOut(duration: 0.85).repeatForever(autoreverses: true)
 
-    public init(value: Double?, tint: Color = Design.Palette.accent) {
+    public init(value: Double?, tint: Color = Design.Palette.accent, track: Color? = nil) {
         self.value = value
         self.tint = tint
+        self.track = track
     }
 
     public var body: some View {
@@ -31,7 +34,7 @@ public struct ProgressBar: View {
             let run = width * Self.share
 
             ZStack(alignment: .leading) {
-                Capsule().fill(tint.opacity(0.18))
+                Capsule().fill(track ?? tint.opacity(0.18))
 
                 if let value {
                     Capsule()

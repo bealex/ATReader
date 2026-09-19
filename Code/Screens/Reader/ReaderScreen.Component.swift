@@ -657,42 +657,50 @@ enum ReaderScreen {
             let bar = layoutContext.textSize.width * Self.progressBarShare
             let figures = size * Self.figureScale
 
-            return ProgressBar(value: share, tint: ink)
-                .frame(width: bar)
-                .overlay(alignment: .leading) {
-                    if !isChromeHidden {
-                        HStack(spacing: figures * Self.progressSpacing) {
-                            Text(verbatim: percent)
+            return ProgressBar(
+                value: share,
+                tint: settings.theme.foreground.opacity(Self.readInk),
+                track: settings.theme.foreground.opacity(Self.trackInk)
+            )
+            .frame(width: bar)
+            .overlay(alignment: .leading) {
+                if !isChromeHidden {
+                    HStack(spacing: figures * Self.progressSpacing) {
+                        Text(verbatim: percent)
 
-                            if let pages = model.bookPages {
-                                Text(verbatim: "(\(pages.formatted(.number)))")
-                            }
+                        if let pages = model.bookPages {
+                            Text(verbatim: "(\(pages.formatted(.number)))")
                         }
-                        .font(.system(size: figures).monospacedDigit())
-                        .foregroundStyle(ink)
-                        .lineLimit(1)
-                        .fixedSize()
-                        .offset(x: bar + figures * Self.progressSpacing)
-                        .transition(.opacity)
                     }
+                    .font(.system(size: figures).monospacedDigit())
+                    .foregroundStyle(ink)
+                    .lineLimit(1)
+                    .fixedSize()
+                    .offset(x: bar + figures * Self.progressSpacing)
+                    .transition(.opacity)
                 }
-                .frame(height: RunningHead.line(size))
-                .padding(.bottom, spread.pageSafeArea.bottom + RunningHead.air(layoutContext.runningHeadBand, size))
-                .frame(maxWidth: .infinity)
-                .accessibilityElement(children: .ignore)
-                .accessibilityAddTraits(.isStaticText)
-                .accessibilityLabel(
-                    model.bookPages.map { String(localized: "\(percent) of the book, \($0) pages in all") }
-                        ?? String(localized: "\(percent) of the book")
-                )
-                // Only the sheet the reader is on names itself, so a turn never puts two of these on
-                // screen under the same identifier.
-                .accessibilityIdentifier(isCaption ? "reader.caption" : "")
-                .accessibilityHidden(!isCaption)
+            }
+            .frame(height: RunningHead.line(size))
+            .padding(.bottom, spread.pageSafeArea.bottom + RunningHead.air(layoutContext.runningHeadBand, size))
+            .frame(maxWidth: .infinity)
+            .accessibilityElement(children: .ignore)
+            .accessibilityAddTraits(.isStaticText)
+            .accessibilityLabel(
+                model.bookPages.map { String(localized: "\(percent) of the book, \($0) pages in all") }
+                    ?? String(localized: "\(percent) of the book")
+            )
+            // Only the sheet the reader is on names itself, so a turn never puts two of these on
+            // screen under the same identifier.
+            .accessibilityIdentifier(isCaption ? "reader.caption" : "")
+            .accessibilityHidden(!isCaption)
         }
 
         /// How much of the measure the bar takes.
-        private static let progressBarShare: CGFloat = 0.3
+        private static let progressBarShare: CGFloat = 0.45
+
+        /// The bar's ink, read part and the rest: quiet enough to sit under a page of text.
+        private static let readInk: CGFloat = 0.3
+        private static let trackInk: CGFloat = 0.1
 
         /// The figures beside the bar are set at half the running head's size: they are read once in a
         /// while, and the bar says the rest.
