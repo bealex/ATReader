@@ -51,6 +51,10 @@ enum ReaderScreen {
         @State
         private var safeArea = EdgeInsets()
 
+        /// The edge the system keeps its vertical bar on, nil where it keeps none.
+        @State
+        private var barEdge: HorizontalEdge?
+
         /// A page fills the screen, and the controls are a tap in the middle away.
         @State
         private var isChromeHidden = true
@@ -282,6 +286,10 @@ enum ReaderScreen {
             // The window, not the layout: a page ignores the safe area, so the size its parent hands
             // it is not the size it draws at, and a toolbar coming and going would move it besides.
             .onGeometryChange(for: CGSize.self, of: { $0.size }, action: { _ in applyWindowMetrics() })
+            .onVerticalBarEdge { edge in
+                barEdge = edge
+                applyWindowMetrics()
+            }
             .onChange(of: layoutContext, initial: true) {
                 value.apply(context: layoutContext, columns: spread.columns)
             }
@@ -565,22 +573,24 @@ enum ReaderScreen {
             let spread = spread
             let alone = spread.columns == 1
 
-            ZStack(alignment: .topLeading) {
-                settings.theme.background
-
-                ForEach(Array(model.pages(onSheet: sheet).enumerated()), id: \.offset) { column, index in
-                    pageContent(model, at: index, titled: alone)
-                        .frame(width: spread.pageSize.width, height: spread.pageSize.height)
-                        .offset(x: spread.origin(ofColumn: column))
+            settings.theme.background
+                // Laid over, not stacked: a page as tall as the window would push the sheet off its corner.
+                .overlay(alignment: .topLeading) {
+                    ZStack(alignment: .topLeading) {
+                        ForEach(Array(model.pages(onSheet: sheet).enumerated()), id: \.offset) { column, index in
+                            pageContent(model, at: index, titled: alone)
+                                .frame(width: spread.pageSize.width, height: spread.pageSize.height)
+                                .offset(x: spread.origin(ofColumn: column))
+                        }
+                    }
                 }
-            }
-            // One title over the spread rather than the same words twice, set in the middle of the
-            // sheet the way a printed book sets it across the opening.
-            .overlay(alignment: .top) {
-                if !alone, model.showsTitle(onSheet: sheet) {
-                    runningHead(model.bookTitle, edge: .head)
+                // One title over the spread rather than the same words twice, set in the middle of the
+                // sheet the way a printed book sets it across the opening.
+                .overlay(alignment: .top) {
+                    if !alone, model.showsTitle(onSheet: sheet) {
+                        runningHead(model.bookTitle, edge: .head)
+                    }
                 }
-            }
         }
 
         /// One page, drawn edge to edge: the text, the book's title above it and the page number below.
@@ -681,13 +691,12 @@ enum ReaderScreen {
             }
         }
 
-        /// Whether the status bar goes away with the controls.
-        ///
-        /// Only where the device keeps a band of its own at that edge. A notch is there whether the
-        /// status bar shows or not, so hiding it moves nothing; an iPad has no notch and the status bar
-        /// is its whole top inset, so hiding it would shrink the safe area and set the page again under
-        /// the reader's eyes. There it stays.
-        private var hidesStatusBar: Bool { isChromeHidden && safeArea.top >= Self.deviceBandDepth }
+        /// Whether the status bar goes away with the controls: only where that moves nothing, under a
+        /// notch or in a vertical bar the page makes no room for. An iPad's status bar is its whole top
+        /// inset, so there it stays.
+        private var hidesStatusBar: Bool {
+            isChromeHidden && (safeArea.top >= Self.deviceBandDepth || band.isDownASide)
+        }
 
         /// Deeper than any status bar, shallower than any notch.
         private static let deviceBandDepth: CGFloat = 40
@@ -723,12 +732,14 @@ enum ReaderScreen {
             guard let window = scene?.keyWindow else { return }
 
             let insets = window.safeAreaInsets
-            safeArea = EdgeInsets(top: insets.top, leading: insets.left, bottom: insets.bottom, trailing: insets.right)
+            let live = EdgeInsets(top: insets.top, leading: insets.left, bottom: insets.bottom, trailing: insets.right)
+
+            safeArea = band.pageInsets(from: live)
             sheetSize = window.bounds.size
         }
 
-        /// Which edge the device keeps its own band on, and so where the controls stand.
-        private var band: DeviceBand { DeviceBand.read(safeArea, in: sheetSize) }
+        /// Where the system stands its own bar, and so where the controls stand.
+        private var band: DeviceBand { DeviceBand(barEdge: barEdge) }
 
         /// How the sheet is divided: one page, or two with the binding between them.
         private var spread: PageSpread {
@@ -793,9 +804,8 @@ enum ReaderScreen {
             .ignoresSafeArea()
         }
 
-        /// Down the edge the device keeps its band on, which a folding screen can hold to one side while
-        /// the window itself stands upright. The controls go where the system already is rather than
-        /// crossing the page above the text.
+        /// Down the column a folding screen keeps its vertical bar in, where the system stands its own
+        /// buttons, and over the edge of a page that is set to the whole width.
         private var downTheSide: some View {
             VStack(spacing: Design.Space.large) {
                 GlassRow(.down) { wayOut }
@@ -806,15 +816,15 @@ enum ReaderScreen {
 
                 GlassRow(.down) { more }
             }
-            .padding(.vertical, Design.Space.extraLarge)
-            .padding(band == .leading ? .leading : .trailing, sideInset)
+            .padding(.top, Self.statusColumnDepth)
+            .padding([ .bottom, band == .leading ? .leading : .trailing ], Design.Space.huge)
+            // As wide as it is offered, or turning the safe area down reaches no further than the page.
+            .frame(maxWidth: .infinity, alignment: band.alignment)
             .ignoresSafeArea()
         }
 
-        /// How far in from the edge the side controls stand: clear of the device's own band.
-        private var sideInset: CGFloat {
-            (band == .leading ? safeArea.leading : safeArea.trailing) + Design.Space.extraLarge
-        }
+        /// How far down its column the system's status items reach, which no inset reports.
+        private static let statusColumnDepth: CGFloat = 120
 
         /// The way out, since a presented screen has no back button of its own. The glyph is the
         /// gesture: a drag down the page does the same thing.

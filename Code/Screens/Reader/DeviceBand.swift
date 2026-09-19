@@ -5,31 +5,25 @@
 
 import SwiftUI
 
-/// Which edge the device keeps its own band on: the notch, the camera, the home indicator.
+/// Where the system stands its own bar, and so where the reader's controls stand: across the top, or
+/// down the side a folding screen keeps its vertical bar on.
 ///
-/// Read off the window's insets rather than off the orientation, since a folding device can hold its
-/// band down one side while the window itself stands upright, and nothing about the orientation says
-/// so. A phone turned on its side has the same inset at either edge and keeps its controls at the top,
-/// which is where they have always been.
+/// Asked of the system, since the bar's inset comes and goes with the status bar.
 enum DeviceBand: Equatable {
     case top
     case leading
     case trailing
 
-    /// Where the band is, from the window's own insets and the shape of the window it is on.
-    ///
-    /// Two things have to hold. One side's inset must clearly beat the other's, which rules out the
-    /// rounding every corner has. And the window must stand upright, because a band running along one
-    /// physical edge of the device is at the head or the foot of a window that is turned on its side,
-    /// and the head is where the controls already are.
-    static func read(_ insets: EdgeInsets, in window: CGSize) -> DeviceBand {
-        guard window.height >= window.width else { return .top }
-        guard abs(insets.leading - insets.trailing) >= Self.tellingApart else { return .top }
-
-        return insets.leading > insets.trailing ? .leading : .trailing
+    /// - Parameter barEdge: the edge the system's vertical bar is on, nil where it keeps none.
+    init(barEdge: HorizontalEdge?) {
+        switch barEdge {
+            case .leading: self = .leading
+            case .trailing: self = .trailing
+            case nil: self = .top
+        }
     }
 
-    /// The corner the reader's controls are hung from.
+    /// The edge the reader's controls are hung from.
     var alignment: Alignment {
         switch self {
             case .top: .top
@@ -40,7 +34,43 @@ enum DeviceBand: Equatable {
 
     var isDownASide: Bool { self != .top }
 
-    /// How much deeper one side's inset has to be than the other's before it reads as the band rather
-    /// than as the rounding of a corner.
-    private static let tellingApart: CGFloat = 12
+    /// The insets a page is set against, which leave the bar's own column out.
+    ///
+    /// The bar goes away with the reader's controls and takes its inset with it, so a page that made
+    /// room for it would be set again at every tap.
+    func pageInsets(from insets: EdgeInsets) -> EdgeInsets {
+        var page = insets
+
+        switch self {
+            case .top: break
+            case .leading: page.leading = 0
+            case .trailing: page.trailing = 0
+        }
+
+        return page
+    }
+}
+
+extension View {
+    /// Tells `action` which edge the system's vertical bar is on, now and whenever it changes.
+    @ViewBuilder
+    func onVerticalBarEdge(_ action: @escaping (HorizontalEdge?) -> Void) -> some View {
+        if #available(iOS 27.1, *) {
+            modifier(VerticalBarEdgeReader(action: action))
+        } else {
+            self
+        }
+    }
+}
+
+@available(iOS 27.1, *)
+private struct VerticalBarEdgeReader: ViewModifier {
+    @Environment(\.toolbarVerticalEdge)
+    private var edge
+
+    let action: (HorizontalEdge?) -> Void
+
+    func body(content: Content) -> some View {
+        content.onChange(of: edge, initial: true) { _, edge in action(edge) }
+    }
 }

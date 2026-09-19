@@ -904,13 +904,25 @@ so the two read as one line across the top of the page. A navigation bar can't d
 it is given on its own height and reads no offset asking for anything else, which is why toolbar items
 sat a bar's worth below the book's name.
 
-Where they stand is read off the window rather than assumed. `DeviceBand` looks at the safe-area
-insets: where one side's inset clearly beats the other's and the window stands upright, the device is
-keeping its own band down that side, and the controls go there as a column instead of a row. A band
-along one physical edge of a device sits at the head or the foot of a window that is turned on its
-side, and the head is where the controls already are, so an upright window is part of the test. No
-phone or tablet in any orientation meets it today; a folding screen that holds its band down one edge
-does. `GlassRow` takes an axis so a column of buttons is still one pane of glass.
+Where they stand is asked of the system. A folding iPhone keeps a vertical bar down one side of the
+screen in place of the bars at the top, and `DeviceBand` reads which side from `toolbarVerticalEdge`
+(iOS 27.1). Where there is one, the controls go down that column as the system's own buttons do: 24pt
+in from the edge, the way out 120pt down so it clears the clock, the other two at the foot. No inset
+reports how far the status items reach, so that depth is a number of the reader's own. `GlassRow` takes
+an axis so a column of buttons is still one pane of glass.
+
+The bar's column arrives as a side inset, 84pt on an unfolded Duo, and the window gives it back the
+moment the status bar is hidden. The page makes no room for it: `DeviceBand.pageInsets` leaves that
+side out, so a spread is set to the whole width and hiding the status bar with the controls moves
+nothing. The price is paid while the controls are up, when the clock and the buttons stand over the
+page's outer edge and can cover the end of a line. Guessing the side from the insets can't work, since
+the inset comes and goes, and said nothing at all of a window wider than it is tall.
+
+The pages are laid over the sheet rather than stacked in it. A page is as tall as the window, and one
+that takes part in the layout makes the sheet taller than the safe area it is offered. SwiftUI centres
+that overflow before `ignoresSafeArea` widens anything, so the page lands half the difference between
+the top and bottom insets away from the window's corner. An upright iPhone hides it, its top inset
+being the deeper one. A Duo has none at the top and 34pt at the foot, and set every page 17pt high.
 
 The reader keeps a navigation stack with its bar hidden, for the window `readerBarAppearance` reaches
 through it: the page's own colour behind the corners the stack rounds, and the window held to the

@@ -8,13 +8,9 @@ import Testing
 
 @testable import Bookhold
 
-/// Which edge the device keeps its own band on, read off the window's insets and its shape.
+/// Where the reader's controls stand, from the edge the system keeps its vertical bar on, and what
+/// that bar's column means to the page.
 struct DeviceBandTests {
-    private static let upright = CGSize(width: 834, height: 1194)
-    private static let turned = CGSize(width: 1194, height: 834)
-    private static let phone = CGSize(width: 393, height: 852)
-    private static let phoneTurned = CGSize(width: 852, height: 393)
-
     private func insets(top: CGFloat = 0, leading: CGFloat = 0, bottom: CGFloat = 0, trailing: CGFloat = 0)
         -> EdgeInsets
     {
@@ -22,34 +18,14 @@ struct DeviceBandTests {
     }
 
     @Test
-    func readsAPhoneHeldUprightAsABandAcrossTheTop() {
-        #expect(DeviceBand.read(insets(top: 59, bottom: 34), in: Self.phone) == .top)
-    }
-
-    /// The case that must not move. Whatever a phone on its side reports at either edge, its band is at
-    /// the head or the foot of the window rather than down a side, and the controls stay put.
-    @Test
-    func keepsAWindowOnItsSideAtTheTop() {
-        #expect(DeviceBand.read(insets(leading: 59, bottom: 21, trailing: 59), in: Self.phoneTurned) == .top)
-        #expect(DeviceBand.read(insets(leading: 59, bottom: 21), in: Self.phoneTurned) == .top)
-        #expect(DeviceBand.read(insets(bottom: 21, trailing: 59), in: Self.turned) == .top)
+    func standsAcrossTheTopWhereTheSystemKeepsNoVerticalBar() {
+        #expect(DeviceBand(barEdge: nil) == .top)
     }
 
     @Test
-    func findsABandDownEitherSideOfAnUprightWindow() {
-        #expect(DeviceBand.read(insets(top: 12, leading: 4, bottom: 12, trailing: 59), in: Self.upright) == .trailing)
-        #expect(DeviceBand.read(insets(top: 12, leading: 59, bottom: 12, trailing: 4), in: Self.upright) == .leading)
-    }
-
-    /// A rounded corner leaves a few points at each edge, which is not a band.
-    @Test
-    func takesARoundedCornerForNothing() {
-        #expect(DeviceBand.read(insets(top: 24, leading: 8, bottom: 20), in: Self.upright) == .top)
-    }
-
-    @Test
-    func countsASquareWindowAsUpright() {
-        #expect(DeviceBand.read(insets(trailing: 59), in: CGSize(width: 900, height: 900)) == .trailing)
+    func followsTheSystemsBarDownEitherSide() {
+        #expect(DeviceBand(barEdge: .leading) == .leading)
+        #expect(DeviceBand(barEdge: .trailing) == .trailing)
     }
 
     @Test
@@ -60,8 +36,20 @@ struct DeviceBandTests {
         #expect(!DeviceBand.top.isDownASide)
     }
 
+    /// The bar goes away with the controls, so its column is the page's to fill.
     @Test
-    func readsNoInsetsAtAllAsTheTop() {
-        #expect(DeviceBand.read(EdgeInsets(), in: Self.upright) == .top)
+    func leavesTheBarsColumnOutOfThePagesInsets() {
+        let unfolded = insets(leading: 8, bottom: 34, trailing: 84)
+
+        #expect(DeviceBand.trailing.pageInsets(from: unfolded) == insets(leading: 8, bottom: 34))
+        #expect(DeviceBand.leading.pageInsets(from: unfolded) == insets(bottom: 34, trailing: 84))
+    }
+
+    /// A phone on its side has the sensor housing down one edge, which is not a bar and is kept clear.
+    @Test
+    func keepsEveryInsetWithNoBarDownASide() {
+        let turned = insets(leading: 59, bottom: 21, trailing: 59)
+
+        #expect(DeviceBand.top.pageInsets(from: turned) == turned)
     }
 }
