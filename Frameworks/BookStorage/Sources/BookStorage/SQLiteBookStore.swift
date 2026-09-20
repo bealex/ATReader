@@ -934,8 +934,8 @@ public actor SQLiteBookStore {
     /// Every mark in a book, in the order the chapters stand and then down each chapter.
     public func bookmarks(workId: Int) -> [Bookmark] {
         let query = """
-            SELECT chapter_id, start_offset, end_offset, created_at, text, occurrence FROM bookmark
-            WHERE work_id = ? ORDER BY chapter_id, start_offset
+            SELECT chapter_id, start_offset, end_offset, created_at, text, occurrence, page_start, page_line
+            FROM bookmark WHERE work_id = ? ORDER BY chapter_id, start_offset
             """
 
         guard let statement = Statement(open(), query) else { return [] }
@@ -952,6 +952,8 @@ public actor SQLiteBookStore {
                 endOffset: statement.integer(2),
                 text: statement.string(4),
                 occurrence: statement.integer(5),
+                pageStart: statement.number(6).map(Int.init),
+                lineOnPage: statement.number(7).map(Int.init),
                 createdAt: statement.date(3) ?? .now
             ))
         }
@@ -962,13 +964,16 @@ public actor SQLiteBookStore {
     /// Puts a mark in, or moves the end of the one already beginning there.
     public func store(bookmark: Bookmark) {
         let query = """
-            INSERT INTO bookmark (work_id, chapter_id, start_offset, end_offset, created_at, text, occurrence)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO bookmark
+                (work_id, chapter_id, start_offset, end_offset, created_at, text, occurrence, page_start, page_line)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(work_id, chapter_id, start_offset) DO UPDATE SET
                 end_offset = excluded.end_offset,
                 created_at = excluded.created_at,
                 text = excluded.text,
-                occurrence = excluded.occurrence
+                occurrence = excluded.occurrence,
+                page_start = excluded.page_start,
+                page_line = excluded.page_line
             """
 
         guard let statement = Statement(open(), query) else { return }
@@ -980,6 +985,8 @@ public actor SQLiteBookStore {
         statement.bind(5, bookmark.createdAt.timeIntervalSince1970)
         statement.bind(6, bookmark.text)
         statement.bind(7, bookmark.occurrence)
+        statement.bind(8, bookmark.pageStart)
+        statement.bind(9, bookmark.lineOnPage)
         statement.execute()
     }
 
@@ -1104,6 +1111,7 @@ public actor SQLiteBookStore {
         addProvenanceColumns()
         addReadingVersion()
         addBookmarkText()
+        addBookmarkPage()
         repairProgress()
         markServiceBooksRead()
         countSeriesFromOne()
@@ -1139,6 +1147,17 @@ public actor SQLiteBookStore {
 
         execute("ALTER TABLE bookmark ADD COLUMN text TEXT")
         execute("ALTER TABLE bookmark ADD COLUMN occurrence INTEGER NOT NULL DEFAULT 0")
+    }
+
+    /// Adds the page a mark was made on, for a store made before a mark kept one.
+    ///
+    /// The reader fills them in, a chapter at a time as it lays one out, since only a page size and a
+    /// face settle where a page begins and neither is anything the database knows.
+    private func addBookmarkPage() {
+        guard !columns(of: "bookmark").contains("page_start") else { return }
+
+        execute("ALTER TABLE bookmark ADD COLUMN page_start INTEGER")
+        execute("ALTER TABLE bookmark ADD COLUMN page_line INTEGER")
     }
 
     /// Adds the column saying which build's reading of a file a book holds.

@@ -25,6 +25,11 @@ public struct Bookmark: Sendable, Equatable, Identifiable, Hashable {
     public let text: String?
     /// Which of the places those words appear this one was, counting from zero.
     public let occurrence: Int
+    /// Where the page the mark was made on began, so the book reopens on that page rather than on one
+    /// cut afresh at the mark. Nothing for a mark made before this was kept.
+    public let pageStart: Int?
+    /// Which line of that page the mark stands on, counting from zero.
+    public let lineOnPage: Int?
     public let createdAt: Date
 
     public var id: String { "\(chapterId).\(startOffset)" }
@@ -36,6 +41,8 @@ public struct Bookmark: Sendable, Equatable, Identifiable, Hashable {
         endOffset: Int,
         text: String? = nil,
         occurrence: Int = 0,
+        pageStart: Int? = nil,
+        lineOnPage: Int? = nil,
         createdAt: Date
     ) {
         self.workId = workId
@@ -44,6 +51,8 @@ public struct Bookmark: Sendable, Equatable, Identifiable, Hashable {
         self.endOffset = endOffset
         self.text = text
         self.occurrence = occurrence
+        self.pageStart = pageStart
+        self.lineOnPage = lineOnPage
         self.createdAt = createdAt
     }
 
@@ -63,6 +72,17 @@ public struct Bookmark: Sendable, Equatable, Identifiable, Hashable {
         // The words say where the mark begins; how far it ran is its own, a page having been what the
         // reader could see when they made it.
         return found.lowerBound ..< found.lowerBound + length
+    }
+
+    /// Where to open the book so the mark stands where it stood: the first character of the page it was
+    /// made on, carried by however far its words have moved since.
+    ///
+    /// A mark that never kept a page opens at itself, which is what every mark did before pages were
+    /// kept.
+    public func opening(at place: Range<Int>) -> Int {
+        guard let pageStart else { return place.lowerBound }
+
+        return max(0, pageStart + place.lowerBound - startOffset)
     }
 
     /// How much of a marked stretch is kept as its words: enough to find it again, and not a page of

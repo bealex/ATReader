@@ -113,6 +113,49 @@ struct BookLayoutTests {
         #expect(await book.page(after: title)?.start == first.start)
     }
 
+    /// A mark keeps the page it was made on, so the page asked for by that opening is the page the mark
+    /// stood on rather than one beginning at the mark.
+    @Test
+    func aPlaceIsFoundOnThePageThatHoldsIt() async throws {
+        let book = await Self.book()
+        let length = try #require(await book.layout(of: 3)).sourceLength
+        let wanted = [ 0, length / 3, length / 2, length - 1 ]
+        let places = await book.pagePlaces(of: wanted, in: 3)
+
+        #expect(places.count == wanted.count)
+
+        for position in wanted {
+            let place = try #require(places[position])
+            let page = try #require(await book.page(at: BookPosition(chapterId: 3, offset: place.start)))
+            let piece = try #require(page.pieces.first { $0.layout.chapterId == 3 })
+
+            #expect(piece.layout.startOffset(of: piece.page) == place.start)
+            #expect(position < piece.layout.endOffset(of: piece.page))
+
+            let line = try #require(piece.layout.line(atPosition: position, on: piece.page))
+
+            #expect(line.index - piece.page.lines.lowerBound == place.line)
+        }
+    }
+
+    /// A mark whose words have moved carries its page with it, by however far they moved.
+    @Test
+    func aMarkCarriesItsPageWhereItsWordsHaveMoved() {
+        let mark = Bookmark(
+            workId: 1,
+            chapterId: 1,
+            startOffset: 500,
+            endOffset: 560,
+            pageStart: 420,
+            lineOnPage: 4,
+            createdAt: .now
+        )
+
+        #expect(mark.opening(at: 500 ..< 560) == 420)
+        #expect(mark.opening(at: 530 ..< 590) == 450)
+        #expect(mark.opening(at: 10 ..< 70) == 0, "a page cannot begin before the chapter does")
+    }
+
     // MARK: - What every walk has to hold
 
     /// Each chapter's pieces run from its first character to its last with nothing left out or repeated.

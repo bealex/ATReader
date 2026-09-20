@@ -140,6 +140,10 @@ extension ReaderScreen {
         @ObservationIgnored
         private var rememberedChapters: Set<Int> = []
 
+        /// The chapters whose marks have been given the page they stand on.
+        @ObservationIgnored
+        private var pagedChapters: Set<Int> = []
+
         init(
             workId: Int,
             workTitle: String,
@@ -372,16 +376,19 @@ extension ReaderScreen {
         /// one chapter and the start of another is one page to whoever marked it, and reopening at its
         /// first character brings all of it back.
         func toggleBookmark() {
-            let standing = bookmarksOnPage
+            let already = bookmarksOnPage
 
-            guard standing.isEmpty else { return remove(standing) }
+            guard already.isEmpty else { return remove(already) }
             guard let shown = displayedRanges.first else { return }
 
+            let standingOn = standing(at: shown.start, inChapter: shown.chapterId)
             let bare = Bookmark(
                 workId: workId,
                 chapterId: shown.chapterId,
                 startOffset: shown.start,
                 endOffset: shown.end,
+                pageStart: standingOn?.start,
+                lineOnPage: standingOn?.line,
                 createdAt: .now
             )
             let made =
@@ -400,11 +407,14 @@ extension ReaderScreen {
         func bookmarkPicked() {
             guard let chosen = picked, let built = bookLayout?.loadedLayout(of: chosen.chapterId) else { return }
 
+            let standingOn = standing(at: chosen.source.lowerBound, inChapter: chosen.chapterId)
             let bare = Bookmark(
                 workId: workId,
                 chapterId: chosen.chapterId,
                 startOffset: chosen.source.lowerBound,
                 endOffset: chosen.source.upperBound,
+                pageStart: standingOn?.start,
+                lineOnPage: standingOn?.line,
                 createdAt: .now
             )
 
@@ -416,6 +426,32 @@ extension ReaderScreen {
 
             Task { [store] in await store.store(bookmark: made) }
         }
+
+        /// Where the page in front of the reader begins, and which of its lines a place falls on.
+        ///
+        /// What a mark keeps of the page it was made on, so reopening it sets that page again instead of
+        /// cutting a fresh one whose first line is the marked one.
+        private func standing(at offset: Int, inChapter chapterId: Int) -> (start: Int, line: Int)? {
+            for page in pagesOnScreen {
+                for piece in page.pieces where piece.layout.chapterId == chapterId {
+                    let start = piece.layout.startOffset(of: piece.page)
+                    let end = max(piece.layout.endOffset(of: piece.page), start + 1)
+
+                    guard offset >= start, offset < end else { continue }
+
+                    let at =
+                        piece.layout.line(atPosition: offset, on: piece.page)?.index
+                        ?? piece.page.lines.lowerBound
+
+                    return (start, at - piece.page.lines.lowerBound)
+                }
+            }
+
+            return nil
+        }
+
+        /// Where to open the book to put a mark back on the page it was made on.
+        func opening(of mark: Bookmark) -> Int { mark.opening(at: place(of: mark)) }
 
         /// A mark as it stands on a page: where its line is, and how deep that line runs.
         struct StandingMark: Identifiable {
@@ -434,16 +470,35 @@ extension ReaderScreen {
 
                 return bookmarks(inChapter: piece.layout.chapterId).compactMap { mark -> StandingMark? in
                     let place = place(of: mark)
+                    let stands = place.lowerBound < end && max(place.upperBound, place.lowerBound + 1) > start
 
                     guard
-                        place.lowerBound < end,
-                        max(place.upperBound, place.lowerBound + 1) > start,
-                        let line = piece.layout.line(atPosition: max(place.lowerBound, start), on: piece.page)
+                        let line = stands
+                            ? piece.layout.line(atPosition: max(place.lowerBound, start), on: piece.page)
+                            : remembered(mark, on: piece, openingAt: start)
                     else { return nil }
 
                     return StandingMark(id: mark.id, top: line.edge, height: line.height)
                 }
             }
+        }
+
+        /// The line a mark remembers standing on, where the page it opens is the page it was made on.
+        ///
+        /// A book read again moves the offsets under a mark whose words have gone, and the line it wrote
+        /// down is then all that is left of where it stood.
+        private func remembered(
+            _ mark: Bookmark,
+            on piece: BookPage.Piece,
+            openingAt start: Int
+        ) -> ChapterLayout.PlacedLine? {
+            guard mark.pageStart == start, let index = mark.lineOnPage else { return nil }
+
+            let wanted = piece.page.lines.lowerBound + index
+
+            guard piece.page.lines.contains(wanted) else { return nil }
+
+            return piece.layout.placedLines(on: piece.page).first { $0.index == wanted }
         }
 
         /// Gives a mark written before marks kept any the words it stands on.
@@ -479,6 +534,62 @@ extension ReaderScreen {
             }
         }
 
+        /// Gives every mark written before marks kept a page the page it stands on.
+        ///
+        /// Each chapter holding one is cut from its own beginning, that being the only way to learn
+        /// which page holds a place. Run once a book, behind the page the reader is on, and against the
+        /// size and face in force: a mark keeps the page it was made on, and this is the nearest thing
+        /// to it left.
+        private func rememberPages() {
+            let waiting = Set(bookmarks.filter { $0.pageStart == nil }.map(\.chapterId))
+                .subtracting(pagedChapters)
+
+            guard !waiting.isEmpty, let bookLayout else { return }
+
+            pagedChapters.formUnion(waiting)
+
+            Task(priority: .utility) { [weak self] in
+                for chapterId in waiting.sorted() {
+                    guard let self else { return }
+
+                    await self.rememberPages(inChapter: chapterId, of: bookLayout)
+                }
+            }
+        }
+
+        private func rememberPages(inChapter chapterId: Int, of layout: BookLayout) async {
+            let standing = bookmarks.filter { $0.chapterId == chapterId && $0.pageStart == nil }
+
+            guard !standing.isEmpty else { return }
+
+            let wanted = Dictionary(standing.map { (place(of: $0).lowerBound, $0) }) { first, _ in first }
+            let places = await layout.pagePlaces(of: Array(wanted.keys), in: chapterId)
+            let written = places.compactMap { at, place in wanted[at].map { paged($0, on: place) } }
+
+            for mark in written {
+                guard let at = bookmarks.firstIndex(where: { $0.id == mark.id }) else { continue }
+
+                bookmarks[at] = mark
+            }
+
+            for mark in written { await store.store(bookmark: mark) }
+        }
+
+        /// The same mark, carrying the page it was found to stand on.
+        private func paged(_ mark: Bookmark, on place: BookLayout.PagePlace) -> Bookmark {
+            Bookmark(
+                workId: mark.workId,
+                chapterId: mark.chapterId,
+                startOffset: mark.startOffset,
+                endOffset: mark.endOffset,
+                text: mark.text,
+                occurrence: mark.occurrence,
+                pageStart: place.start,
+                lineOnPage: place.line,
+                createdAt: mark.createdAt
+            )
+        }
+
         /// The same mark, carrying the opening of the stretch it stands on and which of those it is.
         private func words(for mark: Bookmark, in built: ChapterLayout, of whole: BookSearch.Folded) -> Bookmark? {
             let stop = min(mark.endOffset, mark.startOffset + Bookmark.wordsKept)
@@ -493,6 +604,8 @@ extension ReaderScreen {
                 endOffset: mark.endOffset,
                 text: words,
                 occurrence: BookSearch.occurrence(of: words, at: mark.startOffset, in: whole),
+                pageStart: mark.pageStart,
+                lineOnPage: mark.lineOnPage,
                 createdAt: mark.createdAt
             )
         }
@@ -1121,6 +1234,8 @@ extension ReaderScreen {
             for page in sheet.pages {
                 for piece in page.pieces { rememberWords(in: piece.layout) }
             }
+
+            rememberPages()
 
             savePosition(now: sheet.start.chapterId != wroteChapterId)
             wroteChapterId = sheet.start.chapterId

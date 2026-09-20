@@ -216,6 +216,45 @@ public final class BookLayout {
         }
     }
 
+    /// Where a place in a chapter stands when the chapter is cut from its own beginning: the first
+    /// character of the page that holds it, and which of that page's lines it falls on.
+    public struct PagePlace: Equatable, Sendable {
+        public let start: Int
+        public let line: Int
+    }
+
+    /// Where each of these places in one chapter stands, cutting forwards from the chapter's opening.
+    ///
+    /// The only way to learn which page holds a place, pages being cut from the one beside them. A page
+    /// the reader is handed may open with the end of the chapter before, and the opening this answers
+    /// with cuts that same page again.
+    public func pagePlaces(of positions: [Int], in chapterId: Int) async -> [Int: PagePlace] {
+        guard !positions.isEmpty, let layout = await layout(of: chapterId) else { return [:] }
+        guard var line = await layout.openingLine() else { return [:] }
+
+        var wanted = Set(positions)
+        var found: [Int: PagePlace] = [:]
+
+        while !wanted.isEmpty {
+            let page = await layout.page(from: line, top: 0, opens: line == layout.firstLine)
+            let start = layout.startOffset(of: page)
+            let end = max(layout.endOffset(of: page), start + 1)
+
+            for position in wanted where position >= start && position < end {
+                let at = layout.line(atPosition: position, on: page)?.index ?? page.lines.lowerBound
+
+                found[position] = PagePlace(start: start, line: at - page.lines.lowerBound)
+                wanted.remove(position)
+            }
+
+            if layout.ends(page) { break }
+
+            line = page.lines.upperBound
+        }
+
+        return found
+    }
+
     /// True where nothing can follow a page: it carries the end of the book's last chapter.
     public func isLast(_ page: BookPage) -> Bool {
         guard let index = places[page.end.chapterId] else { return true }

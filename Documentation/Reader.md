@@ -257,11 +257,11 @@ A picture takes the whole measure, but is never blown up past one of its own pix
 small decoration stays small rather than becoming a blurred plate. One too deep for the page gives up
 width until it fits.
 
-It stands in a line of air above and below, one line of the page each way, and the page centres it in
-that air. The air used to be counted in the reader's line spacing alone, which is a couple of points at
-a tight setting: a picture then began about six points under the text, where two lines of that text
-stand a good sixteen apart, and it read as though it were touching. A line of the page is the one
-measure that moves with the type rather than with one setting of it.
+It stands in a line of air above and below, `style.font.lineHeight` each way, and the page centres it
+in that air. The air used to be counted in the reader's line spacing alone, which is a couple of points
+at a tight setting: a picture then began about six points under the text, where two lines of that text
+stand a good sixteen apart, and it read as though it were touching. A line of the face moves with the
+type rather than with one setting of it.
 
 ### A plate that will not fit the room left
 
@@ -415,6 +415,22 @@ exactly as the page is drawn.
 They stand under their chapters in the contents and in the book's details, with how far into the
 chapter each one is, and open the book where they stand. `LocalStore` is where they live, like
 everything else the reader does.
+
+### The page a mark was made on
+
+A mark keeps the first character of its page and which line of that page it stands on. Opened, the
+book cuts its page from that character, so the mark comes back on the page it was made on rather than
+on a page that begins with the marked line. Where the words have moved since, the page moves with
+them: `Bookmark.opening(at:)` shifts the opening by however far the search found them.
+
+Marks written before this fill themselves in. The reader collects the chapters holding one, and
+`BookLayout.pagePlaces(of:in:)` cuts each from its own beginning until it reaches the page that holds
+the mark, since a page is only ever cut from the one beside it. That runs once a book, behind the page
+in front of the reader, at the size and face in force.
+
+A page opened at a remembered character is cut again from scratch, so a mark made on a phone and
+opened on an iPad lands on a page of that iPad's own. The line it wrote down is what places its ribbon
+when a re-read book has moved its words out from under it altogether.
 
 ### Finding a mark once the offsets have moved
 

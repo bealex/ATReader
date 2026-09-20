@@ -1496,7 +1496,7 @@ enum ReaderScreen {
             Button(
                 action: {
                     isPresented = false
-                    model.open(chapterId: mark.chapterId, anchor: .offset(mark.startOffset))
+                    model.open(chapterId: mark.chapterId, anchor: .offset(model.opening(of: mark)))
                 },
                 label: {
                     BookmarkLabel(
