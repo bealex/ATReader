@@ -273,14 +273,21 @@ milliseconds a page, so a change of font or of screen costs the page in front of
 
 Clearing downloads leaves local books alone. The service can send its text again and a file can't.
 
-## Covers
+## Covers and pictures
 
-A file's own cover is made for print: one measured at 1500 by 2359 took three megabytes, and five
-hundred of those came to a quarter of a gigabyte on the device and in every backup. `LocalBookFiles`
-holds a cover to `CoverCache.maximumPixelSize` as it is taken in, which is the size the largest cover on
-a screen is drawn at, and covers taken in before that are shrunk once by `Covers.shrinkWhatWasKept()`
-behind whatever the reader is doing. A picture's size is read from its header, so a library already
-holding small covers costs one pass over a directory listing.
+A file's own artwork is made for print: one cover measured at 1500 by 2359 took three megabytes, and
+five hundred of those came to a quarter of a gigabyte on the device and in every backup.
+
+`LocalBookFiles` holds both to a size as they are taken in: a cover to `CoverCache.maximumPixelSize`,
+which is what the largest cover on a screen is drawn at, and a picture inside a book to
+`BookPicture.maximumPixelSize`, which is what the widest page can draw and what `BookImages` decodes
+one to anyway. A picture is written back the way it came, so line work stays line work: a drawing
+turned into a photograph rings around every stroke, and at these sizes that buys little.
+
+Anything taken in before that is shrunk once by `KeptPictures.shrink()`, behind whatever the reader is
+doing. A picture's size is read from its header, so a library already holding small ones costs one pass
+over a few directory listings. Nothing is lost by it: the file a book came from is kept whole, and every
+picture can be taken out of it again.
 
 ## Paths through the container
 

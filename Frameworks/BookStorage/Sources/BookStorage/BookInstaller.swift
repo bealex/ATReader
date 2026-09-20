@@ -226,7 +226,8 @@ public enum BookInstaller {
         )
     }
 
-    /// Writes the book's pictures out beside it, and reports the source each one now answers to.
+    /// Writes the book's pictures out beside it, at the size a page draws one, and reports the source
+    /// each one now answers to.
     ///
     /// A picture is a file rather than bytes in the database: a chapter body is read on every
     /// re-pagination, and a megabyte of base64 riding along with it would be read every time.
@@ -248,7 +249,11 @@ public enum BookInstaller {
         return images.reduce(into: [String: String]()) { result, entry in
             let file = directory.appendingPathComponent(entry.key.replacingOccurrences(of: "/", with: "_"))
 
-            guard (try? entry.value.write(to: file, options: .atomic)) != nil else { return }
+            guard
+                (try? LocalBookFiles.held(picture: entry.value).write(to: file, options: .atomic)) != nil
+            else {
+                return
+            }
 
             result[entry.key] = LocalBookFiles.imageSource(workId: workId, name: file.lastPathComponent)
         }

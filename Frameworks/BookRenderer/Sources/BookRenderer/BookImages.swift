@@ -154,9 +154,8 @@ public final class BookImages {
 
     private static let logger = Logger(subsystem: "com.lonelybytes.atreader", category: "images")
 
-    /// The longest edge a picture is kept at, in pixels. Wider than any column this app draws, and the
-    /// ceiling on what one picture costs in memory.
-    public nonisolated static let maximumPixelSize = 1600
+    /// The longest edge a picture is drawn at, which is the size one is kept at.
+    public nonisolated static let maximumPixelSize = BookPicture.maximumPixelSize
 
     /// How coarsely a picture is sampled to work out what it is made of.
     private nonisolated static let sampleSize = 64

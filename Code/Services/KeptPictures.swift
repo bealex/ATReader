@@ -23,7 +23,7 @@ enum Covers {
 
         guard held < CoverCache.maximumPixelSize else { return }
 
-        let shrank = await Task.detached(priority: .utility) { LocalBookFiles.shrinkKeptCovers() }.value
+        let shrank = await Task.detached(priority: .utility) { LocalBookFiles.shrinkKeptPictures() }.value
 
         UserDefaults.standard.set(CoverCache.maximumPixelSize, forKey: heldTo)
 

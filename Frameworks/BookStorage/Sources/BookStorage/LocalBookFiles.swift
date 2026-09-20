@@ -3,6 +3,7 @@
 //  Licensed under the MIT License. See LICENSE in the repository root.
 //
 
+import BookKit
 import Foundation
 import ImageIO
 import UIKit
@@ -83,49 +84,96 @@ public enum LocalBookFiles {
     /// The picture a file carries is made for print, and nothing here draws one larger than
     /// ``CoverCache/maximumPixelSize``. What can't be read as a picture is kept as it came.
     public static func held(cover: Data) -> Data {
-        guard
-            largestEdge(of: cover) > CoverCache.maximumPixelSize,
-            let shrunk = CoverCache.downsample(cover, maximumPixelSize: CoverCache.maximumPixelSize),
-            let written = shrunk.jpegData(compressionQuality: Self.coverQuality)
-        else { return cover }
-
-        return written
+        held(cover, to: CoverCache.maximumPixelSize, as: .jpeg)
     }
 
-    /// Shrinks every cover kept from before covers were held to a size, and says how many it shrank.
+    /// A picture standing in a book, at the size a page draws one.
     ///
-    /// Reading a picture's size costs no decoding, so a library whose covers are already small is one
-    /// pass over a directory listing.
+    /// Line work is written out as line work. Turning a diagram or a hand-drawn map into a photograph
+    /// rings around every stroke, and at these sizes it would save little.
+    public static func held(picture: Data) -> Data {
+        held(picture, to: BookPicture.maximumPixelSize, as: .asItCame)
+    }
+
+    /// How a picture held to a size is written out again.
+    private enum Written {
+        case jpeg
+        case asItCame
+    }
+
+    private static func held(_ picture: Data, to edge: Int, as written: Written) -> Data {
+        guard
+            largestEdge(of: picture) > edge,
+            let shrunk = CoverCache.downsample(picture, maximumPixelSize: edge)
+        else { return picture }
+
+        let smaller =
+            written == .jpeg || isPhotograph(picture)
+            ? shrunk.jpegData(compressionQuality: Self.pictureQuality)
+            : shrunk.pngData()
+
+        guard let smaller, smaller.count < picture.count else { return picture }
+
+        return smaller
+    }
+
+    /// Shrinks every cover and picture kept from before either was held to a size, and says how many it
+    /// shrank.
+    ///
+    /// Reading a picture's size costs no decoding, so a library already holding small ones is one pass
+    /// over a few directory listings.
     @discardableResult
-    public static func shrinkKeptCovers(in directory: URL? = nil) -> Int {
+    public static func shrinkKeptPictures(in directory: URL? = nil) -> Int {
         let folder = directory ?? Self.directory
-        let covers =
-            (try? FileManager.default.contentsOfDirectory(at: folder, includingPropertiesForKeys: nil))?
-            .filter { $0.lastPathComponent.hasSuffix(".cover.jpeg") } ?? []
+        let covers = listing(of: folder).filter { $0.lastPathComponent.hasSuffix(".cover.jpeg") }
+        let books = listing(of: folder.appendingPathComponent("Images", isDirectory: true))
         var shrank = 0
 
-        for cover in covers {
-            guard
-                let held = try? Data(contentsOf: cover),
-                largestEdge(of: held) > CoverCache.maximumPixelSize
-            else { continue }
+        for cover in covers where shrink(cover, to: CoverCache.maximumPixelSize, as: .jpeg) { shrank += 1 }
 
-            let smaller = Self.held(cover: held)
-
-            guard smaller.count < held.count, (try? smaller.write(to: cover, options: .atomic)) != nil else { continue }
-
-            shrank += 1
+        for book in books {
+            for picture in listing(of: book) where shrink(picture, to: BookPicture.maximumPixelSize, as: .asItCame) {
+                shrank += 1
+            }
         }
 
         return shrank
     }
 
+    private static func listing(of folder: URL) -> [URL] {
+        (try? FileManager.default.contentsOfDirectory(at: folder, includingPropertiesForKeys: nil)) ?? []
+    }
+
+    /// Writes a picture out again where it is larger than it is ever drawn. True where it shrank.
+    private static func shrink(_ file: URL, to edge: Int, as written: Written) -> Bool {
+        guard largestEdge(ofFileAt: file) > edge, let held = try? Data(contentsOf: file) else { return false }
+
+        let smaller = Self.held(held, to: edge, as: written)
+
+        guard smaller.count < held.count else { return false }
+
+        return (try? smaller.write(to: file, options: .atomic)) != nil
+    }
+
+    /// True where a picture is a photograph rather than line work, which is how it is written out again.
+    private static func isPhotograph(_ picture: Data) -> Bool {
+        guard let source = CGImageSourceCreateWithData(picture as CFData, nil) else { return false }
+
+        return (CGImageSourceGetType(source) as String?) == "public.jpeg"
+    }
+
+    /// How many pixels a picture's longest edge runs to, read from a file's header.
+    private static func largestEdge(ofFileAt file: URL) -> Int {
+        CGImageSourceCreateWithURL(file as CFURL, nil).map(largestEdge(of:)) ?? 0
+    }
+
     /// How many pixels a picture's longest edge runs to, read from its header rather than by decoding it.
     private static func largestEdge(of picture: Data) -> Int {
-        guard
-            let source = CGImageSourceCreateWithData(picture as CFData, nil),
-            let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any]
-        else { return 0 }
+        CGImageSourceCreateWithData(picture as CFData, nil).map(largestEdge(of:)) ?? 0
+    }
+
+    private static func largestEdge(of source: CGImageSource) -> Int {
+        guard let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any] else { return 0 }
 
         let width = properties[kCGImagePropertyPixelWidth] as? Int ?? 0
         let height = properties[kCGImagePropertyPixelHeight] as? Int ?? 0
@@ -133,8 +181,8 @@ public enum LocalBookFiles {
         return max(width, height)
     }
 
-    /// What a cover is written at. Above this a photograph gains nothing a shelf can show.
-    private static let coverQuality: CGFloat = 0.85
+    /// What a photograph is written at. Above this it gains nothing a page or a shelf can show.
+    private static let pictureQuality: CGFloat = 0.85
 
     /// Where a book's pictures are kept, one directory per book so removing the book removes them.
     public static func imagesDirectory(workId: Int) -> URL {
