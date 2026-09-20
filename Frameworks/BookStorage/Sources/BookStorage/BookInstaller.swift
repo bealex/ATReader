@@ -266,13 +266,17 @@ public enum BookInstaller {
         }
     }
 
+    /// Keeps the book's cover at the size a screen can use.
+    ///
+    /// A file's own cover is made for print: one measured at 1500 by 2359 took three megabytes, where
+    /// the same picture at the size this app draws it takes ninety kilobytes.
     private static func write(cover: Data?, workId: Int) -> URL? {
         guard let cover, !cover.isEmpty else { return nil }
 
         let destination = LocalBookFiles.coverURL(workId: workId)
 
         do {
-            try cover.write(to: destination, options: .atomic)
+            try LocalBookFiles.held(cover: cover).write(to: destination, options: .atomic)
             return destination
         } catch {
             logger.error("cover write failed: \(error.localizedDescription, privacy: .public)")

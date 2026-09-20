@@ -67,6 +67,10 @@ struct BookholdApp: App {
                 .task(priority: .utility) {
                     if await BookInstaller.removeDuplicates() > 0 { inbox.libraryChanged() }
 
+                    // Covers a file brought are kept at the size a screen can use. Ones taken in before
+                    // that are shrunk here, once, since a print-sized cover is thirty times the bytes.
+                    await Covers.shrinkWhatWasKept()
+
                     // Left for the reader to ask for until a library's worth of it has been watched:
                     // a re-read that loses one reading position loses it for good.
                     _ = inbox

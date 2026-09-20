@@ -4,6 +4,8 @@
 //
 
 import Foundation
+import ImageIO
+import UIKit
 import UniformTypeIdentifiers
 
 /// How a book that came from a file rather than from the service is numbered.
@@ -75,6 +77,64 @@ public enum LocalBookFiles {
     public static func coverURL(workId: Int) -> URL {
         directory.appendingPathComponent("\(-workId).cover", conformingTo: .jpeg)
     }
+
+    /// A cover at the size a screen can use, whatever size it arrived at.
+    ///
+    /// The picture a file carries is made for print, and nothing here draws one larger than
+    /// ``CoverCache/maximumPixelSize``. What can't be read as a picture is kept as it came.
+    public static func held(cover: Data) -> Data {
+        guard
+            largestEdge(of: cover) > CoverCache.maximumPixelSize,
+            let shrunk = CoverCache.downsample(cover, maximumPixelSize: CoverCache.maximumPixelSize),
+            let written = shrunk.jpegData(compressionQuality: Self.coverQuality)
+        else { return cover }
+
+        return written
+    }
+
+    /// Shrinks every cover kept from before covers were held to a size, and says how many it shrank.
+    ///
+    /// Reading a picture's size costs no decoding, so a library whose covers are already small is one
+    /// pass over a directory listing.
+    @discardableResult
+    public static func shrinkKeptCovers(in directory: URL? = nil) -> Int {
+        let folder = directory ?? Self.directory
+        let covers =
+            (try? FileManager.default.contentsOfDirectory(at: folder, includingPropertiesForKeys: nil))?
+            .filter { $0.lastPathComponent.hasSuffix(".cover.jpeg") } ?? []
+        var shrank = 0
+
+        for cover in covers {
+            guard
+                let held = try? Data(contentsOf: cover),
+                largestEdge(of: held) > CoverCache.maximumPixelSize
+            else { continue }
+
+            let smaller = Self.held(cover: held)
+
+            guard smaller.count < held.count, (try? smaller.write(to: cover, options: .atomic)) != nil else { continue }
+
+            shrank += 1
+        }
+
+        return shrank
+    }
+
+    /// How many pixels a picture's longest edge runs to, read from its header rather than by decoding it.
+    private static func largestEdge(of picture: Data) -> Int {
+        guard
+            let source = CGImageSourceCreateWithData(picture as CFData, nil),
+            let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any]
+        else { return 0 }
+
+        let width = properties[kCGImagePropertyPixelWidth] as? Int ?? 0
+        let height = properties[kCGImagePropertyPixelHeight] as? Int ?? 0
+
+        return max(width, height)
+    }
+
+    /// What a cover is written at. Above this a photograph gains nothing a shelf can show.
+    private static let coverQuality: CGFloat = 0.85
 
     /// Where a book's pictures are kept, one directory per book so removing the book removes them.
     public static func imagesDirectory(workId: Int) -> URL {

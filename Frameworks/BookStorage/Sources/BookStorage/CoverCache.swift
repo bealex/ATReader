@@ -22,14 +22,15 @@ public actor CoverCache {
 
     private static let logger = Logger(subsystem: "com.lonelybytes.atreader", category: "covers")
 
-    /// The longest edge kept on disk, in pixels.
+    /// The longest edge any cover is kept at, in pixels.
     ///
-    /// The widest cover the app draws is the reader's title page at 150pt, so this is that rounded up
-    /// for a 3x screen. Smaller rows scale the same image down, which costs nothing and means one file
-    /// per cover rather than one per size.
-    public static let maximumPixelSize = 480
+    /// The tallest a cover is drawn is on a book's own page, 192pt across and so about 290pt down. At
+    /// three times that a screen asks for 870 pixels, and a photograph shows nothing of the last fifth
+    /// of them while costing half as much again to keep. Every smaller row scales the same picture
+    /// down, which costs nothing and means one file per cover rather than one per size.
+    public static let maximumPixelSize = 720
 
-    /// How many covers to keep. Roughly 30 KB each, so the whole shelf is tens of megabytes.
+    /// How many covers to keep. Roughly 90 KB each, so a full shelf is a couple of hundred megabytes.
     public static let maximumCoverCount = 2000
 
     private let directory: URL
@@ -64,7 +65,7 @@ public actor CoverCache {
         self.directory = base
         self.session = session
         memory.countLimit = 300
-        // Four bytes a pixel, so a 480pt-tall cover costs about 1 MB decoded.
+        // Four bytes a pixel, so a cover at its full height costs about 2 MB decoded.
         memory.totalCostLimit = 96 * 1024 * 1024
         try? FileManager.default.createDirectory(at: base, withIntermediateDirectories: true)
         Self.excludeFromBackup(base)

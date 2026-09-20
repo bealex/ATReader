@@ -273,6 +273,15 @@ milliseconds a page, so a change of font or of screen costs the page in front of
 
 Clearing downloads leaves local books alone. The service can send its text again and a file can't.
 
+## Covers
+
+A file's own cover is made for print: one measured at 1500 by 2359 took three megabytes, and five
+hundred of those came to a quarter of a gigabyte on the device and in every backup. `LocalBookFiles`
+holds a cover to `CoverCache.maximumPixelSize` as it is taken in, which is the size the largest cover on
+a screen is drawn at, and covers taken in before that are shrunk once by `Covers.shrinkWhatWasKept()`
+behind whatever the reader is doing. A picture's size is read from its header, so a library already
+holding small covers costs one pass over a directory listing.
+
 ## Paths through the container
 
 Everything a book from a file brings with it lives under Application Support, and the path to it runs

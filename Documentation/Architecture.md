@@ -609,7 +609,11 @@ number of small files, so it keeps 2000 covers and drops the least recently used
 
 A cover is downloaded once, downsampled through ImageIO on the way in (which never allocates the
 full-size bitmap), stored as JPEG and handed back already decoded for display, so the main thread never
-decodes one. Concurrent requests for the same URL share one download. `CoverImage` loads when its row
+decodes one. `CoverCache.maximumPixelSize` is the one size anything is kept at, 720 pixels down the
+longest edge: the tallest a cover is drawn is on a book's own page, 192pt across and about 290pt down,
+which a 3x screen asks 870 pixels for, and a photograph shows nothing of the last fifth of those. A
+cover a book brought out of a file is held to the same size when it is taken in, since a cover made for
+print is a few megabytes where the same picture at a screen's size is ninety kilobytes. Concurrent requests for the same URL share one download. `CoverImage` loads when its row
 appears, and the library warms the whole shelf in the background once it has loaded, so covers are
 there before the row is.
 
