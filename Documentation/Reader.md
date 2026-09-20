@@ -375,7 +375,9 @@ glyph run, which carries the note's id. Reading it off the run saves counting ch
 the soft hyphens the line was set with.
 
 The note opens as a `Callout` hung over the marker, in the page's own colours and face, since these are
-the book's words rather than the app's chrome. Its text goes through `BookTextView`, which runs the
+the book's words rather than the app's chrome. Nothing stands over the note itself: its figure is on
+the page under the arrow the aside points with, and a tap anywhere off the aside puts it away, so a
+heading carrying that figure and a button carrying that tap both said it twice. Its text goes through `BookTextView`, which runs the
 typesetter over it: a note is hyphenated and filled the way a page is. That view lays out with a margin
 of its own, because the column hangs a line-ending comma or hyphen outside its measure and without one
 those marks fall off the edge.

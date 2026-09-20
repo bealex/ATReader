@@ -97,10 +97,13 @@ public struct Callout<Content: View>: View {
         .accessibilityLabel(Text("Close", bundle: .module))
     }
 
+    /// True where anything stands over what the aside says: what called it up, or the way out of it.
+    private var isHeaded: Bool { title?.isEmpty == false || onClose != nil }
+
     public var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: Design.Space.medium) {
-                if title?.isEmpty == false || onClose != nil {
+                if isHeaded {
                     header
 
                     Divider().overlay(foreground.opacity(Design.Palette.veil))
@@ -110,7 +113,8 @@ public struct Callout<Content: View>: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, Design.Space.extraLarge)
-            .padding(.top, Design.Space.large)
+            // A header sits nearer the top than words do, since the glyph in it carries its own air.
+            .padding(.top, isHeaded ? Design.Space.large : Design.Space.extraLarge)
             .padding(.bottom, Design.Space.extraLarge)
             .onGeometryChange(for: CGFloat.self, of: { $0.size.height }, action: { depth = $0 })
         }

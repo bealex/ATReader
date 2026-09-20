@@ -500,12 +500,14 @@ enum ReaderScreen {
         }
 
         /// A note, in the page's own colours and face: these are the book's words, not the app's chrome.
+        ///
+        /// Nothing above the note itself. Its figure stands on the page under the arrow the aside points
+        /// with, and a tap anywhere off the aside puts it away, so a heading repeating that figure and a
+        /// button repeating that tap were both saying it twice.
         private func noteCard(_ note: BookNote) -> some View {
             Callout(
-                title: note.marker,
                 foreground: settings.theme.foreground,
                 background: settings.theme.background,
-                onClose: { withAnimation(CalloutMotion.hiding) { self.note = nil } },
                 content: { BookTextView(text: note.text, style: noteStyle, width: Design.Size.calloutText) }
             )
             .accessibilityIdentifier("reader.note")
