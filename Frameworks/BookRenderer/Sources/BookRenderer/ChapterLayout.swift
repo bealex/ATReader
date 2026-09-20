@@ -118,8 +118,6 @@ public final class ChapterLayout {
         /// it give a little back is what closes that gap. Below this it is small enough to read as a
         /// different picture, so it takes the page of its own instead.
         static let plateGivesUp: CGFloat = 0.3
-        /// How far a picture stands off the text above and below it, against the gap between two lines.
-        static let pictureAir: CGFloat = 1.62
     }
 
     /// One page's worth of a chapter: the lines it carries, and where and how they stand.

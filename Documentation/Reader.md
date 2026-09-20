@@ -257,6 +257,12 @@ A picture takes the whole measure, but is never blown up past one of its own pix
 small decoration stays small rather than becoming a blurred plate. One too deep for the page gives up
 width until it fits.
 
+It stands in a line of air above and below, one line of the page each way, and the page centres it in
+that air. The air used to be counted in the reader's line spacing alone, which is a couple of points at
+a tight setting: a picture then began about six points under the text, where two lines of that text
+stand a good sixteen apart, and it read as though it were touching. A line of the page is the one
+measure that moves with the type rather than with one setting of it.
+
 ### A plate that will not fit the room left
 
 A picture is sized against the whole page, so one standing at two thirds of it can follow no text at
