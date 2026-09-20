@@ -3281,28 +3281,6 @@
         }
       }
     },
-    "Setting the pages": {
-      "extractionState": "manual",
-      "localizations": {
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Вёрстка страниц"
-          }
-        }
-      }
-    },
-    "Setting the pages…": {
-      "extractionState": "manual",
-      "localizations": {
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Верстаем страницы…"
-          }
-        }
-      }
-    },
     "Settings": {
       "extractionState": "manual",
       "localizations": {

@@ -190,41 +190,10 @@ enum ReaderScreen {
 
             pageArea($model)
                 .overlay {
-                    if model.isOpening {
-                        openingCard
-                    } else if let message = model.errorMessage, model.currentSheet == nil {
+                    if let message = model.errorMessage, model.currentSheet == nil {
                         ContentUnavailableView("Couldn’t open", systemImage: "book.closed", description: Text(message))
                     }
                 }
-        }
-
-        /// The one thing the reader sees between tapping a book and reading it, which is fetching the
-        /// chapter it opens on where the device doesn't have it yet.
-        ///
-        /// On a card, because the first page it covers is the title page and a bar drawn straight onto
-        /// the cover is unreadable. The page's own colours rather than a material, which would follow
-        /// the system's light or dark instead of the theme the reader chose.
-        private var openingCard: some View {
-            VStack(spacing: 12) {
-                Text("Setting the pages…")
-                    .font(.subheadline.weight(.medium))
-                    .foregroundStyle(settings.theme.foreground)
-
-                ProgressBar(value: nil, tint: settings.theme.foreground)
-            }
-            .padding(.horizontal, 28)
-            .padding(.vertical, 22)
-            .frame(maxWidth: 280)
-            .background(settings.theme.background, in: .rect(cornerRadius: 18))
-            // A card the same colour as the page needs an edge, the same way the bar above it does.
-            .overlay {
-                RoundedRectangle(cornerRadius: 18)
-                    .strokeBorder(settings.theme.foreground.opacity(0.15), lineWidth: 0.5)
-            }
-            .shadow(color: .black.opacity(0.3), radius: 16, y: 6)
-            .accessibilityElement(children: .ignore)
-            .accessibilityIdentifier("reader.pagination")
-            .accessibilityLabel("Setting the pages")
         }
 
         @ViewBuilder

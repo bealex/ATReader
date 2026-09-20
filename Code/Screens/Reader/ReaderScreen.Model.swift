@@ -61,9 +61,6 @@ extension ReaderScreen {
             return SeriesNumbering.title(book.title, in: book.seriesTitle, volume: book.seriesOrder)
         }
 
-        /// True from the tap that opens a book to its first page being set.
-        var isOpening: Bool { isLoading && currentSheet == nil }
-
         /// The sheets the reader has been shown since the page last changed shape, the one on screen
         /// among them. A turn back and forth shows the same pages, and a page further off is cut again.
         private(set) var sheets: [Sheet] = []
