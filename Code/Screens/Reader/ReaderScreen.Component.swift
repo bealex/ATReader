@@ -455,11 +455,13 @@ enum ReaderScreen {
         }
 
         /// What can be done with the words the reader drew a finger across.
+        ///
+        /// Nothing above the actions. A tap anywhere off the aside puts it away, so a button repeating
+        /// that tap was saying it twice.
         private func pickedMenu(_ chosen: Model.PickedText) -> some View {
             Callout(
                 foreground: settings.theme.foreground,
                 background: settings.theme.background,
-                onClose: clearPicked,
                 content: {
                     VStack(alignment: .leading, spacing: Design.Space.small) {
                         action("Look up", systemImage: "character.book.closed") {

@@ -897,14 +897,92 @@ extension ReaderScreen {
             return length > 0 ? min(1, Double(position.offset) / Double(length)) : 0
         }
 
+        /// How the reader came to the sheet in front of them, which says whether it measures anything.
+        private enum Arrival {
+            case jumped
+            case forward
+            case back
+        }
+
+        @ObservationIgnored
+        private var arrival: Arrival = .jumped
+
+        /// Where the sheet the numbers were last counted against ended.
+        @ObservationIgnored
+        private var numberedFrom: BookPosition?
+
+        /// Counts one turn forward, and moves the book's length to fit it.
+        ///
+        /// The length is an estimate from the book's characters, so a page or two out over a chapter:
+        /// the same number comes up twice where it runs short, and a number is skipped where it runs
+        /// long. A turn is a measurement of it. The page just left keeps the number it was showing and
+        /// the page arrived on takes the next one, which settles the length between them. A turn back
+        /// measures nothing, the pages behind the reader having been counted on the way out.
+        private func countTurn(to sheet: Sheet, by step: Int) {
+            guard
+                let from = numberedFrom,
+                let total = bookPages,
+                total > 0,
+                let shown = pageNumber(at: from)
+            else { return }
+
+            let was = progress(at: from)
+            let now = progress(at: sheet.end)
+
+            guard now > was, now > 0 else { return }
+
+            bookPages = Self.pages(holding: shown, at: was, reaching: shown + step, at: now, from: total)
+        }
+
+        /// A length in pages that numbers one place `holding` and a later one `reaching`, staying as
+        /// near as it can to the length the book already had.
+        ///
+        /// A number is the length times how far in the place stands, rounded, so each place asks for a
+        /// window of lengths and what fits both is their overlap. Where they do not overlap, the place
+        /// arrived on wins: it is the one in front of the reader.
+        static func pages(
+            holding shown: Int,
+            at was: Double,
+            reaching wanted: Int,
+            at now: Double,
+            from total: Int
+        ) -> Int {
+            var low = (Double(wanted) - 0.5) / now
+            var high = (Double(wanted) + 0.5) / now
+
+            if was > 0 {
+                low = max(low, (Double(shown) - 0.5) / was)
+                high = min(high, (Double(shown) + 0.5) / was)
+            }
+
+            let least = Int(low.rounded(.up))
+            let most = Int(high.nextDown.rounded(.down))
+
+            guard least <= most else { return max(wanted, Int((Double(wanted) / now).rounded())) }
+
+            return max(wanted, min(max(total, least), most))
+        }
+
+        /// The length this book's own characters come to, which is where the counting starts.
+        @ObservationIgnored
+        private var estimatedPages: Int?
+
         /// Works out how many pages the book comes to at the setting in force, from its length alone.
+        ///
+        /// Only the starting point: turning a page moves the count from here. A fresh estimate, from a
+        /// chapter arriving or a page of another size, puts it back.
         private func countBookPages() {
             let chapterLength = readableChapters.reduce(0) { $0 + ($1.textLength ?? 0) }
             let characters = chapterLength > 0 ? chapterLength : (book?.textLength ?? 0)
 
             guard let context, characters > 0 else { return bookPages = nil }
 
-            bookPages = BookLength.pages(characters: characters, context: context, language: chapterLanguage)
+            let estimate = BookLength.pages(characters: characters, context: context, language: chapterLanguage)
+
+            guard estimate != estimatedPages else { return }
+
+            estimatedPages = estimate
+            bookPages = estimate
         }
 
         // MARK: - Layout
@@ -1124,6 +1202,7 @@ extension ReaderScreen {
         private func show(_ position: BookPosition) {
             pendingPosition = position
             currentChapterId = position.chapterId
+            arrival = .jumped
 
             guard let bookLayout else { return }
 
@@ -1184,6 +1263,9 @@ extension ReaderScreen {
         /// Turns to the sheet after this one, waiting for it where it has not been cut yet.
         func turnForward() {
             guard currentSheet != nil else { return }
+
+            arrival = .forward
+
             guard
                 !sheets.indices.contains(sheetIndex + 1)
             else {
@@ -1197,6 +1279,9 @@ extension ReaderScreen {
         /// Turns to the sheet before this one, waiting for it where it has not been cut yet.
         func turnBack() {
             guard currentSheet != nil else { return }
+
+            arrival = .back
+
             guard
                 sheetIndex == 0
             else {
@@ -1240,6 +1325,11 @@ extension ReaderScreen {
             }
 
             rememberPages()
+
+            if case .forward = arrival { countTurn(to: sheet, by: sheet.pages.count) }
+
+            numberedFrom = sheet.end
+            arrival = .jumped
 
             savePosition(now: sheet.start.chapterId != wroteChapterId)
             wroteChapterId = sheet.start.chapterId

@@ -497,9 +497,11 @@ belonging to the screen underneath. Re-laying all of that out in the middle of t
 transition used to jump on. The reader carries a stack of its own for its bar, and a Close button,
 since a presented screen has no back button.
 
-Lifting the finger opens a `Callout` over the words: look up, translate, copy. The paint under them is
-`Design.Surface.picked`, and the page ticks as it goes: firmer for the first word, lighter for each one
-taken in after it, softer again when the aside arrives.
+Lifting the finger opens a `Callout` over the words: look up, translate, copy, mark. Nothing stands
+over the actions, as nothing stands over a note: a tap anywhere off the aside puts it away, so a
+button repeating that tap was saying it twice. The paint under the words is `Design.Surface.picked`,
+and the page ticks as it goes: firmer for the first word, lighter for each one taken in after it,
+softer again when the aside arrives.
 
 ## Cutting the column into pages
 
@@ -678,6 +680,18 @@ The length in pages comes from `BookLength`, from the book's length and the sett
 characters of ordinary prose one line holds, measured on a sample in the book's language, times the
 lines a page holds, less a hundredth for openings, pictures and the air between paragraphs. It changes
 with the type and the size of the page, so unfolding a screen changes it too.
+
+That length is where the counting starts rather than where it ends. An estimate is a page or two out
+over a chapter, which shows as the same number twice or a number skipped, so every turn forward
+corrects it: `ReaderScreen.Model.pages(holding:at:reaching:at:from:)` takes the length nearest the one
+in hand that numbers the page just left as it was numbered and the page arrived on one higher. Where
+the two places stand too close for any whole length to number both, the page in front of the reader
+wins. The length only moves when it has to, so the total beside the number holds still while the
+reading is going straight.
+
+A turn back corrects nothing: those pages were numbered on the way out, and counting them again would
+move the numbers under a reader going over what they just read. A fresh estimate, from a chapter
+arriving or a page of another size, puts the count back to `BookLength`.
 
 On a spread the line stands once, under both pages, as the title stands once over them.
 
