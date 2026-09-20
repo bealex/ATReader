@@ -367,30 +367,30 @@ extension ReaderScreen {
         var canBookmarkPage: Bool { !displayedRanges.isEmpty }
 
         /// Marks what the reader can see, or clears every mark it stands on.
+        ///
+        /// One mark, where the sheet begins, however many chapters it shows: a page carrying the end of
+        /// one chapter and the start of another is one page to whoever marked it, and reopening at its
+        /// first character brings all of it back.
         func toggleBookmark() {
             let standing = bookmarksOnPage
 
             guard standing.isEmpty else { return remove(standing) }
+            guard let shown = displayedRanges.first else { return }
 
-            let made = displayedRanges.map { shown in
-                let bare = Bookmark(
-                    workId: workId,
-                    chapterId: shown.chapterId,
-                    startOffset: shown.start,
-                    endOffset: shown.end,
-                    createdAt: .now
-                )
+            let bare = Bookmark(
+                workId: workId,
+                chapterId: shown.chapterId,
+                startOffset: shown.start,
+                endOffset: shown.end,
+                createdAt: .now
+            )
+            let made =
+                bookLayout?.loadedLayout(of: shown.chapterId)
+                .flatMap { words(for: bare, in: $0, of: BookSearch.fold($0.sourceText)) } ?? bare
 
-                guard let built = bookLayout?.loadedLayout(of: shown.chapterId) else { return bare }
+            bookmarks.append(made)
 
-                return words(for: bare, in: built, of: BookSearch.fold(built.sourceText)) ?? bare
-            }
-
-            bookmarks.append(contentsOf: made)
-
-            Task { [store] in
-                for mark in made { await store.store(bookmark: mark) }
-            }
+            Task { [store] in await store.store(bookmark: made) }
         }
 
         /// Marks the words the reader picked out, at the line they start on.
@@ -758,6 +758,14 @@ extension ReaderScreen {
             let current = Double(readable[index].textLength ?? 0) * within
 
             return min(1, max(0, (Double(before) + current) / Double(total)))
+        }
+
+        /// Which page of the book a place stands on, at the length the book comes to now. Nothing where
+        /// the book's own length isn't known, since there are no pages to count.
+        func pageNumber(at position: BookPosition) -> Int? {
+            guard let bookPages, bookPages > 0 else { return nil }
+
+            return max(1, Int((Double(bookPages) * progress(at: position)).rounded()))
         }
 
         /// How far into its own chapter a place stands, `0…1`.

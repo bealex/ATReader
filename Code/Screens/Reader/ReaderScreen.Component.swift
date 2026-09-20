@@ -38,6 +38,10 @@ enum ReaderScreen {
         @State
         private var isShowingContents = false
 
+        /// True while the marks standing on the page are listed, which only several of them do.
+        @State
+        private var isShowingBookmarks = false
+
         #if DEBUG
             @State
             private var report: SharedFile?
@@ -107,7 +111,7 @@ enum ReaderScreen {
                 if report != nil { return true }
             #endif
 
-            return isShowingContents || isShowingSettings || lookedUp != nil || isTranslating
+            return isShowingContents || isShowingBookmarks || isShowingSettings || lookedUp != nil || isTranslating
         }
 
         /// The type size of the running head, which ``ChapterLayout/Context/runningHeadBand`` keeps the
@@ -615,34 +619,49 @@ enum ReaderScreen {
             }
         }
 
-        /// How far into the book a page stands: a bar across the measure, and with the controls up how
-        /// many pages the whole book runs to before it and the share behind the reader after it.
+        /// How far into the book a page stands.
         ///
-        /// Set on the line the running head stands on at the foot, and as wide as the text above it.
+        /// Reading, that is the page's own number and nothing else, standing where a printed book puts
+        /// it. With the controls up it is the number against the book's length, and the bar beside it
+        /// says the same thing at a glance.
+        @ViewBuilder
         private func readingProgress(_ model: Model, at position: BookPosition, isCaption: Bool) -> some View {
             let size = runningHeadSize * Self.captionScale
             let share = model.progress(at: position)
+            let page = model.pageNumber(at: position)
             let percent = share.formatted(.percent.precision(.fractionLength(0)))
-            let figures = size * Self.figureScale
+            let ink = settings.theme.foreground.opacity(isChromeHidden ? Self.figureInk : Self.figureInkShown)
 
-            return HStack(spacing: figures * Self.progressSpacing) {
-                figure(model.bookPages?.formatted(.number), size: figures)
+            Group {
+                if isChromeHidden {
+                    Text(verbatim: page?.formatted(.number) ?? percent)
+                } else {
+                    HStack(spacing: size * Self.progressSpacing) {
+                        Text(
+                            verbatim: page.map {
+                                "\($0.formatted(.number))/\(model.bookPages?.formatted(.number) ?? "")"
+                            }
+                                ?? percent
+                        )
 
-                ProgressBar(
-                    value: share,
-                    tint: settings.theme.foreground.opacity(isChromeHidden ? Self.readInk : Self.readInkShown),
-                    track: settings.theme.foreground.opacity(isChromeHidden ? Self.trackInk : Self.trackInkShown)
-                )
-
-                figure(percent, size: figures)
+                        ProgressBar(
+                            value: share,
+                            tint: settings.theme.foreground.opacity(Self.readInk),
+                            track: settings.theme.foreground.opacity(Self.trackInk)
+                        )
+                    }
+                }
             }
+            .font(.system(size: size).monospacedDigit())
+            .foregroundStyle(ink)
+            .lineLimit(1)
             .frame(width: layoutContext.textSize.width, height: RunningHead.line(size))
             .padding(.bottom, spread.pageSafeArea.bottom + RunningHead.air(layoutContext.runningHeadBand, size))
             .frame(maxWidth: .infinity)
             .accessibilityElement(children: .ignore)
             .accessibilityAddTraits(.isStaticText)
             .accessibilityLabel(
-                model.bookPages.map { String(localized: "\(percent) of the book, \($0) pages in all") }
+                page.flatMap { number in model.bookPages.map { String(localized: "page \(number) of \($0)") } }
                     ?? String(localized: "\(percent) of the book")
             )
             // Only the sheet the reader is on names itself, so a turn never puts two of these on screen
@@ -651,32 +670,18 @@ enum ReaderScreen {
             .accessibilityHidden(!isCaption)
         }
 
-        /// One figure beside the bar, which stands only while the controls are up.
-        @ViewBuilder
-        private func figure(_ text: String?, size: CGFloat) -> some View {
-            if let text, !isChromeHidden {
-                Text(verbatim: text)
-                    .font(.system(size: size).monospacedDigit())
-                    .foregroundStyle(settings.theme.foreground.opacity(Self.readInkShown))
-                    .lineLimit(1)
-                    .fixedSize()
-                    .transition(.opacity)
-            }
-        }
-
-        /// The bar's ink, read part and the rest: quiet enough to sit under a page being read, and a
-        /// shade firmer once the controls are up and the reader has asked where they are.
-        private static let readInk: CGFloat = 0.18
-        private static let trackInk: CGFloat = 0.07
-        private static let readInkShown: CGFloat = 0.4
-        private static let trackInkShown: CGFloat = 0.12
-
-        /// The figures beside the bar are set at half the running head's size: they are read once in a
-        /// while, and the bar says the rest.
-        private static let figureScale: CGFloat = 0.5
-
-        /// The air between the bar and the figures beside it, against the size they are set in.
+        /// The air between the figures and the bar beside them, against the size they are set in.
         private static let progressSpacing: CGFloat = 0.6
+
+        /// The bar's ink, its read part and the rest. It stands only with the controls up, beside
+        /// figures set a shade darker than it.
+        private static let readInk: CGFloat = 0.3
+        private static let trackInk: CGFloat = 0.1
+
+        /// The figures' ink: what the running head takes, since while the reader is reading the number
+        /// is the only thing naming the page.
+        private static let figureInk: CGFloat = 0.6
+        private static let figureInkShown: CGFloat = 0.4
 
         /// A shade off the text's own ink: the mark is the reader's, not the book's.
         private static let markInk: CGFloat = 0.55
@@ -884,16 +889,30 @@ enum ReaderScreen {
                     .accessibilityLabel("Reading from this device")
             }
 
-            let isMarked = model?.isPageBookmarked == true
+            let standing = model?.bookmarksOnPage ?? []
 
+            // One mark is taken off where it stands; several are listed, since which of them to take
+            // off is the reader's to say.
             Button(
-                isMarked ? "Remove bookmark" : "Add bookmark",
-                systemImage: isMarked ? "bookmark.fill" : "bookmark"
+                standing.count > 1 ? "Bookmarks" : (standing.isEmpty ? "Add bookmark" : "Remove bookmark"),
+                systemImage: standing.isEmpty ? "bookmark" : "bookmark.fill"
             ) {
-                model?.toggleBookmark()
+                guard let model else { return }
+                guard standing.count > 1 else { return model.toggleBookmark() }
+
+                isShowingBookmarks = true
             }
-            .accessibilityHint("Marks the page, or clears the marks on it")
+            .accessibilityHint(
+                standing.count > 1
+                    ? "Lists the marks on the page"
+                    : "Marks the page, or clears the mark on it"
+            )
             .disabled(model?.canBookmarkPage != true)
+            .popover(isPresented: $isShowingBookmarks) {
+                if let model {
+                    BookmarksSheet(model: model, isPresented: $isShowingBookmarks)
+                }
+            }
         }
 
         /// Everything that opens something of its own, under one glyph.
@@ -1354,6 +1373,56 @@ enum ReaderScreen {
             .accessibilityLabel(theme.title)
             .accessibilityAddTraits(isSelected ? [ .isButton, .isSelected ] : .isButton)
             .accessibilityHint("Sets the colours the page is drawn in")
+        }
+    }
+
+    /// The marks standing on the page, and a way to take any of them off.
+    ///
+    /// Only ever shown for several of them: one mark is taken off by the button that shows it.
+    struct BookmarksSheet: View {
+        let model: Model
+
+        @Binding
+        var isPresented: Bool
+
+        var body: some View {
+            NavigationStack {
+                List {
+                    ForEach(model.bookmarksOnPage) { mark in
+                        HStack(spacing: Design.Space.medium) {
+                            BookmarkLabel(
+                                share: mark.share(ofChapterLength: model.length(ofChapter: mark.chapterId)),
+                                text: mark.text
+                            )
+
+                            Button("Remove bookmark", systemImage: "trash") { remove(mark) }
+                                .labelStyle(.iconOnly)
+                                .buttonStyle(.plain)
+                                .foregroundStyle(.red)
+                        }
+                        .swipeActions(edge: .trailing) {
+                            Button("Remove", systemImage: "bookmark.slash", role: .destructive) { remove(mark) }
+                        }
+                    }
+                }
+                .navigationTitle("Bookmarks")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("Close") { isPresented = false }
+                    }
+                }
+            }
+            .frame(idealWidth: SettingsSheet.wide, idealHeight: SettingsSheet.deep)
+            .presentationCompactAdaptation(.sheet)
+            .accessibilityIdentifier("reader.bookmarks")
+        }
+
+        private func remove(_ mark: Bookmark) {
+            model.remove([ mark ])
+
+            // Nothing left to choose between: the list puts itself away.
+            if model.bookmarksOnPage.count < 2 { isPresented = false }
         }
     }
 

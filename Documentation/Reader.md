@@ -643,11 +643,11 @@ larger share of the work, and it depends on nothing about the page.
 
 ## How far into the book
 
-The foot of a page says how far into the book it stands: a bar, the share of the book up to the end of
-the page, and how many pages the whole book comes to. A page number would need every page before it cut,
-which is what the reader no longer does. While the controls are away, and the status bar with them, the
-bar alone spans the measure; the figures come with the controls, at half the running head's size and at
-either end of the line: how long the book is before the bar, how far in the reader is after it.
+The foot of a page carries its own number, as a printed page does. It isn't counted: no page before it
+has been cut. It is the book's length in pages times the share of the book up to the end of the page, so
+it lands within a page or two of where a counted number would. While the controls are away the number
+stands alone in the middle of the measure; with them up it becomes the number against the book's length
+at the head of the line, and a bar beside it says the same thing at a glance.
 
 The share is counted in characters. Each chapter carries its length and a place in it counts its own,
 so the figure is exact wherever the reader is and however little has been laid out.
@@ -657,7 +657,7 @@ characters of ordinary prose one line holds, measured on a sample in the book's 
 lines a page holds, less a hundredth for openings, pictures and the air between paragraphs. It changes
 with the type and the size of the page, so unfolding a screen changes it too.
 
-On a spread the bar stands once, under both pages, as the title stands once over them.
+On a spread the line stands once, under both pages, as the title stands once over them.
 
 ## The page
 

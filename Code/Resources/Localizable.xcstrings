@@ -13,17 +13,6 @@
         }
       }
     },
-    "%@ of the book, %lld pages in all": {
-      "extractionState": "manual",
-      "localizations": {
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%1$@ книги, всего страниц: %2$lld"
-          }
-        }
-      }
-    },
     "%@ points": {
       "extractionState": "manual",
       "localizations": {
@@ -605,6 +594,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Закладка"
+          }
+        }
+      }
+    },
+    "Bookmarks": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Закладки"
           }
         }
       }
@@ -1930,6 +1930,17 @@
         }
       }
     },
+    "Lists the marks on the page": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Показывает закладки на этой странице"
+          }
+        }
+      }
+    },
     "Litres": {
       "extractionState": "manual",
       "localizations": {
@@ -2106,13 +2117,13 @@
         }
       }
     },
-    "Marks the page, or clears the marks on it": {
+    "Marks the page, or clears the mark on it": {
       "extractionState": "manual",
       "localizations": {
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Отмечает страницу или снимает отметки с неё"
+            "value": "Ставит закладку или снимает её"
           }
         }
       }
@@ -4351,6 +4362,17 @@
     "mail@example.com": {
       "extractionState": "manual",
       "shouldTranslate": false
+    },
+    "page %lld of %lld": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "страница %lld из %lld"
+          }
+        }
+      }
     },
     "still being written": {
       "extractionState": "manual",
