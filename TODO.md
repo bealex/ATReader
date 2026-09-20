@@ -49,6 +49,13 @@ What's still open, roughly in the order it would bite. Finished work isn't liste
       only the foreground sweep is proven.
 - [ ] The UI tests hit production, so a full run takes about four minutes and flakes now and then. A
       cheaper offline layer underneath would take the pressure off them.
+- [ ] **`BookmarkUITests` fails on the mark it takes off.** Swiping a mark in the contents and tapping
+      Remove leaves a row the test still finds. It fails the same way two commits back, so it is the
+      test or the contents list rather than anything the marks themselves changed, and the reader's own
+      bar clears a mark as it should.
+- [ ] **`DevicePageTests` fails on five reported pages.** The running-head band grew after those
+      reports were taken, so the measure the fixtures carry is 11pt short of the one a page is set to
+      now. The reports need taking again.
 
 ## Reader
 

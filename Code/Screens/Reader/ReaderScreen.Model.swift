@@ -566,13 +566,17 @@ extension ReaderScreen {
             let places = await layout.pagePlaces(of: Array(wanted.keys), in: chapterId)
             let written = places.compactMap { at, place in wanted[at].map { paged($0, on: place) } }
 
-            for mark in written {
+            // A mark taken off while the chapter was being cut is gone, and writing what was found for
+            // it would put it back.
+            let kept = written.filter { mark in bookmarks.contains { $0.id == mark.id } }
+
+            for mark in kept {
                 guard let at = bookmarks.firstIndex(where: { $0.id == mark.id }) else { continue }
 
                 bookmarks[at] = mark
             }
 
-            for mark in written { await store.store(bookmark: mark) }
+            for mark in kept { await store.store(bookmark: mark) }
         }
 
         /// The same mark, carrying the page it was found to stand on.
