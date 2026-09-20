@@ -8,12 +8,10 @@ What's still open, roughly in the order it would bite. Finished work isn't liste
 - [ ] **Search scopes filter what's already loaded.** Picking "Author" narrows the current page, so it
       can show an empty list while the service holds plenty more. Page until enough matches arrive, or
       drop the scopes and let `q` match both fields on its own.
-- [ ] **The pagination progress bar has never been seen.** It appears over 239 KB and real chapters are
-      a fiftieth of that, so the path is verified by construction only. Either find a book that trips
-      it or lower the threshold and watch it once.
-- [ ] **Jumping backwards past the prepared window re-paginates.** A chapter's run-on offset comes from
-      the chapter before it, so arriving from far away can lay it out differently than reading into it
-      did. Harmless in practice, visible as a page count that shifts by one.
+- [ ] **Pages cut forwards and backwards needn't agree.** A page reached by reading on and the same
+      page reached by turning back to it can break in different places, since each is cut from the
+      page beside it. The sheets the reader has seen are kept, so it takes leaving the run of them and
+      coming back; what shows is a line moving from one page to the next.
 - [ ] **A pinned author's name comes back from a book without its bar.** Only `scrollViewDidScroll`
       works out `AuthorHeaderView.isFloating`, and `prepareForReuse` clears it while the reader
       covers the list, so the scroll edge effect stays off until the shelf is next scrolled. Work it
@@ -54,6 +52,10 @@ What's still open, roughly in the order it would bite. Finished work isn't liste
 
 ## Reader
 
+- [ ] **The book's length is guessed short.** `BookLength` counts characters against the room a page
+      has, and every paragraph's last line leaves most of itself empty, which the count can't see. The
+      bundled book cuts into about 254 pages on a phone and is called 154. Counting paragraphs as well
+      as characters would close most of it.
 - [ ] **No ladder control.** Nothing caps consecutive hyphenated lines, and a paragraph's last line can
       still be a single short word. Both need control over line breaking rather than page breaking.
 - [ ] **VoiceOver gets a whole page as one label.** `ChapterPageView` publishes the page text as a
