@@ -565,6 +565,30 @@ public final class ChapterLayout {
         return page.top + depths + CGFloat(max(0, page.lines.count - 1)) * page.leading
     }
 
+    /// A page's shape in numbers, and the measure it was cut against, for a debug report.
+    public func describe(_ page: Page) -> String {
+        let size = context.textSize
+        let style = context.style
+
+        return String(
+            format: "lines %d..<%d (%d), top %.1f, leading %.2f, pictures %.1f, bottom %.1f"
+                + ", cut for %.0fx%.0f at %.1fpt/%.1f spacing%@%@",
+            page.lines.lowerBound,
+            page.lines.upperBound,
+            page.lines.count,
+            page.top,
+            page.leading,
+            page.imagePadding,
+            bottom(of: page),
+            size.width,
+            size.height,
+            style.fontSize,
+            style.lineSpacing,
+            opens(page) ? ", opens the chapter" : "",
+            ends(page) ? ", ends the chapter" : ""
+        )
+    }
+
     /// How deep a line stands on a page: less than its own for the plate that gave some up, or for the
     /// title that left its air above the top of the page.
     func depth(of number: Int, on page: Page) -> CGFloat {

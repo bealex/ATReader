@@ -990,6 +990,7 @@ enum ReaderScreen {
                             pageText: model.pageText,
                             settings: settingsReport,
                             lines: linesReport(model),
+                            layout: layoutReport(model),
                             markup: markup
                         )
                     else {
@@ -998,6 +999,27 @@ enum ReaderScreen {
 
                     report = SharedFile(url: url)
                 }
+            }
+
+            /// Where the page's size came from and what each page on screen was cut against, beside the
+            /// last cuts the reader made. A page cut against one measure and shown in another is what this
+            /// is here to catch.
+            private func layoutReport(_ model: Model) -> String {
+                let scene = UIApplication.shared.connectedScenes.first { $0 is UIWindowScene } as? UIWindowScene
+                let window = scene?.keyWindow
+                let bounds = window?.bounds.size ?? .zero
+                let insets = window?.safeAreaInsets ?? .zero
+                let asked = layoutContext.textSize
+
+                return """
+                    window: \(bounds.width) x \(bounds.height), insets \(insets.top), \(insets.left), \
+                    \(insets.bottom), \(insets.right)
+                    sheet: \(sheetSize.width) x \(sheetSize.height), page insets \(safeArea.top), \(safeArea.bottom)
+                    bar edge: \(String(describing: barEdge))
+                    chrome hidden: \(isChromeHidden), status bar hidden: \(hidesStatusBar)
+                    view asks for text: \(asked.width) x \(asked.height)
+                    \(model.layoutReport)
+                    """
             }
 
             /// Each line as it was set, against the measure it was set to.

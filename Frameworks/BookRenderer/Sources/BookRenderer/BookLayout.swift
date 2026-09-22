@@ -255,6 +255,16 @@ public final class BookLayout {
         return found
     }
 
+    /// How many lines of room a page leaves empty at its foot, at this layout's measure.
+    ///
+    /// Nothing for a page that stops where its chapter does, since a chapter's last page stops where its
+    /// text stops. A page cut against this measure fills it to within what its leading can take up.
+    public func shortfall(of page: BookPage) -> CGFloat {
+        guard let last = page.pieces.last, !last.layout.ends(last.page) else { return 0 }
+
+        return max(0, (context.textSize.height - last.layout.bottom(of: last.page)) / context.style.pageLine)
+    }
+
     /// True where nothing can follow a page: it carries the end of the book's last chapter.
     public func isLast(_ page: BookPage) -> Bool {
         guard let index = places[page.end.chapterId] else { return true }

@@ -5,7 +5,9 @@ Book text, kept out of the repository and read by the tests when it's there.
 ## Reports
 
 `Reports/<name>/` is one debug report unzipped: the reader's own button writes `page.txt`,
-`settings.txt`, `lines.txt` and `screen.png`, and `PageReport` reads the first two. `Scripts/app.sh
+`settings.txt`, `lines.txt`, `layout.txt`, `chapter.html` and `screen.png`, and `PageReport` reads the
+first two. `layout.txt` says what each page on screen was cut against and what the reader did last;
+`chapter.html` is the whole chapter, so a page can be cut again from its own text. `Scripts/app.sh
 test` names this directory in `TEST_RUNNER_AT_REPORTS`, so `DevicePageTests`, `SpacingTests` and
 `PageRenderTests` check whatever is here on every run, each page at the settings it was read at.
 

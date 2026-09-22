@@ -1000,6 +1000,14 @@ extension ReaderScreen {
 
             guard newContext != context || reshaped else { return }
 
+            log(String(
+                format: "asked for %.0fx%.0f text, %.1fpt/%.1f spacing, %d column(s)",
+                newContext.textSize.width,
+                newContext.textSize.height,
+                newContext.style.fontSize,
+                newContext.style.lineSpacing,
+                columns
+            ))
             context = newContext
             countBookPages()
 
@@ -1030,6 +1038,7 @@ extension ReaderScreen {
 
             laidChapters = laid
             rememberedChapters = []
+            log("laying the book out afresh")
             bookLayout = BookLayout(chapters: laid, context: context) { [weak self] id in
                 await self?.content(for: id)
             }
@@ -1209,6 +1218,8 @@ extension ReaderScreen {
             generation += 1
             fillingForward = nil
             fillingBackward = nil
+            recutSheets = []
+            log("opening at \(position.chapterId).\(position.offset)")
 
             let generation = generation
 
@@ -1318,6 +1329,7 @@ extension ReaderScreen {
         private func settle() {
             guard let sheet = currentSheet else { return }
 
+            log("on \(describe(sheet)), arrived \(arrival)")
             currentChapterId = sheet.start.chapterId
 
             for page in sheet.pages {
@@ -1336,12 +1348,136 @@ extension ReaderScreen {
             reportProgress()
             countBookPages()
             trim()
+            recutIfShort(sheet)
 
             Task { [weak self] in
                 await self?.fillForward()
                 await self?.fillBackward()
                 await self?.readAheadOfTheReader()
             }
+        }
+
+        // MARK: - A page that came up short
+
+        /// The sheets already cut again for the pages now in force, so one that comes up short a second
+        /// time, for a reason the rules give it, is left as it is.
+        @ObservationIgnored
+        private var recutSheets: Set<BookPosition> = []
+
+        /// Cuts the sheet in front of the reader again where a page of it stops a line or more short of
+        /// its measure in the middle of a chapter.
+        ///
+        /// A page cut against the measure in force never does: its leading takes up whatever a rule left
+        /// over. One that does was cut against some other measure, and the sheets after it were cut from
+        /// where it stopped, so they go too and are cut again from the fresh one.
+        private func recutIfShort(_ sheet: Sheet) {
+            guard
+                let bookLayout,
+                let short = sheet.pages.map({ bookLayout.shortfall(of: $0) }).max(),
+                short >= 1,
+                recutSheets.insert(sheet.start).inserted
+            else { return }
+
+            let generation = generation
+            let index = sheetIndex
+
+            log(String(format: "%.1f lines short, cutting it again", short))
+
+            Task { [weak self] in
+                guard let self, let fresh = await self.sheet(at: sheet.start, in: bookLayout) else { return }
+                guard
+                    generation == self.generation,
+                    self.sheets.indices.contains(index),
+                    self.sheets[index] == sheet
+                else { return }
+
+                self.sheets[index] = fresh
+                self.sheets.removeSubrange((index + 1)...)
+                self.numberedFrom = fresh.end
+                self.log("cut again: \(self.describe(fresh))")
+
+                await self.fillForward()
+            }
+        }
+
+        // MARK: - What a debug report says about the pages
+
+        /// The last few things the reader did to its pages, oldest first.
+        @ObservationIgnored
+        private(set) var cutLog: [String] = []
+
+        private func log(_ event: @autoclosure () -> String) {
+            #if DEBUG
+                cutLog.append("\(Self.clock.string(from: .now)) \(event())")
+
+                if cutLog.count > Self.cutLogLength { cutLog.removeFirst(cutLog.count - Self.cutLogLength) }
+            #endif
+        }
+
+        private static let cutLogLength = 60
+
+        private static let clock: DateFormatter = {
+            let formatter = DateFormatter()
+            formatter.dateFormat = "HH:mm:ss.SSS"
+            return formatter
+        }()
+
+        /// A sheet's pages, each with the measure it was cut against and how far short of this one it stands.
+        private func describe(_ sheet: Sheet) -> String {
+            sheet.pages.map { page -> String in
+                switch page.content {
+                    case .title:
+                        return "title page"
+                    case .missing:
+                        return "missing \(page.start.chapterId)"
+                    case let .text(pieces):
+                        let short =
+                            bookLayout.map { String(format: ", %.1f lines short", $0.shortfall(of: page)) } ?? ""
+                        let parts = pieces.map { "\($0.layout.chapterId): \($0.layout.describe($0.page))" }
+
+                        return "[" + parts.joined(separator: " | ") + short + "]"
+                }
+            }
+            .joined(separator: " ")
+        }
+
+        /// What the pages on screen were cut against, beside what the reader asks for now.
+        var layoutReport: String {
+            func size(_ context: ChapterLayout.Context?) -> String {
+                guard let context else { return "none" }
+
+                return String(
+                    format: "%.0fx%.0f text in %.0fx%.0f page, insets %.0f/%.0f, %.1fpt/%.1f spacing",
+                    context.textSize.width,
+                    context.textSize.height,
+                    context.pageSize.width,
+                    context.pageSize.height,
+                    context.safeArea.top,
+                    context.safeArea.bottom,
+                    context.style.fontSize,
+                    context.style.lineSpacing
+                )
+            }
+
+            let pages =
+                currentSheet.map { sheet in
+                    sheet.pages.enumerated().map { column, page in
+                        "  column \(column), \(page.start.chapterId).\(page.start.offset)"
+                            + " → \(page.end.chapterId).\(page.end.offset): " + describe(Sheet(pages: [ page ]))
+                    }
+                    .joined(separator: "\n")
+                } ?? "  none"
+
+            return """
+                reader asks for: \(size(context))
+                book laid out at: \(size(bookLayout?.context))
+                columns: \(columns), sheet \(sheetIndex + 1) of \(sheets.count), waiting \(isWaitingForSheet)
+                pages on screen:
+                \(pages)
+
+                recent cuts:
+                \(cutLog.joined(separator: "\n"))
+                """
         }
 
         /// Cuts the sheet after the last one known, where the reader could turn onto it.
@@ -1373,6 +1509,7 @@ extension ReaderScreen {
             else { return }
 
             sheets.append(next)
+            log("cut ahead: \(describe(next))")
         }
 
         /// Cuts the sheet before the first one known, where the reader could turn back onto it.
@@ -1404,6 +1541,7 @@ extension ReaderScreen {
             else { return }
 
             sheets.insert(previous, at: 0)
+            log("cut behind: \(describe(previous))")
             sheetIndex += 1
         }
 

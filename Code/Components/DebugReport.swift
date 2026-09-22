@@ -8,11 +8,12 @@ import SwiftUI
 import UIKit
 import UniformTypeIdentifiers
 
-/// The page as it stands: its text, the setting it was laid out at, and a picture of it, in one zip.
+/// The page as it stands: its text, the setting it was laid out at, what it was cut against, and a
+/// picture of it, in one zip.
 enum DebugReport {
     /// Writes the files into a folder and returns it zipped, ready to be shared.
     @MainActor
-    static func make(pageText: String, settings: String, lines: String, markup: String?) throws -> URL {
+    static func make(pageText: String, settings: String, lines: String, layout: String, markup: String?) throws -> URL {
         let stamp = Self.stamp.string(from: .now)
         let folder = FileManager.default.temporaryDirectory.appendingPathComponent("reader-\(stamp)")
 
@@ -21,6 +22,7 @@ enum DebugReport {
         try pageText.write(to: folder.appendingPathComponent("page.txt"), atomically: true, encoding: .utf8)
         try settings.write(to: folder.appendingPathComponent("settings.txt"), atomically: true, encoding: .utf8)
         try lines.write(to: folder.appendingPathComponent("lines.txt"), atomically: true, encoding: .utf8)
+        try layout.write(to: folder.appendingPathComponent("layout.txt"), atomically: true, encoding: .utf8)
 
         // The chapter as it arrived. What the page shows says what the reader made of the markup;
         // only the markup says what it was given.

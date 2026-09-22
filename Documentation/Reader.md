@@ -665,6 +665,16 @@ place. Composing a page costs a few milliseconds, so none of it is kept between 
 The chapters' prepared text is still kept, in `chapter_content`: parsing and hyphenating it is the
 larger share of the work, and it depends on nothing about the page.
 
+A page cut against the measure in force fills it: whatever a rule leaves over, the leading takes up.
+So a sheet that settles with a page a line or more short in the middle of a chapter was cut against
+some other measure, and the reader cuts it again from the same place, with every sheet after it.
+`BookLayout.shortfall(of:)` says how short a page stands. A sheet is cut again once, so a page the
+rules really do leave short stays as it came.
+
+A debug report writes `layout.txt` beside the page for exactly this: the window and the sheet the
+page's size came from, the measure the reader asks for, the measure each page on screen was cut
+against, and the last sixty cuts, turns and changes of measure with the time of each.
+
 ## How far into the book
 
 The foot of a page carries its own number, as a printed page does. It isn't counted: no page before it
