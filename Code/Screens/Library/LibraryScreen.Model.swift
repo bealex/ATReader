@@ -1352,6 +1352,9 @@ extension LibraryScreen {
 
             guard !books.isEmpty else { return }
 
+            // Asked here rather than at launch: a signed-in reader with a shelf is who the badge is for.
+            await UpdateBadge.requestBadgePermission()
+
             _ = await ChapterUpdateService(client: session.client).sweep(
                 works: books,
                 // A partial pass is for the badge alone; downloading bodies is the daily pass's job.

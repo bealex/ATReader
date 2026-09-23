@@ -704,7 +704,9 @@ gets the app killed.
 Two things drive it:
 
 - `BackgroundRefresh` registers a daily `BGAppRefresh` task via SwiftUI's `.backgroundTask`, and
-  re-submits the next request on every run so the chain continues.
+  re-submits the next request on every run so the chain continues. iOS often launches the app
+  straight into the background for it, where no view has restored the session, so the run restores
+  it first.
 - The library screen sweeps behind every load and every pull-to-refresh, and once a day sweeps the
   whole shelf.
 
@@ -719,7 +721,9 @@ budget; only that pass dates `lastCheckedAt`, and clearing a book's count when t
 doesn't, or reading daily would push the next full pass a day out every time.
 
 `UpdateBadge` keeps per-book counts in user defaults, which the UI reads synchronously while drawing,
-and sets the app icon badge through `UNUserNotificationCenter`. Opening a book clears its share.
+and sets the app icon badge through `UNUserNotificationCenter`. Opening a book clears its share. The
+library screen asks for the badge permission before its first sweep, and reads the counts back
+whenever the app comes to the foreground, since a background run writes them where nothing observes.
 
 ## Testing seams
 

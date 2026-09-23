@@ -80,10 +80,7 @@ enum ProfileScreen {
             .onChange(of: session.isSignedIn) { _, signedIn in
                 if signedIn { isSigningIn = false }
             }
-            .task {
-                await refreshStats()
-                await UpdateBadge.requestBadgePermission()
-            }
+            .task { await refreshStats() }
             .confirmationDialog(
                 "Clear downloads?",
                 isPresented: $isConfirmingClear,

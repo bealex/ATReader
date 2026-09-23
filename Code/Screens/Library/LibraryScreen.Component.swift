@@ -25,6 +25,9 @@ enum LibraryScreen {
         @Environment(Navigator.self)
         private var navigator
 
+        @Environment(\.scenePhase)
+        private var scenePhase
+
         /// What the reader is holding together, while they are doing it.
         @State
         private var merging: MergeKind?
@@ -83,6 +86,12 @@ enum LibraryScreen {
 
                         await model.adoptImported(workId: workId)
                     }
+                }
+                // A sweep that ran in the background left its counts in the store and nowhere else.
+                .onChange(of: scenePhase) { _, phase in
+                    guard phase == .active else { return }
+
+                    Task { await model.refreshFromStore() }
                 }
                 .onChange(of: navigator.returnedAt) { _, _ in
                     // Reading fills the rings, and only the store knows it. Coming back off a book redraws

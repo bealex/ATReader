@@ -3,6 +3,7 @@
 //  Licensed under the MIT License. See LICENSE in the repository root.
 //
 
+import AuthorToday
 import BackgroundTasks
 import Foundation
 
@@ -31,12 +32,17 @@ enum BackgroundRefresh {
     static func runSweep(session: SessionStore) async {
         scheduleNext()
 
-        // The store lives on the main actor; the sweep itself does not need to.
-        let client = await MainActor.run { session.isSignedIn ? session.client : nil }
-
-        guard let client else { return }
+        guard let client = await signedInClient(of: session) else { return }
 
         _ = try? await ChapterUpdateService(client: client)
             .check(chapterBudget: ChapterUpdateService.backgroundChapterBudget)
+    }
+
+    /// A launch straight into the background builds no view, so nothing else has restored the session.
+    @MainActor
+    private static func signedInClient(of session: SessionStore) async -> AuthorTodayClient? {
+        if case .restoring = session.state { await session.restore() }
+
+        return session.isSignedIn ? session.client : nil
     }
 }
