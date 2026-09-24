@@ -53,7 +53,7 @@ enum DebugReport {
     }
 
     /// `NSFileCoordinator` zips a folder when it is read for uploading, which saves carrying an archiver.
-    private static func zipped(_ folder: URL, named name: String) throws -> URL {
+    static func zipped(_ folder: URL, named name: String) throws -> URL {
         var coordinatorError: NSError?
         var result: Result<URL, Error>?
 

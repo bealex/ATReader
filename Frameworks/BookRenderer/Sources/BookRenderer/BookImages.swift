@@ -6,7 +6,7 @@
 import BookKit
 import CoreGraphics
 import ImageIO
-import OSLog
+import Memoirs
 import UIKit
 
 /// The two colours a page is set in, and whether its pictures are held to them.
@@ -152,7 +152,7 @@ public final class BookImages {
 
     public static let shared = BookImages()
 
-    private static let logger = Logger(subsystem: "com.lonelybytes.atreader", category: "images")
+    private static let memoir = TracedMemoir(label: "images", memoir: rootMemoir)
 
     /// The longest edge a picture is drawn at, which is the size one is kept at.
     public nonisolated static let maximumPixelSize = BookPicture.maximumPixelSize
@@ -203,7 +203,7 @@ public final class BookImages {
                 let ingredients = read[source],
                 let picture = Self.picture(ingredients)
             else {
-                Self.logger.debug("no picture at \(url.lastPathComponent, privacy: .public)")
+                Self.memoir.debug("no picture at \(safe: url.lastPathComponent)")
                 unresolved.insert(source)
                 continue
             }

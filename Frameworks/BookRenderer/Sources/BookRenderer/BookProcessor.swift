@@ -6,7 +6,7 @@
 import BookKit
 import CryptoKit
 import Foundation
-import OSLog
+import Memoirs
 
 /// Puts a book through the typesetter once and keeps the result, so opening it again costs a read
 /// rather than the work.
@@ -19,7 +19,7 @@ import OSLog
 /// The walk runs behind the reader rather than in front of it. A book opens on its first chapter as
 /// soon as that one chapter is ready, and the rest arrive while it is being read.
 public actor BookProcessor {
-    private static let logger = Logger(subsystem: "com.lonelybytes.atreader", category: "processor")
+    private static let memoir = TracedMemoir(label: "processor", memoir: rootMemoir)
 
     /// How far a book has been through the typesetter.
     public struct Progress: Sendable, Equatable {
@@ -142,7 +142,7 @@ public actor BookProcessor {
             await Task.yield()
         }
 
-        Self.logger.info("prepared \(done) chapters of work \(workId)")
+        Self.memoir.info("prepared \(safe: done) chapters of work \(safe: workId)")
     }
 
     /// A chapter's source, hashed together with the rules that will be applied to it.

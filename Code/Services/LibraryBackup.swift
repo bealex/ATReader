@@ -5,7 +5,7 @@
 
 import BookStorage
 import Foundation
-import OSLog
+import Memoirs
 import UIKit
 
 /// The library, kept in a folder the reader picked, and put back from it.
@@ -36,7 +36,7 @@ final class LibraryBackup {
     var hasFolder: Bool { folderPath != nil }
 
     @ObservationIgnored
-    private let logger = Logger(subsystem: "com.lonelybytes.atreader", category: "backup")
+    private let memoir = TracedMemoir(label: "backup", memoir: AppMemoir.root)
 
     private static let key = "backup.folder"
 
@@ -58,7 +58,7 @@ final class LibraryBackup {
             refresh()
         } catch {
             stage = .failed(String(localized: "That folder could not be remembered."))
-            logger.error("bookmarking failed: \(error.localizedDescription, privacy: .public)")
+            memoir.error("bookmarking failed: \(safe: error.localizedDescription)")
         }
     }
 
@@ -122,7 +122,7 @@ final class LibraryBackup {
             refresh()
         } catch {
             stage = .failed(String(describing: error))
-            logger.error("backup failed: \(String(describing: error), privacy: .public)")
+            memoir.error("backup failed: \(safe: String(describing: error))")
         }
     }
 

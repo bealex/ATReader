@@ -1996,6 +1996,17 @@
         }
       }
     },
+    "Litres turned the session down. Sign in again.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Литрес отклонил сессию. Войдите заново."
+          }
+        }
+      }
+    },
     "Loading book": {
       "extractionState": "manual",
       "localizations": {
@@ -3303,6 +3314,17 @@
         }
       }
     },
+    "Share Litres login logs": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Отправить журнал входа в Литрес"
+          }
+        }
+      }
+    },
     "Share the report": {
       "extractionState": "manual",
       "localizations": {
@@ -3842,17 +3864,6 @@
         }
       }
     },
-    "The session ran out. Sign in again.": {
-      "extractionState": "manual",
-      "localizations": {
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Сессия истекла. Войдите заново."
-          }
-        }
-      }
-    },
     "Theme": {
       "extractionState": "manual",
       "localizations": {
@@ -4201,6 +4212,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Насыщенность"
+          }
+        }
+      }
+    },
+    "What happened, in a few words:\n\n": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Что случилось, в двух словах:\n\n"
           }
         }
       }

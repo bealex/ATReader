@@ -6,7 +6,7 @@
 import BookKit
 import CryptoKit
 import Foundation
-import OSLog
+import Memoirs
 
 /// Puts a book a parser has read onto this device: its file, its cover, its pictures and its rows.
 ///
@@ -51,7 +51,7 @@ public struct BookOrigin: Sendable {
 }
 
 public enum BookInstaller {
-    private static let logger = Logger(subsystem: "com.lonelybytes.atreader", category: "install")
+    private static let memoir = TracedMemoir(label: "install", memoir: rootMemoir)
 
     /// Files a parsed book against the number its fingerprint already has, or a new one.
     ///
@@ -109,7 +109,7 @@ public enum BookInstaller {
             readingVersion: BookReading.version
         ))
 
-        logger.info("installed \(book.sections.count) chapters as work \(workId)")
+        memoir.info("installed \(safe: book.sections.count) chapters as work \(safe: workId)")
         return summary
     }
 
@@ -126,7 +126,7 @@ public enum BookInstaller {
         do {
             try LocalBookFiles.keep(data, workId: workId)
         } catch {
-            logger.error("keeping the file failed: \(error.localizedDescription, privacy: .public)")
+            memoir.error("keeping the file failed: \(safe: error.localizedDescription)")
         }
     }
 
@@ -242,7 +242,7 @@ public enum BookInstaller {
         do {
             try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         } catch {
-            logger.error("image directory failed: \(error.localizedDescription, privacy: .public)")
+            memoir.error("image directory failed: \(safe: error.localizedDescription)")
             return [:]
         }
 
@@ -284,7 +284,7 @@ public enum BookInstaller {
             try LocalBookFiles.held(cover: cover).write(to: destination, options: .atomic)
             return destination
         } catch {
-            logger.error("cover write failed: \(error.localizedDescription, privacy: .public)")
+            memoir.error("cover write failed: \(safe: error.localizedDescription)")
             return nil
         }
     }
@@ -325,7 +325,7 @@ public enum BookInstaller {
 
         for workId in doomed { await remove(workId: workId, store: store) }
 
-        if !doomed.isEmpty { logger.info("dropped \(doomed.count) duplicate books") }
+        if !doomed.isEmpty { memoir.info("dropped \(safe: doomed.count) duplicate books") }
 
         return doomed.count
     }

@@ -6,7 +6,7 @@
 import CryptoKit
 import Foundation
 import ImageIO
-import OSLog
+import Memoirs
 import UIKit
 
 /// Downloads book covers once, shrinks them to something this screen can actually use, and keeps them.
@@ -20,7 +20,7 @@ import UIKit
 public actor CoverCache {
     public static let shared = CoverCache()
 
-    private static let logger = Logger(subsystem: "com.lonelybytes.atreader", category: "covers")
+    private static let memoir = TracedMemoir(label: "covers", memoir: rootMemoir)
 
     /// The longest edge any cover is kept at, in pixels.
     ///
@@ -144,13 +144,13 @@ public actor CoverCache {
             guard
                 let image = downsample(data, maximumPixelSize: maximumPixelSize)
             else {
-                logger.error("downsample returned nil")
+                memoir.error("downsample returned nil")
                 return nil
             }
             guard
                 let encoded = image.jpegData(compressionQuality: 0.85)
             else {
-                logger.error("jpegData returned nil")
+                memoir.error("jpegData returned nil")
                 return image
             }
 
@@ -158,12 +158,12 @@ public actor CoverCache {
                 let destination = directory.appendingPathComponent("\(fileKey(for: url)).jpg")
                 try encoded.write(to: destination, options: .atomic)
             } catch {
-                logger.error("write failed: \(error.localizedDescription, privacy: .public)")
+                memoir.error("write failed: \(safe: error.localizedDescription)")
             }
 
             return image.preparingForDisplay() ?? image
         } catch {
-            logger.error("download failed: \(error.localizedDescription, privacy: .public)")
+            memoir.error("download failed: \(safe: error.localizedDescription)")
             return nil
         }
     }

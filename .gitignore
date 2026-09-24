@@ -14,6 +14,8 @@ Bookhold.xcodeproj/
 # Swift Package Manager (the package itself and the StyleRespace formatter tool)
 .build/
 .swiftpm/
+# A package resolves against whatever the app pins, so its own lock file isn't kept.
+Frameworks/*/Package.resolved
 
 # Local screenshots / screen recordings
 Screenshots/

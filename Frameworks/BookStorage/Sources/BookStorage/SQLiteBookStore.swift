@@ -9,7 +9,7 @@
 
 import BookKit
 import Foundation
-import OSLog
+import Memoirs
 import SQLite3
 
 /// The books, chapter lists, chapter bodies and reading positions this device keeps for itself.
@@ -20,7 +20,7 @@ import SQLite3
 public actor SQLiteBookStore {
     public static let shared = SQLiteBookStore()
 
-    private static let logger = Logger(subsystem: "com.lonelybytes.atreader", category: "store")
+    private static let memoir = TracedMemoir(label: "store", memoir: rootMemoir)
 
     private let fileURL: URL
     private var database: OpaquePointer?
@@ -1080,7 +1080,7 @@ public actor SQLiteBookStore {
         guard
             sqlite3_open_v2(fileURL.path, &handle, flags, nil) == SQLITE_OK
         else {
-            Self.logger.error("could not open \(self.fileURL.lastPathComponent, privacy: .public)")
+            Self.memoir.error("could not open \(safe: self.fileURL.lastPathComponent)")
             return nil
         }
 
@@ -1622,7 +1622,7 @@ public actor SQLiteBookStore {
         guard let database = open() else { return }
         guard sqlite3_exec(database, query, nil, nil, nil) != SQLITE_OK else { return }
 
-        Self.logger.error("\(String(cString: sqlite3_errmsg(database)), privacy: .public)")
+        Self.memoir.error("\(safe: String(cString: sqlite3_errmsg(database)))")
     }
 
     private func encode(_ value: some Encodable) -> String? {
@@ -1655,7 +1655,7 @@ public actor SQLiteBookStore {
             guard
                 sqlite3_prepare_v2(database, query, -1, &handle, nil) == SQLITE_OK
             else {
-                SQLiteBookStore.logger.error("\(String(cString: sqlite3_errmsg(database)), privacy: .public)")
+                SQLiteBookStore.memoir.error("\(safe: String(cString: sqlite3_errmsg(database)))")
                 return nil
             }
         }

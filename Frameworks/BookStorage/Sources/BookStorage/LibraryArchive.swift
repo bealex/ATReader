@@ -4,7 +4,7 @@
 //
 
 import Foundation
-import OSLog
+import Memoirs
 
 public enum ArchiveError: Error, Sendable, Equatable, CustomStringConvertible {
     case unreadable
@@ -46,7 +46,7 @@ public enum LibraryArchive {
     /// Bumped when what is written stops being readable by an older app.
     public static let version = 1
 
-    private static let logger = Logger(subsystem: "com.lonelybytes.atreader", category: "archive")
+    private static let memoir = TracedMemoir(label: "archive", memoir: rootMemoir)
 
     /// The app keeps to one folder of its own inside whatever the reader picked, so a backup can sit
     /// beside their own files without burying them.
@@ -83,7 +83,7 @@ public enum LibraryArchive {
         let manifest = Manifest(bytes: DiskSpace.taken(by: home(in: folder)))
 
         try JSONEncoder().encode(manifest).write(to: note(in: folder), options: .atomic)
-        logger.info("wrote a backup of \(manifest.bytes) bytes")
+        memoir.info("wrote a backup of \(safe: manifest.bytes) bytes")
         return manifest
     }
 
@@ -124,7 +124,7 @@ public enum LibraryArchive {
             try files.copyItem(at: books(in: folder), to: LocalBookFiles.directory)
         }
 
-        logger.info("put back a backup written \(manifest.writtenAt)")
+        memoir.info("put back a backup written \(safe: manifest.writtenAt)")
         return manifest
     }
 

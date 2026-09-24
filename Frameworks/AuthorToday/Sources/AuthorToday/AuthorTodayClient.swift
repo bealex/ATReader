@@ -5,7 +5,7 @@
 
 import CryptoKit
 import Foundation
-import OSLog
+import Memoirs
 import Synchronization
 
 /// A client for the author.today mobile API (`https://api.author.today`).
@@ -181,9 +181,9 @@ public final class AuthorTodayClient: Sendable {
 
         // A refused call says why in the log, so a failure on a device can be read out of Console
         // rather than guessed at. The body is the service's own error envelope, never book text.
-        Self.logger.error(
+        Self.memoir.error(
             """
-            \(endpoint.method.rawValue, privacy: .public) \(endpoint.path, privacy: .public)             → \(http.statusCode, privacy: .public) \(String(bytes: data, encoding: .utf8) ?? "", privacy: .public)
+            \(safe: endpoint.method.rawValue) \(safe: endpoint.path)             → \(safe: http.statusCode) \(safe: String(bytes: data, encoding: .utf8) ?? "")
             """
         )
 
@@ -194,7 +194,7 @@ public final class AuthorTodayClient: Sendable {
         throw AuthorTodayError.unexpectedStatus(http.statusCode)
     }
 
-    private static let logger = Logger(subsystem: "com.lonelybytes.authortoday", category: "network")
+    private static let memoir = TracedMemoir(label: "network", memoir: rootMemoir)
 
     /// Swaps the stale token for a fresh one, collapsing everything that noticed the same expiry into
     /// one call to the service.

@@ -22,11 +22,16 @@ enum LitresLoginScreen {
 
         var body: some View {
             NavigationStack {
-                LitresWebView(url: Self.signIn) { session in
-                    store.adopt(session)
-                    dismiss()
+                LitresWebView(url: Self.signIn, clearsSession: store.wasRefused) { session in
+                    Task {
+                        guard await store.offer(session) else { return }
+
+                        dismiss()
+                    }
                 }
                 .ignoresSafeArea(edges: .bottom)
+                .onAppear { store.beginSigningIn() }
+                .onDisappear { store.abandonSigningIn() }
                 .navigationTitle(Text(verbatim: "Litres"))
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {

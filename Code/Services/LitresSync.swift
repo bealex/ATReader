@@ -7,7 +7,6 @@ import BookKit
 import BookStorage
 import Foundation
 import Litres
-import OSLog
 
 /// Brings the reader's Litres books onto the device, once.
 ///
@@ -54,6 +53,8 @@ final class LitresSync {
     private(set) var failures: [Failure] = []
     /// What was not a book at all, kept for the same reason.
     private(set) var skipped: [Failure] = []
+    /// True where the run stopped because the service turned the session down.
+    private(set) var wasRefused = false
 
     /// How many books this run actually wrote to the device, counted as they land.
     @ObservationIgnored
@@ -67,10 +68,10 @@ final class LitresSync {
     }
 
     @ObservationIgnored
-    private let logger = Logger(subsystem: "com.lonelybytes.atreader", category: "litres")
+    private let memoir = LitresTrail.memoir
 
     @ObservationIgnored
-    private lazy var client = LitresClient(configuration: .init(userAgent: LitresStore.userAgent))
+    private lazy var client = LitresClient(configuration: LitresStore.configuration)
 
     @ObservationIgnored
     private let store: SQLiteBookStore
@@ -85,20 +86,26 @@ final class LitresSync {
 
         failures = []
         skipped = []
+        wasRefused = false
         broughtAcross = 0
+        LitresTrail.log(session, as: "run started")
 
         // A library can name the same work twice. Fetching it twice would be two downloads for one
         // book, and the second would only find the first already here.
         var handled: Set<Int> = []
 
         do {
+            let reach = await client.reach(as: session)
+
+            memoir.info("before the run: \(safe: reach.summary)")
+
             // Everything in the library is asked about, whatever the service files it under. What
             // decides is the list of files it offers: a work with an FB2 comes across, and a work
             // without one is reported as such rather than passed over on the strength of a number.
             let books = try await client.wholeLibrary(as: session)
             var report = Report()
 
-            logger.info("litres library holds \(books.count)")
+            memoir.info("library holds \(safe: books.count)")
 
             for (index, book) in books.enumerated() {
                 stage = .working(done: index, total: books.count, title: book.title)
@@ -118,14 +125,16 @@ final class LitresSync {
                     let reason = String(describing: error)
 
                     failures.append(Failure(id: book.id, title: book.title, reason: reason))
-                    logger.error("litres art \(book.id) failed: \(reason, privacy: .public)")
+                    memoir.error("art \(safe: book.id) failed: \(safe: reason)")
                 }
             }
 
             stage = .done(report)
+            memoir.info("run done: \(safe: String(describing: report))")
             announce()
         } catch {
-            logger.error("litres library failed: \(String(describing: error), privacy: .public)")
+            memoir.error("library failed: \(safe: String(describing: error))")
+            wasRefused = error as? LitresError == .unauthorised
             stage = .failed(Self.describe(error))
             // Books may well have arrived before it stopped, and the shelf should show them.
             announce()
@@ -231,7 +240,7 @@ final class LitresSync {
             try report().write(to: file, atomically: true, encoding: .utf8)
             return file
         } catch {
-            logger.error("could not write the report: \(error.localizedDescription, privacy: .public)")
+            memoir.error("could not write the report: \(safe: error.localizedDescription)")
             return nil
         }
     }
@@ -242,7 +251,7 @@ final class LitresSync {
     private static func describe(_ error: Error) -> String {
         switch error {
             case LitresError.unauthorised, LitresError.notSignedIn:
-                String(localized: "The session ran out. Sign in again.")
+                String(localized: "Litres turned the session down. Sign in again.")
             case LitresError.guarded:
                 String(localized: "Litres answered with a challenge rather than an answer.")
             case LitresError.malformed:

@@ -83,27 +83,44 @@ public struct LitresSession: Sendable, Equatable, Codable {
         return LitresSession(sessionId: session, superSessionId: superSession, cookies: cookies)
     }
 
-    /// Who the session belongs to, read out of the statement the site signed.
-    ///
-    /// The middle of a JWT, which is a fact about the session rather than a secret: the signature is
-    /// what proves it, and only the site can make one.
-    public var userId: Int? {
-        guard let context = cookies.first(where: { $0.name == CookieName.context })?.value else { return nil }
-
-        let parts = context.split(separator: ".")
-
-        guard parts.count == 3, let payload = Self.base64URL(String(parts[1])) else { return nil }
-
-        return (try? JSONDecoder().decode(Context.self, from: payload))?.userId
+    /// What the site signed about this session, where it signed anything.
+    public struct Context: Sendable, Equatable {
+        public let userId: Int?
+        /// How the reader proved who they are, as the site names it.
+        public let authMethod: String?
+        /// The session the statement was made for, which may lag behind the jar's own `SID`.
+        public let sessionId: String?
+        /// Every field the statement carries, by name.
+        public let fields: [String]
     }
 
-    private struct Context: Decodable {
-        let userId: Int
+    /// The signed statement read out of the jar. The middle of a JWT, readable by anyone and made only
+    /// by the site.
+    public var context: Context? {
+        guard let token = cookies.first(where: { $0.name == CookieName.context })?.value else { return nil }
 
-        enum CodingKeys: String, CodingKey {
-            case userId = "user_id"
-        }
+        let parts = token.split(separator: ".")
+
+        guard
+            parts.count == 3,
+            let payload = Self.base64URL(String(parts[1])),
+            let object = try? JSONSerialization.jsonObject(with: payload) as? [String: Any]
+        else { return nil }
+
+        return Context(
+            userId: (object["user_id"] as? NSNumber)?.intValue,
+            authMethod: object["auth_method"] as? String,
+            sessionId: object["sid"] as? String,
+            fields: object.keys.sorted()
+        )
     }
+
+    /// Who the session belongs to, where the site has said.
+    public var userId: Int? { context?.userId }
+
+    /// True where the site has signed a statement naming a reader, which a visitor who hasn't signed in
+    /// doesn't carry.
+    public var namesAReader: Bool { userId != nil }
 
     private static func base64URL(_ text: String) -> Data? {
         var padded = text.replacingOccurrences(of: "-", with: "+").replacingOccurrences(of: "_", with: "/")

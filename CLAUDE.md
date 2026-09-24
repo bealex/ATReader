@@ -94,6 +94,9 @@ this codebase leans on hardest:
   `nonisolated(unsafe)`.
 - Every interactive element gets an `.accessibilityLabel()`; decorative views get
   `.accessibilityHidden(true)`.
+- Log through Memoirs, never `OSLog`'s `Logger`: a `TracedMemoir(label:)` per type over
+  `AppMemoir.root` in the app, or the package's own `rootMemoir`. The label becomes the os_log
+  category. Interpolate with `\(safe: …)`; a bare interpolation is marked sensitive.
 
 - **A component goes in `DesignSystem`, and if one is there already you use it.** Never draw a second
   capsule, ring or circular mark. What may not go there is knowledge of what a book is: that package

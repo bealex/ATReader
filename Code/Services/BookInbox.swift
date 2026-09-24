@@ -8,7 +8,7 @@ import BookKit
 import BookRenderer
 import BookStorage
 import Foundation
-import OSLog
+import Memoirs
 
 /// Every way a book gets into the library, in one place.
 ///
@@ -20,7 +20,7 @@ import OSLog
 final class BookInbox {
     static let shared = BookInbox()
 
-    private static let logger = Logger(subsystem: "com.lonelybytes.atreader", category: "import")
+    private static let memoir = TracedMemoir(label: "import", memoir: AppMemoir.root)
 
     /// True while a file is being read in.
     private(set) var isImporting = false
@@ -71,7 +71,7 @@ final class BookInbox {
             importedAt = .now
             return work
         } catch {
-            Self.logger.error("re-import failed: \(error.localizedDescription, privacy: .public)")
+            Self.memoir.error("re-import failed: \(safe: error.localizedDescription)")
             errorMessage = error.localizedDescription
             return nil
         }
@@ -94,7 +94,7 @@ final class BookInbox {
 
         guard !behind.isEmpty else { return 0 }
 
-        Self.logger.info("reading \(behind.count) books again for this build")
+        Self.memoir.info("reading \(safe: behind.count) books again for this build")
 
         var read = 0
 
@@ -105,9 +105,7 @@ final class BookInbox {
                 await processor.start(workId: work.id, chapters: store.chapters(workId: work.id))
                 read += 1
             } catch {
-                Self.logger.error(
-                    "reading \(record.workId) again failed: \(error.localizedDescription, privacy: .public)"
-                )
+                Self.memoir.error("reading \(safe: record.workId) again failed: \(safe: error.localizedDescription)")
             }
 
             await Task.yield()
@@ -115,7 +113,7 @@ final class BookInbox {
 
         if read > 0 { libraryChanged() }
 
-        Self.logger.info("read \(read) of \(behind.count) books again")
+        Self.memoir.info("read \(safe: read) of \(safe: behind.count) books again")
         return read
     }
 
@@ -137,7 +135,7 @@ final class BookInbox {
             importedAt = .now
             return work
         } catch {
-            Self.logger.error("import failed: \(error.localizedDescription, privacy: .public)")
+            Self.memoir.error("import failed: \(safe: error.localizedDescription)")
             errorMessage = error.localizedDescription
             return nil
         }

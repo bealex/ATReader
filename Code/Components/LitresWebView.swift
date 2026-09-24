@@ -14,6 +14,9 @@ import WebKit
 /// what the site puts in the jar.
 struct LitresWebView: UIViewRepresentable {
     let url: URL
+    /// True to drop the session cookies already in the jar before the page loads, so a session the
+    /// service turned down isn't picked up again.
+    var clearsSession = false
     /// Called every time the jar holds a whole session. It fires more than once, since the site keeps
     /// setting cookies, so whoever takes it decides what a repeat means.
     let onSession: (LitresSession) -> Void
@@ -31,9 +34,40 @@ struct LitresWebView: UIViewRepresentable {
         // use it and the guard in front of the service sees one story rather than two.
         view.customUserAgent = LitresStore.userAgent
         view.navigationDelegate = context.coordinator
-        configuration.websiteDataStore.httpCookieStore.add(context.coordinator)
-        view.load(URLRequest(url: url))
+        #if DEBUG
+            view.isInspectable = true
+        #endif
+
+        let jar = configuration.websiteDataStore.httpCookieStore
+        let request = URLRequest(url: url)
+
+        guard
+            clearsSession
+        else {
+            jar.add(context.coordinator)
+            view.load(request)
+            return view
+        }
+
+        Task { @MainActor in
+            await Self.forgetSession(in: jar)
+            jar.add(context.coordinator)
+            view.load(request)
+        }
         return view
+    }
+
+    private static func forgetSession(in jar: WKHTTPCookieStore) async {
+        let names: Set = [
+            LitresSession.CookieName.session,
+            LitresSession.CookieName.superSession,
+            LitresSession.CookieName.context,
+        ]
+        let stale = await jar.allCookies().filter { $0.domain.contains("litres.ru") && names.contains($0.name) }
+
+        for cookie in stale { await jar.deleteCookie(cookie) }
+
+        LitresTrail.memoir.info("jar cleared of [\(safe: stale.map(\.name).sorted().joined(separator: ", "))]")
     }
 
     func updateUIView(_ view: WKWebView, context: Context) {}
@@ -52,8 +86,52 @@ struct LitresWebView: UIViewRepresentable {
         }
 
         func webView(_ view: WKWebView, didFinish navigation: WKNavigation!) {
+            LitresTrail.memoir.info("page finished \(safe: Self.address(view.url))")
             // A page can finish without the jar changing again, and the session may already be in it.
             read(view.configuration.websiteDataStore.httpCookieStore)
+        }
+
+        func webView(_ view: WKWebView, didStartProvisionalNavigation navigation: WKNavigation!) {
+            LitresTrail.memoir.info("page started \(safe: Self.address(view.url))")
+        }
+
+        func webView(_ view: WKWebView, didReceiveServerRedirectForProvisionalNavigation navigation: WKNavigation!) {
+            LitresTrail.memoir.info("page redirected to \(safe: Self.address(view.url))")
+        }
+
+        func webView(_ view: WKWebView, didFail navigation: WKNavigation!, withError error: any Error) {
+            LitresTrail.memoir.warning(
+                "page failed \(safe: Self.address(view.url)): \(safe: error.localizedDescription)"
+            )
+        }
+
+        func webView(
+            _ view: WKWebView,
+            didFailProvisionalNavigation navigation: WKNavigation!,
+            withError error: any Error
+        ) {
+            LitresTrail.memoir.warning(
+                "page failed \(safe: Self.address(view.url)): \(safe: error.localizedDescription)"
+            )
+        }
+
+        func webView(
+            _ view: WKWebView,
+            decidePolicyFor response: WKNavigationResponse
+        ) async -> WKNavigationResponsePolicy {
+            if let http = response.response as? HTTPURLResponse, response.isForMainFrame {
+                let server = http.value(forHTTPHeaderField: "Server") ?? "no server header"
+
+                LitresTrail.memoir.info(
+                    "page answered \(safe: http.statusCode) \(safe: Self.address(http.url)), \(safe: server)"
+                )
+            }
+
+            return .allow
+        }
+
+        private static func address(_ url: URL?) -> String {
+            url.map(LitresTrail.Redaction.scrub) ?? "no address"
         }
 
         private func read(_ store: WKHTTPCookieStore) {
@@ -71,6 +149,10 @@ struct LitresWebView: UIViewRepresentable {
                             isSecure: $0.isSecure
                         )
                     }
+
+                let names = kept.map(\.name).sorted().joined(separator: ", ")
+
+                LitresTrail.memoir.debug("jar holds [\(safe: names)]")
 
                 guard let session = LitresSession.from(cookies: kept) else { return }
 

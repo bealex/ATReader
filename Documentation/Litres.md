@@ -18,8 +18,29 @@ There's no token to ask for. A `WKWebView` opens the site's own sign-in page, an
 | `supersid` | sent as the `supersid` header |
 | `__Secure-session_context` | a JWT whose payload carries the reader's own id |
 
+A visitor gets `supersid` before signing in, and possibly `SID` too, so a jar holding both is only a
+candidate. `LitresStore.offer` takes one only once the context names a reader and a call to
+`/users/me/arts` comes back signed in. Until then the sheet stays open.
+
 The session is held in memory and never written down. Sign in, bring the books across, and it's gone
-with the process.
+with the process. A session the service turns down is dropped, "Sign in to Litres" comes back, and the
+next sign-in clears the three session cookies from the web view's jar before loading, so the refused
+one isn't picked up again.
+
+## The login trail
+
+`LitresTrail` keeps the last 3000 lines of the sign-in and the run in memory, through a `TracedMemoir`
+labelled `litres.login` that also writes to os_log. It records each page the web view loads, which
+cookie names the jar holds, every candidate session and what the service said to it, and every reply
+from the client as a `LitresExchange`.
+
+Nothing in it can sign anyone in. Cookie values appear only as SHA-256 fingerprints, which is enough to
+tell whether `SID` changed. Query values are dropped, and emails, phone numbers and `login=`/`password=`
+style fields are masked, once as each line is written and again on the way out.
+
+After a run that stopped, a refused session or a sign-in closed without one, the Litres rows offer
+"Share Litres login logs". That zips the trail with the app version, OS and locale and opens a mail to
+bugreport@lonelybytes.com, or the share sheet where the device has no mail account.
 
 ## Two hosts, two ways of proving who you are
 
@@ -27,9 +48,10 @@ with the process.
 and reads no headers at all, only cookies. Both sit behind DDoS-Guard, which reads the user agent and
 wants the jar, so every request carries the cookies whether or not the host needs them.
 
-The guard answers a client it doubts with a page rather than an answer, at a status of 200. So a reply
-is read rather than trusted: the API's own `Powered-By-Litres` header is what says the service
-answered, and a download that opens with `<` is a challenge, not a book.
+The guard answers a client it doubts with a page, at 200 or at 403, so the app reads each reply before
+trusting its status. On the API, a reply without the `Powered-By-Litres` header is the guard whatever
+its status, and only a 401 or 403 carrying it is a refused session. On the file host, a 403 from
+`ddos-guard` or with a page for a body is the guard, and a download that opens with `<` is a challenge. `LitresClient.refusal(of:host:)` holds that rule.
 
 ## Walking the library
 

@@ -67,6 +67,8 @@ public final class LitresClient: Sendable {
         public var currency = "RUB"
         /// A browser's, because the guard in front of the service reads it.
         public var userAgent: String
+        /// Told about every reply, for whoever keeps a trail of what the service said.
+        public var observe: (@Sendable (LitresExchange) -> Void)?
 
         public init(userAgent: String) {
             self.userAgent = userAgent
@@ -136,6 +138,8 @@ public final class LitresClient: Sendable {
             let poweredBy = http?.value(forHTTPHeaderField: "Powered-By-Litres")
             let opening = String(decoding: data.prefix(220), as: UTF8.self)
 
+            record(request, http, data)
+
             return LitresReach(
                 status: status,
                 isService: poweredBy != nil || type.contains("application/json"),
@@ -145,6 +149,8 @@ public final class LitresClient: Sendable {
                 opening: opening
             )
         } catch {
+            configuration.observe?(LitresExchange(url: request.url, status: 0, failure: error.localizedDescription))
+
             return LitresReach(
                 status: 0,
                 isService: false,
@@ -226,15 +232,9 @@ public final class LitresClient: Sendable {
         request.setValue("*/*", forHTTPHeaderField: "Accept")
         await pace.wait()
 
-        let (data, response) = try await self.session.data(for: request)
-        let http = response as? HTTPURLResponse
-        let status = http?.statusCode ?? 0
+        let (data, response) = try await exchange(request)
 
-        guard status != 401, status != 403 else { throw LitresError.unauthorised }
-        guard status == 200 else { throw LitresError.service(status: status) }
-        // A challenge comes back as a page with a status of two hundred, so what arrived has to be
-        // read rather than trusted. Every format the service offers is a binary of some kind.
-        guard !Self.looksLikeMarkup(data) else { throw LitresError.guarded }
+        if let refusal = Self.refusal(of: LitresExchange(response, data: data), host: .site) { throw refusal }
 
         return data
     }
@@ -261,12 +261,6 @@ public final class LitresClient: Sendable {
         return URL(string: corrected, relativeTo: api)?.absoluteURL
     }
 
-    private static func looksLikeMarkup(_ data: Data) -> Bool {
-        let opening = String(decoding: data.prefix(120), as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)
-
-        return opening.hasPrefix("<")
-    }
-
     // MARK: - Asking a question
 
     private func get<Payload: Decodable>(_ url: URL, as session: LitresSession) async throws -> Payload {
@@ -275,13 +269,9 @@ public final class LitresClient: Sendable {
         apply(session, to: &request, host: .api)
         await pace.wait()
 
-        let (data, response) = try await self.session.data(for: request)
-        let http = response as? HTTPURLResponse
-        let status = http?.statusCode ?? 0
+        let (data, response) = try await exchange(request)
 
-        guard status != 401, status != 403 else { throw LitresError.unauthorised }
-        guard http?.value(forHTTPHeaderField: "Powered-By-Litres") != nil else { throw LitresError.guarded }
-        guard status == 200 else { throw LitresError.service(status: status) }
+        if let refusal = Self.refusal(of: LitresExchange(response, data: data), host: .api) { throw refusal }
 
         do {
             guard
@@ -296,9 +286,66 @@ public final class LitresClient: Sendable {
         }
     }
 
+    /// Sends a request and tells the observer what came back, or that nothing did.
+    private func exchange(_ request: URLRequest) async throws -> (Data, HTTPURLResponse?) {
+        do {
+            let (data, response) = try await session.data(for: request)
+            let http = response as? HTTPURLResponse
+
+            record(request, http, data)
+            return (data, http)
+        } catch {
+            configuration.observe?(LitresExchange(url: request.url, status: 0, failure: error.localizedDescription))
+            throw error
+        }
+    }
+
+    private func record(_ request: URLRequest, _ response: HTTPURLResponse?, _ data: Data) {
+        guard let observe = configuration.observe else { return }
+
+        var exchange = LitresExchange(response, data: data)
+
+        exchange.url = request.url
+        exchange.sentCookieNames = Self.cookieNames(in: request.value(forHTTPHeaderField: "Cookie"))
+        exchange.sentSessionHeaders = request.value(forHTTPHeaderField: "Session-Id") != nil
+        observe(exchange)
+    }
+
+    private static func cookieNames(in header: String?) -> [String] {
+        guard let header else { return [] }
+
+        return header.split(separator: ";").compactMap {
+            $0.split(separator: "=", maxSplits: 1).first.map { $0.trimmingCharacters(in: .whitespaces) }
+        }
+    }
+
+    /// What a reply amounts to when it isn't the thing asked for, or nothing when it is.
+    ///
+    /// The guard is ruled out before a refusal is believed: it answers 403 too, and a session turned down
+    /// by the guard is not a session the service turned down.
+    static func refusal(of reply: LitresExchange, host: Host) -> LitresError? {
+        let isGuard = reply.server?.lowercased().contains("ddos-guard") == true || reply.isMarkup
+
+        switch host {
+            case .api:
+                guard reply.isPoweredByLitres else { return .guarded }
+                guard reply.status != 401, reply.status != 403 else { return .unauthorised }
+                guard reply.status == 200 else { return .service(status: reply.status) }
+
+                return nil
+            case .site:
+                if reply.status == 401 || reply.status == 403 { return isGuard ? .guarded : .unauthorised }
+                guard reply.status == 200 else { return .service(status: reply.status) }
+                // Every format the service offers is a binary, so a page at 200 is a challenge.
+                guard !reply.isMarkup else { return .guarded }
+
+                return nil
+        }
+    }
+
     // MARK: - Signing every request
 
-    private enum Host {
+    enum Host {
         case api
         case site
     }

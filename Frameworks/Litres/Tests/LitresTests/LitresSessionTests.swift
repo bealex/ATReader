@@ -64,6 +64,25 @@ struct LitresSessionTests {
         )
 
         #expect(session.userId == 4242)
+        #expect(session.namesAReader)
+        #expect(session.context?.authMethod == "login_or_email")
+        #expect(session.context?.sessionId == "abc")
+        #expect(session.context?.fields == [ "auth_method", "sid", "user_id" ])
+    }
+
+    /// A visitor carries both halves of a session long before signing in, and no statement naming them.
+    @Test
+    func aVisitorsSessionNamesNoReader() throws {
+        let session = try #require(
+            LitresSession.from(cookies: [
+                Self.cookie("SID", "visitor"),
+                Self.cookie("supersid", "visitor"),
+                Self.cookie("__Secure-session_context", "not.a-jwt"),
+            ])
+        )
+
+        #expect(session.context == nil)
+        #expect(!session.namesAReader)
     }
 
     @Test
@@ -76,6 +95,7 @@ struct LitresSessionTests {
         )
 
         #expect(session.userId == nil)
+        #expect(!session.namesAReader)
     }
 
     @Test

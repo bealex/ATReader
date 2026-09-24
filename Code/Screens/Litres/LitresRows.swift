@@ -29,6 +29,9 @@ struct LitresRows: View {
     @State
     private var report: SharedReport?
 
+    @State
+    private var loginLogs: MailDraft?
+
     var body: some View {
         Group {
             standing
@@ -61,9 +64,45 @@ struct LitresRows: View {
                 }
                 .accessibilityIdentifier("litres.report.share")
             }
+
+            if showsLoginLogs {
+                Button {
+                    shareLoginLogs()
+                } label: {
+                    Label("Share Litres login logs", systemImage: "envelope")
+                }
+                .accessibilityIdentifier("litres.loginLogs.share")
+            }
         }
         .sheet(isPresented: $isSigningIn) { LitresLoginScreen.Component() }
         .sheet(item: $report) { ShareSheet(url: $0.url) }
+        .sheet(item: $loginLogs) { MailSheet(draft: $0) }
+    }
+
+    /// Offered once a run has stopped short, a session was turned down or a sign-in was given up on.
+    private var showsLoginLogs: Bool {
+        if store.wasRefused || store.wasAbandoned { return true }
+        if case .failed = sync.stage { return true }
+
+        return false
+    }
+
+    /// Mails the trail where the device can send mail, and hands it to the share sheet where it can't.
+    private func shareLoginLogs() {
+        guard let archive = try? LitresTrail.archive() else { return }
+        guard
+            MailDraft.canSend
+        else {
+            report = SharedReport(url: archive)
+            return
+        }
+
+        loginLogs = MailDraft(
+            recipient: LitresTrail.recipient,
+            subject: "Bookhold: Litres login logs",
+            body: String(localized: "What happened, in a few words:\n\n"),
+            attachment: archive
+        )
     }
 
     /// Where the run has got to, or what it came to, or nothing at all before one has been asked for.
@@ -108,6 +147,8 @@ struct LitresRows: View {
         guard let session = store.session else { return }
 
         await sync.bringEverything(as: session)
+
+        if sync.wasRefused { store.refuse() }
 
         // The shelf hears from the sync itself; what stands beside this on the screen does not.
         onLibraryChanged()

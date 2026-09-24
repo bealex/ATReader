@@ -14,9 +14,14 @@ let package = Package(
         .library(name: "BookStorage", targets: [ "BookStorage" ])
     ],
     dependencies: [
-        .package(path: "../BookKit")
+        .package(path: "../BookKit"),
+        .package(url: "https://github.com/bealex/memoirs-ios.git", from: "2.1.4"),
     ],
     targets: [
-        .target(name: "BookStorage", dependencies: [ "BookKit" ], swiftSettings: [ .swiftLanguageMode(.v6) ])
+        .target(
+            name: "BookStorage",
+            dependencies: [ "BookKit", .product(name: "Memoirs", package: "memoirs-ios") ],
+            swiftSettings: [ .swiftLanguageMode(.v6) ]
+        )
     ]
 )
