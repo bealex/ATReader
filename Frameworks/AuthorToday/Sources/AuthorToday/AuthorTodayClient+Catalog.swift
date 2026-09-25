@@ -8,11 +8,16 @@ import Foundation
 extension AuthorTodayClient {
     /// Searches the catalogue.
     ///
-    /// The free-text term matches both titles and author names, so one query serves both kinds of search.
-    /// Leaving ``CatalogQuery/text`` empty turns the same call into a ranked list — that is how the "top"
-    /// lists are built, by varying ``CatalogQuery/sorting`` and ``CatalogQuery/ratingPeriod``.
+    /// A ``CatalogQuery/text`` term matches titles and author names together, and only ``CatalogQuery/page``
+    /// and ``CatalogQuery/sorting`` (popular, recent or trending) apply to it; the service decides the page
+    /// size. With no term the call is a ranked list, which is how the "top" lists are built, by varying
+    /// ``CatalogQuery/sorting`` and ``CatalogQuery/ratingPeriod``.
     public func search(_ query: CatalogQuery) async throws -> CatalogPage {
-        try await send(Endpoint(path: "/v1/catalog/search", query: query.queryItems))
+        if let text = query.text?.trimmingCharacters(in: .whitespacesAndNewlines), !text.isEmpty {
+            return try await searchSite(text, page: query.page, sorting: query.sorting)
+        }
+
+        return try await send(Endpoint(path: "/v1/catalog/search", query: query.queryItems))
     }
 
     public func genres() async throws -> [Genre] {

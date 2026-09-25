@@ -243,7 +243,7 @@ enum SearchScreen {
                         "Sort",
                         selection: $sorting,
                         content: {
-                            ForEach(CatalogSorting.allCases, id: \.self) { order in
+                            ForEach(CatalogSorting.searchable, id: \.self) { order in
                                 Text(order.title).tag(order)
                             }
                         }

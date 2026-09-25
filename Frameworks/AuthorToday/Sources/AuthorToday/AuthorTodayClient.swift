@@ -24,9 +24,18 @@ public final class AuthorTodayClient: Sendable {
         /// any value, including none, and chapters still decrypt. It is sent only so requests are
         /// attributable.
         public static let defaultUserAgent = "AuthorToday-Swift/1.0"
+        /// The website, which answers the one question the API can't: a search by text.
+        public static let defaultSiteURL = URL(string: "https://author.today")!
+        /// A phone's browser, since the site picks its markup by the agent and search reads the mobile one.
+        public static let defaultSiteUserAgent = """
+            Mozilla/5.0 (iPhone; CPU iPhone OS 26_0 like Mac OS X) AppleWebKit/605.1.15 \
+            (KHTML, like Gecko) Version/26.0 Mobile/15E148 Safari/604.1
+            """
 
         public var baseURL: URL
         public var userAgent: String
+        public var siteURL = Configuration.defaultSiteURL
+        public var siteUserAgent = Configuration.defaultSiteUserAgent
 
         /// The client certificate the service binds chapter keys to. **Not shipped with this package** —
         /// see `.env.example` in the repository root for what it is and where to obtain it.
@@ -171,6 +180,42 @@ public final class AuthorTodayClient: Sendable {
             try await refreshCredentials(replacing: stale)
             return try await perform(endpoint)
         }
+    }
+
+    /// Fetches a page of the website as a signed-out phone browser would.
+    func fetchSitePage(path: String, query: [URLQueryItem]) async throws -> String {
+        guard
+            var components = URLComponents(
+                url: configuration.siteURL.appendingPathComponent(path),
+                resolvingAgainstBaseURL: false
+            )
+        else { throw AuthorTodayError.unexpectedStatus(0) }
+
+        components.queryItems = query
+        // A bare `+` in a query is a space to the server.
+        components.percentEncodedQuery = components.percentEncodedQuery?.replacingOccurrences(of: "+", with: "%2B")
+
+        guard let url = components.url else { throw AuthorTodayError.unexpectedStatus(0) }
+
+        var request = URLRequest(url: url)
+
+        request.setValue(configuration.siteUserAgent, forHTTPHeaderField: "User-Agent")
+        request.setValue("ru", forHTTPHeaderField: "Accept-Language")
+
+        let (data, response) = try await session.data(for: request)
+        let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+
+        guard
+            status == 200
+        else {
+            Self.memoir.error("GET \(safe: path) → \(safe: status)")
+            throw AuthorTodayError.unexpectedStatus(status)
+        }
+        guard
+            let page = String(bytes: data, encoding: .utf8)
+        else { throw AuthorTodayError.decoding("the page isn't UTF-8") }
+
+        return page
     }
 
     private func perform(_ endpoint: Endpoint) async throws -> Data {

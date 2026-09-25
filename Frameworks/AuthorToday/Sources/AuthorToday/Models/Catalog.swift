@@ -61,8 +61,9 @@ public struct CatalogWork: Decodable, Sendable, Identifiable, Hashable {
     public static func == (lhs: Self, rhs: Self) -> Bool { lhs.id == rhs.id }
 }
 
-/// The knobs ``AuthorTodayClient/search(_:)`` exposes over `/v1/catalog/search`.
+/// The knobs ``AuthorTodayClient/search(_:)`` takes.
 public struct CatalogQuery: Sendable, Equatable {
+    /// A title or an author's name to match; nothing ranks the whole catalogue instead.
     public var text: String?
     public var page: Int
     public var pageSize: Int
@@ -100,7 +101,6 @@ public struct CatalogQuery: Sendable, Equatable {
             URLQueryItem(name: "sorting", value: sorting.rawValue),
         ]
 
-        if let text, !text.isEmpty { items.append(URLQueryItem(name: "q", value: text)) }
         if let genreId { items.append(URLQueryItem(name: "genreId", value: String(genreId))) }
         if let ratingPeriod { items.append(URLQueryItem(name: "rp", value: ratingPeriod)) }
         if onlyFree { items.append(URLQueryItem(name: "access", value: "free")) }

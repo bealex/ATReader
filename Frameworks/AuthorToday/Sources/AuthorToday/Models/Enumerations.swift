@@ -73,6 +73,9 @@ public enum CatalogSorting: String, Sendable, CaseIterable, Hashable {
     case comments
     case length
 
+    /// The orders a search by text can be put in.
+    public static let searchable: [Self] = [ .popular, .trending, .recent ]
+
     public var title: String {
         switch self {
             case .popular: String(localized: "Most popular", bundle: .module)

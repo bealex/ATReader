@@ -6,9 +6,9 @@ There's no official, published specification. What exists, and what this client 
   86 paths, 79 definitions. This is the authoritative source for request and response shapes.
 - `https://api.author.today/help`, a human-readable index of the same thing.
 
-Both were confirmed live while building this. The Swagger document is mostly accurate but incomplete:
-one important query parameter is missing from it (see [Search](#search)), and one field's declared type
-is wrong in practice (see [Sign-in](#sign-in)). Treat it as a strong hint rather than a contract.
+Both were confirmed live while building this. The Swagger document is mostly accurate, though one
+field's declared type is wrong in practice (see [Sign-in](#sign-in)). Treat it as a strong hint rather
+than a contract.
 
 ## Transport
 
@@ -48,7 +48,7 @@ still decrypt. It's sent so requests are attributable.
 ### The guest token
 
 The literal string `guest` works as a bearer token and buys read access to a surprising amount: the
-whole catalogue, search, genres, work details, tables of contents, and chapter text for free works.
+whole catalogue, the charts, genres, work details, tables of contents, and chapter text for free works.
 Only account-scoped endpoints (library, reading progress, likes) demand a real token.
 
 This is what the catalogue UI tests run against, with no account needed.
@@ -139,17 +139,44 @@ between shelves; state `None` removes them. The field is `workIds`: send `ids` a
 
 ## Search
 
-`GET /v1/catalog/search`
+The API has no free-text search. `GET /v1/catalog/search` used to take an undocumented `q`, and it now
+ignores it: any term, or none, returns the same chart over the whole catalogue. So do `title`, `text`,
+`term`, `query` and every other likely name, and the Swagger document lists no text parameter. Paths
+like `/v1/search` and `/v1/search/works` don't exist, and `/help` lists nothing beyond the Swagger
+document. `tag` is the nearest thing: it takes a tag's exact name, so `tag=зомби` finds books tagged
+that way and never matches a title or an author.
 
-The free-text parameter is `q`, and it's absent from the Swagger document. It was found by trying it,
-and it matches titles and author names together, so one query serves both kinds of search. There's no
-separate by-author endpoint, so narrow client-side if you want to distinguish them.
+The website still searches. `GET https://author.today/search?category=works&q=<term>&page=<n>` answers
+a guest with a server-rendered page and no cookies needed, even though it sits behind DDoS-Guard. It
+reports the total as `Найдено: <n>` and pages through `page`. Each hit is an
+`<a class="work-row …" href="/work/<id>">`, and the id is all a client needs to fetch the book through
+the API. It sorts by popularity unless given `sorting=recent` or `sorting=trending`, and a page with no
+hits says `Ваш запрос не дал результатов`. Send a mobile Safari user agent: the site picks its mobile or desktop
+markup from it. Without `category=works` the page is an overview of a dozen works beside authors,
+posts and art.
 
-Useful parameters, all optional:
+The site's search button opens a popup with two parts. The text field fetches
+`GET /search/quickSearch?q=<term>` as the reader types, an HTML fragment of works, series, posts and
+collections mixed, a handful of each, and submitting it goes to `/search?q=<term>`. "Подобрать книги"
+below it is the catalogue filter: genre, format, sorting and period, sent to `/work/genre/<genre>`,
+which is what `/v1/catalog/search` answers in the API.
+
+`AuthorTodayClient.search(_:)` does exactly this when a query carries text: it reads the ids off the
+page in `SiteSearchResults`, then fetches them all in one `GET /v1/work/tile-views?ids=<id>&ids=<id>…`,
+which returns the catalogue's own work shape but not in the order asked, so the client puts the site's
+order back. A page with neither a hit count nor "no results" is taken for the guard's challenge and
+reported as an error rather than as nothing found.
+
+The site answers HTML whatever the client says. [author_today.py](https://github.com/zeviel/author_today.py)
+calls `/search?q=` with the official Android app's user agent and reads the reply as JSON, which fails:
+the page comes back as HTML to that agent too, and to `Accept: application/json`.
+
+## Charts
+
+`GET /v1/catalog/search`, which ranks the whole catalogue. Useful parameters, all optional:
 
 | Parameter | Meaning |
 | --- | --- |
-| `q` | free text (undocumented) |
 | `page`, `ps` | page number, page size |
 | `sorting` | `popular`, `trending`, `recent`, `likes`, `views`, `comments`, `length` |
 | `rp` | rating window: `today`, `yesterday`, `week`, `month`, `year` |
@@ -162,8 +189,7 @@ The reference lists are themselves endpoints (`/v1/catalog/sort-orders`, `/v1/ca
 `/v1/catalog/work-states`, `/v1/catalog/accesses`), each returning `{ value, title, mobileTitle }`.
 The client hardcodes the small stable ones and reads genres live.
 
-With no `q`, the same endpoint is a chart. Vary `sorting` and `rp` and you have the "top" lists; there
-is no separate charts API.
+Vary `sorting` and `rp` and you have the "top" lists; there is no separate charts API.
 
 The response is a `CatalogViewModel`: `searchResults` (richer than library entries, with annotation,
 tags and view counts), `realTotalCount`, `isLastPage`.

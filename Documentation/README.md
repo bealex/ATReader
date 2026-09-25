@@ -26,8 +26,9 @@ rather than added to. A day's findings go in `History/` so this stays short enou
    needs aren't committed; see the README's Configuration section.
 2. **The service's JSON is loosely typed.** `twoFactorType` is a string during a two-factor challenge
    and the number `0` otherwise. Assume any field can be absent, null, or a type you didn't expect.
-3. **Free-text search uses `q`, which is missing from the published spec.** With no `q`, the same
-   endpoint is the charts API.
+3. **The API has no free-text search.** `/v1/catalog/search` ignores any term and returns a chart, so
+   a search reads the website's search page for ids and fetches the works through the API. See
+   [API.md](API.md#search).
 4. **CoreText does not hyphenate, and breaks words without drawing a hyphen when asked to.** The
    reader breaks its own lines for that reason; see [Reader.md](Reader.md) before changing how text is
    drawn.

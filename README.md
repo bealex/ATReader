@@ -142,9 +142,10 @@ certificate the request claims, so without it a chapter arrives intact but undec
 | `User-Agent` | `Bookhold/<version> (build <n>; iOS <n>)` | no |
 
 Endpoints in use: `account/login-by-password`, `account/current-user`, `account/refresh-token`,
-`account/user-library`, `account/update-library-state`, `catalog/search`, `work/genres`,
+`account/user-library`, `account/update-library-state`, `catalog/search`, `work/tile-views`, `work/genres`,
 `work/{id}/details`, `work/{id}/content`, `work/{workId}/chapter/{chapterId}/text`,
-`reader/start/{workId}/{chapterId}` and `reader/update-progress`.
+`reader/start/{workId}/{chapterId}` and `reader/update-progress`. Search by text goes to the website's
+`/search` page instead, since the API has none.
 
 ### Signing in
 
