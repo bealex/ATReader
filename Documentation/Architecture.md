@@ -196,7 +196,8 @@ library to read the store rather than follow a book it has already taken in.
 
 The library state the service keeps is left doing the one job it does honestly: whether a book is in the
 library at all. The book page adds or removes it, a long press in the list removes it, and nothing else
-writes it.
+writes it. The book page also writes the new shelf into the store and calls `libraryChanged()`, so a
+book saved from a search reaches the shelf at once.
 
 The shelf's name and the two menus that act on the whole of it are the navigation bar's. Search
 belongs to the tab bar, and the search tab shows what it finds in the library as the same shelves.
@@ -535,8 +536,10 @@ opacity, which is an empty board on the shelf, and nothing says so.
 
 The page opens on the cover alone, centred across a third of the screen, with the book's name, its
 writer and its badges under it. The bar carries no title, since the book names itself there, and the
-one thing the page is for, "Continue", is a bar button rather than a block in the column. A menu at
-the far end of the bar holds what only an imported book can do: reading its file again, and deleting it.
+one thing the page is for, "Continue", is a bar button rather than a block in the column. Beside it, a
+signed-in reader looking at a service book gets ⊕ to save it to their author.today library on the
+Reading shelf. Once it's there the ⊕ turns to ✓, a menu holding "Remove from library". A menu at the
+far end of the bar holds what only an imported book can do: reading its file again, and deleting it.
 
 What the book is filed under is one block: its series and its volume, each standing at what the app
 uses, with what the book itself says in small underneath where the reader has overruled it, and an

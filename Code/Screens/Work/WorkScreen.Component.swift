@@ -67,6 +67,10 @@ enum WorkScreen {
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) { readButton }
 
+                if let model, !model.isLocal, session.isSignedIn {
+                    ToolbarItem(placement: .topBarTrailing) { libraryButton(model) }
+                }
+
                 // Last in the bar, as a menu of everything else always is.
                 if model?.isLocal == true {
                     ToolbarItem(placement: .topBarTrailing) { fileMenu }
@@ -195,6 +199,38 @@ enum WorkScreen {
                 }
                 .accessibilityIdentifier("work.read")
                 .accessibilityHint("Opens the reader")
+            }
+        }
+
+        /// Puts a book found on the service into the reader's library there, and so on the shelf here.
+        /// Once it's in, the same place offers taking it out.
+        @ViewBuilder
+        private func libraryButton(_ model: Model) -> some View {
+            if model.isInLibrary {
+                Menu {
+                    Button(role: .destructive) {
+                        Task { await model.setInLibrary(false) }
+                    } label: {
+                        Label("Remove from library", systemImage: "minus.circle")
+                    }
+                    .accessibilityIdentifier("work.library.remove")
+                } label: {
+                    Image(systemName: "checkmark.circle")
+                }
+                .disabled(model.isUpdatingLibrary)
+                .accessibilityIdentifier("work.library.added")
+                .accessibilityLabel("In your library")
+                .accessibilityHint("Offers taking the book out of your library")
+            } else {
+                Button {
+                    Task { await model.setInLibrary(true) }
+                } label: {
+                    Image(systemName: "plus.circle")
+                }
+                .disabled(model.isUpdatingLibrary)
+                .accessibilityIdentifier("work.library.add")
+                .accessibilityLabel("Add to library")
+                .accessibilityHint("Saves the book to your author.today library and to the shelf")
             }
         }
 

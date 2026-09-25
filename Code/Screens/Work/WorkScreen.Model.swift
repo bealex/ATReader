@@ -255,8 +255,9 @@ extension WorkScreen {
             isLoading = false
         }
 
-        /// Puts the book in the reader's library, or takes it out. A book goes in as one being read;
-        /// where it stands after that is worked out from what has been written and what has been read.
+        /// Puts the book in the reader's library, or takes it out, on the service and on the shelf here.
+        /// A book goes in as one being read; where it stands after that is worked out from what has been
+        /// written and what has been read.
         func setInLibrary(_ inLibrary: Bool) async {
             guard !isLocal, session.isSignedIn, !isUpdatingLibrary else { return }
 
@@ -270,6 +271,16 @@ extension WorkScreen {
                     workIds: [ workId ],
                     state: inLibrary ? .reading : LibraryState.none
                 )
+
+                // The shelf draws from the store, so the book lands there now rather than on the next
+                // time the library is asked for.
+                if var book = summary {
+                    book.libraryState = inLibrary ? .reading : BookShelf.none
+                    await store.store(book: book)
+                    await refreshFromStore()
+                }
+
+                BookInbox.shared.libraryChanged()
             } catch {
                 isInLibrary = previous
                 errorMessage = error.localizedDescription

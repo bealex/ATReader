@@ -2374,6 +2374,17 @@
         }
       }
     },
+    "Offers taking the book out of your library": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Предлагает убрать книгу из библиотеки"
+          }
+        }
+      }
+    },
     "Offline": {
       "extractionState": "manual",
       "localizations": {
@@ -3068,6 +3079,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Отложено"
+          }
+        }
+      }
+    },
+    "Saves the book to your author.today library and to the shelf": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сохраняет книгу в вашу библиотеку на author.today и на полку"
           }
         }
       }
