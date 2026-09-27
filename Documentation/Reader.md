@@ -491,6 +491,12 @@ The transition answers only a drag going down. Its dismissal takes one in any di
 so a drag in from the leading edge closed the book instead of turning back a page; `Navigator` gives
 every zoomed screen an `interactiveDismissShouldBegin` that asks for down.
 
+It also turns down a drag that began above the window's top safe-area inset. That band is where the
+system starts Control Center and notifications, and it takes the touch part way through; a zoom
+dismissal whose touch is cancelled finishes instead of going back, so the book closed under Control
+Center. A `TouchDownRecognizer` on each zoomed screen notes where the touch came down and fails at
+once, so it never takes a touch from the page.
+
 The reader is presented over the app rather than pushed into it, so there is no stack under it to
 answer for: no tab bar to take away on the way in and hand back on the way out, and no navigation bar
 belonging to the screen underneath. Re-laying all of that out in the middle of the zoom is what the

@@ -420,7 +420,8 @@ was tapped can by then be the wrong size, or belong to another book, its cell ha
 The shelf hands that view over and
 `Navigator` gives it to the screen as its `preferredTransition`, so nothing stands in for it.
 Dragging a zoomed screen closes it again, held to a drag going down the screen by
-`interactiveDismissShouldBegin`, since the reader turns its pages with the sideways ones.
+`interactiveDismissShouldBegin`, since the reader turns its pages with the sideways ones, and to one
+that began below the top edge, which belongs to the system (see [Reader.md](Reader.md)).
 
 The reader is **presented** rather than pushed, which the same transition does either way. A pushed
 screen has to take the tab bar away on the way in and give it back on the way out, and the stack's own

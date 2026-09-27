@@ -4,7 +4,7 @@
 //
 
 import SwiftUI
-import UIKit
+import UIKit.UIGestureRecognizerSubclass
 
 /// Everything the app hands its screens, kept so a screen built outside SwiftUI can be handed it too.
 ///
@@ -66,7 +66,7 @@ final class Navigator {
         screen.hidesBottomBarWhenPushed = true
 
         if let source {
-            screen.preferredTransition = .zoom(options: Self.zoom) { _ in source }
+            screen.preferredTransition = .zoom(options: Self.zoom(for: screen)) { _ in source }
         }
 
         controller.pushViewController(screen, animated: true)
@@ -102,7 +102,7 @@ final class Navigator {
             // Asked for on the way in and again on the way out, a drag to dismiss included, and answered
             // the same way both times: the stand-in, standing exactly where the cover stands. It is what
             // the screen grows out of and what it shrinks back into, so it has to be there for both.
-            screen.preferredTransition = .zoom(options: Self.zoom) { _ in source(.running) }
+            screen.preferredTransition = .zoom(options: Self.zoom(for: screen)) { _ in source(.running) }
             // The book is taken down once the reader is over it, so it is never standing there behind
             // its own transition, and put back when the zoom has finished bringing it home.
             screen.onArrived = { _ = source(.covered) }
@@ -150,22 +150,47 @@ final class Navigator {
         }
     }
 
-    /// A zoomed screen is closed by dragging it back down, and only down.
+    /// A zoomed screen is closed by dragging it back down, and only down, from below the top edge.
     ///
     /// The dismissal answers a drag in any direction by default, and the reader turns its pages with
     /// the sideways ones: a drag in from the leading edge closed the book instead of turning back a
-    /// page. Everything the screen has no use for is still the transition's.
-    private static let zoom: UIViewController.Transition.ZoomOptions = {
+    /// page. A drag from the top edge is the system's, for Control Center or notifications: it takes
+    /// the touch half way, and a dismissal whose touch is cancelled finishes rather than going back.
+    private static func zoom(for screen: UIViewController) -> UIViewController.Transition.ZoomOptions {
+        let touchDown = TouchDownRecognizer()
         let options = UIViewController.Transition.ZoomOptions()
 
-        options.interactiveDismissShouldBegin = { interaction in
-            interaction.willBegin && interaction.velocity.dy > abs(interaction.velocity.dx)
+        screen.view.addGestureRecognizer(touchDown)
+        options.interactiveDismissShouldBegin = { [weak touchDown] interaction in
+            guard interaction.willBegin, interaction.velocity.dy > abs(interaction.velocity.dx) else { return false }
+
+            return touchDown?.beganAtTopEdge != true
         }
 
         return options
-    }()
+    }
 
     fileprivate func cameBack() { returnedAt = .now }
+}
+
+/// Notes whether the latest touch came down in the band at the top of the window where the system's
+/// own swipes begin, and never recognises anything itself.
+private final class TouchDownRecognizer: UIGestureRecognizer {
+    private(set) var beganAtTopEdge = false
+
+    override init(target: Any? = nil, action: Selector? = nil) {
+        super.init(target: target, action: action)
+        cancelsTouchesInView = false
+        delaysTouchesEnded = false
+    }
+
+    override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent) {
+        if let touch = touches.first, let window = touch.window {
+            beganAtTopEdge = touch.location(in: window).y < window.safeAreaInsets.top
+        }
+
+        state = .failed
+    }
 }
 
 /// Tells the tab's navigator when the stack is back at its root.
