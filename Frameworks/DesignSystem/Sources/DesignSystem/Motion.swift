@@ -34,6 +34,11 @@ public enum ArrivalMotion {
     public static var fadeSeconds: Double { 0.18 * MotionScale.factor }
 }
 
+/// How a book is opened from its cover, and closed back into it.
+public enum OpeningMotion {
+    public static var seconds: Double { 0.85 * MotionScale.factor }
+}
+
 /// How a card leaves the list: its bookcase shuts over the books, then the shut case goes.
 public enum LeaveMotion {
     public static var seconds: Double { 1.1 * MotionScale.factor }

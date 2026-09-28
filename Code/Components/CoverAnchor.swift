@@ -18,7 +18,7 @@ import UIKit
 @Observable @MainActor
 final class CoverAnchor {
     @ObservationIgnored
-    private weak var view: UIImageView?
+    private weak var view: BookStandIn?
 
     /// The cover as it is drawn, its marks included, kept against the moment a zoom asks for it.
     @ObservationIgnored
@@ -31,7 +31,7 @@ final class CoverAnchor {
     var isZooming: Bool { zoom == .running || zoom == .covered }
 
     /// Where the cover is drawn, told by the view that draws it.
-    func stands(on view: UIImageView) { self.view = view }
+    func stands(on view: BookStandIn) { self.view = view }
 
     /// What a zoom is handed, and what stands in the cover's place at each point of it.
     ///
@@ -50,8 +50,8 @@ final class CoverAnchor {
 struct CoverAnchorView: UIViewRepresentable {
     let anchor: CoverAnchor
 
-    func makeUIView(context: Context) -> UIImageView {
-        let view = UIImageView()
+    func makeUIView(context: Context) -> BookStandIn {
+        let view = BookStandIn()
 
         view.contentMode = .scaleToFill
         view.isUserInteractionEnabled = false
@@ -59,7 +59,13 @@ struct CoverAnchorView: UIViewRepresentable {
         return view
     }
 
-    func updateUIView(_ view: UIImageView, context: Context) {
+    func updateUIView(_ view: BookStandIn, context: Context) {
         anchor.stands(on: view)
     }
+}
+
+/// A picture of a book standing where the book is drawn, for a transition to open it out of.
+final class BookStandIn: UIImageView {
+    /// Whether the picture is the book's cover, which can be opened, rather than its spine.
+    var isCover = true
 }

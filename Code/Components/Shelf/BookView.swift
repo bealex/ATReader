@@ -146,7 +146,8 @@ final class BookView: UIView {
             case .running:
                 // A book standing on its edge grows out of its spine. Its cover is neither decoded nor
                 // drawn while it stands that way, so a picture of it would be the bare board.
-                zoomImage.image = standsAsCover ? cover.picture() : spine.image
+                zoomAnchor.image = standsAsCover ? cover.picture() : spine.image
+                zoomAnchor.isCover = standsAsCover
                 show(panels: false, anchor: true)
             case .covered:
                 show(panels: false, anchor: false)
@@ -173,17 +174,15 @@ final class BookView: UIView {
     /// side it is going to.
     private var standsAsCover: Bool { turned > 0.5 }
 
-    private let zoomAnchor = UIView()
-    /// What the anchor shows: the cover printed whole, taken when a transition asks for it.
-    private let zoomImage = UIImageView()
+    /// The cover printed whole, or the spine, taken when a transition asks for it.
+    private let zoomAnchor = BookStandIn()
 
     override init(frame: CGRect) {
         super.init(frame: frame)
 
         zoomAnchor.isUserInteractionEnabled = false
         zoomAnchor.alpha = 0
-        zoomImage.contentMode = .scaleToFill
-        zoomAnchor.addSubview(zoomImage)
+        zoomAnchor.contentMode = .scaleToFill
         addSubview(zoomAnchor)
 
         for panel in [ edgePanel, facePanel ] {
@@ -313,7 +312,6 @@ final class BookView: UIView {
             width: standsAsCover ? contents.face : contents.edge,
             height: contents.standing
         )
-        zoomImage.frame = zoomAnchor.bounds
         spine.frame = edgePanel.bounds
         cover.frame = facePanel.bounds
         gaps?.edge.frame = edgePanel.bounds

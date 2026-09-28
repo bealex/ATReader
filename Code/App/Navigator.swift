@@ -99,10 +99,16 @@ final class Navigator {
         // around whatever the reading changed, so the board a book stood on when it opened is the
         // wrong size by the time the book closes, and the zoom landed on one and left the other.
         if let source {
-            // Asked for on the way in and again on the way out, a drag to dismiss included, and answered
-            // the same way both times: the stand-in, standing exactly where the cover stands. It is what
-            // the screen grows out of and what it shrinks back into, so it has to be there for both.
-            screen.preferredTransition = .zoom(options: Self.zoom(for: screen)) { _ in source(.running) }
+            // A cover in full view opens onto the page; anything else, a spine among them, zooms.
+            if let opening = BookOpening(from: source, paper: UIColor(dressing.settings.theme.background)) {
+                screen.opening = opening
+                screen.transitioningDelegate = opening
+                opening.shuts(screen)
+            } else {
+                // Asked for on the way in and again on the way out, a drag to dismiss included, and
+                // answered the same way both times: the stand-in, standing exactly where the cover stands.
+                screen.preferredTransition = .zoom(options: Self.zoom(for: screen)) { _ in source(.running) }
+            }
             // The book is taken down once the reader is over it, so it is never standing there behind
             // its own transition, and put back when the zoom has finished bringing it home.
             screen.onArrived = { _ = source(.covered) }
@@ -128,6 +134,8 @@ final class Navigator {
     /// the screen's own life is what reports it. A drag let go half way brings `viewDidAppear` round
     /// again, which is the answer wanted there too.
     private final class PresentedScreen<Content: View>: UIHostingController<Content> {
+        /// Held here since a transitioning delegate is held weakly.
+        var opening: BookOpening?
         var onArrived: (@MainActor () -> Void)?
         /// The transition beginning, a drag's included: a drag let go half way is answered by
         /// `viewDidAppear` coming round again.

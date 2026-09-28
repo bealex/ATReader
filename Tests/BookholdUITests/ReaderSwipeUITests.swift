@@ -17,10 +17,8 @@ final class ReaderSwipeUITests: XCTestCase {
 
         page.swipeDown(velocity: .fast)
 
-        XCTAssertTrue(
-            app.collectionViews["library.list"].waitForExistence(timeout: 5),
-            "the book stayed open after a drag down the page"
-        )
+        // The shelf stays underneath a book over it, so what says the book shut is the page going.
+        XCTAssertTrue(page.waitForNonExistence(timeout: 5), "the book stayed open after a drag down the page")
         // The reader puts the stack's bar away while it reads, and has to hand it back on the way out
         // however it left. Dragging the book shut is not the way the bar is used to being given back.
         XCTAssertTrue(

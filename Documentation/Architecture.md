@@ -481,11 +481,41 @@ A volume the reader doesn't hold is drawn as the book that isn't there would be:
 shading on the edge, a cover's on the face, both at half strength. It turns with its run rather than
 sitting still while the books either side of it move.
 
+### Opening a book from its cover
+
+A book opened out of a cover in full view opens like one. `OpeningBook` sweeps the book from where its
+cover stands to the whole screen in one move, easing in and out. It flies low, dipping below the straight
+line and rising into place whichever shelf it left, and runs a little past the middle across before
+settling back. The cover swings open about the spine over the first 85% of the run, lifting slowly off
+the page before it swings. Shutting runs the same frames backwards. A book opened out of anything else
+still zooms: a spine, a cover partly scrolled off the screen, and every book while Reduce Motion is on.
+
+A drag down the page takes the book in hand. Its middle stays under the finger and it shrinks as the
+finger goes down; let go, it carries on at the finger's speed and settles onto its own path home, or back
+open, along a cubic Hermite from where it was let go.
+
+`BookOpening` is the presented screen's transitioning delegate, and `OpeningBook` draws each frame from
+one number, how open the book is. The page is the reader itself, live, so text that lands while the book
+is opening is already on it. It's scaled to fit inside the book whole, as it will be laid out on the
+screen, on a sheet of the reader's paper that fills the rest of the book and grows with it. The sheet is
+also what keeps the screen underneath out of sight: the reader is only opaque once it has arrived, since
+it paints the stack behind it in its own colour on appearing and gives it back as it starts to go.
+
+`Leaf` cuts the cover across its width into two dozen flat strips and turns each to its own angle. A
+reader lifts a board that thin by its free edge, so that edge leads and the cover curls on the way over,
+lying flat at both ends. Each strip is projected from an eye straight in front of the book, as a book
+turning on the shelf is, and one seen from behind shows the board's inside.
+
+The cover flies laid over whatever stood behind it, rendered from the screen underneath with the
+stand-in hidden. A board whose artwork hasn't been printed is see-through: on the shelf it takes its
+colour from the bookcase, and flown bare it would show the page's text through it.
+
 ### Opening a book, frame by frame
 
 A book grows into the reader and shrinks back out of it, and what the reader sees through that has to be
 one cover the whole way. There is more than one thing that could be drawn, so the order is written down
-here and pinned by `BookZoomSequenceTests`.
+here and pinned by `BookZoomSequenceTests`. A cover that opens takes the same steps: it asks for the
+stand-in to learn where the cover is and what it shows, and has it covered in the same frame.
 
 1. The stand-in is put where the cover is, carrying a picture of it. Both are at the same place, so what
    happens next is invisible.

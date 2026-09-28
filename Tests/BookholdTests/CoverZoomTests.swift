@@ -38,7 +38,7 @@ struct CoverZoomTests {
     @Test
     func standsInForTheCoverWhileTheZoomRuns() {
         let anchor = CoverAnchor()
-        let view = UIImageView()
+        let view = BookStandIn()
 
         anchor.stands(on: view)
         anchor.picture = UIImage()
