@@ -56,6 +56,12 @@ public extension NSAttributedString.Key {
     static let pageImage = NSAttributedString.Key("ATPageImage")
 }
 
+/// A picture the app drew itself, with how many of its pixels make a point.
+public struct DrawnPicture: Sendable {
+    public let image: CGImage
+    public let scale: CGFloat
+}
+
 /// One picture from a book, decoded once and ready for a page to draw.
 ///
 /// A picture is either colour art, which the page shows as it is, or monochrome: line art, a scan,
@@ -74,6 +80,8 @@ public final class PageImage: Sendable {
 
     /// The picture's own size, in pixels.
     public let size: CGSize
+    /// Pixels to the point at the picture's own size: more than one for a picture drawn by the app.
+    public let scale: CGFloat
     public let kind: Kind
 
     /// The picture's own pixels. Only colour art keeps them.
@@ -84,8 +92,9 @@ public final class PageImage: Sendable {
     /// where one drawn at another is resampled on every draw of the page.
     private let fitted = Mutex<(pixels: CGSize, mask: CGImage)?>(nil)
 
-    fileprivate init(size: CGSize, kind: Kind, colour: CGImage?, darkness: CGImage?) {
+    fileprivate init(size: CGSize, scale: CGFloat, kind: Kind, colour: CGImage?, darkness: CGImage?) {
         self.size = size
+        self.scale = scale
         self.kind = kind
         self.colour = colour
         self.darkness = darkness
@@ -139,7 +148,7 @@ public final class PageImage: Sendable {
     public func size(fitting measure: CGFloat, depth: CGFloat) -> CGSize {
         guard size.width > 0, size.height > 0, measure > 0, depth > 0 else { return .zero }
 
-        var width = min(measure, size.width)
+        var width = min(measure, size.width / scale)
         var height = width * size.height / size.width
 
         if height > depth {
@@ -288,11 +297,47 @@ public final class BookImages {
         return picture
     }
 
+    /// Pictures the app draws itself, by the key each is kept under, drawn and read away from the main
+    /// actor. One already kept is not drawn again.
+    public func prepare(drawings: [String: @Sendable () -> DrawnPicture?]) async -> [String: PageImage] {
+        var ready: [String: PageImage] = [:]
+        var wanted: [String: @Sendable () -> DrawnPicture?] = [:]
+
+        for (key, drawing) in drawings {
+            if let known = cache.object(forKey: key as NSString) {
+                ready[key] = known
+            } else {
+                wanted[key] = drawing
+            }
+        }
+
+        guard !wanted.isEmpty else { return ready }
+
+        let read = await Task.detached(priority: .userInitiated) {
+            wanted.compactMapValues { drawing -> Ingredients? in
+                guard let drawn = drawing(), var ingredients = Self.read(drawn.image) else { return nil }
+
+                ingredients.scale = drawn.scale
+                return ingredients
+            }
+        }.value
+
+        for (key, ingredients) in read {
+            guard let picture = Self.picture(ingredients) else { continue }
+
+            cache.setObject(picture, forKey: key as NSString, cost: ingredients.cost)
+            ready[key] = picture
+        }
+
+        return ready
+    }
+
     // MARK: - Reading a picture off the device
 
     /// One picture pulled apart into what a page needs, in pieces that can cross an actor.
     private struct Ingredients: Sendable {
         var size: CGSize
+        var scale: CGFloat = 1
         var width: Int
         var height: Int
         var kind: PageImage.Kind
@@ -463,7 +508,13 @@ public final class BookImages {
 
         guard darkness != nil || colour != nil else { return nil }
 
-        return PageImage(size: ingredients.size, kind: ingredients.kind, colour: colour, darkness: darkness)
+        return PageImage(
+            size: ingredients.size,
+            scale: ingredients.scale,
+            kind: ingredients.kind,
+            colour: colour,
+            darkness: darkness
+        )
     }
 
     /// Wraps a buffer as a picture. No decoding happens here: the bytes are already pixels.

@@ -334,6 +334,29 @@ below it already sits where it belongs and is left alone.
 The title page's cover answers to both rules, being a page of the book. Covers elsewhere in the app are
 drawn plainly, since there's no page tint out there to answer to.
 
+### Tables
+
+A table is set as a picture of itself. A column can't hold a table at a readable size, so the page shows
+it whole and small, and a tap opens it at full size.
+
+`TablePicture` draws it in the page's own face and size, black ink on nothing, at two pixels to the
+point. A column grows to fit its widest cell up to sixteen ems and wraps past that; heading rows are
+bold on a light shade, and a hairline runs round every cell. The drawing goes through
+`BookImages.prepare(drawings:)` like any other picture, so it comes out monochrome and takes the page's
+two colours, it's kept under a key naming the table and the type, and everything the Pictures section
+says about sizing, air and plates holds for it. `PageImage.scale` is what keeps a narrow table at the
+size of its type: without it, a picture drawn at two pixels to the point would be set twice as large.
+
+The character standing for the picture carries the `BookTable` on `.bookTable`, and
+`ChapterLayout.table(at:on:)` walks the page's lines the way a note tap does. The controller asks after
+a note and before a link, and `ReaderScreen.TableSheet` opens full screen: the same table as a SwiftUI
+grid in the page's face and colours, scrolled both ways, its text selectable. It turns with the device
+even when the reader has locked the page upright: `OrientationLock.release()` lifts the lock while it's
+open. Done puts the lock back and waits for the screen to stand up before closing, since the page under
+a full-screen cover isn't laid out until the cover goes, and a reader that saw landscape would set a
+spread and then set the page again. VoiceOver gets the table
+read out row by row in the page's text, and an action per table on the page to open it.
+
 ## Notes
 
 A note is an aside the text points at, and a book carries them two ways. A chapter from the service

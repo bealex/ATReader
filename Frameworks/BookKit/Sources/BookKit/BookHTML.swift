@@ -103,7 +103,7 @@ public struct LinkMark: Codable, Sendable, Hashable {
     public var range: NSRange { NSRange(location: location, length: length) }
 }
 
-/// One laid-out block of a chapter: a paragraph of text, or a picture standing on its own.
+/// One laid-out block of a chapter: a paragraph of text, or a picture or a table standing on its own.
 public struct Paragraph: Codable, Sendable, Identifiable, Hashable {
     public let id: Int
     public let text: String
@@ -113,6 +113,8 @@ public struct Paragraph: Codable, Sendable, Identifiable, Hashable {
     /// lays the chapter out decides what a source resolves to, and drops the block where nothing
     /// answers to it.
     public let imageSource: String?
+    /// The table the block sets out, on a block that is one rather than text.
+    public let table: BookTable?
     /// What level of title this block is, or nothing where it is ordinary text. One is the biggest.
     public let titleLevel: Int?
     /// The note markers standing in this paragraph, in the order they stand in it.
@@ -148,7 +150,7 @@ public struct Paragraph: Codable, Sendable, Identifiable, Hashable {
     /// `BookHTML.isSceneBreak(_:)`, the same test that centres one wherever a book leaves it, so the
     /// two can never drift apart and start disagreeing about what a break is.
     public var isSceneBreak: Bool {
-        guard titleLevel == nil, imageSource == nil, !isVerse else { return false }
+        guard titleLevel == nil, !isImage, !isVerse else { return false }
 
         return BookHTML.isSceneBreak(text)
     }
@@ -158,6 +160,7 @@ public struct Paragraph: Codable, Sendable, Identifiable, Hashable {
         text: String,
         isCentered: Bool,
         imageSource: String? = nil,
+        table: BookTable? = nil,
         titleLevel: Int? = nil,
         notes: [NoteMark] = [],
         scripts: [ScriptMark] = [],
@@ -175,6 +178,7 @@ public struct Paragraph: Codable, Sendable, Identifiable, Hashable {
         self.text = text
         self.isCentered = isCentered
         self.imageSource = imageSource
+        self.table = table
         self.titleLevel = titleLevel
         self.notes = notes
         self.scripts = scripts
@@ -196,6 +200,7 @@ public struct Paragraph: Codable, Sendable, Identifiable, Hashable {
         text = try container.decode(String.self, forKey: .text)
         isCentered = try container.decode(Bool.self, forKey: .isCentered)
         imageSource = try container.decodeIfPresent(String.self, forKey: .imageSource)
+        table = try container.decodeIfPresent(BookTable.self, forKey: .table)
         titleLevel = try container.decodeIfPresent(Int.self, forKey: .titleLevel)
         // A chapter prepared before notes were read carries none, and is still good text.
         notes = try container.decodeIfPresent([ NoteMark ].self, forKey: .notes) ?? []
@@ -212,7 +217,8 @@ public struct Paragraph: Codable, Sendable, Identifiable, Hashable {
         isVerse = try container.decodeIfPresent(Bool.self, forKey: .isVerse) ?? false
     }
 
-    public var isImage: Bool { imageSource != nil }
+    /// True where the block is drawn rather than set as text: a picture, or a table.
+    public var isImage: Bool { imageSource != nil || table != nil }
 }
 
 /// A chapter as its markup gives it: the blocks to set, and the notes their text points at.
@@ -304,6 +310,7 @@ public enum BookHTML {
     private enum Block {
         case text(attributes: String, inner: String)
         case picture(String)
+        case table(BookTable)
     }
 
     /// Walks the body once, taking paragraphs and pictures in the order they stand in it.
@@ -314,14 +321,24 @@ public enum BookHTML {
         // of the chapter doesn't have costs a read of the whole rest of it, once per paragraph.
         var paragraph = html.range(of: "<p", options: .caseInsensitive)
         var picture = html.range(of: "<img", options: .caseInsensitive)
+        var table = html.range(of: "<table", options: .caseInsensitive)
 
         while cursor < html.endIndex {
-            if let passed = paragraph, passed.lowerBound < cursor {
-                paragraph = html.range(of: "<p", options: .caseInsensitive, range: cursor ..< html.endIndex)
-            }
+            paragraph = next("<p", after: paragraph, from: cursor, in: html)
+            picture = next("<img", after: picture, from: cursor, in: html)
+            table = next("<table", after: table, from: cursor, in: html)
 
-            if let passed = picture, passed.lowerBound < cursor {
-                picture = html.range(of: "<img", options: .caseInsensitive, range: cursor ..< html.endIndex)
+            if let table,
+                    paragraph.map({ table.lowerBound < $0.lowerBound }) ?? true,
+                    picture.map({ table.lowerBound < $0.lowerBound }) ?? true {
+                let close = closingTag(of: "table", in: html, from: table.upperBound)
+                let end = close?.upperBound ?? html.endIndex
+                let read = Self.table(in: String(html[table.upperBound ..< (close?.lowerBound ?? end)]))
+
+                if !read.rows.isEmpty { blocks.append(.table(read)) }
+
+                cursor = end
+                continue
             }
 
             // A picture standing on its own, where it comes before the next paragraph. One set inside a
@@ -362,6 +379,18 @@ public enum BookHTML {
         return blocks
     }
 
+    /// The next `tag` from the cursor on: the one found before, while the cursor hasn't passed it.
+    private static func next(
+        _ tag: String,
+        after found: HTMLRange?,
+        from cursor: String.Index,
+        in html: String
+    ) -> HTMLRange? {
+        guard let found, found.lowerBound < cursor else { return found }
+
+        return html.range(of: tag, options: .caseInsensitive, range: cursor ..< html.endIndex)
+    }
+
     private static func pictures(in fragment: String) -> [Block] {
         var blocks: [Block] = []
         var cursor = fragment.startIndex
@@ -389,6 +418,91 @@ public enum BookHTML {
 
         let value = rest.dropFirst().prefix { $0 != quote }
         return value.isEmpty ? nil : decodeEntities(in: String(value))
+    }
+
+    // MARK: - Tables
+
+    /// A table's rows, read out of everything between its opening tag and its closing one.
+    ///
+    /// A row counts as a heading where it stands in `<thead>` or holds nothing but `<th>` cells, and
+    /// only while no ordinary row has come before it.
+    private static func table(in markup: String) -> BookTable {
+        var rows: [[BookTable.Cell]] = []
+        var headerRows = 0
+        var alignments: [BookTable.Alignment?] = []
+        let bodyStart = markup.range(of: "</thead", options: .caseInsensitive)?.lowerBound
+        var cursor = markup.startIndex
+
+        while let open = markup.range(of: "<tr", options: .caseInsensitive, range: cursor ..< markup.endIndex) {
+            let close = closingTag(of: "tr", in: markup, from: open.upperBound)
+            let end = close?.upperBound ?? markup.endIndex
+            let cells = self.cells(in: markup[open.upperBound ..< (close?.lowerBound ?? end)])
+
+            cursor = end
+
+            guard !cells.isEmpty else { continue }
+
+            let inHead = bodyStart.map { open.lowerBound < $0 } ?? false
+
+            if headerRows == rows.count, inHead || cells.allSatisfy(\.isHeading) { headerRows += 1 }
+
+            for (column, cell) in cells.enumerated() {
+                if column >= alignments.count { alignments.append(nil) }
+                if alignments[column] == nil { alignments[column] = cell.alignment }
+            }
+
+            rows.append(cells.map(\.cell))
+        }
+
+        return BookTable(rows: rows, headerRows: headerRows, alignments: alignments.map { $0 ?? .leading })
+    }
+
+    private struct ReadCell {
+        var cell: BookTable.Cell
+        var isHeading: Bool
+        var alignment: BookTable.Alignment?
+    }
+
+    private static func cells(in row: Substring) -> [ReadCell] {
+        var cells: [ReadCell] = []
+        var cursor = row.startIndex
+        var scratch: [String: BookNote] = [:]
+
+        while let open = row.range(
+                of: "<t[dh]",
+                options: [ .regularExpression, .caseInsensitive ],
+                range: cursor ..< row.endIndex
+            ),
+                let openEnd = row.range(of: ">", range: open.upperBound ..< row.endIndex) {
+            let name = row[open].lowercased().dropFirst()
+            let closing = row.range(
+                of: "</\(name)",
+                options: .caseInsensitive,
+                range: openEnd.upperBound ..< row.endIndex
+            )
+            let inner = String(row[openEnd.upperBound ..< (closing?.lowerBound ?? row.endIndex)])
+                .replacingOccurrences(
+                    of: "</p>\\s*<p[^>]*>",
+                    with: "<br>",
+                    options: [ .regularExpression, .caseInsensitive ]
+                )
+            let read = readingNotes(in: inner, paragraph: 0, notes: &scratch)
+            let attributes = attributes(in: row[open.upperBound ..< openEnd.lowerBound])
+            let aligned = (attributes["style"] ?? "").replacingOccurrences(of: " ", with: "").lowercased()
+
+            cells.append(ReadCell(
+                cell: BookTable.Cell(text: read.text, styles: read.styles),
+                isHeading: name == "th",
+                alignment: aligned.contains("text-align:right") || attributes["align"] == "right"
+                    ? .trailing
+                    : aligned.contains("text-align:center") || attributes["align"] == "center" ? .center : nil
+            ))
+            cursor =
+                closing.flatMap { row.range(of: ">", range: $0.upperBound ..< row.endIndex)?.upperBound }
+                ?? row.endIndex
+        }
+
+        return cells
     }
 
     private static func plainText(from fragment: String) -> String {
@@ -496,6 +610,9 @@ public enum BookHTML {
             switch block {
                 case let .picture(source):
                     result.append(Paragraph(id: index, text: "", isCentered: true, imageSource: source))
+                    index += 1
+                case let .table(table):
+                    result.append(Paragraph(id: index, text: "", isCentered: true, table: table))
                     index += 1
                 case let .text(attributes, inner):
                     let read = readingNotes(in: inner, paragraph: index, notes: &notes)

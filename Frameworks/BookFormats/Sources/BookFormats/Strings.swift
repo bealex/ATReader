@@ -5,7 +5,10 @@
 
 import Foundation
 
-extension String {
+extension StringProtocol {
     var trimmed: String { trimmingCharacters(in: .whitespacesAndNewlines) }
+}
+
+extension String {
     var nilWhenEmpty: String? { isEmpty ? nil : self }
 }

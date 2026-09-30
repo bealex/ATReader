@@ -2418,6 +2418,17 @@
         }
       }
     },
+    "Open table": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Открыть таблицу"
+          }
+        }
+      }
+    },
     "Opens the book": {
       "extractionState": "manual",
       "localizations": {

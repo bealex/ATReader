@@ -84,6 +84,23 @@ public struct ParsedBook: Sendable {
         return identifier.map { "\(format):id:\($0)|\(name)" } ?? "\(format):name:\(name)"
     }
 
+    /// The same book with a cover it didn't bring itself.
+    public func covered(with cover: Data) -> ParsedBook {
+        ParsedBook(
+            title: title,
+            authors: authors,
+            annotation: annotation,
+            language: language,
+            series: series,
+            seriesOrder: seriesOrder,
+            cover: cover,
+            images: images,
+            sections: sections,
+            identifier: identifier,
+            format: format
+        )
+    }
+
     public var authorLine: String {
         authors.isEmpty ? String(localized: "Unknown author", bundle: .module) : authors.joined(separator: ", ")
     }

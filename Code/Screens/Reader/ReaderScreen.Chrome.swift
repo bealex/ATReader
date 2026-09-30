@@ -57,6 +57,7 @@ extension ReaderScreen {
                     shown != nil ? .impact(flexibility: .soft) : nil
                 }
                 .sheet(item: $stage.lookedUp) { DictionaryView(term: $0.term) }
+                .fullScreenCover(item: $stage.table) { TableSheet(table: $0.table) }
                 .translationPresentation(isPresented: $stage.isTranslating, text: stage.translating)
                 #if DEBUG
                     .sheet(item: $stage.report) { ShareSheet(url: $0.url) }

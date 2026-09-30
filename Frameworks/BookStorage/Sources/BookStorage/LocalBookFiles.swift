@@ -39,6 +39,7 @@ public enum LocalBookFiles {
         [
             UTType(filenameExtension: "fb2"),
             UTType("org.idpf.epub-container") ?? UTType(filenameExtension: "epub"),
+            UTType("net.daringfireball.markdown") ?? UTType(filenameExtension: "md", conformingTo: .plainText),
             .xml,
             .zip,
         ].compactMap { $0 }

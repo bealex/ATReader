@@ -15,7 +15,7 @@ import Foundation
 enum BookImporting {
     /// Every format the app can read a book out of. The bytes decide which one reads a file, so the
     /// order here settles nothing but which is asked first.
-    static let formats: [any BookFormat] = [ EpubFormat(), FB2Format() ]
+    static let formats: [any BookFormat] = [ EpubFormat(), FB2Format(), MarkdownFormat() ]
 
     /// Reads a picked file into the library.
     ///
@@ -66,7 +66,20 @@ enum BookImporting {
     static func read(_ data: Data) async throws -> ReadBook {
         guard let format = formats.first(where: { $0.canRead(data) }) else { throw BookFileError.notABook }
 
-        return try await format.read(data)
+        return covered(try await format.read(data))
+    }
+
+    /// A book that brought no cover is given one drawn from its title and format, the same one every
+    /// time it's read.
+    private static func covered(_ read: ReadBook) -> ReadBook {
+        let book = read.book
+
+        guard
+            book.cover == nil,
+            let cover = DrawnCover.draw(title: book.title, format: book.format, seed: book.fingerprint)
+        else { return read }
+
+        return ReadBook(book: book.covered(with: cover), source: read.source)
     }
 
     @discardableResult

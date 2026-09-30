@@ -224,6 +224,11 @@ public final class ChapterLayout {
         // The pictures are read off the device before anything is measured: a line as deep as a plate
         // cannot be set without knowing how deep the plate is.
         let images = await BookImages.shared.prepare(sources: content.imageSources)
+            .merging(
+                await BookImages.shared.prepare(
+                    drawings: TablePicture.drawings(for: content.paragraphs, style: context.style)
+                )
+            ) { picture, _ in picture }
         // Both alignments take every break the dictionary offers, where the reader lets them: a hyphen
         // evens a ragged edge as surely as it fills a justified line.
         let paragraphs = context.style.hyphenates ? content.hyphenated : content.paragraphs
@@ -927,6 +932,26 @@ public final class ChapterLayout {
         )
     }
 
+    /// The table whose picture stands under a point on a page, in the page's own coordinates.
+    public func table(at point: CGPoint, on page: Page) -> BookTable? {
+        guard
+            let placed = placedLines(on: page).first(where: { point.y >= $0.edge && point.y < $0.edge + $0.height }),
+            line(placed.index).image != nil
+        else { return nil }
+
+        return text.attribute(.bookTable, at: line(placed.index).characters.location, effectiveRange: nil)
+            as? BookTable
+    }
+
+    /// Every table a page sets out, in the order they stand on it.
+    public func tables(on page: Page) -> [BookTable] {
+        page.lines.compactMap { number in
+            guard line(number).image != nil else { return nil }
+
+            return text.attribute(.bookTable, at: line(number).characters.location, effectiveRange: nil) as? BookTable
+        }
+    }
+
     /// A link found in a line: where it points, and where along the line its words stand.
     private struct FoundLink {
         var target: String
@@ -1055,8 +1080,18 @@ public final class ChapterLayout {
     public func pageText(_ page: Page) -> String {
         // Without stripping them, VoiceOver reads a page full of soft hyphens. A picture is drawn and
         // so invisible to it, and is named instead: the page says one is there rather than skipping it.
-        (text.string as NSString)
-            .substring(with: range(of: page))
+        // A table is read out whole.
+        let shown = NSMutableAttributedString(attributedString: text.attributedSubstring(from: range(of: page)))
+
+        let whole = NSRange(location: 0, length: shown.length)
+
+        shown.enumerateAttribute(.bookTable, in: whole, options: .reverse) { value, range, _ in
+            guard let table = value as? BookTable else { return }
+
+            shown.replaceCharacters(in: range, with: String(localized: "Table: \(table.spokenText).", bundle: .module))
+        }
+
+        return shown.string
             .replacingOccurrences(of: String(Typography.softHyphen), with: "")
             .replacingOccurrences(of: "\u{2060}", with: "")
             .replacingOccurrences(

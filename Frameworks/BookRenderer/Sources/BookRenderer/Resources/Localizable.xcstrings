@@ -55,6 +55,17 @@
           }
         }
       }
+    },
+    "Table: %@.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Таблица: %@."
+          }
+        }
+      }
     }
   },
   "version": "1.0"

@@ -187,11 +187,13 @@ public enum ChapterPagination {
         for (index, paragraph) in paragraphs.enumerated() {
             let suffix = index == paragraphs.count - 1 ? "" : "\n"
 
-            if let source = paragraph.imageSource {
+            if paragraph.isImage {
+                let key = paragraph.imageSource ?? paragraph.table.map { TablePicture.key($0, style: style) }
+
                 // A picture the device has nothing behind stands for nothing, so its block goes rather
                 // than leaving a hole where it would have been.
-                if let picture = images[source] {
-                    result.append(Self.setting(picture, suffix: suffix, style: style))
+                if let key, let picture = images[key] {
+                    result.append(Self.setting(picture, table: paragraph.table, suffix: suffix, style: style))
                 }
 
                 continue
@@ -375,7 +377,7 @@ public enum ChapterPagination {
         }
     }
 
-    private static func adding(_ emphasis: StyleMark.Emphasis, to font: UIFont) -> UIFont {
+    static func adding(_ emphasis: StyleMark.Emphasis, to font: UIFont) -> UIFont {
         var traits = font.fontDescriptor.symbolicTraits
 
         switch emphasis {
@@ -495,7 +497,12 @@ public enum ChapterPagination {
     /// It stands for a single character, so a reading position counts it the way it counts a paragraph
     /// and stays put when the page size or the face changes. The column reads the picture off the
     /// character's own attribute and sets a line as deep as the picture is drawn.
-    private static func setting(_ picture: PageImage, suffix: String, style: ChapterTextStyle) -> NSAttributedString {
+    private static func setting(
+        _ picture: PageImage,
+        table: BookTable?,
+        suffix: String,
+        style: ChapterTextStyle
+    ) -> NSAttributedString {
         let paragraphStyle = NSMutableParagraphStyle()
         paragraphStyle.alignment = .center
         // A line of the face above the picture and one below, a little under what a line of the page
@@ -505,14 +512,15 @@ public enum ChapterPagination {
         paragraphStyle.lineSpacing = air
         paragraphStyle.paragraphSpacing = air
 
-        return NSAttributedString(
-            string: String(Self.pictureMark) + suffix,
-            attributes: [
-                .font: style.font,
-                .paragraphStyle: paragraphStyle,
-                .pageImage: picture,
-            ]
-        )
+        var attributes: [NSAttributedString.Key: Any] = [
+            .font: style.font,
+            .paragraphStyle: paragraphStyle,
+            .pageImage: picture,
+        ]
+
+        if let table { attributes[.bookTable] = table }
+
+        return NSAttributedString(string: String(Self.pictureMark) + suffix, attributes: attributes)
     }
 
     /// What a picture stands as in the text. VoiceOver is told it is there; nothing draws it.

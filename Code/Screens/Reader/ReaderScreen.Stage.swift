@@ -32,6 +32,9 @@ extension ReaderScreen {
         /// The note a marker was tapped for, with where that marker stands.
         var note: Model.TappedNote?
 
+        /// A table opened whole from its picture on the page.
+        var table: Model.ShownTable?
+
         /// Text picked off the page, once the finger has come up and there is something to offer.
         var picked: Model.PickedText?
 
@@ -65,6 +68,7 @@ extension ReaderScreen {
             #endif
 
             return isShowingContents || isShowingBookmarks || isShowingSettings || lookedUp != nil || isTranslating
+                || table != nil
         }
 
         /// True while an aside covers the page, which then takes every touch to put it away.

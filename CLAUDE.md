@@ -9,7 +9,7 @@ the screens, the session and the wiring between them.
 ```
 BookKit            what a book is, and every protocol the others meet at. Foundation only.
 DesignSystem       the lattice, five colours, nine roles. Knows nothing about books.
-BookFormats        reading a book out of a file, FB2 or EPUB. → BookKit
+BookFormats        reading a book out of a file: FB2, EPUB or Markdown. → BookKit
 BookStorage        one SQLite file, covers, keychain.   → BookKit
 BookRenderer       typography, pagination, the page.    → BookKit
 AuthorTodayBooks   the service's shapes as one Book.    → BookKit, AuthorToday

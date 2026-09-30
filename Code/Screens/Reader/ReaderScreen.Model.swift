@@ -858,6 +858,25 @@ extension ReaderScreen {
             return nil
         }
 
+        /// A table the reader opened from its picture on the page.
+        struct ShownTable: Identifiable {
+            let id = UUID()
+            let table: BookTable
+        }
+
+        func table(at point: CGPoint, on page: BookPage) -> BookTable? {
+            for piece in page.pieces {
+                if let found = piece.layout.table(at: point, on: piece.page) { return found }
+            }
+
+            return nil
+        }
+
+        /// Every table the page showing sets out, for a reader who cannot see the picture of one.
+        var tablesOnPage: [BookTable] {
+            pagesOnScreen.flatMap { page in page.pieces.flatMap { $0.layout.tables(on: $0.page) } }
+        }
+
         /// Every note the page showing refers to, for a reader who cannot touch a marker they can't see.
         var notesOnPage: [BookNote] {
             pagesOnScreen.flatMap { page in

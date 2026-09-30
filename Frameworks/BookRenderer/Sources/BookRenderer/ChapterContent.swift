@@ -37,6 +37,7 @@ public extension ChapterContent {
             text: text,
             isCentered: paragraph.isCentered,
             imageSource: paragraph.imageSource,
+            table: paragraph.table,
             titleLevel: paragraph.titleLevel,
             notes: paragraph.notes.compactMap { mark in
                 moved(mark.location, mark.length, among: places).map {

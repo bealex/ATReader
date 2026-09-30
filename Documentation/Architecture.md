@@ -314,7 +314,7 @@ long run into two short ones. Tapping the folded line opens it and the next drag
 again, so nothing accumulates behind a reader scrolling past. Picking books out leaves every row
 showing, since a fold would hide the books the reader is reaching for.
 
-The plus button reads an FB2 file into the library. See [LocalBooks.md](LocalBooks.md).
+The plus button reads an FB2, EPUB or Markdown file into the library. See [LocalBooks.md](LocalBooks.md).
 
 Where the reader is in a book is a line along the top of its cover and a bookmark hanging from it:
 `ReadingMark` decides which, `BookmarkMark` draws it. Part read, the line runs as far as they've got and

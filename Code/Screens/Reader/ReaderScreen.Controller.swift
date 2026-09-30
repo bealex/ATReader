@@ -171,7 +171,7 @@ extension ReaderScreen {
             turner.readsRightToLeft = model.readsRightToLeft
             turner.advancesOnLeftTap = settings.advancesOnLeftTap
             turner.isCovered = model.picked != nil || stage.isPageCovered || stage.hasAside
-            turner.extraActions = noteActions()
+            turner.extraActions = noteActions() + tableActions()
 
             showFailure(model.currentSheet == nil ? model.errorMessage : nil)
             followPicking()
@@ -303,7 +303,8 @@ extension ReaderScreen {
 
         // MARK: - Touches on the page
 
-        /// A tap on the page: a note's marker first, since it is the smaller target, then a link.
+        /// A tap on the page: a note's marker first, since it is the smaller target, then a table, then a
+        /// link.
         ///
         /// The point arrives in the sheet's own coordinates, and is carried onto whichever page of the
         /// spread it landed on before anything is asked about it.
@@ -319,6 +320,11 @@ extension ReaderScreen {
                 return true
             }
 
+            if let table = model.table(at: onPage, on: page) {
+                show(table)
+                return true
+            }
+
             guard let target = model.link(at: onPage, on: page) else { return false }
 
             model.follow(target)
@@ -329,6 +335,11 @@ extension ReaderScreen {
         private func show(_ note: Model.TappedNote) {
             buildChrome()
             withAnimation(CalloutMotion.showing) { stage.note = note }
+        }
+
+        private func show(_ table: BookTable) {
+            buildChrome()
+            stage.table = Model.ShownTable(table: table)
         }
 
         /// Words drawn out of one page of the spread, the page settled by where the finger went down.
@@ -375,6 +386,16 @@ extension ReaderScreen {
 
                     show(Model.TappedNote(note: found, rect: CGRect(origin: middle, size: .zero)))
                     return true
+                }
+            }
+        }
+
+        /// A table is drawn, so the page offers each one it sets out as an action that opens it.
+        private func tableActions() -> [UIAccessibilityCustomAction] {
+            model.tablesOnPage.map { table in
+                UIAccessibilityCustomAction(name: String(localized: "Open table")) { [weak self] _ in
+                    self?.show(table)
+                    return self != nil
                 }
             }
         }

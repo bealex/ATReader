@@ -13,11 +13,13 @@ import UIKit
 @MainActor
 enum OrientationLock {
     private(set) static var isPortraitOnly = false
+    /// True while something over the page turns with the device whatever the reader locked.
+    private static var isReleased = false
 
     /// A tablet has no way up of its own, so it may be held any way round. A phone upside down puts
     /// its own camera at the bottom and is left out.
     static var mask: UIInterfaceOrientationMask {
-        guard !isPortraitOnly else { return .portrait }
+        guard !isPortraitOnly || isReleased else { return .portrait }
 
         return UIDevice.current.userInterfaceIdiom == .pad ? .all : .allButUpsideDown
     }
@@ -30,11 +32,33 @@ enum OrientationLock {
     /// Records the answer and asks the scene to act on it, which turns a landscape page back upright.
     static func apply(portraitOnly: Bool) {
         isPortraitOnly = portraitOnly
+        settle()
+    }
 
+    /// Lets the screen turn with the device until ``hold()``, however the reader locked it.
+    static func release() {
+        isReleased = true
+        settle()
+    }
+
+    /// Puts the reader's own lock back, turning the screen upright where it was locked so.
+    static func hold() {
+        isReleased = false
+        settle()
+    }
+
+    /// Asks every controller on screen again, the presented ones included, since the topmost is the one
+    /// the system turns with.
+    private static func settle() {
         let scene = UIApplication.shared.connectedScenes.first { $0 is UIWindowScene } as? UIWindowScene
-        scene?.keyWindow?.rootViewController?.setNeedsUpdateOfSupportedInterfaceOrientations()
+        var controller = scene?.keyWindow?.rootViewController
 
-        guard portraitOnly else { return }
+        while let asked = controller {
+            asked.setNeedsUpdateOfSupportedInterfaceOrientations()
+            controller = asked.presentedViewController
+        }
+
+        guard mask == .portrait else { return }
 
         scene?.requestGeometryUpdate(.iOS(interfaceOrientations: .portrait))
     }

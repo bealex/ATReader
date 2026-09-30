@@ -190,8 +190,9 @@ could do it.
 
 ## Books from a file
 
-An FB2 file opened from anywhere, zipped or not, is parsed on the device and read beside the books from
-the service: its text, its cover and every picture in it. An imported book counts down from minus one,
+An FB2 file opened from anywhere, zipped or not, an EPUB or a Markdown file is parsed on the device and
+read beside the books from the service: its text, its cover and every picture in it. Tables sit small
+on the page and open full screen on a tap. An imported book counts down from minus one,
 so it never collides with a work id, and its own file is kept beside it so the book screen can read it
 again in place when the parser learns something new.
 

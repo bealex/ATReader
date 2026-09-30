@@ -3,9 +3,10 @@
 A book can come from a file on the device instead of from the service. Once it's in, nothing downstream
 can tell the difference: the same library row, the same book page, the same reader.
 
-Two formats are read. FB2 is described below; EPUB has enough of its own to say that it lives in
-[Epub.md](Epub.md). `BookImporting.formats` holds both, and the bytes decide which one reads a file
-rather than its name.
+Three formats are read. FB2 is described below; EPUB and Markdown have enough of their own to say that
+they live in [Epub.md](Epub.md) and [Markdown.md](Markdown.md). `BookImporting.formats` holds all
+three, and the bytes decide which one reads a file rather than its name. Markdown is asked last, since
+it takes any text the other two turn down.
 
 ## The seam
 
@@ -195,7 +196,10 @@ The app declares FB2 in `UTImportedTypeDeclarations` rather than exporting it, s
 somebody else's and this app only claims to read it. That's also why it takes `Default` handler rank
 instead of `Owner`. EPUB needs no declaration at all: every Apple platform already knows that type, so
 the app only claims to open it, at `Alternate` rank. That claim is also what puts Bookhold in the share
-sheet, which is how a book reaches it from Books.app.
+sheet, which is how a book reaches it from Books.app. Markdown's type is declared too, for a device that
+doesn't know `net.daringfireball.markdown`, and claimed at `Alternate`, since an editor is the better
+owner of a Markdown file. A zipped FB2 arrives typed as a plain zip, so the app claims
+`public.zip-archive` at `Alternate` and turns down an archive with no book in it.
 
 `LSSupportsOpeningDocumentsInPlace` is on: the text is copied into the store on the way past, so nothing
 needs duplicating into the app's container first.
@@ -274,6 +278,11 @@ milliseconds a page, so a change of font or of screen costs the page in front of
 Clearing downloads leaves local books alone. The service can send its text again and a file can't.
 
 ## Covers and pictures
+
+A book that brings no cover gets one drawn as it's read in: `DrawnCover` lays a two-colour gradient,
+sets the title in the middle and marks the format at the foot. The colours come from the book's
+fingerprint, so re-importing a book gives it the same cover. A cover drawn by the app goes through
+`LocalBookFiles` like any other, and the shelf can't tell the difference.
 
 A file's own artwork is made for print: one cover measured at 1500 by 2359 took three megabytes, and
 five hundred of those came to a quarter of a gigabyte on the device and in every backup.
