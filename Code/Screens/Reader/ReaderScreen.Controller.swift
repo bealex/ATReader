@@ -187,19 +187,24 @@ extension ReaderScreen {
         /// Hands each step the view for its sheet, keeping a view with the sheet it already shows so a
         /// turn never builds again what is already on screen.
         private func placeSheets() {
-            let wanted = (-1 ... 1).map { step in (step, model.sheet(at: step)) }
+            // A turn onto a sheet still being cut has already put that sheet in front, blank; the one it
+            // left doesn't come back while the new one fills in.
+            let wanted = (-1 ... 1).map { step in
+                (step, step == 0 && model.isWaitingForSheet ? nil : model.sheet(at: step))
+            }
             var free = sheetViews
             var placed: [Int: SheetView] = [:]
 
             for (step, sheet) in wanted {
-                guard let sheet, let index = free.firstIndex(where: { $0.sheet == sheet }) else { continue }
+                // A sheet still being cut is kept by the view already standing blank for it.
+                guard let index = free.firstIndex(where: { $0.sheet == sheet }) else { continue }
 
                 placed[step] = free.remove(at: index)
             }
 
             for (step, _) in wanted where placed[step] == nil { placed[step] = free.removeFirst() }
 
-            for (step, sheetView) in placed { sheetView.show(model.sheet(at: step), isCurrent: step == 0) }
+            for (step, sheet) in wanted { placed[step]?.show(sheet, isCurrent: step == 0) }
 
             atStep = placed
             turner.hasSheetBefore = model.canTurnBack

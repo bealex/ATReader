@@ -63,9 +63,17 @@ public final class PageTurner: UIView {
     private var isPickingOut = false
     private var heldAt: CGPoint = .zero
     private var hasDragged = false
-    private var grabbedAt: CFTimeInterval?
+    /// True while the sheet is still behind the finger, closing on it faster than the finger moves.
+    private var isCatchingUp = false
+    /// Where the finger had the sheet at its last move.
+    private var fingerProgress: CGFloat = 0
+    /// Which sheets stood beneath and above at the last arrangement.
+    private var roles: (beneath: UIView?, upper: UIView?)
     private var overscroll: CGFloat = 0
     private var shown: [UIView] = []
+    private var arrangedSize: CGSize = .zero
+    /// Asked for while a turn was settling, whose animation a fresh arrangement would cut short.
+    private var needsReload = false
 
     override public init(frame: CGRect) {
         super.init(frame: frame)
@@ -137,10 +145,18 @@ public final class PageTurner: UIView {
     }
 
     /// Asks for the sheets again, after the book moved or a sheet changed.
-    public func reload() { arrange() }
+    public func reload() {
+        guard settling == nil else { return needsReload = true }
+
+        arrange()
+    }
 
     override public func layoutSubviews() {
         super.layoutSubviews()
+
+        guard bounds.size != arrangedSize else { return }
+
+        arrangedSize = bounds.size
         arrange()
     }
 
@@ -151,40 +167,67 @@ public final class PageTurner: UIView {
 
     /// Puts the sheets where the turn has them: the one beneath drawn back and dimmed by as much as the
     /// one above covers it.
+    ///
+    /// The sheets either side stay in the window at no opacity, so they are set and drawn before a turn
+    /// brings them in rather than as it does.
     private func arrange() {
         let beneath = sheet(turn.flatMap(lowerStep) ?? 0)
         let upper = turn.flatMap(upperStep).flatMap(sheet)
         let wanted = [ beneath, upper ].compactMap(\.self)
+        let waiting = [ -1, 0, 1 ].compactMap(sheet).filter { !wanted.contains($0) }
+        let order = waiting + [ beneath, dim, upper ].compactMap(\.self)
+        let rolesChanged = beneath !== roles.beneath || upper !== roles.upper
 
-        for view in shown where !wanted.contains(view) { view.removeFromSuperview() }
+        roles = (beneath, upper)
+
+        // Which sheets are drawn and in what order is never animated, only where they stand.
+        UIView.performWithoutAnimation {
+            // Put back in order only where it changed: moving a view that is mid-turn stops its animation.
+            if stage.subviews != order {
+                for view in stage.subviews where !order.contains(view) { view.removeFromSuperview() }
+                for (index, view) in order.enumerated() { stage.insertSubview(view, at: index) }
+            }
+
+            for view in order where view !== dim { place(view) }
+
+            for view in waiting {
+                view.alpha = 0
+                view.transform = .identity
+                view.layer.shadowOpacity = 0
+            }
+
+            for view in wanted { view.alpha = 1 }
+
+            dim.frame = stage.bounds
+            beneath?.layer.shadowOpacity = 0
+
+            if let upper {
+                upper.layer.shadowColor = UIColor.black.cgColor
+                upper.layer.shadowOpacity = Self.shadowOpacity
+                upper.layer.shadowRadius = Self.shadowRadius
+                upper.layer.shadowOffset = CGSize(width: -Self.shadowReach * mirror, height: 0)
+                upper.layer.shadowPath = UIBezierPath(rect: upper.bounds).cgPath
+            }
+
+            // A sheet taking a part in a turn starts where the turn does, not where it was left.
+            if rolesChanged { position(beneath: beneath, upper: upper, at: 0) }
+        }
 
         shown = wanted
-
-        let covered = turn.map(coverage) ?? 0
-
-        if let beneath {
-            place(beneath)
-            stage.insertSubview(beneath, at: 0)
-            beneath.layer.shadowOpacity = 0
-            beneath.transform = CGAffineTransform(scaleX: 1 - Self.recession * covered, y: 1 - Self.recession * covered)
-        }
-
-        dim.frame = stage.bounds
-        dim.alpha = Self.dimming * covered
-        stage.insertSubview(dim, at: beneath == nil ? 0 : 1)
-
-        if let upper, let turn {
-            place(upper)
-            stage.addSubview(upper)
-            upper.layer.shadowColor = UIColor.black.cgColor
-            upper.layer.shadowOpacity = Self.shadowOpacity
-            upper.layer.shadowRadius = Self.shadowRadius
-            upper.layer.shadowOffset = CGSize(width: -Self.shadowReach * mirror, height: 0)
-            upper.layer.shadowPath = UIBezierPath(rect: upper.bounds).cgPath
-            upper.transform = CGAffineTransform(translationX: offset(turn) * mirror, y: 0)
-        }
-
+        position(beneath: beneath, upper: upper, at: progress)
         stage.transform = CGAffineTransform(translationX: overscroll * mirror, y: 0)
+    }
+
+    /// Stands the two sheets of a turn where `progress` of it has them.
+    private func position(beneath: UIView?, upper: UIView?, at progress: CGFloat) {
+        let covered = turn.map { coverage($0, at: progress) } ?? 0
+
+        beneath?.transform = CGAffineTransform(scaleX: 1 - Self.recession * covered, y: 1 - Self.recession * covered)
+        dim.alpha = Self.dimming * covered
+
+        guard let upper, let turn else { return }
+
+        upper.transform = CGAffineTransform(translationX: offset(turn, at: progress) * mirror, y: 0)
     }
 
     private func place(_ view: UIView) {
@@ -271,7 +314,6 @@ public final class PageTurner: UIView {
 
         if turn == nil {
             queued = 0
-            grabbedAt = CACurrentMediaTime()
 
             if translation < 0, isReachable(1) {
                 turn = .forward
@@ -283,35 +325,53 @@ public final class PageTurner: UIView {
             }
 
             onTurnStarted()
-        }
-
-        guard let turn else { return }
-
-        let target: CGFloat =
-            switch turn {
-                case .forward: forwardProgress(at: location)
-                case .backward: min(1, max(0, translation / width))
-            }
-
-        // The incoming sheet comes in from the edge to meet the finger, so the first moments animate.
-        guard
-            let grabbedAt,
-            CACurrentMediaTime() - grabbedAt < Self.grabDuration
-        else {
-            progress = target
+            progress = 0
+            fingerProgress = fingerTarget(translation: translation, at: location)
+            isCatchingUp = true
             return arrange()
         }
 
+        let target = fingerTarget(translation: translation, at: location)
+
+        if isCatchingUp {
+            catchUp(to: target)
+        } else {
+            progress = target
+        }
+
+        fingerProgress = target
+        arrange()
+    }
+
+    /// Where the finger has the sheet, `0…1` of the turn.
+    private func fingerTarget(translation: CGFloat, at location: CGPoint) -> CGFloat {
+        switch turn {
+            case .forward: forwardProgress(at: location)
+            case .backward: min(1, max(0, translation / width))
+            case nil: 0
+        }
+    }
+
+    /// Moves a sheet that is behind the finger as far as the finger moved and more, the more the further
+    /// behind it is, so it closes the gap as the finger goes and then keeps the finger's own pace.
+    ///
+    /// Only the finger moves it: a finger held still holds the sheet where it is.
+    private func catchUp(to target: CGFloat) {
+        let moved = target - fingerProgress
+        let behind = max(0, target - progress)
+
+        progress += moved > 0 ? moved * (1 + Self.catchUp * behind) : moved
+        progress = min(max(progress, 0), target)
+
+        guard (target - progress) * width < Self.caughtUp else { return }
+
         progress = target
-        UIView.animate(
-            withDuration: Self.grabDuration,
-            delay: 0,
-            options: [ .beginFromCurrentState, .allowUserInteraction, .curveEaseInOut ],
-            animations: arrange
-        )
+        isCatchingUp = false
     }
 
     private func letGo(translation: CGFloat, predicted: CGFloat) {
+        isCatchingUp = false
+
         guard !isPickingOut, !isCovered, let turn else { return releaseOverscroll() }
 
         let travelled = turn == .forward ? -translation : translation
@@ -395,6 +455,7 @@ public final class PageTurner: UIView {
         guard let settling else { return }
 
         self.settling = nil
+        needsReload = false
 
         if settling.commits {
             switch settling.turn {
@@ -413,7 +474,7 @@ public final class PageTurner: UIView {
         guard turn != nil else { return }
 
         queued = 0
-        grabbedAt = nil
+        isCatchingUp = false
         settling = nil
         rest()
     }
@@ -490,7 +551,7 @@ public final class PageTurner: UIView {
         return isReachable(candidate) ? candidate : nil
     }
 
-    private func coverage(_ turn: Turn) -> CGFloat {
+    private func coverage(_ turn: Turn, at progress: CGFloat) -> CGFloat {
         switch turn {
             case .forward: progress
             case .backward: 1 - progress
@@ -498,7 +559,7 @@ public final class PageTurner: UIView {
     }
 
     /// How far the upper sheet is pushed aside: all the way at rest turning forward, none turning back.
-    private func offset(_ turn: Turn) -> CGFloat {
+    private func offset(_ turn: Turn, at progress: CGFloat) -> CGFloat {
         switch turn {
             case .forward: width * (1 - progress)
             case .backward: width * progress
@@ -512,7 +573,11 @@ public final class PageTurner: UIView {
     private static let reverseFlickVelocity: CGFloat = 20
     private static let projection: CGFloat = 0.1
     private static let grip: CGFloat = 20
-    private static let grabDuration: CFTimeInterval = 0.3
+    /// How much faster than the finger a sheet behind it moves, for each whole width it is behind: half
+    /// a width behind, it moves at six times the finger's pace.
+    private static let catchUp: CGFloat = 10
+    /// Near enough, in points, for the sheet to be under the finger.
+    private static let caughtUp: CGFloat = 0.5
     private static let overscrollLimit: CGFloat = 0.2
     private static let springBack: TimeInterval = 0.35
     private static let springBounce: CGFloat = 0.45

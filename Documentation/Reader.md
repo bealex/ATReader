@@ -822,15 +822,22 @@ sheet `n + 1` in from the right; turning back slides that same sheet off to the 
 sheet `n`. One offset drives both directions, so a half-finished turn can be reversed with no special
 handling.
 
+All three sheets stay in the window, the two not being shown at no opacity. UIKit only updates and
+draws a view in a window, and a sheet kept out of it would slide in showing whatever page it held last. A reload asked for while a turn is settling waits until it
+lands: the model moves under a turn all the time, cutting ahead and hiding the controls, and setting a
+sheet's transform again stops the animation carrying it. A sheet taking a part in a turn is set where
+that turn starts before it moves, since the place it waited in is where the page stands at rest.
+
 A sheet is cut before it is needed, so a turn draws pages that already exist. Where one isn't ready, a
 chapter still on its way from the service, the turn lands on a blank sheet that fills in as the text
-arrives.
+arrives. That sheet stays in front while it waits: the model's own page is still the one the reader
+left, and putting it back would show the old page again before the new one arrived.
 
-Dragging forward, the incoming page eases in from the right edge to meet the finger over 0.3s and from
-then on is held 20pt inside its own leading edge, so the finger is on the page it is pulling. Sliding
-it in by the finger's travel alone would leave its edge wherever the drag happened to start, which
-reads as pushing a page along from a distance. Re-targeting that animation on every gesture event keeps
-it smooth however fast the finger moves.
+Dragging forward, the incoming page is held 20pt inside its own leading edge, so the finger is on the
+page it is pulling. It starts at the edge, though, and has to reach the finger first. Only the finger
+moves it: each move carries it that far times one plus ten times the share of the width still between
+them, so it closes a wide gap fast and a narrow one gently, and a finger held still holds it. Within
+half a point of the finger it follows it exactly.
 
 What lands the turn is the finger's own travel, not how far the page has come, and a flick back cancels
 it however far it had got. A turn in flight is dropped when the app leaves the screen, since the
