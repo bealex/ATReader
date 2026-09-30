@@ -157,6 +157,10 @@ protocol OpensOntoPage: AnyObject {
     /// Whether the page before the one shown is set; never at the book's first page.
     var isPageBeforeReady: Bool { get }
 
+    /// The drawn layer contents that hold the whole page before and where they stand on the screen,
+    /// where one layer does.
+    func facePageBefore() -> (contents: Any, frame: CGRect)?
+
     /// Draws the page before the one shown into `context`, at the screen's size.
     func drawPageBefore(in context: CGContext)
 }
@@ -177,6 +181,9 @@ private final class Run: NSObject {
     /// A finger let go before the transition had begun.
     private var lateLetGo: (shut: Bool, velocity: CGVector)?
     private var clock: Clock?
+    #if DEBUG
+        private lazy var probe = OpeningProbe(opens: opens)
+    #endif
 
     private struct Clock {
         let link: UIUpdateLink
@@ -244,6 +251,11 @@ private final class Run: NSObject {
 
     /// Lays the book out and hides the cover it stands for, in the one frame.
     private func begin(_ context: UIViewControllerContextTransitioning) {
+        #if DEBUG
+            let started = CACurrentMediaTime()
+            defer { probe?.laidOut(since: started) }
+        #endif
+
         self.context = context
 
         let container = context.containerView
@@ -283,6 +295,7 @@ private final class Run: NSObject {
             read: CGFloat(reader?.readShare ?? read),
             pageBefore: OpeningBook.PageBefore(
                 isReady: { [weak reader] in reader?.isPageBeforeReady ?? false },
+                face: { [weak reader] in reader?.facePageBefore() },
                 draw: { [weak reader] context in reader?.drawPageBefore(in: context) }
             )
         )
@@ -328,6 +341,11 @@ private final class Run: NSObject {
     }
 
     private func ticked(at now: TimeInterval) {
+        #if DEBUG
+            let tickStarted = CACurrentMediaTime()
+            defer { probe?.ticked(at: tickStarted, open: open) }
+        #endif
+
         guard var clock else { return }
 
         // Counted from the first frame drawn, and a frame that ran long adds only a frame: the reader
@@ -376,6 +394,9 @@ private final class Run: NSObject {
         book = nil
         CATransaction.commit()
         context.completeTransition(finished)
+        #if DEBUG
+            probe?.ended()
+        #endif
         self.context = nil
     }
 }

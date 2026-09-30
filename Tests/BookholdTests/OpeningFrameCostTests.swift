@@ -44,6 +44,7 @@ struct OpeningFrameCostTests {
                         asked += 1
                         return asked > Self.framesBeforePageArrives
                     },
+                    face: { nil },
                     draw: { context in
                         UIGraphicsPushContext(context)
                         Self.draw(words, in: container.bounds.size)

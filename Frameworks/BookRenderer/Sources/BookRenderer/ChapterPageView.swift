@@ -33,21 +33,37 @@ public struct ChapterPageView: UIViewRepresentable {
     public final class PageView: UIView {
         private var layout: ChapterLayout?
         private var page: ChapterLayout.Page?
+        private var drawnSize: CGSize = .zero
+        /// The page's text for VoiceOver, gathered when first asked for: most pages are never read out.
+        private var spokenText: String?
 
         public func apply(layout: ChapterLayout, page: ChapterLayout.Page) {
             guard layout !== self.layout || page != self.page else { return }
 
             self.layout = layout
             self.page = page
+            spokenText = nil
             isAccessibilityElement = true
             accessibilityTraits = .staticText
             accessibilityIdentifier = "reader.pageText"
-            accessibilityLabel = layout.pageText(page)
             setNeedsDisplay()
+        }
+
+        override public var accessibilityLabel: String? {
+            get {
+                if spokenText == nil, let layout, let page { spokenText = layout.pageText(page) }
+
+                return spokenText
+            }
+            set { spokenText = newValue }
         }
 
         override public func layoutSubviews() {
             super.layoutSubviews()
+
+            guard bounds.size != drawnSize else { return }
+
+            drawnSize = bounds.size
             setNeedsDisplay()
         }
 

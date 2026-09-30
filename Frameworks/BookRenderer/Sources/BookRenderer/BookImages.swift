@@ -7,6 +7,7 @@ import BookKit
 import CoreGraphics
 import ImageIO
 import Memoirs
+import Synchronization
 import UIKit
 
 /// The two colours a page is set in, and whether its pictures are held to them.
@@ -79,12 +80,52 @@ public final class PageImage: Sendable {
     private let colour: CGImage?
     /// How dark each pixel is, white for black: what the page paints its deeper colour through.
     private let darkness: CGImage?
+    /// The darkness at the size it was last drawn, in pixels: a mask drawn at its own size is copied,
+    /// where one drawn at another is resampled on every draw of the page.
+    private let fitted = Mutex<(pixels: CGSize, mask: CGImage)?>(nil)
 
     fileprivate init(size: CGSize, kind: Kind, colour: CGImage?, darkness: CGImage?) {
         self.size = size
         self.kind = kind
         self.colour = colour
         self.darkness = darkness
+    }
+
+    /// Resamples the picture for a draw at `size` and `scale` away from the main actor, where it is drawn
+    /// in the page's colours, so that draw copies it.
+    @concurrent
+    public nonisolated func ready(fitting size: CGSize, at scale: CGFloat, inPageColours: Bool) async {
+        guard let darkness, kind == .monochrome || inPageColours else { return }
+
+        _ = mask(darkness, fitting: size, at: scale)
+    }
+
+    /// The darkness resampled once to `size` at `scale`, and kept for the next draw at that size.
+    private func mask(_ darkness: CGImage, fitting size: CGSize, at scale: CGFloat) -> CGImage {
+        let pixels = CGSize(width: (size.width * scale).rounded(), height: (size.height * scale).rounded())
+
+        if let kept = fitted.withLock({ $0?.pixels == pixels ? $0?.mask : nil }) { return kept }
+
+        guard
+            pixels.width > 0, pixels.height > 0,
+            let context = CGContext(
+                data: nil,
+                width: Int(pixels.width),
+                height: Int(pixels.height),
+                bitsPerComponent: 8,
+                bytesPerRow: 0,
+                space: CGColorSpaceCreateDeviceGray(),
+                bitmapInfo: CGImageAlphaInfo.none.rawValue
+            )
+        else { return darkness }
+
+        context.interpolationQuality = .high
+        context.draw(darkness, in: CGRect(origin: .zero, size: pixels))
+
+        guard let mask = context.makeImage() else { return darkness }
+
+        fitted.withLock { $0 = (pixels, mask) }
+        return mask
     }
 
     /// How far a colour picture is faded on a dark page, so it doesn't glare beside the text.
@@ -109,8 +150,22 @@ public final class PageImage: Sendable {
         return CGSize(width: width, height: height)
     }
 
-    /// Draws the picture into a UIKit context, in the page's colours or its own.
-    public func draw(in rect: CGRect, palette: PagePalette, into drawing: CGContext) {
+    /// Draws the picture into a UIKit context at `scale` pixels to the point, in the page's colours or
+    /// its own.
+    public func draw(
+        in rect: CGRect,
+        palette: PagePalette,
+        into drawing: CGContext,
+        scale: CGFloat = UITraitCollection.current.displayScale
+    ) {
+        // On whole pixels, so a mask already at the size drawn is copied rather than sampled.
+        let rect = CGRect(
+            x: (rect.minX * scale).rounded() / scale,
+            y: (rect.minY * scale).rounded() / scale,
+            width: (rect.width * scale).rounded() / scale,
+            height: (rect.height * scale).rounded() / scale
+        )
+
         drawing.saveGState()
         // CoreGraphics counts upwards and a UIKit context downwards, so a picture drawn straight into
         // one stands on its head.
@@ -125,7 +180,8 @@ public final class PageImage: Sendable {
             // shading, which is what turns a grey into a mixture of the two rather than one or other.
             drawing.setFillColor(palette.lighter.resolvedColor(with: .current).cgColor)
             drawing.fill(target)
-            drawing.clip(to: target, mask: darkness)
+            drawing.interpolationQuality = .none
+            drawing.clip(to: target, mask: mask(darkness, fitting: target.size, at: scale))
             drawing.setFillColor(palette.darker.resolvedColor(with: .current).cgColor)
             drawing.fill(target)
         } else if let colour {

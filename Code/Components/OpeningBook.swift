@@ -32,12 +32,27 @@ final class OpeningBook {
     private let depth: CGFloat
     private let pageBefore: PageBefore?
     /// The page the reader turned last, mirrored, as the back of the leaf shows it.
-    private var before: CGImage?
+    private var before: Back?
 
-    /// The page before the one being opened: whether it is set yet, and how to draw it at the screen's size.
+    /// The page before the one being opened: whether it is set yet, the drawn layer that holds all of it
+    /// and where that stands on the screen, where one does, and how to draw it at the screen's size.
     struct PageBefore {
         let isReady: @MainActor () -> Bool
+        let face: @MainActor () -> (contents: Any, frame: CGRect)?
         let draw: @MainActor (CGContext) -> Void
+    }
+
+    /// What the back of the leaf shows: the page's own drawn layer, or a picture drawn of it.
+    private enum Back {
+        case face(contents: Any, frame: CGRect)
+        case picture(CGImage)
+
+        var contents: Any {
+            switch self {
+                case let .face(contents, _): contents
+                case let .picture(picture): picture
+            }
+        }
     }
 
     /// Lays the book out over `page`, which is already in `container` at its full size.
@@ -217,39 +232,45 @@ final class OpeningBook {
         let cut = leaf.strips(strips.count)
         let covers = leaf.back(of: cut, depth: -thickness)
 
-        if before == nil, let pageBefore, pageBefore.isReady() { before = backOfLeaf(pageBefore) }
+        if before == nil, let pageBefore, pageBefore.isReady() {
+            before =
+                pageBefore.face().map { Back.face(contents: $0.contents, frame: $0.frame) }
+                ?? backOfLeaf(pageBefore).map(Back.picture)
+        }
 
         for (index, layers) in strips.enumerated() {
             let isFirst = index == 0
             let isLast = index == cut.count - 1
             let front = leaf.showsFront(of: cut[index], hinge: fromEye, distance: distance)
-            let strip = front ? covers[index] : cut[index]
+            // The back is laid from the free edge towards the spine, so it shows the page unmirrored.
+            let strip = front ? covers[index] : cut[index].reversed
+            let (near, far) = front ? (isFirst, isLast) : (isLast, isFirst)
+            let seamed = !far
+            let cutWidth = strip.cut.upperBound - strip.cut.lowerBound + (seamed ? seam : 0)
 
-            layers.board.bounds = CGRect(x: 0, y: 0, width: strip.length + (isLast ? 0 : Self.seam), height: height)
+            layers.board.bounds = CGRect(x: 0, y: 0, width: strip.length + (seamed ? Self.seam : 0), height: height)
             // A softened edge between two strips lets what is behind show through as a line.
             layers.board.edgeAntialiasingMask = CAEdgeAntialiasingMask([ .layerBottomEdge, .layerTopEdge ])
-                .union(isFirst ? .layerLeftEdge : [])
-                .union(isLast ? .layerRightEdge : [])
+                .union(near ? .layerLeftEdge : [])
+                .union(far ? .layerRightEdge : [])
             layers.board.position = eye
             layers.board.zPosition = strip.toward + strip.length / 2 * sin(strip.angle)
             layers.board.transform = leaf.transform(of: strip, hinge: fromEye, distance: distance)
-            layers.board.contents = front ? picture : before
+            layers.board.contents = front ? picture : before?.contents
             layers.board.backgroundColor = front ? nil : before == nil ? inside : paper
-
-            let across = CGRect(
-                x: strip.cut.lowerBound,
-                y: 0,
-                width: strip.cut.upperBound - strip.cut.lowerBound + (isLast ? 0 : seam),
-                height: Self.wholeHeight
-            )
-
-            layers.board.contentsRect = front ? across : fitted(across, in: book.size)
+            layers.board.contentsRect = front
+                ? CGRect(x: strip.cut.lowerBound, y: 0, width: cutWidth, height: Self.wholeHeight)
+                : backRect(
+                    CGRect(x: 1 - strip.cut.upperBound, y: 0, width: cutWidth, height: Self.wholeHeight),
+                    in: book.size
+                )
             layers.shade.frame = layers.board.bounds
             layers.shade.endPoint = CGPoint(x: strip.length / layers.board.bounds.width, y: 0.5)
             // Shaded edge to edge, so neighbouring strips meet in one tone.
-            layers.shade.colors = [ strip.cut.lowerBound, strip.cut.upperBound ].map {
-                CGColor(gray: 0, alpha: Hinge.shading * (1 - leaf.light(at: $0)))
-            }
+            let ends =
+                front ? [ strip.cut.lowerBound, strip.cut.upperBound ] : [ strip.cut.upperBound, strip.cut.lowerBound ]
+
+            layers.shade.colors = ends.map { CGColor(gray: 0, alpha: Hinge.shading * (1 - leaf.light(at: $0))) }
         }
 
         guard let edges, let ends = leaf.edges(depth: thickness, of: covers) else { return }
@@ -283,8 +304,22 @@ final class OpeningBook {
         edge.shade.opacity = Float(Hinge.shading * (1 - abs(cos(strip.angle))))
     }
 
-    /// The part `across` of a leaf `size` large cut from the page before, fitted inside it whole as the
-    /// page stands on the screen; beyond the picture its edges run on as paper.
+    /// The part `across` of the page before, as shares of the screen's width, cut from what the back
+    /// shows: the page fitted whole inside a leaf `size` large, and its edges running on as paper.
+    private func backRect(_ across: CGRect, in size: CGSize) -> CGRect {
+        let onScreen = fitted(across, in: size)
+
+        guard case let .face(_, frame) = before, frame.width > 0, frame.height > 0 else { return onScreen }
+
+        return CGRect(
+            x: (onScreen.minX * screen.width - frame.minX) / frame.width,
+            y: (onScreen.minY * screen.height - frame.minY) / frame.height,
+            width: onScreen.width * screen.width / frame.width,
+            height: onScreen.height * screen.height / frame.height
+        )
+    }
+
+    /// The part `across` of the screen, fitted inside a leaf `size` large as the page stands on it.
     private func fitted(_ across: CGRect, in size: CGSize) -> CGRect {
         let scale = min(size.width / screen.width, size.height / screen.height)
         let shown = CGSize(width: screen.width * scale, height: screen.height * scale)
@@ -298,8 +333,8 @@ final class OpeningBook {
         )
     }
 
-    /// The page before drawn once, mirrored on its own paper, as the back of the leaf shows it; the reader
-    /// draws its paper behind its sheets rather than on them.
+    /// The page before drawn once on its own paper, which the reader paints behind its sheets rather than
+    /// on them, for a page no one drawn layer holds.
     private func backOfLeaf(_ pageBefore: PageBefore) -> CGImage? {
         let format = UIGraphicsImageRendererFormat.preferred()
 
@@ -308,8 +343,6 @@ final class OpeningBook {
         return UIGraphicsImageRenderer(size: screen.size, format: format).image { drawn in
             drawn.cgContext.setFillColor(paper)
             drawn.cgContext.fill(CGRect(origin: .zero, size: screen.size))
-            drawn.cgContext.translateBy(x: screen.width, y: 0)
-            drawn.cgContext.scaleBy(x: -1, y: 1)
             pageBefore.draw(drawn.cgContext)
         }
         .cgImage
@@ -341,16 +374,27 @@ final class OpeningBook {
             bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue
         )
 
-        context?.setFillColor(paper)
-        context?.fill(CGRect(x: 0, y: 0, width: width, height: height))
+        guard
+            let context,
+            let pixels = context.data?.assumingMemoryBound(to: UInt8.self),
+            let ink = paper.components,
+            ink.count >= 3
+        else { return nil }
 
+        // Written byte by byte: one fill call a pixel costs more than the rest of laying the book out.
+        let rowBytes = context.bytesPerRow
+        let paint = { (x: Int, row: Int, darkening: CGFloat) in
+            let at = row * rowBytes + x * 4
+
+            for channel in 0 ..< 3 {
+                pixels[at + channel] = UInt8((ink[channel] * (1 - darkening) * CGFloat(UInt8.max)).rounded())
+            }
+        }
         var x = 0
 
         for thickness in thicknesses {
             // A page a shade off its neighbours, as paper cut from different sheets is.
-            context?.setFillColor(CGColor(gray: 0, alpha: CGFloat.random(in: 0 ... pageTint, using: &random)))
-            context?.fill(CGRect(x: x, y: 0, width: thickness, height: height))
-
+            let tint = CGFloat.random(in: 0 ... pageTint, using: &random)
             let shade = CGFloat.random(in: pageLineShade, using: &random)
             let phase = CGFloat.random(in: 0 ... 2 * .pi, using: &random)
             let waves = CGFloat.random(in: 1 ... 3, using: &random)
@@ -358,14 +402,15 @@ final class OpeningBook {
             for row in 0 ..< height {
                 let drift = 1 - lineDrift * (1 + sin(phase + waves * 2 * .pi * CGFloat(row) / CGFloat(height))) / 2
 
-                context?.setFillColor(CGColor(gray: 0, alpha: shade * drift))
-                context?.fill(CGRect(x: x, y: row, width: pixel, height: pixel))
+                paint(x, row, 1 - (1 - tint) * (1 - shade * drift))
+
+                for across in x + 1 ..< x + thickness { paint(across, row, tint) }
             }
 
             x += thickness
         }
 
-        return context?.makeImage()
+        return context.makeImage()
     }
 
     /// A seeded generator, so the pages at a book's end come out the same each time it is drawn.

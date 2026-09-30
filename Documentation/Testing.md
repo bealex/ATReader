@@ -197,6 +197,21 @@ breaker, reporting hyphens at a page foot, orphans, widows and short pages per c
 about right" into "no hyphens at a foot, no widows, one orphan in 87 pages" and showed that two lines
 of pull-back weren't enough. Write that instrumentation, read it, then delete it before committing.
 
+### Profiling the opening
+
+The opening's frames are timed by `OpeningProbe`, a `#if DEBUG` probe that `-at-opening-probe YES`
+switches on. It appends a line per run to `opening-probe.log` in the app's temporary folder, which
+outlives the log's memory, since Memoirs writes at a level the system doesn't keep on disk.
+`BookOpeningCostUITests` opens and shuts the bundled book at its start and part way in, by the close
+button and by a drag. Run it with `-O` on the largest simulator and attach Time Profiler with
+`xcrun xctrace record --device <simulator id> --attach <pid>`: without `--device`, `xctrace` looks for
+the process on the Mac and doesn't find it.
+
+Leave out every sample that has XCTest on its stack. A UI test snapshots the accessibility tree while
+it waits, which holds the main thread for tens of milliseconds and reads as dropped frames the app
+never causes on a phone. The simulator draws at 60 Hz, so judge the main thread against the 8.3 ms a
+120 Hz frame has: count the 8.3 ms windows in a run where the app keeps it busy for 7 ms or more.
+
 ## Gotchas
 
 - Offscreen `Form` cells don't exist. SwiftUI doesn't instantiate them, so `waitForExistence` won't

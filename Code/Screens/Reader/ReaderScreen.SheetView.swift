@@ -44,6 +44,16 @@ extension ReaderScreen {
         @available(*, unavailable)
         required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 
+        /// The drawn layer contents that hold the whole body of this sheet's one page, and where they
+        /// stand in the sheet; nothing for a spread, a title page or a page in two pieces.
+        var drawnPage: (contents: Any, frame: CGRect)? {
+            let shown = pageViews.filter { !$0.isHidden }
+
+            guard shown.count == 1, let drawn = shown[0].drawnText else { return nil }
+
+            return (drawn.contents, shown[0].convert(drawn.frame, to: self))
+        }
+
         func show(_ sheet: Model.Sheet?, isCurrent: Bool) {
             guard sheet != self.sheet || isCurrent != self.isCurrent else { return }
 
@@ -143,6 +153,19 @@ extension ReaderScreen {
 
         @available(*, unavailable)
         required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+        /// The drawn contents of this page's text and where it stands, where one view draws all of it.
+        var drawnText: (contents: Any, frame: CGRect)? {
+            guard case .text = page?.content else { return nil }
+
+            let shown = texts.filter { !$0.isHidden }
+
+            guard shown.count == 1 else { return nil }
+
+            shown[0].layer.displayIfNeeded()
+
+            return shown[0].layer.contents.map { ($0, shown[0].frame) }
+        }
 
         func show(_ page: BookPage, alone: Bool, isCurrent: Bool) {
             guard page != self.page || alone != self.alone || isCurrent != self.isCurrent else { return }

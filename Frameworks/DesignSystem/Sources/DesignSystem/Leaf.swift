@@ -31,6 +31,18 @@ public struct Leaf {
         public let length: CGFloat
         /// Which part of the sheet's width this strip is cut from, as fractions of it.
         public let cut: ClosedRange<CGFloat>
+
+        /// The same strip laid from its far end back to its near one, so the face it shows the eye is the
+        /// other one, unmirrored.
+        public var reversed: Strip {
+            Strip(
+                across: across + length * cos(angle),
+                toward: toward + length * sin(angle),
+                angle: angle + .pi,
+                length: length,
+                cut: cut
+            )
+        }
     }
 
     /// The sheet cut into `count` strips, from the hinge outwards.

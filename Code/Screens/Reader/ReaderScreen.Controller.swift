@@ -37,6 +37,9 @@ extension ReaderScreen {
         private let firstPickFeedback = UIImpactFeedbackGenerator(style: .medium)
         private var pickedId: String?
         private var shownStatusBar: (Bool, UIStatusBarStyle)?
+        /// Until the screen has arrived, the sheets either side are set out a frame or two after the one in
+        /// front, so a book being opened never lays out three sheets in one frame.
+        private var hasArrived = false
 
         init(
             workId: Int,
@@ -111,6 +114,7 @@ extension ReaderScreen {
 
         override func viewDidAppear(_ animated: Bool) {
             super.viewDidAppear(animated)
+            hasArrived = true
             onArrived?()
         }
 
@@ -204,9 +208,18 @@ extension ReaderScreen {
 
             for (step, _) in wanted where placed[step] == nil { placed[step] = free.removeFirst() }
 
-            for (step, sheet) in wanted { placed[step]?.show(sheet, isCurrent: step == 0) }
-
             atStep = placed
+
+            for (step, sheet) in wanted {
+                guard let view = placed[step] else { continue }
+
+                if step == 0 || hasArrived {
+                    view.show(sheet, isCurrent: step == 0)
+                } else {
+                    show(sheet, on: view, at: step)
+                }
+            }
+
             turner.hasSheetBefore = model.canTurnBack
             turner.hasSheetAfter = model.canTurnForward
             turner.reload()
@@ -214,6 +227,23 @@ extension ReaderScreen {
 
         /// The view standing `step` sheets from the one in front of the reader, once it holds a sheet.
         func turnerSheet(at step: Int) -> UIView? { atStep[step].flatMap { $0.sheet == nil ? nil : $0 } }
+
+        /// Shows a sheet either side a frame after the one in front, the one before first since the opening
+        /// shows it on the back of the leaf; a view handed to another step meanwhile is left alone.
+        private func show(_ sheet: Model.Sheet?, on view: SheetView, at step: Int) {
+            let frames = step < 0 ? 1 : 2
+
+            Task { [weak self, weak view] in
+                try? await Task.sleep(for: Self.arrivingFrame * frames)
+
+                guard let self, let view, self.atStep[step] === view else { return }
+
+                view.show(sheet, isCurrent: false)
+            }
+        }
+
+        /// A frame at 120 Hz.
+        private static let arrivingFrame = Duration.microseconds(8_333)
 
         /// A turn has landed: the book moves on, and the sheets move with it in the same frame.
         private func turned(_ move: (Model) -> Void) {
@@ -449,6 +479,15 @@ extension ReaderScreen.Controller: OpensOntoPage {
     var readShare: Double? { model.currentSheet == nil ? nil : model.bookProgress }
 
     var isPageBeforeReady: Bool { model.canTurnBack && (turnerSheet(at: -1)?.bounds.width ?? 0) > 0 }
+
+    func facePageBefore() -> (contents: Any, frame: CGRect)? {
+        guard let before = turnerSheet(at: -1) as? ReaderScreen.SheetView else { return nil }
+
+        before.updatePropertiesIfNeeded()
+        before.layoutIfNeeded()
+
+        return before.drawnPage
+    }
 
     func drawPageBefore(in context: CGContext) {
         guard let before = turnerSheet(at: -1) else { return }

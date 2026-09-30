@@ -173,21 +173,43 @@ public final class ChapterLayout {
 
     private init(
         chapterId: Int,
-        text: ChapterPagination.TypesetText,
+        set: SetText,
         context: Context,
         typesetting: @escaping @Sendable () -> NSAttributedString
     ) {
         self.chapterId = chapterId
         self.context = context
-        self.text = text.attributed
-        self.headingLength = text.headingLength
-        self.paragraphs = ColumnComposer.paragraphs(in: text.attributed)
-        self.softHyphens = Self.softHyphens(in: text.attributed.string as NSString)
+        self.text = set.text.attributed
+        self.headingLength = set.text.headingLength
+        self.paragraphs = set.paragraphs
+        self.softHyphens = set.softHyphens
         self.typesetting = typesetting
         self.setter = ColumnComposer.Setter(
             typesetting: typesetting,
-            headingLength: text.headingLength,
+            headingLength: set.text.headingLength,
             size: context.textSize
+        )
+    }
+
+    /// A chapter set as text, with where its paragraphs and soft hyphens fall.
+    private struct SetText {
+        let text: ChapterPagination.TypesetText
+        let paragraphs: [NSRange]
+        let softHyphens: [Int]
+    }
+
+    /// Sets the chapter off the main actor: a long chapter takes long enough to hold up the frames of a
+    /// book being opened.
+    @concurrent
+    private nonisolated static func set(
+        _ typesetting: @Sendable () -> ChapterPagination.TypesetText
+    ) async -> sending SetText {
+        let text = typesetting()
+
+        return SetText(
+            text: text,
+            paragraphs: ColumnComposer.paragraphs(in: text.attributed),
+            softHyphens: softHyphens(in: text.attributed.string as NSString)
         )
     }
 
@@ -219,7 +241,7 @@ public final class ChapterLayout {
 
         return ChapterLayout(
             chapterId: chapterId,
-            text: typesetting(),
+            set: await set(typesetting),
             context: context,
             typesetting: { typesetting().attributed }
         )
@@ -426,7 +448,10 @@ public final class ChapterLayout {
     func page(from start: Int, top: CGFloat, opens: Bool) async -> Page {
         await compose(from: start, covering: horizon(for: context.textSize.height - top))
 
-        return cut(from: start, top: top, opens: opens)
+        let page = cut(from: start, top: top, opens: opens)
+
+        await readyPictures(on: page)
+        return page
     }
 
     /// The page that ends just before line `limit`, `room` deep.
@@ -436,7 +461,21 @@ public final class ChapterLayout {
     func page(to limit: Int, room: CGFloat, opens: Bool) async -> Page {
         await compose(to: limit, covering: horizon(for: room))
 
-        return cut(to: limit, room: room, opens: opens)
+        let page = cut(to: limit, room: room, opens: opens)
+
+        await readyPictures(on: page)
+        return page
+    }
+
+    /// Resamples the pictures on `page` to the size it draws them, away from the main actor.
+    private func readyPictures(on page: Page) async {
+        let scale = UITraitCollection.current.displayScale
+        let inPageColours = context.style.palette.isMonochrome
+        let wanted = page.lines.compactMap { number in
+            line(number).image.map { ($0, pictureSize(of: number, on: page)) }
+        }
+
+        for (picture, size) in wanted { await picture.ready(fitting: size, at: scale, inPageColours: inPageColours) }
     }
 
     private func cut(from start: Int, top: CGFloat, opens: Bool) -> Page {
@@ -713,11 +752,11 @@ public final class ChapterLayout {
         return low
     }
 
-    private static func softHyphens(in string: NSString) -> [Int] {
+    private nonisolated static func softHyphens(in string: NSString) -> [Int] {
         (0 ..< string.length).filter { string.character(at: $0) == softHyphen }
     }
 
-    private static let softHyphen = unichar(0x00AD)
+    private nonisolated static let softHyphen = unichar(0x00AD)
 
     // MARK: - What the reader asks for
 

@@ -28,6 +28,9 @@ column is narrow, and a justified line that can't break a word has to stretch in
 `Typography.hyphenated` walks every word through the system's dictionary for the language the text is
 in and marks every break that dictionary allows.
 
+A chapter is set as text off the main actor, where a long one would hold up the frames of a book
+being opened: `ChapterLayout.set` is `@concurrent` and hands its attributed string back as `sending`.
+
 A paragraph's lines depend on nothing outside it, so the reader composes only the paragraphs around the
 page being read, away from the main actor. An attributed string can't cross from one thread to another,
 so each chapter's `ColumnComposer.Setter` sets its own copy of the chapter and hands back plain values:
@@ -309,6 +312,12 @@ Holding the shading rather than a tinted copy is what makes the reader's own set
 page" in Appearance sends colour art down the same path for the cost of two fills, rather than a second
 reading of the picture. Reading one means looking at every pixel, so it happens once, away from the
 main actor, and what comes back is plain bytes that cost nothing to wrap as a `CGImage`.
+
+A picture drawn at any size but its own is resampled on every draw of the page, which is several
+milliseconds for a plate. So a page that's been cut has its pictures' shading resampled in the background to
+the size it draws them before it's handed out, and each picture is drawn on whole
+pixels with interpolation off. Every draw after that is a copy. A page's text for VoiceOver is gathered
+when VoiceOver asks for it, since most pages are never read out.
 
 ### Where a picture sits on the page
 

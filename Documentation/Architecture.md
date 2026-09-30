@@ -529,12 +529,17 @@ along the front. The end at the spine is drawn only while the cover faces the ey
 cover stands off the spine; past upright the two pages meet at the gutter and it would show as a wedge
 between them.
 
-The reader draws the page before once, into a mirrored context already filled with its paper, the
-first frame it is ready. It paints its paper on its own view and leaves its sheets clear, so a picture
-taken without that fill is see-through. The paper is asked of the settings each time the book opens or
-shuts, since the theme can change while it's open. Measured on the simulator by
-`OpeningFrameCostTests`, a frame costs the main thread about 0.2 ms and the one that takes in the page
-about 3.5 ms.
+The back of the leaf shows the reader's own drawn page. A text page's body is one layer, and its
+contents go straight onto the back strips, with nothing drawn again; the running head and page number
+sit in labels of their own and don't come with it. Each back strip is laid from its outer end towards
+the spine, so it faces the eye the right way round and shows those contents unmirrored. A title page,
+a page in two pieces or a spread is drawn instead, once, onto the paper the reader paints behind its
+sheets. The paper is asked of the settings each time the book opens or shuts, since the theme can
+change while it's open.
+
+While the reader is arriving it sets out the sheet in front first, the one before a frame later and
+the one after a frame after that, so the opening never lays out three sheets in one frame. Once it has
+arrived, all three are set out together, ready for a turn.
 
 A board whose artwork hasn't been printed is see-through: on the shelf it takes its colour from the
 bookcase, and flown bare it would show the page's text through it. Such a cover flies laid over whatever
