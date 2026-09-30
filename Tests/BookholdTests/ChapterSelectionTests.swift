@@ -4,11 +4,11 @@
 //
 
 import BookKit
-import BookRenderer
 import Foundation
 import Testing
 
 @testable import Bookhold
+@testable import BookRenderer
 
 /// Picking text off a drawn page.
 ///
@@ -69,11 +69,13 @@ struct ChapterSelectionTests {
     func aDragAcrossWordsTakesAllOfThem() async throws {
         let layout = await layout()
         let line = try bodyLine(layout)
-        let range = try #require(layout.words(
-            from: CGPoint(x: line.left, y: line.middle),
-            to: CGPoint(x: line.right, y: line.middle),
-            on: layout.pages[0]
-        ))
+        let range = try #require(
+            layout.words(
+                from: CGPoint(x: line.left, y: line.middle),
+                to: CGPoint(x: line.right, y: line.middle),
+                on: layout.pages[0]
+            )
+        )
         let picked = layout.selection(of: range)
 
         #expect(picked.isPhrase, "\(picked.text) came back as one word")
@@ -99,19 +101,49 @@ struct ChapterSelectionTests {
     func aDragEndsOnWordsRatherThanLetters() async throws {
         let layout = await layout()
         let line = try bodyLine(layout)
-        let range = try #require(layout.words(
-            from: CGPoint(x: line.left + 3, y: line.middle),
-            to: CGPoint(x: line.right + 3, y: line.middle),
-            on: layout.pages[0]
-        ))
-        let wider = try #require(layout.words(
-            from: CGPoint(x: line.left, y: line.middle),
-            to: CGPoint(x: line.right, y: line.middle),
-            on: layout.pages[0]
-        ))
+        let range = try #require(
+            layout.words(
+                from: CGPoint(x: line.left + 3, y: line.middle),
+                to: CGPoint(x: line.right + 3, y: line.middle),
+                on: layout.pages[0]
+            )
+        )
+        let wider = try #require(
+            layout.words(
+                from: CGPoint(x: line.left, y: line.middle),
+                to: CGPoint(x: line.right, y: line.middle),
+                on: layout.pages[0]
+            )
+        )
 
         // Two points a few points apart inside the same pair of words come to the same words.
         #expect(range == wider)
+    }
+
+    /// A phrase takes the punctuation against its ends: the guillemet it opens on, and the "!»" after its
+    /// last word.
+    @Test
+    func aPhraseTakesThePunctuationAgainstItsEnds() async throws {
+        let layout = await ChapterLayout.make(
+            chapterId: 1,
+            content: await ChapterContent.prepare(html: "<p>Он написал: «Мост и река!» и ушёл.</p>"),
+            heading: ChapterHeading(),
+            context: JustificationTests.testContext
+        )
+        // Found word by word, since the typesetter binds "и" to the word after it with a joiner.
+        let string = layout.text.string as NSString
+        let first = string.range(of: "Мост")
+        let last = string.range(of: "река")
+
+        try #require(first.location != NSNotFound && last.location != NSNotFound)
+
+        let words = NSRange(location: first.location, length: NSMaxRange(last) - first.location)
+        let picked = layout.selection(of: layout.punctuated(words))
+
+        #expect(picked.text.replacingOccurrences(of: "\u{00A0}", with: " ") == "«Мост и река!»")
+        // A space stops it: nothing past the words either side comes in.
+        #expect(!picked.text.contains("написал"))
+        #expect(!picked.text.contains("ушёл"))
     }
 
     /// The typesetter's own marks are not part of what the reader picked.
@@ -119,11 +151,13 @@ struct ChapterSelectionTests {
     func whatIsPickedIsWhatWasWritten() async throws {
         let layout = await layout()
         let line = try bodyLine(layout)
-        let range = try #require(layout.words(
-            from: CGPoint(x: line.left, y: line.middle),
-            to: CGPoint(x: line.right, y: line.middle),
-            on: layout.pages[0]
-        ))
+        let range = try #require(
+            layout.words(
+                from: CGPoint(x: line.left, y: line.middle),
+                to: CGPoint(x: line.right, y: line.middle),
+                on: layout.pages[0]
+            )
+        )
         let picked = layout.selection(of: range)
 
         #expect(!picked.text.contains("\u{00AD}"), "a soft hyphen came through")
@@ -134,11 +168,13 @@ struct ChapterSelectionTests {
     func aStretchOnOneLineIsOneBox() async throws {
         let layout = await layout()
         let line = try bodyLine(layout)
-        let range = try #require(layout.words(
-            from: CGPoint(x: line.left, y: line.middle),
-            to: CGPoint(x: line.right, y: line.middle),
-            on: layout.pages[0]
-        ))
+        let range = try #require(
+            layout.words(
+                from: CGPoint(x: line.left, y: line.middle),
+                to: CGPoint(x: line.right, y: line.middle),
+                on: layout.pages[0]
+            )
+        )
         let boxes = layout.rects(of: range, on: layout.pages[0])
 
         #expect(boxes.count == 1)
@@ -157,11 +193,13 @@ struct ChapterSelectionTests {
         try #require(body.count >= 3, "the page is too short to drag down")
 
         let start = layout.context.textRect.minX + 40
-        let range = try #require(layout.words(
-            from: CGPoint(x: start, y: body[0].edge + body[0].height / 2),
-            to: CGPoint(x: start + 100, y: body[2].edge + body[2].height / 2),
-            on: layout.pages[0]
-        ))
+        let range = try #require(
+            layout.words(
+                from: CGPoint(x: start, y: body[0].edge + body[0].height / 2),
+                to: CGPoint(x: start + 100, y: body[2].edge + body[2].height / 2),
+                on: layout.pages[0]
+            )
+        )
 
         #expect(layout.rects(of: range, on: layout.pages[0]).count >= 3)
     }

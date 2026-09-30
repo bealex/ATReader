@@ -30,6 +30,10 @@ public extension ChapterLayout {
     }
 
     /// Everything between two points, opened out to whole words at either end.
+    ///
+    /// A stretch of more than one word takes the punctuation standing against its ends as well, so a
+    /// quotation comes with its guillemets and a sentence with its stop. A single word stays bare, since
+    /// that is what looking it up wants.
     func words(from start: CGPoint, to finish: CGPoint, on page: Page) -> NSRange? {
         guard
             let first = characterIndex(at: start, on: page),
@@ -43,7 +47,21 @@ public extension ChapterLayout {
 
         let opens = min(opening.location, closing.location)
         let past = max(NSMaxRange(opening), NSMaxRange(closing))
-        return NSRange(location: opens, length: past - opens)
+        let range = NSRange(location: opens, length: past - opens)
+
+        return opening == closing ? range : punctuated(range)
+    }
+
+    /// A stretch opened out over the punctuation touching either end of it, up to the nearest space.
+    internal func punctuated(_ range: NSRange) -> NSRange {
+        let string = text.string as NSString
+        var first = range.location
+        var past = NSMaxRange(range)
+
+        while first > 0, Self.clings(string.character(at: first - 1)) { first -= 1 }
+        while past < string.length, Self.clings(string.character(at: past)) { past += 1 }
+
+        return NSRange(location: first, length: past - first)
     }
 
     /// Where a stretch sits on a page: one box per line it runs through, in the page's own coordinates.
@@ -210,6 +228,13 @@ public extension ChapterLayout {
         }
 
         return seen
+    }
+
+    /// Punctuation, and the typesetter's invisible marks, which may stand between a word and it.
+    private static func clings(_ unit: unichar) -> Bool {
+        guard let scalar = Unicode.Scalar(unit) else { return false }
+
+        return scalar.properties.generalCategory == .format || CharacterSet.punctuationCharacters.contains(scalar)
     }
 
     /// What the typesetter put in and CoreText was never given: the marks that steer a line break.

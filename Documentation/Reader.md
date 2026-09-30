@@ -490,6 +490,10 @@ Word boundaries treat those buried marks as part of the word, so a hyphenated br
 `кто-то` in two, and a press landing in a gap takes the word before it rather than nothing. What comes
 out is the text as written, with the typesetter's own marks stripped.
 
+A stretch of more than one word also takes the punctuation touching its two ends, up to the nearest
+space: a quotation comes with its guillemets, and `«Розги!»` with its `!»`. A single word stays bare,
+since Look up wants the word alone.
+
 A press is a `UILongPressGestureRecognizer` on `PageTurner`. It fires while the finger is still down, so
 the words light up under it rather than when it comes up, and cancels none of the touches around it. The
 turner's tap waits for it to fail, so lifting a finger that picked words out isn't a tap as well.
