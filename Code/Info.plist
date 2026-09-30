@@ -6,6 +6,8 @@
 	<array>
 		<string>com.lonelybytes.atreader.refresh</string>
 	</array>
+	<key>CADisableMinimumFrameDurationOnPhone</key>
+	<true/>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
@@ -78,6 +80,8 @@
 		<key>UIColorName</key>
 		<string></string>
 	</dict>
+	<key>UIObservationTrackingEnabled</key>
+	<true/>
 	<key>UISupportedInterfaceOrientations</key>
 	<array>
 		<string>UIInterfaceOrientationPortrait</string>

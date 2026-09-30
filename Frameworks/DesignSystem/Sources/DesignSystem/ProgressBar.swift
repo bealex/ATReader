@@ -4,6 +4,7 @@
 //
 
 import SwiftUI
+import UIKit
 
 /// A bar that fills to a number, and slides back and forth while there isn't one yet.
 ///
@@ -53,5 +54,39 @@ public struct ProgressBar: View {
         }
         .frame(height: Design.Space.extraSmall)
         .accessibilityHidden(true)
+    }
+}
+
+/// ``ProgressBar`` for a view drawn by UIKit: the same capsule, filled to a number.
+@MainActor
+public final class ProgressBarView: UIView {
+    public var value: Double = 0 { didSet { setNeedsLayout() } }
+    public var tint: UIColor = .tintColor { didSet { fill.backgroundColor = tint.cgColor } }
+    public var track: UIColor = .clear { didSet { layer.backgroundColor = track.cgColor } }
+
+    private let fill = CALayer()
+
+    override public init(frame: CGRect) {
+        super.init(frame: frame)
+
+        layer.addSublayer(fill)
+        isAccessibilityElement = false
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+    override public var intrinsicContentSize: CGSize {
+        CGSize(width: UIView.noIntrinsicMetric, height: Design.Space.extraSmall)
+    }
+
+    override public func layoutSubviews() {
+        super.layoutSubviews()
+
+        let radius = bounds.height / 2
+
+        layer.cornerRadius = radius
+        fill.cornerRadius = radius
+        fill.frame = CGRect(x: 0, y: 0, width: bounds.width * min(1, max(0, value)), height: bounds.height)
     }
 }

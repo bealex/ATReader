@@ -458,32 +458,22 @@ Word boundaries treat those buried marks as part of the word, so a hyphenated br
 `кто-то` in two, and a press landing in a gap takes the word before it rather than nothing. What comes
 out is the text as written, with the typesetter's own marks stripped.
 
-A press is `UILongPressGestureRecognizer` rather than SwiftUI's. `LongPressGesture` carries no place of
-its own, and the zero-distance drag usually paired with it to find one swallows every tap on the page:
-the taps that turn it, open a note, and show the controls all went that way. The recognizer reports its
-own place, fires while the finger is still down so the words light up under it rather than when it comes
-up, and is set not to cancel the touches around it. It hangs on the window, the one view certain to see
-every touch, and ignores a press that began outside the page.
+A press is a `UILongPressGestureRecognizer` on `PageTurner`. It fires while the finger is still down, so
+the words light up under it rather than when it comes up, and cancels none of the touches around it. The
+turner's tap waits for it to fail, so lifting a finger that picked words out isn't a tap as well.
 
 **The page holds still while anything covers it**: words being picked, the aside offered for them, or
-a note. `PageTurnView.isCovered` tells four things so: the drag that turns a page, the end of that
-drag, the tap zones and the press. The layer an aside lays over the page answers taps, and the page
-ignores them too, or one tap would put the aside away and turn the page as well. The press has to be
-told because it hangs on the window and hears a finger held on the aside itself. Only a press's start
-is refused, since the words it's picking cover the page as soon as it begins. A turn already under way
-is dropped when a press takes hold, because a finger can cover the eight points that start one inside
-the time a press takes to be held.
+a note. `PageTurner.isCovered` tells four things so: the drag that turns a page, the end of that drag,
+the tap zones and the press. Only a press's start is refused, since the words it's picking cover the
+page as soon as it begins. A turn already under way is dropped when a press takes hold, because a finger
+can cover the eight points that start one inside the time a press takes to be held.
 
-The page answers sideways drags and hands on the rest. A screen pushed with a zoom transition is
-closed by dragging it back down, which is the drag that turns a page, so the turn is
-`PageDragGesture`: a pan of UIKit's that fails on a drag up or down the page before it begins, which
-is what leaves that drag to the transition. SwiftUI's `DragGesture` could not, since it recognises in
-every direction and takes the touch at eight points, and the book could never be closed by dragging
-it. The recognizer hangs on the window as the press does, so it also asks whether anything is
-presented over the page before taking a touch.
+The page answers sideways drags and hands on the rest. The book is closed by dragging it down, so the
+turn is `HorizontalPan`, which fails on a drag up or down the page before it begins and leaves that drag
+to the transition. It also turns down a touch while anything is presented over the page.
 
 The pan watches the touches without taking them, so the page's tap still hears a touch the pan has
-begun on, and a flick of a few points lifts inside a tap's tolerance. `PageTurnView` drops the tap from
+begun on, and a flick of a few points lifts inside a tap's tolerance. `PageTurner` drops the tap from
 any touch it has taken as a drag, or a short flick forward turns two pages. The recognizer reports
 each finger coming down, and that clears the mark for the next touch.
 
@@ -637,10 +627,9 @@ Following the system means two themes, one for its light hours and one for its d
 turns with it; not following it means one theme whatever the system is doing.
 
 What the system is showing is asked of the **scene**, in `SystemAppearance`, and not of a window or of
-SwiftUI's environment. The reader holds the window to the page's own light or dark for as long as a
-book is open, so a window asked then answers with the page: a page following the system would be
-following itself, and would latch to whichever it opened on. An override reaches down from a window
-and never up to the scene it sits in. The answer is taken when the app becomes active and whenever the
+SwiftUI's environment. The reader holds itself to the page's own light or dark for as long as a book
+is open, so a view asked then answers with the page: a page following the system would be following
+itself, and would latch to whichever it opened on. An override reaches down and never up to the scene. The answer is taken when the app becomes active and whenever the
 scene's traits change. "Match the system" used to be a theme of its
 own and meant exactly what the switch does; a reader who chose it keeps what they chose.
 
@@ -718,9 +707,26 @@ how far into the book the page stands are drawn on the page itself, so a turn ca
 everything else. Each page says where it stands, since the pages either side of it are on screen during
 a turn.
 
-The page ignores the safe area, so its size and the notch and home-indicator insets come from the
-window rather than from the layout. Two reasons: an overlay is laid out inside the safe area even when
-the view under it is not, and a toolbar coming and going would otherwise re-paginate the chapter.
+The page's size and the notch and home-indicator insets come from the window rather than from the
+layout, so a toolbar coming and going never re-paginates the chapter.
+
+### How the screen is built
+
+The reader is a UIKit `ReaderScreen.Controller`, laid out by hand. Opening a book builds three sheet
+views and nothing else, so the opening's first frame isn't waiting on a SwiftUI graph.
+
+- **`Stage`** is what the page and the controls both read: the window's size and insets, the band the
+  system keeps its bar in, whether the controls are up, and whatever stands over the page.
+- **`SheetView`** is one sheet: its pages, their running heads and captions, the paint under picked or
+  found words, and the ribbons in the gutter. The controller keeps three and hands each step the view
+  already showing its sheet, so a turn never builds a page again.
+- **`Chrome`** is SwiftUI: the glass rows, the way back, the bar for finding, the asides, the popovers
+  and the forms. It's built the first time any of it is wanted and stays. Its hosting view answers a
+  hit test wherever a touch lands, drawn or not, so each piece reports where it stands and every other
+  touch goes to the page, unless an aside is up and takes them all.
+
+Both follow the model through `updateProperties()`, which UIKit re-runs when any `@Observable` value it
+read changes; `UIObservationTrackingEnabled` is set in the Info.plist.
 
 ### The band the running heads stand in
 
@@ -805,10 +811,11 @@ always did.
 
 ## Turning a page
 
-A turn moves a sheet, so on a spread both pages go at once, the way they do in a book. `PageTurnView`
-counts in sheets and knows nothing else about them: what it's handed is a count, an index and a
-builder, and on a phone a sheet is simply a page. The reader hands it one sheet and the two beside it,
-so every turn lands past the end of the one and the model moves along its own run of sheets.
+A turn moves a sheet, so on a spread both pages go at once, the way they do in a book. `PageTurner`
+knows nothing else about sheets: it asks for the one before, the one in front and the one after, and is
+told whether there's anything to turn onto either side, cut yet or not. On a phone a sheet is simply a
+page. A turn that lands tells the reader, which moves the model along its run of sheets and hands the
+turner its sheets again in the same frame.
 
 The whole effect comes from one rule: sheet `n + 1` always sits above sheet `n`. Turning forward slides
 sheet `n + 1` in from the right; turning back slides that same sheet off to the right and uncovers
@@ -949,24 +956,13 @@ nothing. The price is paid while the controls are up, when the clock and the but
 page's outer edge and can cover the end of a line. Guessing the side from the insets can't work, since
 the inset comes and goes, and said nothing at all of a window wider than it is tall.
 
-The pages are laid over the sheet rather than stacked in it. A page is as tall as the window, and one
-that takes part in the layout makes the sheet taller than the safe area it is offered. SwiftUI centres
-that overflow before `ignoresSafeArea` widens anything, so the page lands half the difference between
-the top and bottom insets away from the window's corner. An upright iPhone hides it, its top inset
-being the deeper one. A Duo has none at the top and 34pt at the foot, and set every page 17pt high.
-
-The reader keeps a navigation stack with its bar hidden, for the window `readerBarAppearance` reaches
-through it: the page's own colour behind the corners the stack rounds, and the window held to the
-page's light or dark for as long as the reader is on screen. `preferredColorScheme` did that before,
-and SwiftUI applies it by overriding the window rather than the view: leaving the reader reverted
-SwiftUI's own side of it and left the window's, so the library came back light underneath a navigation
-bar and a search field that were still dark. The override has one owner now, taken when the reader
-appears and given back when it goes.
+The reader overrides its own interface style to the page's light or dark, which reaches everything it
+presents, the keyboard included. The window is left alone.
 
 The status bar goes with the controls. A presented screen only owns the status bar if it says so, and
 an over-full-screen presentation leaves it with whoever is underneath, so `Navigator` sets
 `modalPresentationCapturesStatusBarAppearance` on the screen it presents. The reader's own
-`statusBarHidden` is what answers from there.
+`prefersStatusBarHidden` is what answers from there.
 
 Showing the controls moves no text: the page ignores the safe area and takes its size from the window,
 so nothing pagination depends on changes when they appear.

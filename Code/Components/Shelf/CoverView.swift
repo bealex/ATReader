@@ -34,6 +34,9 @@ final class CoverView: UIView {
     private var url: URL?
     /// The face hanging now, where it is a printed one rather than the bare board.
     private var shown: CoverPrint.Order?
+
+    /// Whether the book's own artwork is on the board, which leaves nothing of it see-through.
+    var isPrinted: Bool { shown != nil }
     private var loading: (order: CoverPrint.Order, task: Task<Void, Never>)?
 
     /// The whole face as one picture: the artwork, the line read, the ribbon and the crease over it.

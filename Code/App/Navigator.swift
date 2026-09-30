@@ -82,7 +82,7 @@ final class Navigator {
     func present(_ route: AppRoute, from source: (@MainActor @Sendable (BookZoom) -> UIView?)? = nil) {
         guard let controller, let dressing else { return }
 
-        let screen = PresentedScreen(rootView: dressing.dress(AppRouteDestination(route: route).environment(self)))
+        let screen = presented(route, dressed: dressing)
 
         // Over, not simply full screen. A full-screen presentation takes the presenting view out of
         // the window, so a shelf spends the whole reading session off it: its cells are built again
@@ -128,17 +128,32 @@ final class Navigator {
         controller.present(screen, animated: true)
     }
 
+    /// The screen a route opens over everything. The reader is built by hand, so that opening a book
+    /// sets out the page alone; every other screen is SwiftUI's.
+    private func presented(_ route: AppRoute, dressed dressing: AppDressing) -> any PresentedScreenReporting {
+        if case let .reader(reader) = route {
+            return ReaderScreen.Controller(
+                workId: reader.workId,
+                title: reader.title,
+                initialChapterId: reader.chapterId,
+                session: dressing.session,
+                settings: dressing.settings,
+                navigator: self,
+                pictures: CoverPictures()
+            )
+        }
+
+        return PresentedScreen(rootView: dressing.dress(AppRouteDestination(route: route).environment(self)))
+    }
+
     /// A presented screen that says when it has arrived and when it has gone.
     ///
     /// A dismissal begun by dragging is nobody's to call, so there is no completion to hang this on:
     /// the screen's own life is what reports it. A drag let go half way brings `viewDidAppear` round
     /// again, which is the answer wanted there too.
-    private final class PresentedScreen<Content: View>: UIHostingController<Content> {
-        /// Held here since a transitioning delegate is held weakly.
+    private final class PresentedScreen<Content: View>: UIHostingController<Content>, PresentedScreenReporting {
         var opening: BookOpening?
         var onArrived: (@MainActor () -> Void)?
-        /// The transition beginning, a drag's included: a drag let go half way is answered by
-        /// `viewDidAppear` coming round again.
         var onGoing: (@MainActor () -> Void)?
         var onGone: (@MainActor () -> Void)?
 
@@ -179,6 +194,18 @@ final class Navigator {
     }
 
     fileprivate func cameBack() { returnedAt = .now }
+}
+
+/// A screen presented over everything, which holds its own opening and reports its own coming and going.
+@MainActor
+protocol PresentedScreenReporting: UIViewController {
+    /// Held here since a transitioning delegate is held weakly.
+    var opening: BookOpening? { get set }
+    var onArrived: (@MainActor () -> Void)? { get set }
+    /// The transition beginning, a drag's included: a drag let go half way is answered by
+    /// `viewDidAppear` coming round again.
+    var onGoing: (@MainActor () -> Void)? { get set }
+    var onGone: (@MainActor () -> Void)? { get set }
 }
 
 /// Notes whether the latest touch came down in the band at the top of the window where the system's

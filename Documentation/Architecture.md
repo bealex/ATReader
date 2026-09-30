@@ -52,7 +52,8 @@ Two decisions to know about:
 
 Screens follow the house pattern: a namespace `enum` holding an `@Observable @MainActor final class
 Model` and a `struct Component: View`, split across `<Screen>.Model.swift` and
-`<Screen>.Component.swift`. Models hold `private(set)` state and take their dependencies at init.
+`<Screen>.Component.swift`. Models hold `private(set)` state and take their dependencies at init. The
+reader is the exception: its screen is a UIKit `Controller`, described in `Reader.md`.
 
 ```
 App/          entry point, RootScreen (signed-in vs signed-out), AppRoute
@@ -495,20 +496,34 @@ finger goes down; let go, it carries on at the finger's speed and settles onto i
 open, along a cubic Hermite from where it was let go.
 
 `BookOpening` is the presented screen's transitioning delegate, and `OpeningBook` draws each frame from
-one number, how open the book is. The page is the reader itself, live, so text that lands while the book
+one number, how open the book is. A `UIUpdateLink` moves that number: a `CADisplayLink` added in the
+frame that starts the transition skips the next refresh, so every opening began a frame late. The page is the reader itself, live, so text that lands while the book
 is opening is already on it. It's scaled to fit inside the book whole, as it will be laid out on the
-screen, on a sheet of the reader's paper that fills the rest of the book and grows with it. The sheet is
-also what keeps the screen underneath out of sight: the reader is only opaque once it has arrived, since
-it paints the stack behind it in its own colour on appearing and gives it back as it starts to go.
+screen, on a sheet of the reader's paper that fills the rest of the book and grows with it.
+
+The page is scaled through its layer's transform, never the view's. A view's own transform tells
+anything SwiftUI hosts inside it that its geometry moved, and a hosted screen lays itself out again
+every frame. Taking the book away sets the view's transform once, so whatever is hosted learns where
+the page ended up instead of hit-testing the small one it saw on the way.
 
 `Leaf` cuts the cover across its width into two dozen flat strips and turns each to its own angle. A
 reader lifts a board that thin by its free edge, so that edge leads and the cover curls on the way over,
 lying flat at both ends. Each strip is projected from an eye straight in front of the book, as a book
-turning on the shelf is, and one seen from behind shows the board's inside.
+turning on the shelf is, and one seen from behind shows the board's inside. A strip's shade runs from
+the curl's angle at one edge to its angle at the other, so neighbouring strips meet in the same tone
+and the curl reads as one surface instead of a row of bands.
 
-The cover flies laid over whatever stood behind it, rendered from the screen underneath with the
-stand-in hidden. A board whose artwork hasn't been printed is see-through: on the shelf it takes its
-colour from the bookcase, and flown bare it would show the page's text through it.
+A board whose artwork hasn't been printed is see-through: on the shelf it takes its colour from the
+bookcase, and flown bare it would show the page's text through it. Such a cover flies laid over whatever
+stood behind it, rendered from the screen underneath with the stand-in hidden. A printed cover flies as
+it is, since drawing the library into it costs the first frames of the opening.
+
+The book is written back to the store as it starts to close. For a cover that opens, the library isn't
+told until the book has landed: the cover has been photographed already, and a shelf rebuilt in those
+first frames holds the closing back.
+
+The motion runs at the screen's own rate. An iPhone holds an app to 60 Hz unless the Info.plist sets
+`CADisableMinimumFrameDurationOnPhone`, and the update link asks for 120 on top of that.
 
 ### Opening a book, frame by frame
 
@@ -626,7 +641,7 @@ screen. `ChapterContent` parses and binds the text away from the main actor, `Ch
 it, `ParagraphRuler` measures a paragraph once, and `ColumnComposer` chooses every break in it together
 with how each line is filled, off the main actor. `ChapterLayout` composes only the paragraphs around a
 page and cuts it under a compositor's rules, forwards or backwards; `BookLayout` strings those pages
-across chapters from wherever the reader is, `PageTurnView` turns them and `ChapterPageView` draws one.
+across chapters from wherever the reader is, `PageTurner` turns them and `ChapterPageView` draws one.
 
 A picture is a line of that column with a depth of its own, so the page breaker treats a plate the way
 it treats any other line. `BookImages` reads one, decides whether it is colour art or line work, and

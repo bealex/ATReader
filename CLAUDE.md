@@ -50,8 +50,15 @@ its own.
   `--ui` pick one, `--only SPEC` runs a single target or suite, and `--build-only` with `--no-build`
   splits building the tests from running them. **`--unit` is the packages alone.** The app's own unit
   tests are a target in the project, so `BookholdTests` runs under `--ui`, and `--only BookholdTests`
-  is how to run them without waiting out the UI suite.
+  is how to run them without waiting out the UI suite. The UI tests always run on a simulator, `-d`
+  or not.
 - `Scripts/app.sh clean` removes `build/`.
+
+**Timing something on the phone** can't go through Instruments from here: `xctrace` sees the phone as
+offline while `devicectl` reaches it. A temporary probe that writes to the app's Documents, a `deploy
+--release`, real taps, and `xcrun devicectl device copy from --domain-type appDataContainer` to fetch
+the file is what worked. The simulator runs at 60 Hz on the Mac's GPU, so its frame timings don't
+carry over.
 
 **Run the tests in the background and keep working.** A suite takes minutes, so start it in the
 background and spend the wait on documentation, a deslop pass, a commit, or the next piece of the
@@ -88,7 +95,8 @@ Follow `~/Programming/_Scripts/Instructions/CLAUDE.CodeStyle.md` and `CLAUDE.Swi
 this codebase leans on hardest:
 
 - Screens are namespace enums with `Model` and `Component` inside, split across
-  `<Screen>.Model.swift` and `<Screen>.Component.swift`.
+  `<Screen>.Model.swift` and `<Screen>.Component.swift`. The reader is a UIKit `Controller` instead,
+  so a book opens without building a SwiftUI graph; see `Documentation/Reader.md`.
 - `@Observable @MainActor final class Model` with `private(set)` state. Never `ObservableObject`.
 - `Mutex` (from `Synchronization`) for shared mutable state. No `@unchecked Sendable`, no
   `nonisolated(unsafe)`.
@@ -214,15 +222,17 @@ licensing rather than secrecy. An unconfigured build must keep working for every
 - **`LocalStore` is one SQLite file and the app's first source for everything.** Books, contents,
   chapter bodies and reading positions live there, and screens draw from it before the service answers.
   A change that only writes to the service leaves the app wrong offline.
-- **The reader's page ignores the safe area, so the layout can't tell it how big it is.** Its size and
-  the device insets come from the window; measuring the layout gives the size before the page was let
-  out to the screen edges, and moves the text every time a toolbar appears.
+- **The reader's page is sized from the window, never from the layout.** Its size and the device insets
+  come from the window; a size that follows the safe area moves the text every time a toolbar appears.
 - **The reader's position is a character offset, not a page number.** Changing the font re-paginates,
   and a page index means nothing across a restyle.
 - **A view at no opacity is still there.** Hiding chrome with `.opacity(0)` leaves every button of it
   in the accessibility tree: VoiceOver reads them out and a UI test finds them by name.
   `.accessibilityHidden()` does not reach through `GlassRow`, whose buttons sit under `.glassEffect`.
   Build the thing only while it is shown and keep the fade as a transition.
+- **An iPhone runs this app at 60 Hz unless asked for more.** `CADisableMinimumFrameDurationOnPhone` in
+  the Info.plist lifts the cap, and a frame clock still has to ask for 120 with `preferredFrameRateRange`.
+  Without either, the book opened at 48 fps on a 120 Hz screen.
 - **UI-test environment variables need a `TEST_RUNNER_` prefix** to reach the test process;
   `xcodebuild` strips it.
 - **A `didSet` that assigns to its own property recurses forever on an `@Observable` class.** The macro

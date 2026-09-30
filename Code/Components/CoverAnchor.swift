@@ -68,4 +68,6 @@ struct CoverAnchorView: UIViewRepresentable {
 final class BookStandIn: UIImageView {
     /// Whether the picture is the book's cover, which can be opened, rather than its spine.
     var isCover = true
+    /// Whether the picture lets what stands behind it show through, as a board with no artwork does.
+    var isSeeThrough = true
 }

@@ -184,7 +184,7 @@ struct ReaderAppearanceTests {
     /// The controls and the book's name read as one line across the page, whatever the type is set at.
     @Test
     func theControlsSitOnTheRunningHead() {
-        typealias Reader = ReaderScreen.Component
+        typealias Reader = ReaderScreen.Chrome
 
         for safeAreaTop in [ 0.0, 62.0 ] {
             for headSize in [ 14.0, 18.7, 26.0 ] {
@@ -205,7 +205,7 @@ struct ReaderAppearanceTests {
     /// the top, and only the band the layout reserves is between the control and the first line.
     @Test
     func theControlsClearTheTextTheyStandOver() {
-        typealias Reader = ReaderScreen.Component
+        typealias Reader = ReaderScreen.Chrome
 
         for fontSize in [ 14.0, 19.0, 23.0, 30.0 ] {
             for safeAreaTop in [ 0.0, 24.0, 62.0 ] {

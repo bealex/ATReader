@@ -37,7 +37,7 @@ final class BookOpening: NSObject {
     }
 
     /// The cover a face shows and where it stands in `space`, where it is a cover standing wholly on the screen.
-    fileprivate static func cover(in face: UIView?, seenFrom space: UIView) -> (picture: UIImage, frame: CGRect)? {
+    fileprivate static func cover(in face: UIView?, seenFrom space: UIView) -> Cover? {
         guard
             let standIn = face as? BookStandIn,
             standIn.isCover,
@@ -50,7 +50,13 @@ final class BookOpening: NSObject {
 
         guard window.bounds.contains(standIn.convert(standIn.bounds, to: window)) else { return nil }
 
-        return (picture, frame)
+        return Cover(picture: picture, frame: frame, isSeeThrough: standIn.isSeeThrough)
+    }
+
+    fileprivate struct Cover {
+        let picture: UIImage
+        let frame: CGRect
+        let isSeeThrough: Bool
     }
 
     @objc
@@ -153,7 +159,7 @@ private final class Run: NSObject {
     private var clock: Clock?
 
     private struct Clock {
-        let link: CADisplayLink
+        let link: UIUpdateLink
         let from: CGFloat
         let target: CGFloat
         let seconds: Double
@@ -238,9 +244,11 @@ private final class Run: NSObject {
         CATransaction.setDisableActions(true)
         _ = source(.covered)
 
+        // Only a board with nothing printed on it needs what stands behind it drawn in.
         let picture = cover.map { cover in
-            ground.map { Self.backed(cover.picture, by: $0, at: container.convert(cover.frame, to: $0)) }
-                ?? cover.picture
+            guard cover.isSeeThrough, let ground else { return cover.picture }
+
+            return Self.backed(cover.picture, by: ground, at: container.convert(cover.frame, to: ground))
         }
 
         book = OpeningBook(page: page, in: container, cover: frame, picture: picture, paper: paper)
@@ -268,25 +276,28 @@ private final class Run: NSObject {
     }
 
     private func run(to target: CGFloat, letGo: (shift: CGVector, velocity: CGVector)? = nil) {
-        clock?.link.invalidate()
+        clock?.link.isEnabled = false
 
-        let link = CADisplayLink(target: self, selector: #selector(ticked))
+        guard let view = context?.containerView else { return }
+
+        // UIKit's own update link: a display link added during a frame misses the next one.
+        let link = UIUpdateLink(view: view)
         // A book let go near where it will settle still has the finger's shift to lose.
         let distance = letGo == nil ? abs(target - open) : max(abs(target - open), Self.leastLetGoRun)
         let seconds = OpeningMotion.seconds * Double(distance)
 
         clock = Clock(link: link, from: open, target: target, seconds: seconds, letGo: letGo)
-        link.add(to: .main, forMode: .common)
+        link.addAction { [weak self] _, info in self?.ticked(at: info.modelTime) }
+        link.requiresContinuousUpdates = true
+        link.preferredFrameRateRange = Self.frameRates
+        link.isEnabled = true
     }
 
-    @objc
-    private func ticked() {
+    private func ticked(at now: TimeInterval) {
         guard var clock else { return }
 
         // Counted from the first frame drawn, and a frame that ran long adds only a frame: the reader
         // lays itself out as it arrives, and a clock that counted that stall would skip the first steps.
-        let now = clock.link.timestamp
-
         clock.elapsed += clock.lastTick.map { min(now - $0, Self.longestStep) } ?? 0
         clock.lastTick = now
         self.clock = clock
@@ -299,10 +310,13 @@ private final class Run: NSObject {
 
         guard ran >= 1 else { return }
 
-        clock.link.invalidate()
+        clock.link.isEnabled = false
         self.clock = nil
         end()
     }
+
+    /// The screen's own rate where it has one to spare; a motion this large shows every frame dropped.
+    private static let frameRates = CAFrameRateRange(minimum: 80, maximum: 120, preferred: 120)
 
     /// How much of a flick's speed the book carries on with once let go.
     private static let flickCarry: CGFloat = 0.6

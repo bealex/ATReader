@@ -148,6 +148,7 @@ final class BookView: UIView {
                 // drawn while it stands that way, so a picture of it would be the bare board.
                 zoomAnchor.image = standsAsCover ? cover.picture() : spine.image
                 zoomAnchor.isCover = standsAsCover
+                zoomAnchor.isSeeThrough = !(standsAsCover && cover.isPrinted)
                 show(panels: false, anchor: true)
             case .covered:
                 show(panels: false, anchor: false)

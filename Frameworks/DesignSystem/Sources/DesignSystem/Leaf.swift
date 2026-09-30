@@ -31,10 +31,6 @@ public struct Leaf {
         public let length: CGFloat
         /// Which part of the sheet's width this strip is cut from, as fractions of it.
         public let cut: ClosedRange<CGFloat>
-
-        /// How square the strip stands to an eye straight in front of it, from one lying flat to none
-        /// edge-on.
-        public var light: CGFloat { abs(cos(angle)) }
     }
 
     /// The sheet cut into `count` strips, from the hinge outwards.
@@ -58,6 +54,10 @@ public struct Leaf {
 
         return min(turned * .pi + lead, .pi)
     }
+
+    /// How square the sheet stands to an eye straight in front of it at a point along it, from one lying
+    /// flat to none edge-on.
+    public func light(at along: CGFloat) -> CGFloat { abs(cos(angle(at: along))) }
 
     /// One strip as an eye sees it, about the middle of its leading edge.
     ///

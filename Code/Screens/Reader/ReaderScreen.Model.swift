@@ -276,6 +276,10 @@ extension ReaderScreen {
         @ObservationIgnored
         private var foldedChapters: [Int: BookSearch.Folded] = [:]
 
+        /// Where each mark's words were found, kept beside the folded text they were found in.
+        @ObservationIgnored
+        private var markPlaces: [Bookmark: Range<Int>] = [:]
+
         /// Picks out everything between two points on one page, out to whole words.
         func pickOut(from start: CGPoint, to finish: CGPoint, on page: BookPage) {
             for piece in page.pieces {
@@ -341,13 +345,18 @@ extension ReaderScreen {
         /// A mark carrying none falls back to the offsets it was written with, which is what it always
         /// did, and a chapter nothing has laid out yet has no text to look in.
         func place(of mark: Bookmark) -> Range<Int> {
+            if let held = markPlaces[mark] { return held }
+
             guard
                 let chapter = folded(mark.chapterId)
             else {
                 return mark.startOffset ..< max(mark.endOffset, mark.startOffset + 1)
             }
 
-            return mark.place(in: chapter)
+            let found = mark.place(in: chapter)
+
+            markPlaces[mark] = found
+            return found
         }
 
         /// A chapter's text folded for finding a mark in it, kept so a redraw does not fold it again.
@@ -1679,7 +1688,10 @@ extension ReaderScreen {
         /// The ordinary save waits 400ms so a run of page turns writes once, and a suspended app never
         /// runs that task. Leaving the reader, and the app leaving the screen, are the two moments the
         /// wait has to be given up.
-        func flushPosition() {
+        ///
+        /// - Parameter tellsLibrary: whether the shelf is told at once. A cover opening like a book has
+        ///   taken its picture already, and the shelf reads the store again once the book has landed.
+        func flushPosition(tellsLibrary: Bool = true) {
             positionSaver?.cancel()
 
             guard let position = storedPosition else { return }
@@ -1697,7 +1709,7 @@ extension ReaderScreen {
                 // The shelf draws the mark on a cover from the store, and the zoom takes its picture of
                 // that cover as the book starts closing. Told afterwards, it animates the old mark home
                 // and corrects it once the book has landed.
-                BookInbox.shared.libraryChanged()
+                if tellsLibrary { BookInbox.shared.libraryChanged() }
             }
 
             reportProgress(force: true)

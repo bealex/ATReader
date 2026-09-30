@@ -34,7 +34,7 @@ public struct ChapterPageView: UIViewRepresentable {
         private var layout: ChapterLayout?
         private var page: ChapterLayout.Page?
 
-        func apply(layout: ChapterLayout, page: ChapterLayout.Page) {
+        public func apply(layout: ChapterLayout, page: ChapterLayout.Page) {
             guard layout !== self.layout || page != self.page else { return }
 
             self.layout = layout

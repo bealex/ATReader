@@ -23,7 +23,7 @@ final class OpeningBook {
     private let sheet = UIView()
     private let over = UIView()
     private let crease = CAGradientLayer()
-    private var strips: [(board: CALayer, shade: CALayer)] = []
+    private var strips: [(board: CALayer, shade: CAGradientLayer)] = []
     private let inside: CGColor
 
     /// Lays the book out over `page`, which is already in `container` at its full size.
@@ -68,6 +68,10 @@ final class OpeningBook {
         // Gone before it is put back to full size, or the next frame shows the whole page once more.
         if withPage { page.removeFromSuperview() }
 
+        // SwiftUI hears where the page stands only through the view's own transform, which the run left
+        // alone; without a change there, it keeps the tiny page it laid out on the way.
+        page.layer.setAffineTransform(.identity)
+        page.transform = CGAffineTransform(scaleX: 0.5, y: 0.5)
         page.transform = .identity
         page.alpha = 1
         sheet.removeFromSuperview()
@@ -121,10 +125,15 @@ final class OpeningBook {
     private func place(page rect: CGRect, cornered radius: CGFloat) {
         let scale = min(rect.width / screen.width, rect.height / screen.height)
 
-        page.transform = CGAffineTransform(translationX: rect.midX - screen.midX, y: rect.midY - screen.midY)
-            .scaledBy(x: scale, y: scale)
+        // On the layer: a view's own transform tells SwiftUI its geometry moved, and the page lays itself
+        // out again every frame.
+        page.layer.setAffineTransform(
+            CGAffineTransform(translationX: rect.midX - screen.midX, y: rect.midY - screen.midY)
+                .scaledBy(x: scale, y: scale)
+        )
 
-        sheet.frame = rect
+        // The layer's frame skips the safe-area pass a view's frame runs, for a sheet with nothing inside.
+        sheet.layer.frame = rect
         sheet.layer.cornerRadius = radius
         sheet.layer.shadowPath =
             UIBezierPath(
@@ -144,10 +153,15 @@ final class OpeningBook {
         let seam = Self.seam / max(leaf.width, 1)
 
         for (strip, layers) in zip(leaf.strips(strips.count), strips) {
+            let isFirst = strip.cut.lowerBound <= 0
             let isLast = strip.cut.upperBound >= 1
             let front = leaf.showsFront(of: strip, hinge: fromEye, distance: distance)
 
             layers.board.bounds = CGRect(x: 0, y: 0, width: strip.length + (isLast ? 0 : Self.seam), height: height)
+            // A softened edge between two strips lets what is behind show through as a line.
+            layers.board.edgeAntialiasingMask = CAEdgeAntialiasingMask([ .layerBottomEdge, .layerTopEdge ])
+                .union(isFirst ? .layerLeftEdge : [])
+                .union(isLast ? .layerRightEdge : [])
             layers.board.position = eye
             layers.board.zPosition = strip.toward
             layers.board.transform = leaf.transform(of: strip, hinge: fromEye, distance: distance)
@@ -160,18 +174,22 @@ final class OpeningBook {
                 height: Self.wholeHeight
             )
             layers.shade.frame = layers.board.bounds
-            layers.shade.opacity = Float(Hinge.shading * (1 - strip.light))
+            layers.shade.endPoint = CGPoint(x: strip.length / layers.board.bounds.width, y: 0.5)
+            // Shaded edge to edge, so neighbouring strips meet in one tone.
+            layers.shade.colors = [ strip.cut.lowerBound, strip.cut.upperBound ].map {
+                CGColor(gray: 0, alpha: Hinge.shading * (1 - leaf.light(at: $0)))
+            }
         }
     }
 
-    private static func strip(in parent: CALayer) -> (board: CALayer, shade: CALayer) {
+    private static func strip(in parent: CALayer) -> (board: CALayer, shade: CAGradientLayer) {
         let board = CALayer()
-        let shade = CALayer()
+        let shade = CAGradientLayer()
 
         board.anchorPoint = CGPoint(x: 0, y: 0.5)
         board.allowsEdgeAntialiasing = true
         board.contentsGravity = .resize
-        shade.backgroundColor = UIColor.black.cgColor
+        shade.startPoint = CGPoint(x: 0, y: 0.5)
         board.addSublayer(shade)
         parent.addSublayer(board)
 
