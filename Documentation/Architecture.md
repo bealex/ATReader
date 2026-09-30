@@ -497,8 +497,8 @@ open, along a cubic Hermite from where it was let go.
 
 `BookOpening` is the presented screen's transitioning delegate, and `OpeningBook` draws each frame from
 one number, how open the book is. A `UIUpdateLink` moves that number: a `CADisplayLink` added in the
-frame that starts the transition skips the next refresh, so every opening began a frame late. The page is the reader itself, live, so text that lands while the book
-is opening is already on it. It's scaled to fit inside the book whole, as it will be laid out on the
+frame that starts the transition skips the next refresh, so every opening began a frame late. The page
+is the reader itself, live, so text that lands while the book is opening is already on it. It's scaled to fit inside the book whole, as it will be laid out on the
 screen, on a sheet of the reader's paper that fills the rest of the book and grows with it.
 
 The page is scaled through its layer's transform, never the view's. A view's own transform tells
@@ -512,6 +512,29 @@ lying flat at both ends. Each strip is projected from an eye straight in front o
 turning on the shelf is, and one seen from behind shows the board's inside. A strip's shade runs from
 the curl's angle at one edge to its angle at the other, so neighbouring strips meet in the same tone
 and the curl reads as one surface instead of a row of bands.
+
+The leaf is as thick as the board and the pages already read: a sliver at the first page, the whole
+book at the last. The shelf's reading progress sets it on the way in, the reader's own on the way out.
+It turns about its page face at the gutter, so the page it carries meets the one it uncovers there,
+and the cover stands out from that face by the leaf's depth. The depth grows in over the first tenth of
+the turn, since a book shut at full depth would stand its cover a little larger than the one on the
+shelf. `Leaf.back(of:depth:)` sets the back face in from the front at the joints between strips rather
+than strip by strip; a curled leaf offset strip by strip opens gaps between them.
+
+A strip facing the eye is drawn on the cover face, one facing away on the page face, carrying the page
+before the one being opened. At the first page the back is the board's inside. Both ends of the leaf
+are faces of their own: the free end shows the ends of the pages, of uneven thickness and shade and
+seeded from the depth so a book shows the same ones each time, with a strip of the board's colour
+along the front. The end at the spine is drawn only while the cover faces the eye, the only time the
+cover stands off the spine; past upright the two pages meet at the gutter and it would show as a wedge
+between them.
+
+The reader draws the page before once, into a mirrored context already filled with its paper, the
+first frame it is ready. It paints its paper on its own view and leaves its sheets clear, so a picture
+taken without that fill is see-through. The paper is asked of the settings each time the book opens or
+shuts, since the theme can change while it's open. Measured on the simulator by
+`OpeningFrameCostTests`, a frame costs the main thread about 0.2 ms and the one that takes in the page
+about 3.5 ms.
 
 A board whose artwork hasn't been printed is see-through: on the shelf it takes its colour from the
 bookcase, and flown bare it would show the page's text through it. Such a cover flies laid over whatever

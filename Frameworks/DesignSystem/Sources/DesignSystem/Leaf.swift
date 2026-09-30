@@ -48,6 +48,66 @@ public struct Leaf {
         }
     }
 
+    /// The face of a leaf `depth` thick that lay against the page, cut as `strips` cut the front: one
+    /// strip behind each, meeting its neighbours at the joints.
+    public func back(of strips: [Strip], depth: CGFloat) -> [Strip] {
+        guard !strips.isEmpty else { return [] }
+
+        let angles = strips.map(\.angle)
+        // Each joint is set in along the bisector of the strips either side, far enough to keep the depth.
+        let joints = (0 ... strips.count).map { index in
+            let before = angles[max(index - 1, 0)]
+            let after = angles[min(index, angles.count - 1)]
+            let middle = (before + after) / 2
+            let reach = depth / max(cos((after - before) / 2), 0.1)
+            let front =
+                index < strips.count
+                ? (strips[index].across, strips[index].toward)
+                : (
+                    strips[index - 1].across + strips[index - 1].length * cos(before),
+                    strips[index - 1].toward + strips[index - 1].length * sin(before)
+                )
+
+            return (across: front.0 + reach * sin(middle), toward: front.1 - reach * cos(middle))
+        }
+
+        return strips.indices.map { index in
+            let start = joints[index]
+            let end = joints[index + 1]
+
+            return Strip(
+                across: start.across,
+                toward: start.toward,
+                angle: atan2(end.toward - start.toward, end.across - start.across),
+                length: hypot(end.across - start.across, end.toward - start.toward),
+                cut: strips[index].cut
+            )
+        }
+    }
+
+    /// The two ends of a leaf `depth` thick cut into `strips`, each as a strip running from its front
+    /// face to its back one: at the free edge, and at the hinge.
+    public func edges(depth: CGFloat, of strips: [Strip]) -> (fore: Strip, spine: Strip)? {
+        guard let first = strips.first, let last = strips.last else { return nil }
+
+        let fore = Strip(
+            across: last.across + last.length * cos(last.angle),
+            toward: last.toward + last.length * sin(last.angle),
+            angle: last.angle - .pi / 2,
+            length: depth,
+            cut: 1 ... 1
+        )
+        let spine = Strip(
+            across: first.across,
+            toward: first.toward,
+            angle: first.angle - .pi / 2,
+            length: depth,
+            cut: 0 ... 0
+        )
+
+        return (fore, spine)
+    }
+
     /// How far round the sheet has turned at a point along it, the hinge being nought and the free edge one.
     public func angle(at along: CGFloat) -> CGFloat {
         let lead = Self.lead * sin(turned * .pi) * pow(along, Self.stiffness)

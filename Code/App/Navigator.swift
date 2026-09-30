@@ -100,7 +100,11 @@ final class Navigator {
         // wrong size by the time the book closes, and the zoom landed on one and left the other.
         if let source {
             // A cover in full view opens onto the page; anything else, a spine among them, zooms.
-            if let opening = BookOpening(from: source, paper: UIColor(dressing.settings.theme.background)) {
+            if let opening = BookOpening(
+                from: source,
+                paper: { [settings = dressing.settings] in UIColor(settings.theme.background) },
+                read: route.readingProgress ?? 0
+            ) {
                 screen.opening = opening
                 screen.transitioningDelegate = opening
                 opening.shuts(screen)

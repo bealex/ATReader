@@ -193,7 +193,12 @@ enum WorkScreen {
             if let model, let summary = model.summary, let chapterId = model.resumeChapterId {
                 Button(summary.hasStartedReading ? "Continue" : "Read") {
                     navigator.present(
-                        .reader(.init(workId: model.workId, title: summary.title, chapterId: chapterId)),
+                        .reader(.init(
+                            workId: model.workId,
+                            title: summary.title,
+                            chapterId: chapterId,
+                            readingProgress: summary.readingProgress
+                        )),
                         from: { cover.face(during: $0) }
                     )
                 }

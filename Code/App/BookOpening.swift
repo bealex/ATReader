@@ -11,19 +11,25 @@ import UIKit
 @MainActor
 final class BookOpening: NSObject {
     private let source: @MainActor @Sendable (BookZoom) -> UIView?
-    private let paper: UIColor
+    private let paper: @MainActor () -> UIColor
+    private let read: Double
     private weak var screen: UIViewController?
     private var dragging: Run?
     private var beganAtTopEdge = false
 
-    /// An opening out of `source` onto a page of `paper`, or nothing where what it stands for is not a
-    /// cover in full view.
-    init?(from source: @escaping @MainActor @Sendable (BookZoom) -> UIView?, paper: UIColor) {
+    /// An opening out of `source` onto a page of `paper`, asked for afresh each run, `read` of the way into
+    /// the book; nothing where what it stands for is not a cover in full view.
+    init?(
+        from source: @escaping @MainActor @Sendable (BookZoom) -> UIView?,
+        paper: @escaping @MainActor () -> UIColor,
+        read: Double
+    ) {
         guard !UIAccessibility.isReduceMotionEnabled, let face = source(.running) else { return nil }
         guard let window = face.window, Self.cover(in: face, seenFrom: window) != nil else { return nil }
 
         self.source = source
         self.paper = paper
+        self.read = read
     }
 
     /// Lets a drag down `screen` shut the book.
@@ -70,7 +76,7 @@ final class BookOpening: NSObject {
 
         switch drag.state {
             case .began:
-                dragging = Run(source: source, paper: paper, opens: false)
+                dragging = Run(source: source, paper: paper(), read: read, opens: false)
                 screen?.dismiss(animated: true)
             case .changed:
                 dragging?.follow(grown: 1 - travel, moved: CGVector(dx: moved.x, dy: moved.y))
@@ -128,11 +134,11 @@ extension BookOpening: UIViewControllerTransitioningDelegate {
         presenting: UIViewController,
         source: UIViewController
     ) -> UIViewControllerAnimatedTransitioning? {
-        Run(source: self.source, paper: paper, opens: true)
+        Run(source: self.source, paper: paper(), read: read, opens: true)
     }
 
     func animationController(forDismissed dismissed: UIViewController) -> UIViewControllerAnimatedTransitioning? {
-        dragging ?? Run(source: source, paper: paper, opens: false)
+        dragging ?? Run(source: source, paper: paper(), read: read, opens: false)
     }
 
     func interactionControllerForDismissal(
@@ -142,11 +148,25 @@ extension BookOpening: UIViewControllerTransitioningDelegate {
     }
 }
 
+/// A screen a book opens onto: how far into the book it stands, and the page before its own.
+@MainActor
+protocol OpensOntoPage: AnyObject {
+    /// How much of the book lies before the page, once the screen knows.
+    var readShare: Double? { get }
+
+    /// Whether the page before the one shown is set; never at the book's first page.
+    var isPageBeforeReady: Bool { get }
+
+    /// Draws the page before the one shown into `context`, at the screen's size.
+    func drawPageBefore(in context: CGContext)
+}
+
 /// One opening or shutting, run against a clock or by a finger.
 @MainActor
 private final class Run: NSObject {
     private let source: @MainActor @Sendable (BookZoom) -> UIView?
     private let paper: UIColor
+    private let read: Double
     private let opens: Bool
     private var context: UIViewControllerContextTransitioning?
     private var book: OpeningBook?
@@ -190,9 +210,10 @@ private final class Run: NSObject {
         }
     }
 
-    init(source: @escaping @MainActor @Sendable (BookZoom) -> UIView?, paper: UIColor, opens: Bool) {
+    init(source: @escaping @MainActor @Sendable (BookZoom) -> UIView?, paper: UIColor, read: Double, opens: Bool) {
         self.source = source
         self.paper = paper
+        self.read = read
         self.opens = opens
         open = opens ? 0 : 1
     }
@@ -251,7 +272,20 @@ private final class Run: NSObject {
             return Self.backed(cover.picture, by: ground, at: container.convert(cover.frame, to: ground))
         }
 
-        book = OpeningBook(page: page, in: container, cover: frame, picture: picture, paper: paper)
+        let reader = context.viewController(forKey: opens ? .to : .from) as? OpensOntoPage
+
+        book = OpeningBook(
+            page: page,
+            in: container,
+            cover: frame,
+            picture: picture,
+            paper: paper,
+            read: CGFloat(reader?.readShare ?? read),
+            pageBefore: OpeningBook.PageBefore(
+                isReady: { [weak reader] in reader?.isPageBeforeReady ?? false },
+                draw: { [weak reader] context in reader?.drawPageBefore(in: context) }
+            )
+        )
         book?.draw(open: open)
         CATransaction.commit()
     }

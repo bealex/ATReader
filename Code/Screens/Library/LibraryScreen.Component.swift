@@ -394,7 +394,10 @@ enum LibraryScreen {
 
         /// Opening a book off the shelf, which it grows out of: the very board its artwork is on.
         private func open(_ work: Book, from face: @escaping @MainActor @Sendable (BookZoom) -> UIView?) {
-            navigator.present(.reader(.init(workId: work.id, title: work.title)), from: face)
+            navigator.present(
+                .reader(.init(workId: work.id, title: work.title, readingProgress: work.readingProgress)),
+                from: face
+            )
         }
 
         private func bookDeeds(work: Book, hand: BookInHand) -> [Deed] {

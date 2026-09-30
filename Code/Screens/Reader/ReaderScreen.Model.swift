@@ -1738,6 +1738,6 @@ extension ReaderScreen {
 
         /// How far into the whole book the reader is: the end of the sheet in front of them. The library
         /// draws its ring from this, since the service keeps no progress of its own.
-        private var bookProgress: Double { currentSheet.map { progress(at: $0.end) } ?? 0 }
+        var bookProgress: Double { currentSheet.map { progress(at: $0.end) } ?? 0 }
     }
 }

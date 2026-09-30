@@ -29,11 +29,21 @@ enum AppRoute: Hashable {
         let title: String
         /// `nil` asks the reader to resume where the service says the reader stopped.
         let chapterId: Int?
+        /// How far into the book the reader stopped, from nought to one, where the opener knows.
+        let readingProgress: Double?
 
-        init(workId: Int, title: String, chapterId: Int? = nil) {
+        init(workId: Int, title: String, chapterId: Int? = nil, readingProgress: Double? = nil) {
             self.workId = workId
             self.title = title
             self.chapterId = chapterId
+            self.readingProgress = readingProgress
         }
+    }
+
+    /// How far into the book a route to the reader stops, where it knows.
+    var readingProgress: Double? {
+        guard case let .reader(reader) = self else { return nil }
+
+        return reader.readingProgress
     }
 }

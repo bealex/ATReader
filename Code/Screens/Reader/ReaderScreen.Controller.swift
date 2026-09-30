@@ -212,6 +212,9 @@ extension ReaderScreen {
             turner.reload()
         }
 
+        /// The view standing `step` sheets from the one in front of the reader, once it holds a sheet.
+        func turnerSheet(at step: Int) -> UIView? { atStep[step].flatMap { $0.sheet == nil ? nil : $0 } }
+
         /// A turn has landed: the book moves on, and the sheets move with it in the same frame.
         private func turned(_ move: (Model) -> Void) {
             move(model)
@@ -439,5 +442,31 @@ extension ReaderScreen {
 
             return stage.touchAreas.values.contains { $0.contains(inWindow) } ? hit : nil
         }
+    }
+}
+
+extension ReaderScreen.Controller: OpensOntoPage {
+    var readShare: Double? { model.currentSheet == nil ? nil : model.bookProgress }
+
+    var isPageBeforeReady: Bool { model.canTurnBack && (turnerSheet(at: -1)?.bounds.width ?? 0) > 0 }
+
+    func drawPageBefore(in context: CGContext) {
+        guard let before = turnerSheet(at: -1) else { return }
+
+        before.updatePropertiesIfNeeded()
+        before.layoutIfNeeded()
+
+        // The page turner keeps it at no opacity until a turn brings it in.
+        let alpha = before.alpha
+
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        before.alpha = 1
+        defer {
+            before.alpha = alpha
+            CATransaction.commit()
+        }
+
+        before.layer.render(in: context)
     }
 }
