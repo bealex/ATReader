@@ -507,7 +507,7 @@ enum DesignSystemScreen {
                     // cover on the shelf are one picture: the board's cut, its crease, and the shelf's
                     // shade at its foot. The last is a book whose artwork nobody has loaded.
                     specimen("Cover") {
-                        HStack(alignment: .top, spacing: Design.Space.medium) {
+                        FlowLayout(spacing: Design.Space.medium, lineSpacing: Design.Space.medium) {
                             ForEach(Self.readingSpecimens.indices, id: \.self) { index in
                                 let specimen = Self.readingSpecimens[index]
 

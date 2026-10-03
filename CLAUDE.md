@@ -226,6 +226,9 @@ licensing rather than secrecy. An unconfigured build must keep working for every
   come from the window; a size that follows the safe area moves the text every time a toolbar appears.
 - **The reader's position is a character offset, not a page number.** Changing the font re-paginates,
   and a page index means nothing across a restyle.
+- **SwiftUI ignores a `UIImage`'s cap insets.** `Image(uiImage:).resizable()` scales a stretchable
+  picture whole, corners and all. Pass the insets to `resizable(capInsets:resizingMode:)`, as
+  `CoverImage` does for `CoverPrint.blank`. A `UIImageView` respects them on its own.
 - **A view at no opacity is still there.** Hiding chrome with `.opacity(0)` leaves every button of it
   in the accessibility tree: VoiceOver reads them out and a UI test finds them by name.
   `.accessibilityHidden()` does not reach through `GlassRow`, whose buttons sit under `.glassEffect`.

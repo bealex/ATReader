@@ -75,8 +75,13 @@ struct CoverImage: View {
                     .transition(.opacity)
             } else {
                 // The bare board until this book's own face is printed, which is what the shelf stands.
-                Image(uiImage: CoverPrint.blank(isDark: scheme == .dark))
-                    .resizable()
+                // SwiftUI ignores a UIImage's cap insets, so they're handed over or the corners stretch.
+                let blank = CoverPrint.blank(isDark: scheme == .dark)
+                let caps = blank.capInsets
+                let held = EdgeInsets(top: caps.top, leading: caps.left, bottom: caps.bottom, trailing: caps.right)
+
+                Image(uiImage: blank)
+                    .resizable(capInsets: held, resizingMode: .stretch)
                     .overlay { if url == nil { emptyMark } }
             }
         }
