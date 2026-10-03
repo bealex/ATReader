@@ -87,6 +87,8 @@ public struct WorkDetails: Decodable, Sendable, Identifiable {
     public let coAuthorFIO: String?
     public let seriesId: Int?
     public let seriesTitle: String?
+    /// Every published work in the series, in the series' own order.
+    public let seriesWorkIds: [Int]?
     public let textLength: Int?
     public let textLengthLastRead: Int?
     public let isFinished: Bool?

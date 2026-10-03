@@ -210,8 +210,12 @@ sent and stores nothing.
 Once a day a `BGAppRefresh` task walks the library, counts the chapters this device has never seen,
 downloads them and then backfills whatever else is still missing, within a budget per sweep, and puts
 the count on the app icon. The same sweep runs in the foreground when the library opens and a day has
-passed, so the badge stays current even if the system never grants a background window. Opening a book
-clears its share of the badge.
+passed, so the badge stays current even if the system never grants a background window. Each book that
+gained chapters gets an alert, and opening it clears both its alert and its share of the badge.
+
+The same daily pass looks through every author.today series in the library. A book published in one
+since the device last looked goes onto the reader's Saved shelf on author.today, lands beside its series
+and gets an alert of its own.
 
 Covers are kept in Application Support too, downsampled on the way in, capped at 2000 with the least
 recently used dropped.

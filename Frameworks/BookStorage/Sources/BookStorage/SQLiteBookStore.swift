@@ -363,6 +363,35 @@ public actor SQLiteBookStore {
         return statement.step()
     }
 
+    // MARK: - Series being watched
+
+    /// Every book of each watched series the device has already seen, keyed by the service's series id.
+    public func seenSeriesBooks() -> [Int: Set<Int>] {
+        guard let statement = Statement(open(), "SELECT series_id, work_id FROM series_seen") else { return [:] }
+
+        var found: [Int: Set<Int>] = [:]
+
+        while statement.step() { found[statement.integer(0), default: []].insert(statement.integer(1)) }
+
+        return found
+    }
+
+    /// Records books as seen in a series, so only a book published after them counts as new.
+    public func markSeen(workIds: [Int], inSeries seriesId: Int) {
+        let query = "INSERT OR IGNORE INTO series_seen (series_id, work_id) VALUES (?, ?)"
+
+        transaction {
+            guard let statement = Statement(open(), query) else { return }
+
+            for workId in workIds {
+                statement.reset()
+                statement.bind(1, seriesId)
+                statement.bind(2, workId)
+                statement.execute()
+            }
+        }
+    }
+
     // MARK: - Series the reader made
 
     /// A book's place in a series the reader put together.
@@ -1105,6 +1134,7 @@ public actor SQLiteBookStore {
         createCoverShapeTable()
         createBookShapeTable()
         createAuthorAliasTable()
+        createSeriesSeenTable()
         addCompletionColumns()
         addReadingDates()
         addPutAwayDate()
@@ -1325,6 +1355,19 @@ public actor SQLiteBookStore {
     /// them says the two are one person. Only the reader knows, so what they say is kept.
     private func createAuthorAliasTable() {
         execute("CREATE TABLE IF NOT EXISTS author_alias (name TEXT PRIMARY KEY, canonical TEXT NOT NULL)")
+    }
+
+    /// Which books of each series the device has seen, so a series' next book can be told from its old ones.
+    private func createSeriesSeenTable() {
+        execute(
+            """
+            CREATE TABLE IF NOT EXISTS series_seen (
+                series_id INTEGER NOT NULL,
+                work_id INTEGER NOT NULL,
+                PRIMARY KEY (series_id, work_id)
+            )
+            """
+        )
     }
 
     /// Every name held under another, read in one go: the shelf files each book by its author

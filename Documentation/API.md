@@ -206,6 +206,10 @@ tags and view counts), `realTotalCount`, `isLastPage`.
 | `GET /v1/work/{workId}/chapter/{chapterId}/text` | one chapter, encrypted |
 | `GET /v1/work/{workId}/chapter/many-texts` | up to 100 chapters at once |
 
+The API has no series endpoint. Work details carry `seriesWorkIds`, every published work in the
+series in order, and that's how a client lists one. It answers a guest too. `/v1/catalog/search`
+takes a `series` parameter in the Swagger document, but given a series id it answers `NotFound`.
+
 The table of contents lists chapters the reader can't open as well as ones they can, so filter on
 `isAvailable != false && isDraft != true`. Show locked chapters greyed out rather than hidden, since
 that's what the site does.

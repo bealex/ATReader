@@ -1353,7 +1353,7 @@ extension LibraryScreen {
             guard !books.isEmpty else { return }
 
             // Asked here rather than at launch: a signed-in reader with a shelf is who the badge is for.
-            await UpdateBadge.requestBadgePermission()
+            await UpdateBadge.requestPermission()
 
             _ = await ChapterUpdateService(client: session.client).sweep(
                 works: books,
@@ -1364,6 +1364,14 @@ extension LibraryScreen {
             newChaptersByWork = UpdateBadge.newChaptersByWork
             // Storing a table of contents re-derives that book's progress, so the rings are read back.
             await refreshFromStore()
+        }
+
+        /// Saves the new books of the reader's series to their library, then asks for the library again so
+        /// they arrive on the shelf.
+        private func findNewBooks(of library: [WorkMetaInfo]) async {
+            guard await SeriesWatch(client: session.client, store: store).saveNewBooks(of: library) > 0 else { return }
+
+            await reload()
         }
 
         /// The books the service has touched since this device last saw them, plus the ones it has
@@ -1380,10 +1388,11 @@ extension LibraryScreen {
 
         /// The walk runs behind the list rather than under the refresh spinner: it is one request per
         /// changed book, and the shelf is already on screen.
-        private func startSweep(since previous: [Book], in entries: [Book]) {
+        private func startSweep(since previous: [Book], in entries: [Book], library: [WorkMetaInfo]) {
             guard sweepTask == nil else { return }
 
             sweepTask = Task { [weak self] in
+                await self?.findNewBooks(of: library)
                 await self?.findNewChapters(since: previous, in: entries)
                 self?.sweepTask = nil
             }
@@ -1439,7 +1448,7 @@ extension LibraryScreen {
                 apply(entries: merged.isEmpty ? entries : merged)
                 isOffline = false
                 hasLoaded = true
-                startSweep(since: previous, in: entries)
+                startSweep(since: previous, in: entries, library: library.worksInLibrary)
             } catch let error as AuthorTodayError where error.requiresReauthentication {
                 errorMessage = error.localizedDescription
             } catch {

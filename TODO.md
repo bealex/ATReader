@@ -85,7 +85,7 @@ What's still open, roughly in the order it would bite. Finished work isn't liste
       explanation of why a chapter won't open.
 - [ ] Series navigation. `seriesId` and `seriesNextWorkId` are modelled and unused.
 - [ ] Marking a book finished from inside the reader instead of only from the book page.
-- [ ] Notifications for new chapters. The badge exists; nothing is ever delivered.
+- [ ] Opening the book from a new-chapter or new-book alert. A tap opens the app and nothing more.
 - [ ] A foldable half-opened. Treated as one screen, which is wrong once there's a hinge across it.
 - [ ] The UI suite is written for a phone-shaped screen. `app.tab(_:)` finds the tabs either way now,
       but seventeen normalized-coordinate taps still assume one full-width page. On an iPad

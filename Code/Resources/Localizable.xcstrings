@@ -163,10 +163,52 @@
     "%lld new chapters": {
       "extractionState": "manual",
       "localizations": {
+        "en": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld new chapter"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld new chapters"
+                }
+              }
+            }
+          }
+        },
         "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "новых глав: %lld"
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld новая глава"
+                }
+              },
+              "few": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld новые главы"
+                }
+              },
+              "many": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld новых глав"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld новой главы"
+                }
+              }
+            }
           }
         }
       }
@@ -2197,6 +2239,28 @@
     "New York": {
       "extractionState": "manual",
       "shouldTranslate": false
+    },
+    "New book": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Новая книга"
+          }
+        }
+      }
+    },
+    "New book in %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Новая книга в серии «%@»"
+          }
+        }
+      }
     },
     "Next": {
       "extractionState": "manual",

@@ -797,10 +797,24 @@ and leaves the list responsive while it runs. The daily pass walks every book an
 budget; only that pass dates `lastCheckedAt`, and clearing a book's count when the reader opens it
 doesn't, or reading daily would push the next full pass a day out every time.
 
+`SeriesWatch` looks for new books in the reader's author.today series once a day, ahead of the sweep
+in both places. For each series on a shelf other than Disliked, it asks `/v1/work/{id}/details` about
+the latest held book, and its `seriesWorkIds` lists the whole series. A book there that the device has
+never seen in that series goes to the service's Saved shelf, and the caller fetches the library again,
+so it arrives as a cover like any other new book. The `series_seen` table holds what each series listed last
+time. A series met for the first time is taken as it stands, so adding book one of a finished run
+doesn't bring in the other nine, and a book the reader takes off the shelf stays seen and stays off.
+
 `UpdateBadge` keeps per-book counts in user defaults, which the UI reads synchronously while drawing,
 and sets the app icon badge through `UNUserNotificationCenter`. Opening a book clears its share. The
-library screen asks for the badge permission before its first sweep, and reads the counts back
-whenever the app comes to the foreground, since a background run writes them where nothing observes.
+library screen asks for the badge and alert permission before its first sweep, and reads the counts
+back whenever the app comes to the foreground, since a background run writes them where nothing
+observes.
+
+`UpdateNotices` posts the alerts: one per book that gained chapters, and one per new series book
+`SeriesWatch` saved. A book's chapter alert reuses one identifier, so a later sweep replaces it with
+the running count, and opening the book withdraws it. With no notification delegate, an alert posted
+while the app is in front isn't shown, which suits it: the shelf is already showing the same news.
 
 ## Testing seams
 

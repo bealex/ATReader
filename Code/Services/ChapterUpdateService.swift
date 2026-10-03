@@ -41,7 +41,12 @@ struct ChapterUpdateService: Sendable {
     /// Walks the books being read and reports what is new. Throws only when the library cannot be read.
     @discardableResult
     func check(chapterBudget: Int = ChapterUpdateService.foregroundChapterBudget) async throws -> Result {
-        let library = try await client.fullUserLibrary()
+        var library = try await client.fullUserLibrary()
+
+        if await SeriesWatch(client: client, store: store).saveNewBooks(of: library.worksInLibrary) > 0 {
+            library = try await client.fullUserLibrary()
+        }
+
         let works = library.worksInLibrary.map(Book.init)
 
         await store.replaceLibrary(with: works)
@@ -88,6 +93,7 @@ struct ChapterUpdateService: Sendable {
 
         let result = Result(newChaptersByWork: counts, titlesByWork: titles)
         await UpdateBadge.record(result, isComplete: isComplete)
+        await UpdateNotices.post(result)
         return result
     }
 
@@ -147,6 +153,7 @@ enum UpdateBadge {
         var counts = newChaptersByWork
         counts.removeValue(forKey: workId)
         write(counts)
+        UpdateNotices.withdrawChapters(of: workId)
         await applyBadge()
     }
 
@@ -174,8 +181,8 @@ enum UpdateBadge {
         try? await UNUserNotificationCenter.current().setBadgeCount(count)
     }
 
-    /// The badge needs the notification permission even though the app posts no alerts.
-    static func requestBadgePermission() async {
-        _ = try? await UNUserNotificationCenter.current().requestAuthorization(options: [ .badge ])
+    /// Asks once for the badge and the alerts ``UpdateNotices`` posts.
+    static func requestPermission() async {
+        _ = try? await UNUserNotificationCenter.current().requestAuthorization(options: [ .badge, .alert ])
     }
 }
