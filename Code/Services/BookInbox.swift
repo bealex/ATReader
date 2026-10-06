@@ -32,6 +32,10 @@ final class BookInbox {
     /// through the typesetter rather than only redrawing once.
     private(set) var lastAccepted: Int?
 
+    /// Who last said the shelf changed, where they said so themselves.
+    @ObservationIgnored
+    private(set) var changedBy: ObjectIdentifier?
+
     private(set) var errorMessage: String?
 
     /// Says the shelf has changed, for a part of the app that changed it without coming through here.
@@ -39,8 +43,12 @@ final class BookInbox {
     /// A synchronisation writes straight to the store, and a screen showing the shelf has no other way
     /// to learn that its books have moved under it. No book landed, so the last one to land is cleared:
     /// a shelf told otherwise would follow a book it has already taken in instead of reading the store.
-    func libraryChanged() {
+    ///
+    /// - Parameter origin: whoever changed it and has it on screen already, which lets them sit this
+    ///   one out while every other window reads the store.
+    func libraryChanged(by origin: AnyObject? = nil) {
         lastAccepted = nil
+        changedBy = origin.map(ObjectIdentifier.init)
         importedAt = .now
     }
 
@@ -68,6 +76,7 @@ final class BookInbox {
         do {
             let work = try await BookImporting.reimport(workId: workId, store: store)
             await processor.start(workId: work.id, chapters: store.chapters(workId: work.id))
+            changedBy = nil
             importedAt = .now
             return work
         } catch {
@@ -132,6 +141,7 @@ final class BookInbox {
             let work = try await BookImporting.import(from: url, store: store)
             await processor.start(workId: work.id, chapters: store.chapters(workId: work.id))
             lastAccepted = work.id
+            changedBy = nil
             importedAt = .now
             return work
         } catch {

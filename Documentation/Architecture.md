@@ -100,6 +100,37 @@ The session is meant to outlive the token. Tokens last a day, and three things k
 - Only a rejected token signs the reader out. A launch with no network restores the stored user and
   sets `isOffline`, so the app opens on the library rather than the sign-in screen.
 
+### Several windows
+
+The Info.plist doesn't ask for multiple scenes, but nothing in the app may depend on there being one
+window. What two windows share and what each owns:
+
+- **Shared**: the session, the reader's settings, the inbox and the store. `BookholdApp` holds them
+  and hands the same ones to every window.
+- **Per window**: the navigators, every screen's model, and an open reader.
+
+A window's model is a copy of the store, so it has to be told when another window writes.
+`BookInbox.libraryChanged(by:)` is that signal. The library's model raises it after every change it
+writes, and a navigator raises it when a book is closed. Whoever raised it is named, so the window
+that made the change, and has it on screen already, sits it out.
+
+Three rules follow from the store being shared:
+
+- **A window writes what it changed and nothing else.** Taking a book off the shelves deletes that
+  book (`takeOffShelves`). Writing the window's whole list back would drop a book another window
+  had just added.
+- **A reader writes its place only after it has moved.** Every open reader is told when the app
+  leaves the screen, and a window left idle on a book would otherwise put its old place over the
+  one another window read on to.
+- **What counts and stores is one step in the store.** `takeIn(chapters:workId:)` says which
+  chapters are new and stores the contents together, so two windows sweeping at once count a
+  chapter once.
+
+Work done once a launch is gated by hand. A `.task` on the window group's content runs for every
+window, which is why the launch housekeeping checks a flag and `FirstBook` sets its mark before it
+reads the book in. Anything that reaches for a scene asks all of them (`OrientationLock`) or the one
+in front (`SystemAppearance`), never the first in the list.
+
 ### One row type, three sources
 
 The library, the catalogue and a work's own details return three different shapes for the same idea.

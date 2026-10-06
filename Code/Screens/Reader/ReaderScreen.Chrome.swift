@@ -430,8 +430,10 @@ extension ReaderScreen {
 
             /// Where the page's size came from and what each page on screen was cut against.
             private var layoutReport: String {
-                let scene = UIApplication.shared.connectedScenes.first { $0 is UIWindowScene } as? UIWindowScene
-                let window = scene?.keyWindow
+                let window = UIApplication.shared.connectedScenes
+                    .compactMap { $0 as? UIWindowScene }
+                    .flatMap(\.windows)
+                    .first(where: \.isKeyWindow)
                 let bounds = window?.bounds.size ?? .zero
                 let insets = window?.safeAreaInsets ?? .zero
                 let asked = stage.layoutContext.textSize

@@ -197,7 +197,11 @@ final class Navigator {
         return options
     }
 
-    fileprivate func cameBack() { returnedAt = .now }
+    fileprivate func cameBack() {
+        returnedAt = .now
+        // Another window showing the shelf has no other way to learn a book was read in this one.
+        BookInbox.shared.libraryChanged(by: self)
+    }
 }
 
 /// A screen presented over everything, which holds its own opening and reports its own coming and going.

@@ -81,6 +81,12 @@ enum LibraryScreen {
                 .onChange(of: inbox.importedAt) { _, _ in
                     // A book picked in the profile, or handed over by another app, lands in the store
                     // rather than in this screen.
+                    // This window's own changes are on screen already; the signal is for the others.
+                    guard
+                        inbox.changedBy != ObjectIdentifier(model),
+                        inbox.changedBy != ObjectIdentifier(navigator)
+                    else { return }
+
                     Task {
                         guard let workId = inbox.lastAccepted else { return await model.refreshFromStore() }
 

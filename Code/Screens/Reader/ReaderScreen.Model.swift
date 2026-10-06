@@ -136,6 +136,11 @@ extension ReaderScreen {
         @ObservationIgnored
         private var positionSaver: Task<Void, Never>?
 
+        /// True from a move until it is written. A reader that hasn't moved writes nothing, so a
+        /// window left on a book can't put its place over the one another window read on to.
+        @ObservationIgnored
+        private var hasUnwrittenMove = false
+
         /// The chapters whose marks have been given their words, for the layout now in force.
         @ObservationIgnored
         private var rememberedChapters: Set<Int> = []
@@ -1683,14 +1688,16 @@ extension ReaderScreen {
             guard let position = storedPosition else { return }
 
             let overall = bookProgress
+            hasUnwrittenMove = true
             positionSaver?.cancel()
-            positionSaver = Task { [store, workId] in
+            positionSaver = Task { [weak self, store, workId] in
                 if !now {
                     try? await Task.sleep(for: .milliseconds(400))
 
                     guard !Task.isCancelled else { return }
                 }
 
+                self?.hasUnwrittenMove = false
                 await store.store(position: .init(
                     workId: workId,
                     chapterId: position.chapterId,
@@ -1714,8 +1721,16 @@ extension ReaderScreen {
             positionSaver?.cancel()
 
             guard let position = storedPosition else { return }
+            guard
+                hasUnwrittenMove
+            else {
+                if tellsLibrary { BookInbox.shared.libraryChanged() }
+
+                return reportProgress(force: true)
+            }
 
             let overall = bookProgress
+            hasUnwrittenMove = false
 
             Task { [store, workId] in
                 await store.store(position: .init(

@@ -74,8 +74,7 @@ struct ChapterUpdateService: Sendable {
         for work in reading {
             guard let contents = try? await client.workContents(id: work.id).map(BookChapter.init) else { continue }
 
-            let fresh = await store.unseenChapters(workId: work.id, in: contents)
-            await store.store(chapters: contents, workId: work.id)
+            let fresh = await store.takeIn(chapters: contents, workId: work.id)
 
             if !fresh.isEmpty {
                 counts[work.id] = fresh.count

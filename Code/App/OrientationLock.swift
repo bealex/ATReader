@@ -47,20 +47,21 @@ enum OrientationLock {
         settle()
     }
 
-    /// Asks every controller on screen again, the presented ones included, since the topmost is the one
-    /// the system turns with.
+    /// Asks every controller on screen again, in every window and the presented ones included, since
+    /// the topmost is the one the system turns with.
     private static func settle() {
-        let scene = UIApplication.shared.connectedScenes.first { $0 is UIWindowScene } as? UIWindowScene
-        var controller = scene?.keyWindow?.rootViewController
+        for scene in UIApplication.shared.connectedScenes.compactMap({ $0 as? UIWindowScene }) {
+            for window in scene.windows {
+                var controller = window.rootViewController
 
-        while let asked = controller {
-            asked.setNeedsUpdateOfSupportedInterfaceOrientations()
-            controller = asked.presentedViewController
+                while let asked = controller {
+                    asked.setNeedsUpdateOfSupportedInterfaceOrientations()
+                    controller = asked.presentedViewController
+                }
+            }
+
+            if mask == .portrait { scene.requestGeometryUpdate(.iOS(interfaceOrientations: .portrait)) }
         }
-
-        guard mask == .portrait else { return }
-
-        scene?.requestGeometryUpdate(.iOS(interfaceOrientations: .portrait))
     }
 }
 

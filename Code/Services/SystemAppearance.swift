@@ -31,7 +31,11 @@ enum SystemAppearance {
         }
     }
 
+    /// A scene in front where there is one: every scene answers alike, but one being closed stops
+    /// telling anybody anything.
     private static var scene: UIWindowScene? {
-        UIApplication.shared.connectedScenes.first { $0 is UIWindowScene } as? UIWindowScene
+        let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
+
+        return scenes.first { $0.activationState == .foregroundActive } ?? scenes.first
     }
 }

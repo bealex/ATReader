@@ -355,6 +355,19 @@ public actor SQLiteBookStore {
         )
     }
 
+    /// Takes one service book off the shelves, leaving the rest of the library as it stands.
+    public func takeOffShelves(workId: Int) {
+        let query = """
+            DELETE FROM work WHERE id = ? AND library_state IS NOT NULL
+                AND id NOT IN (SELECT work_id FROM local_book)
+            """
+
+        guard let statement = Statement(open(), query) else { return }
+
+        statement.bind(1, workId)
+        statement.execute()
+    }
+
     private func hasLibrary() -> Bool {
         guard
             let statement = Statement(open(), "SELECT 1 FROM work WHERE library_state IS NOT NULL LIMIT 1")
@@ -779,6 +792,15 @@ public actor SQLiteBookStore {
     /// The chapters the service now lists that this device has never seen.
     ///
     /// A book with nothing stored yet has no news to report: everything already published is not new.
+    /// Stores a book's contents and answers which chapters were new, in one step: two sweeps at once
+    /// would otherwise each count the same chapters.
+    public func takeIn(chapters: [BookChapter], workId: Int) -> [Int] {
+        let fresh = unseenChapters(workId: workId, in: chapters)
+
+        store(chapters: chapters, workId: workId)
+        return fresh
+    }
+
     public func unseenChapters(workId: Int, in current: [BookChapter]) -> [Int] {
         let known = Set(chapters(workId: workId).map(\.id))
 

@@ -24,7 +24,8 @@ enum FirstBook {
         guard !defaults.bool(forKey: mark) else { return }
         guard let book = Bundle.main.url(forResource: file, withExtension: "zip") else { return }
 
-        await inbox.accept(book)
+        // Marked before the reading-in, so a second window opening meanwhile doesn't offer it again.
         defaults.set(true, forKey: mark)
+        await inbox.accept(book)
     }
 }

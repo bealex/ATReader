@@ -226,6 +226,10 @@ licensing rather than secrecy. An unconfigured build must keep working for every
   come from the window; a size that follows the safe area moves the text every time a toolbar appears.
 - **The reader's position is a character offset, not a page number.** Changing the font re-paginates,
   and a page index means nothing across a restyle.
+- **A `.task` on the window group's content runs once a window.** So does everything else hung there,
+  and each window's models are copies of the one store. Gate launch work by hand, write only what a
+  window changed, and say so through `BookInbox.libraryChanged(by:)`. See "Several windows" in
+  `Documentation/Architecture.md`.
 - **SwiftUI ignores a `UIImage`'s cap insets.** `Image(uiImage:).resizable()` scales a stretchable
   picture whole, corners and all. Pass the insets to `resizable(capInsets:resizingMode:)`, as
   `CoverImage` does for `CoverPrint.blank`. A `UIImageView` respects them on its own.

@@ -39,6 +39,8 @@ struct BookholdApp: App {
     @State
     private var held = HeldBooks()
 
+    private static var hasKeptHouse = false
+
     /// Hands the typesetter the picture shelf before anything asks it to set a page.
     init() {
         Renderers.connect()
@@ -65,6 +67,12 @@ struct BookholdApp: App {
                 // be read again for a book about to be dropped. Then every book read by a build that
                 // made less of its file than this one does is read again, from the file kept for it.
                 .task(priority: .utility) {
+                    // Once a launch: every window runs this, and two passes at once would trip over
+                    // each other's files.
+                    guard !Self.hasKeptHouse else { return }
+
+                    Self.hasKeptHouse = true
+
                     if await BookInstaller.removeDuplicates() > 0 { inbox.libraryChanged() }
 
                     // Covers a file brought are kept at the size a screen can use. Ones taken in before

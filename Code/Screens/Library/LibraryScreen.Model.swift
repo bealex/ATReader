@@ -892,6 +892,7 @@ extension LibraryScreen {
 
             await store.store(aliases: names.map(Self.plain), canonical: name)
             await refreshFromStore()
+            tellOtherWindows()
         }
 
         /// The name a writer is filed under: the one the reader chose where they held two names together,
@@ -926,6 +927,7 @@ extension LibraryScreen {
             // is not an arrangement, and the books say for themselves which volume each of them is.
             await store.store(series: name, workIds: picked.flatMap { $0.works.map(\.id) })
             await refreshFromStore()
+            tellOtherWindows()
         }
 
         /// The whole shelf as one card an author, under the filter.
@@ -1180,6 +1182,7 @@ extension LibraryScreen {
         func reorder(series: String, workIds: [Int]) async {
             await store.store(order: workIds, series: series)
             await refreshFromStore()
+            tellOtherWindows()
         }
 
         /// Gives a series back to whatever the service and the files say, and takes the name off it.
@@ -1188,6 +1191,7 @@ extension LibraryScreen {
 
             await store.removeFromCustomSeries(workIds: ids)
             await refreshFromStore()
+            tellOtherWindows()
         }
 
         // MARK: - Books from files
@@ -1222,6 +1226,7 @@ extension LibraryScreen {
             processing[work.id] = nil
             await BookProcessor.shared.stop(workId: work.id)
             await BookInstaller.remove(workId: work.id)
+            tellOtherWindows()
         }
 
         /// True for a book that came from a file rather than the service.
@@ -1460,8 +1465,13 @@ extension LibraryScreen {
             }
         }
 
+        /// Tells the other windows the shelf moved. This one has the change on screen already.
+        private func tellOtherWindows() { BookInbox.shared.libraryChanged(by: self) }
+
         /// Marks a book read through: the ring fills and the book page's chapter marks fill with it.
         func markAsRead(_ work: Book) async {
+            defer { tellOtherWindows() }
+
             if let index = works.firstIndex(where: { $0.id == work.id }) {
                 if !works[index].isReadToTheEnd { works[index].readAt = .now }
 
@@ -1507,6 +1517,7 @@ extension LibraryScreen {
             if let index = works.firstIndex(where: { $0.id == work.id }) { works[index].takenDownAt = .now }
 
             await store.takeDown(workId: work.id)
+            tellOtherWindows()
         }
 
         /// Marks a book read and stands it on its edge, which is the whole of being done with one.
@@ -1526,6 +1537,7 @@ extension LibraryScreen {
             if let index = works.firstIndex(where: { $0.id == work.id }) { works[index].putAwayAt = .now }
 
             await store.putAway(workId: work.id)
+            tellOtherWindows()
         }
 
         /// The book's chapters as the device has them, fetched if it has none.
@@ -1551,17 +1563,14 @@ extension LibraryScreen {
 
             do {
                 try await session.client.updateLibraryState(workIds: [ work.id ], state: LibraryState.none)
-                await persistLibrary()
+                await store.takeOffShelves(workId: work.id)
+                tellOtherWindows()
             } catch {
                 // The library the service holds wins, and the message goes on after the reload, which
                 // clears it.
                 await reload()
                 errorMessage = error.localizedDescription
             }
-        }
-
-        private func persistLibrary() async {
-            await store.replaceLibrary(with: works)
         }
 
         private func apply(entries: [Book]) {
