@@ -183,11 +183,13 @@ public struct ParagraphRuler {
             )
         }
 
-        // CoreText takes its colour from a key of its own; without this every page draws black.
+        // The ink is whoever draws the line's to choose, so a page takes another theme by being drawn
+        // again rather than set again. What a line keeps is how much of that ink a run takes.
+        piece.addAttribute(inkFromContext, value: true, range: whole)
         piece.enumerateAttribute(.foregroundColor, in: whole) { value, range, _ in
-            guard let color = value as? UIColor else { return }
+            guard let alpha = (value as? UIColor)?.cgColor.alpha, alpha < 1 else { return }
 
-            piece.addAttribute(foregroundColor, value: color.cgColor, range: range)
+            piece.addAttribute(inkShare, value: alpha, range: range)
         }
 
         return piece
@@ -395,7 +397,21 @@ public struct ParagraphRuler {
         }
     }
 
-    private static let foregroundColor = NSAttributedString.Key(kCTForegroundColorAttributeName as String)
+    private static let inkFromContext = NSAttributedString.Key(kCTForegroundColorFromContextAttributeName as String)
+    /// How much of the page's ink a run is drawn in, where that is less than all of it.
+    private static let inkShare = NSAttributedString.Key("BookRenderer.inkShare")
+
+    /// Draws a line in the ink given, run by run, since each run may take a different share of it.
+    static func draw(_ line: CTLine, ink: UIColor, into drawing: CGContext) {
+        let whole = ink.cgColor.alpha
+
+        for run in CTLineGetGlyphRuns(line) as? [CTRun] ?? [] {
+            let share = (CTRunGetAttributes(run) as NSDictionary)[inkShare] as? CGFloat ?? 1
+
+            drawing.setFillColor(ink.withAlphaComponent(whole * share).cgColor)
+            CTRunDraw(run, drawing, CFRange(location: 0, length: 0))
+        }
+    }
 
     public static let softHyphen = unichar(0x00AD)
     /// Ties a short word to the one after it, so no line may end on it.

@@ -850,8 +850,13 @@ public final class ChapterLayout {
     ///
     /// The text matrix is flipped because a UIKit context counts downwards and CoreText sets glyphs
     /// upwards; without it every line draws on its head.
-    public func draw(_ page: Page) {
+    ///
+    /// - Parameter palette: the colours to draw in, or nil for the ones the chapter was set with. The
+    ///   lines hold no colour of their own, so one layout draws in any theme.
+    public func draw(_ page: Page, palette: PagePalette? = nil) {
         guard let drawing = UIGraphicsGetCurrentContext() else { return }
+
+        let palette = palette ?? context.style.palette
 
         var cursor = context.textRect.minY + page.top
 
@@ -871,11 +876,7 @@ public final class ChapterLayout {
                 // depth gave up width with it.
                 let left = context.textRect.minX + (context.textSize.width - size.width) / 2
 
-                picture.draw(
-                    in: CGRect(origin: CGPoint(x: left, y: top), size: size),
-                    palette: context.style.palette,
-                    into: drawing
-                )
+                picture.draw(in: CGRect(origin: CGPoint(x: left, y: top), size: size), palette: palette, into: drawing)
                 cursor += allotted + page.leading
                 continue
             }
@@ -885,7 +886,7 @@ public final class ChapterLayout {
                     x: context.textRect.minX + line.origin,
                     y: cursor + baseline(of: number, on: page)
                 )
-                CTLineDraw(drawn, drawing)
+                ParagraphRuler.draw(drawn, ink: palette.foreground, into: drawing)
             }
 
             cursor += depth(of: number, on: page) + page.leading

@@ -81,8 +81,9 @@ Putting the dashes right comes before binding, since binding reads them, and so 
 decides which lines open on the dash of speech.
 
 `ChapterPagination` then sets the chapter as one `NSAttributedString` from a `ChapterTextStyle`: face,
-size, line spacing, letter spacing, justification, colour. Margins are deliberately not part of that
-style, because they shrink the frame rather than the text. The language the parser detected rides along
+size, line spacing, letter spacing, justification. Margins are deliberately not part of that style,
+because they shrink the frame rather than the text, and neither in effect is colour, which is laid on
+when a page is drawn (see [What the reader can set](#what-the-reader-can-set)). The language the parser detected rides along
 as `languageIdentifier`, which is what picks the hyphenation dictionary.
 
 Justification is settled per language, and the style carries both answers because which language a
@@ -669,13 +670,16 @@ itself, and would latch to whichever it opened on. An override reaches down and 
 scene's traits change. "Match the system" used to be a theme of its
 own and meant exactly what the switch does; a reader who chose it keeps what they chose.
 
-A page changes theme all at once. Ink is set into the lines, so the words take a new theme only when
-the chapter is set again, and that happens behind the page. Until the new sheet lands, `Stage.theme`
-answers with the theme the words on screen are in (`heldTheme`), and everything on the page is drawn
-from it: the paper, the running head, the folio and the marks. The controller asks for background
-time while a theme is held. The system wakes a suspended app to tell it the appearance changed and
-puts it back to sleep at once, and a setting cut off there would leave the old page up when the
-reader came back.
+A theme is no part of how a page is set. The lines carry no colour: `ParagraphRuler` marks every run
+to take its ink from the drawing context, and keeps only how much of that ink a fainter run takes.
+`ChapterLayout.draw(_:palette:)` lays the colours on, pictures included, so the reader sets the book
+with `ReaderSettings.layoutStyle`, whose colours are fixed, and hands each page the theme's palette
+when it draws. A theme turning is one redraw, in the same pass that changes the paper.
+
+It has to be that fast. As the app leaves the screen the system turns it to the other appearance,
+photographs it and turns it back, without waiting for anything the app does behind the page. A page
+that set itself again to change colour was caught half changed, and that picture is what the reader
+comes back to.
 
 Hyphenation is the reader's to turn off. The chapter is composed from the text as hyphenated or as
 bound, so turning it off re-breaks every line. A justified

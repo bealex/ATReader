@@ -226,9 +226,10 @@ licensing rather than secrecy. An unconfigured build must keep working for every
   come from the window; a size that follows the safe area moves the text every time a toolbar appears.
 - **The reader's position is a character offset, not a page number.** Changing the font re-paginates,
   and a page index means nothing across a restyle.
-- **A page's ink is set into its lines.** A theme reaches the words only when the chapter is set
-  again, behind the page. Anything drawn on the page takes its colours from `Stage.theme`, which
-  holds the old theme until the new sheet lands, and never from `settings.theme`.
+- **A page's colours are laid on when it is drawn, never when it is set.** The system turns the app
+  to the other appearance and photographs it as it leaves the screen, waiting for nothing, so a theme
+  has to be a redraw. Set pages with `ReaderSettings.layoutStyle` and hand the palette to
+  `ChapterLayout.draw(_:palette:)`; a colour written into the lines brings back a page half changed.
 - **A `.task` on the window group's content runs once a window.** So does everything else hung there,
   and each window's models are copies of the one store. Gate launch work by hand, write only what a
   window changed, and say so through `BookInbox.libraryChanged(by:)`. See "Several windows" in

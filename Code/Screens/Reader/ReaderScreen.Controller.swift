@@ -33,7 +33,6 @@ extension ReaderScreen {
         private var loading: Task<Void, Never>?
         private var wayBackFade: Task<Void, Never>?
         private var appliedContext: (ChapterLayout.Context, Int)?
-        private var settingTask = UIBackgroundTaskIdentifier.invalid
         private let pickFeedback = UISelectionFeedbackGenerator()
         private let firstPickFeedback = UIImpactFeedbackGenerator(style: .medium)
         private var pickedId: String?
@@ -144,7 +143,7 @@ extension ReaderScreen {
         override var preferredStatusBarUpdateAnimation: UIStatusBarAnimation { .fade }
 
         override var preferredStatusBarStyle: UIStatusBarStyle {
-            stage.theme.colorScheme == .dark ? .lightContent : .darkContent
+            settings.theme.colorScheme == .dark ? .lightContent : .darkContent
         }
 
         @objc
@@ -152,48 +151,10 @@ extension ReaderScreen {
 
         // MARK: - Following the book
 
-        /// Asks the system to let a page being set in a new theme finish, where the theme turned while
-        /// the app was away: woken to hear of it, the app is put back to sleep before the setting is
-        /// done, and would come back showing the old page.
-        private func finishSettingBeforeSleeping(_ isSetting: Bool) {
-            if isSetting, settingTask == .invalid {
-                settingTask = UIApplication.shared.beginBackgroundTask { [weak self] in
-                    self?.finishSettingBeforeSleeping(false)
-                }
-            } else if !isSetting, settingTask != .invalid {
-                UIApplication.shared.endBackgroundTask(settingTask)
-                settingTask = .invalid
-            }
-        }
-
-        /// The theme the words on screen are set in, where the page hasn't been set in the new one yet.
-        private func themeStillOnThePage() -> ReaderSettings.Theme? {
-            let asked = settings.theme
-
-            for page in model.currentSheet?.pages ?? [] {
-                guard
-                    case let .text(pieces) = page.content,
-                    let ink = pieces.first?.layout.context.style.textColor
-                else { continue }
-                guard ink != UIColor(asked.foreground) else { return nil }
-
-                return ReaderSettings.Theme.allCases.first { UIColor($0.foreground) == ink }
-            }
-
-            return nil
-        }
-
         override func updateProperties() {
             super.updateProperties()
 
-            let held = themeStillOnThePage()
-
-            // Set only on a change: writing it at all sends this round again.
-            if stage.heldTheme != held { stage.heldTheme = held }
-
-            finishSettingBeforeSleeping(held != nil)
-
-            let theme = stage.theme
+            let theme = settings.theme
             let spread = stage.spread
             let context = stage.layoutContext
 

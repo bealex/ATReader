@@ -33,15 +33,27 @@ public struct ChapterPageView: UIViewRepresentable {
     public final class PageView: UIView {
         private var layout: ChapterLayout?
         private var page: ChapterLayout.Page?
+        private var palette: PagePalette?
         private var drawnSize: CGSize = .zero
         /// The page's text for VoiceOver, gathered when first asked for: most pages are never read out.
         private var spokenText: String?
 
-        public func apply(layout: ChapterLayout, page: ChapterLayout.Page) {
-            guard layout !== self.layout || page != self.page else { return }
+        /// - Parameter palette: the colours to draw in, or nil for the ones the chapter was set with.
+        public func apply(layout: ChapterLayout, page: ChapterLayout.Page, palette: PagePalette? = nil) {
+            guard
+                layout !== self.layout || page != self.page
+            else {
+                if palette != self.palette {
+                    self.palette = palette
+                    setNeedsDisplay()
+                }
+
+                return
+            }
 
             self.layout = layout
             self.page = page
+            self.palette = palette
             spokenText = nil
             isAccessibilityElement = true
             accessibilityTraits = .staticText
@@ -70,7 +82,7 @@ public struct ChapterPageView: UIViewRepresentable {
         override public func draw(_ rect: CGRect) {
             guard let layout, let page else { return }
 
-            layout.draw(page)
+            layout.draw(page, palette: palette)
         }
     }
 }

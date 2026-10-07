@@ -64,7 +64,7 @@ extension ReaderScreen {
 
         override func updateProperties() {
             super.updateProperties()
-            let theme = stage.theme
+            let theme = stage.settings.theme
             let spread = stage.spread
             let alone = spread.columns == 1
             let pages = sheet?.pages ?? []
@@ -180,7 +180,7 @@ extension ReaderScreen {
             super.updateProperties()
             guard let page else { return }
 
-            let theme = stage.theme
+            let theme = stage.settings.theme
 
             backgroundColor = UIColor(theme.background)
 
@@ -229,6 +229,8 @@ extension ReaderScreen {
                 texts.append(text)
             }
 
+            let palette = stage.settings.textStyle.palette
+
             // Two pieces where a chapter starts on the page the one before it ended on. Each draws only
             // its own lines, in its own place on the page.
             for (index, text) in texts.enumerated() {
@@ -237,7 +239,7 @@ extension ReaderScreen {
                 guard index < pieces.count else { continue }
 
                 text.frame = bounds
-                text.apply(layout: pieces[index].layout, page: pieces[index].page)
+                text.apply(layout: pieces[index].layout, page: pieces[index].page, palette: palette)
             }
 
             paint(page)
@@ -249,7 +251,7 @@ extension ReaderScreen {
         private func paint(_ page: BookPage) {
             let picked = model.picked?.pageId == page.id ? model.picked?.rects ?? [] : []
             let rects = picked + model.foundRects(on: page)
-            let colour = UIColor(Design.Surface.picked(stage.theme.foreground)).cgColor
+            let colour = UIColor(Design.Surface.picked(stage.settings.theme.foreground)).cgColor
 
             painted.sublayers?.forEach { $0.removeFromSuperlayer() }
 
@@ -276,7 +278,7 @@ extension ReaderScreen {
             let room = max(0, pageWidth - textEdge)
             let scale = min(1, max(Self.leastMarkScale, (room - Design.Space.extraSmall) / Design.Size.bookmark))
             let size = CGSize(width: Design.Size.bookmark * scale, height: Design.Size.bookmarkHeight * scale)
-            let ink = UIColor(stage.theme.foreground.opacity(Self.markInk)).cgColor
+            let ink = UIColor(stage.settings.theme.foreground.opacity(Self.markInk)).cgColor
 
             marks.sublayers?.forEach { $0.removeFromSuperlayer() }
 
@@ -337,7 +339,7 @@ extension ReaderScreen {
             marks.sublayers?.forEach { $0.removeFromSuperlayer() }
 
             var configuration = UIContentUnavailableConfiguration.empty()
-            let ink = UIColor(stage.theme.foreground)
+            let ink = UIColor(stage.settings.theme.foreground)
 
             configuration.image = UIImage(systemName: "book.closed")
             configuration.text = String(localized: "Couldn’t load this chapter.")
@@ -412,7 +414,7 @@ extension ReaderScreen {
             let share = model.progress(at: position)
             let page = model.pageNumber(at: position)
             let percent = share.formatted(.percent.precision(.fractionLength(0)))
-            let foreground = stage.theme.foreground
+            let foreground = stage.settings.theme.foreground
             let hidden = stage.isChromeHidden
             let context = stage.layoutContext
             let line = RunningHead.line(size)
@@ -479,7 +481,7 @@ extension ReaderScreen.Stage {
     /// page, and a step back while the controls carry that.
     func dressHead(_ head: UILabel, text: String, in width: CGFloat) {
         let ink = isChromeHidden ? Self.figureInk : Self.figureInkShown
-        let colour = UIColor(theme.foreground.opacity(ink))
+        let colour = UIColor(settings.theme.foreground.opacity(ink))
 
         if head.window != nil, head.textColor != colour, head.text == text {
             UIView.transition(with: head, duration: Self.chromeFade, options: .transitionCrossDissolve) {

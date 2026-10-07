@@ -293,6 +293,16 @@ final class ReaderSettings {
         )
     }
 
+    /// The style a page is set in, which is everything but its colours: those are laid on when the
+    /// page is drawn, so the theme turning doesn't set the book again.
+    var layoutStyle: ChapterTextStyle {
+        var style = textStyle
+
+        style.textColor = .black
+        style.backgroundColor = .white
+        return style
+    }
+
     /// A preview of the current face for the settings sheet.
     var previewFont: Font { Font(face.font(size: fontSize, weight: weight.uiWeight)) }
 
