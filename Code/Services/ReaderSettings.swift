@@ -258,6 +258,8 @@ final class ReaderSettings {
         monochromeImages = defaults.bool(forKey: Keys.monochromeImages)
         isPortraitOnly = defaults.bool(forKey: Keys.portraitOnly)
         OrientationLock.seed(portraitOnly: isPortraitOnly)
+        // Before there is a scene to ask, so the first page isn't set light and then again dark.
+        systemIsDark = UITraitCollection.current.userInterfaceStyle == .dark
     }
 
     /// Follows what the system is showing, for as long as this is held.

@@ -14,6 +14,15 @@ extension ReaderScreen {
     final class Stage {
         let settings: ReaderSettings
 
+        /// The theme the page on screen was set in, while that isn't the one now asked for.
+        ///
+        /// Ink is set into the lines, so a page takes a new theme only by being set again. Until it has
+        /// been, everything drawn with it keeps the theme its words are in.
+        var heldTheme: ReaderSettings.Theme?
+
+        /// The theme the page is drawn in: the one asked for, once the page's words are set in it.
+        var theme: ReaderSettings.Theme { heldTheme ?? settings.theme }
+
         /// The window's size, which is what the page is set against whatever chrome is on screen.
         var sheetSize: CGSize = .zero
 

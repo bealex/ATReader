@@ -669,6 +669,14 @@ itself, and would latch to whichever it opened on. An override reaches down and 
 scene's traits change. "Match the system" used to be a theme of its
 own and meant exactly what the switch does; a reader who chose it keeps what they chose.
 
+A page changes theme all at once. Ink is set into the lines, so the words take a new theme only when
+the chapter is set again, and that happens behind the page. Until the new sheet lands, `Stage.theme`
+answers with the theme the words on screen are in (`heldTheme`), and everything on the page is drawn
+from it: the paper, the running head, the folio and the marks. The controller asks for background
+time while a theme is held. The system wakes a suspended app to tell it the appearance changed and
+puts it back to sleep at once, and a setting cut off there would leave the old page up when the
+reader came back.
+
 Hyphenation is the reader's to turn off. The chapter is composed from the text as hyphenated or as
 bound, so turning it off re-breaks every line. A justified
 column reads far better with it, since the only other way to reach the measure is to pull the words
