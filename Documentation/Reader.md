@@ -713,6 +713,16 @@ place. Composing a page costs a few milliseconds, so none of it is kept between 
 The chapters' prepared text is still kept, in `chapter_content`: parsing and hyphenating it is the
 larger share of the work, and it depends on nothing about the page.
 
+It's kept as bytes, in a layout of the app's own (`ChapterContent.packed()`), since it is read back
+whole every time a book opens. Two bytes name the layout and its version, numbers are written seven
+bits to a byte, text is its UTF-8 length and then its bytes, and a paragraph opens with a word of
+flags saying which of its rarer fields follow. Bytes in any other version read as nothing, which
+sends the chapter to be prepared again, so a change to what is written takes a new version. Rows an
+earlier build kept as JSON are packed in one pass behind the first launch that finds them
+(`SQLiteBookStore.packKeptChapters`), a chapter at a time so the store stays free between them, and
+the file's version records that it's done. One met before the pass reaches it is read as it is and
+packed on the way out.
+
 A page cut against the measure in force fills it: whatever a rule leaves over, the leading takes up.
 So a sheet that settles with a page a line or more short in the middle of a chapter was cut against
 some other measure, and the reader cuts it again from the same place, with every sheet after it.

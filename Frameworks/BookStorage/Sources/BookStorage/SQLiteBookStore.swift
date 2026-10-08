@@ -884,7 +884,7 @@ public actor SQLiteBookStore {
     /// its new chapters without being told which ones they are.
     public func preparedChapter(workId: Int, chapterId: Int, contentHash: String) -> PreparedChapter? {
         let query = """
-            SELECT content_hash, chain_hash, content FROM chapter_content
+            SELECT content_hash, chain_hash, packed, content FROM chapter_content
             WHERE chapter_id = ? AND work_id = ? AND content_hash = ?
             """
 
@@ -894,14 +894,20 @@ public actor SQLiteBookStore {
         statement.bind(2, workId)
         statement.bind(3, contentHash)
 
-        guard
-            statement.step(),
-            let stored = statement.string(0),
-            let chain = statement.string(1),
-            let content = decode(ChapterContent.self, statement.string(2))
-        else { return nil }
+        guard statement.step(), let stored = statement.string(0), let chain = statement.string(1) else { return nil }
 
-        return PreparedChapter(chapterId: chapterId, contentHash: stored, chainHash: chain, content: content)
+        if let content = statement.data(2).flatMap(ChapterContent.init(packed:)) {
+            return PreparedChapter(chapterId: chapterId, contentHash: stored, chainHash: chain, content: content)
+        }
+
+        // A chapter kept before it was packed is still good, and preparing it again costs far more
+        // than reading it this once. It's packed on the way out, so the next reading is the quick one.
+        guard let content = decode(ChapterContent.self, statement.string(3)) else { return nil }
+
+        let prepared = PreparedChapter(chapterId: chapterId, contentHash: stored, chainHash: chain, content: content)
+
+        store(prepared: prepared, workId: workId)
+        return prepared
     }
 
     /// One chapter's own text hash, which is what a measuring run folds into its chain.
@@ -918,15 +924,73 @@ public actor SQLiteBookStore {
         return statement.string(0)
     }
 
+    /// Packs every chapter an earlier build kept as JSON, once: the file's version says so afterwards.
+    ///
+    /// A chapter at a time, giving the store up between them, so a library's worth of it never holds
+    /// up whoever else is asking. One that no longer reads is dropped, and prepared again when wanted.
+    public func packKeptChapters() async {
+        guard userVersion() < Self.packedVersion else { return }
+
+        while let kept = nextChapterKeptAsJSON() {
+            if let content = decode(ChapterContent.self, kept.json) {
+                store(
+                    prepared: PreparedChapter(
+                        chapterId: kept.chapterId,
+                        contentHash: kept.contentHash,
+                        chainHash: kept.chainHash,
+                        content: content
+                    ),
+                    workId: kept.workId
+                )
+            } else if let statement = Statement(open(), "DELETE FROM chapter_content WHERE chapter_id = ?") {
+                statement.bind(1, kept.chapterId)
+                statement.execute()
+            }
+
+            await Task.yield()
+        }
+
+        execute("PRAGMA user_version = \(Self.packedVersion)")
+    }
+
+    /// The file's version once every chapter in it is packed.
+    private static let packedVersion = 7
+
+    private struct KeptAsJSON {
+        let chapterId: Int
+        let workId: Int
+        let contentHash: String
+        let chainHash: String
+        let json: String?
+    }
+
+    private func nextChapterKeptAsJSON() -> KeptAsJSON? {
+        let query = """
+            SELECT chapter_id, work_id, content_hash, chain_hash, content FROM chapter_content
+            WHERE packed IS NULL LIMIT 1
+            """
+
+        guard let statement = Statement(open(), query), statement.step() else { return nil }
+
+        return KeptAsJSON(
+            chapterId: statement.integer(0),
+            workId: statement.integer(1),
+            contentHash: statement.string(2) ?? "",
+            chainHash: statement.string(3) ?? "",
+            json: statement.string(4)
+        )
+    }
+
     public func store(prepared: PreparedChapter, workId: Int) {
         let query = """
-            INSERT INTO chapter_content (chapter_id, work_id, content_hash, chain_hash, content, stored_at)
-            VALUES (?, ?, ?, ?, ?, ?)
+            INSERT INTO chapter_content (chapter_id, work_id, content_hash, chain_hash, content, packed, stored_at)
+            VALUES (?, ?, ?, ?, '', ?, ?)
             ON CONFLICT(chapter_id) DO UPDATE SET
                 work_id = excluded.work_id,
                 content_hash = excluded.content_hash,
                 chain_hash = excluded.chain_hash,
                 content = excluded.content,
+                packed = excluded.packed,
                 stored_at = excluded.stored_at
             """
 
@@ -936,7 +1000,7 @@ public actor SQLiteBookStore {
         statement.bind(2, workId)
         statement.bind(3, prepared.contentHash)
         statement.bind(4, prepared.chainHash)
-        statement.bind(5, encode(prepared.content))
+        statement.bind(5, prepared.content.packed())
         statement.bind(6, Date.now.timeIntervalSince1970)
         statement.execute()
     }
@@ -1494,6 +1558,12 @@ public actor SQLiteBookStore {
             """
         )
         execute("CREATE INDEX IF NOT EXISTS content_by_work ON chapter_content (work_id)")
+
+        // The chapter as bytes, which is what is read back. `content` held it as JSON and is left
+        // empty on every row written since.
+        if !columns(of: "chapter_content").contains("packed") {
+            execute("ALTER TABLE chapter_content ADD COLUMN packed BLOB")
+        }
     }
 
     private func createWorkTable() {

@@ -230,6 +230,12 @@ licensing rather than secrecy. An unconfigured build must keep working for every
   to the other appearance and photographs it as it leaves the screen, waiting for nothing, so a theme
   has to be a redraw. Set pages with `ReaderSettings.layoutStyle` and hand the palette to
   `ChapterLayout.draw(_:palette:)`; a colour written into the lines brings back a page half changed.
+- **A prepared chapter is kept as bytes in a layout of our own.** Adding a field to `Paragraph`,
+  `BookTable` or `ChapterContent` means writing and reading it in `ChapterContent+Packed.swift` and
+  raising that file's version, or the field is silently lost the next time a book opens.
+- **`ChapterTextStyle.font` builds a font every time it's asked.** So does `pageLine`, which asks
+  it. Take them once before a loop over paragraphs: a long chapter has thousands, and the phone runs
+  the Debug build, where a per-character or per-paragraph call costs several times what it should.
 - **A layer that has only ever stood at no opacity lends out empty contents.** Its `contents` are
   there, and another layer given them shows nothing. Mark it for display and draw it again before
   borrowing, as `PageSlot.drawnText` does for the page on the back of an opening book's cover.

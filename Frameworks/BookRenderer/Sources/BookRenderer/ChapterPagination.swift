@@ -183,6 +183,11 @@ public enum ChapterPagination {
         let paragraphs = read.paragraphs
         let setting = Setting(paragraphs, language: language, style: style)
         let levels = setting.levels
+        // What every block of body text carries, made once and added to block by block.
+        var body: [NSAttributedString.Key: Any] = [ .font: font, .foregroundColor: style.textColor ]
+
+        body.merge(languageAttributes(language)) { current, _ in current }
+        if style.letterSpacing != 0 { body[.kern] = style.letterSpacing }
 
         for (index, paragraph) in paragraphs.enumerated() {
             let suffix = index == paragraphs.count - 1 ? "" : "\n"
@@ -203,13 +208,10 @@ public enum ChapterPagination {
 
             // A book that names its own chapters is left to name them, so those lines have to read as
             // headings rather than as centred text that lost its face.
-            var attributes: [NSAttributedString.Key: Any] = [
-                .font: levels[index].map { Self.titleFont($0, style: style) } ?? font,
-                .foregroundColor: style.textColor,
-                .paragraphStyle: paragraphStyle,
-            ]
-            attributes.merge(languageAttributes(language)) { current, _ in current }
-            if style.letterSpacing != 0 { attributes[.kern] = style.letterSpacing }
+            var attributes = body
+
+            attributes[.paragraphStyle] = paragraphStyle
+            if let level = levels[index] { attributes[.font] = Self.titleFont(level, style: style) }
 
             if paragraph.isVerse { attributes[.verseLine] = true }
             if paragraph.isSceneBreak { attributes[.sceneBreak] = true }
@@ -230,6 +232,10 @@ public enum ChapterPagination {
     /// written in, and where the titles and the quotations in it stand.
     private struct Setting {
         let style: ChapterTextStyle
+        /// The body face and the depth of one line of it, made once: asking the style builds the font
+        /// afresh each time, and a long chapter asks for every paragraph.
+        let font: UIFont
+        let line: CGFloat
         let body: NSTextAlignment
         let indentsBody: Bool
         let gap: CGFloat
@@ -242,6 +248,8 @@ public enum ChapterPagination {
 
         init(_ paragraphs: [Paragraph], language: String?, style: ChapterTextStyle) {
             self.style = style
+            font = style.font
+            line = font.lineHeight + style.lineSpacing
             body = style.justifies(language) ? .justified : .natural
             indentsBody = style.indents(language)
             gap = style.paragraphGap(language)
@@ -258,7 +266,7 @@ public enum ChapterPagination {
         at index: Int,
         in setting: Setting
     ) -> NSMutableParagraphStyle {
-        let font = setting.style.font
+        let font = setting.font
         // A title stands in the middle of the measure whether or not the book said so: left where the
         // paragraphs are, it reads as a line of text that lost its words.
         let isCentered = paragraph.isCentered || setting.levels[index] != nil
@@ -402,7 +410,7 @@ public enum ChapterPagination {
     /// A title block stands in air worked out from the biggest title in it, and is parted from the
     /// text under it by the same measure. Everything else takes the gap paragraphs take between them.
     private static func spacing(at index: Int, in setting: Setting) -> (before: CGFloat, after: CGFloat) {
-        let line = setting.style.pageLine
+        let line = setting.line
         let air = setting.opening[index].map { TitleBlock.air(forLevel: $0) } ?? 0
         // A quotation's source stands clear of the words it names, and whatever comes after one is no
         // longer part of that quotation, so it stands clear too. Without this two epigraphs over a

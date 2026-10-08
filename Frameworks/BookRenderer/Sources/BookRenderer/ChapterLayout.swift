@@ -175,7 +175,8 @@ public final class ChapterLayout {
         chapterId: Int,
         set: SetText,
         context: Context,
-        typesetting: @escaping @Sendable () -> NSAttributedString
+        typesetting: @escaping @Sendable () -> NSAttributedString,
+        setter: ColumnComposer.Setter
     ) {
         self.chapterId = chapterId
         self.context = context
@@ -184,11 +185,7 @@ public final class ChapterLayout {
         self.paragraphs = set.paragraphs
         self.softHyphens = set.softHyphens
         self.typesetting = typesetting
-        self.setter = ColumnComposer.Setter(
-            typesetting: typesetting,
-            headingLength: set.text.headingLength,
-            size: context.textSize
-        )
+        self.setter = setter
     }
 
     /// A chapter set as text, with where its paragraphs and soft hyphens fall.
@@ -205,12 +202,9 @@ public final class ChapterLayout {
         _ typesetting: @Sendable () -> ChapterPagination.TypesetText
     ) async -> sending SetText {
         let text = typesetting()
+        let marks = ColumnComposer.marks(in: text.attributed.string as NSString)
 
-        return SetText(
-            text: text,
-            paragraphs: ColumnComposer.paragraphs(in: text.attributed),
-            softHyphens: softHyphens(in: text.attributed.string as NSString)
-        )
+        return SetText(text: text, paragraphs: marks.paragraphs, softHyphens: marks.softHyphens)
     }
 
     /// A chapter ready to be cut into pages anywhere: set as text, its pictures read, and none of it
@@ -244,11 +238,18 @@ public final class ChapterLayout {
             )
         }
 
+        // The composer sets a copy of its own, since the text can't be handed between threads. Started
+        // here, it is set beside this one rather than after it.
+        let setter = ColumnComposer.Setter(typesetting: typesetting, size: context.textSize)
+
+        setter.warm()
+
         return ChapterLayout(
             chapterId: chapterId,
             set: await set(typesetting),
             context: context,
-            typesetting: { typesetting().attributed }
+            typesetting: { typesetting().attributed },
+            setter: setter
         )
     }
 
@@ -756,12 +757,6 @@ public final class ChapterLayout {
 
         return low
     }
-
-    private nonisolated static func softHyphens(in string: NSString) -> [Int] {
-        (0 ..< string.length).filter { string.character(at: $0) == softHyphen }
-    }
-
-    private nonisolated static let softHyphen = unichar(0x00AD)
 
     // MARK: - What the reader asks for
 

@@ -79,6 +79,10 @@ struct BookholdApp: App {
                     // that are shrunk here, once, since a print-sized cover is thirty times the bytes.
                     await Covers.shrinkWhatWasKept()
 
+                    // Chapters an earlier build kept as JSON are packed, once, so every book opens on
+                    // the quick reading and not only the ones opened since.
+                    await SQLiteBookStore.shared.packKeptChapters()
+
                     // Left for the reader to ask for until a library's worth of it has been watched:
                     // a re-read that loses one reading position loses it for good.
                     _ = inbox

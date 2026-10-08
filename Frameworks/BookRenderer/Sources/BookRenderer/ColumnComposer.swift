@@ -207,20 +207,42 @@ public final class ColumnComposer {
 
     /// Where each paragraph of a chapter stands in its text, its closing newline included.
     static func paragraphs(in text: NSAttributedString) -> [NSRange] {
-        let string = text.string as NSString
+        marks(in: text.string as NSString).paragraphs
+    }
+
+    /// Where a chapter's paragraphs and its soft hyphens stand, read in one pass over its characters.
+    ///
+    /// The characters are copied out once and walked through a pointer: asking the string for each in
+    /// turn costs a call apiece, and a long chapter has half a million.
+    static func marks(in string: NSString) -> (paragraphs: [NSRange], softHyphens: [Int]) {
+        let length = string.length
+        let characters = UnsafeMutablePointer<unichar>.allocate(capacity: max(1, length))
+
+        defer { characters.deallocate() }
+
+        string.getCharacters(characters, range: NSRange(location: 0, length: length))
+
         var paragraphs: [NSRange] = []
+        var softHyphens: [Int] = []
         var start = 0
+        var index = 0
 
-        for index in 0 ..< string.length where string.character(at: index) == 0x0A {
-            paragraphs.append(NSRange(location: start, length: index - start + 1))
-            start = index + 1
+        while index < length {
+            let character = characters[index]
+
+            if character == 0x0A {
+                paragraphs.append(NSRange(location: start, length: index - start + 1))
+                start = index + 1
+            } else if character == ParagraphRuler.softHyphen {
+                softHyphens.append(index)
+            }
+
+            index += 1
         }
 
-        if start < string.length {
-            paragraphs.append(NSRange(location: start, length: string.length - start))
-        }
+        if start < length { paragraphs.append(NSRange(location: start, length: length - start)) }
 
-        return paragraphs
+        return (paragraphs, softHyphens)
     }
 
     /// How many paragraphs a worker takes at a time.
@@ -298,28 +320,41 @@ public final class ColumnComposer {
     /// The text is set the first time a paragraph is asked for, from `typesetting`, which has to give
     /// the same text the page draws from.
     actor Setter {
-        private let typesetting: @Sendable () -> NSAttributedString
-        private let headingLength: Int
+        private let typesetting: @Sendable () -> ChapterPagination.TypesetText
         private let size: CGSize
-        private var text: NSAttributedString?
-        private var composer: ColumnComposer?
+        private var set: (text: NSAttributedString, composer: ColumnComposer)?
 
-        init(typesetting: @escaping @Sendable () -> NSAttributedString, headingLength: Int, size: CGSize) {
+        init(typesetting: @escaping @Sendable () -> ChapterPagination.TypesetText, size: CGSize) {
             self.typesetting = typesetting
-            self.headingLength = headingLength
             self.size = size
         }
 
+        /// Starts setting the text now, alongside whoever is setting a copy of their own, so the first
+        /// paragraph asked for doesn't wait for a whole chapter.
+        nonisolated func warm() {
+            Task { await self.setText() }
+        }
+
+        private func setText() { _ = ready() }
+
         /// Each paragraph's lines, in the order the paragraphs were given.
         func lines(of paragraphs: [NSRange]) -> [[Line]] {
-            let text = self.text ?? typesetting()
-            let composer =
-                self.composer ?? ColumnComposer(measure: size.width, depth: size.height, headingLength: headingLength)
-
-            self.text = text
-            self.composer = composer
+            let (text, composer) = ready()
 
             return paragraphs.map { composer.lines(in: text, paragraph: $0) }
+        }
+
+        private func ready() -> (text: NSAttributedString, composer: ColumnComposer) {
+            if let set { return set }
+
+            let text = typesetting()
+            let made = (
+                text.attributed,
+                ColumnComposer(measure: size.width, depth: size.height, headingLength: text.headingLength)
+            )
+
+            set = made
+            return made
         }
     }
 
