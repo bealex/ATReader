@@ -291,6 +291,11 @@ put every tap below it on the wrong line.
 
 ### Which colours a picture takes
 
+Setting a page asks a picture only how large it is, which `BookImages` reads off the file's header.
+The pixels are decoded the first time a page showing the picture is made ready, away from the main
+actor, or drawn. A chapter can carry dozens of plates, and reading them all first held the opening
+page back by more than a second.
+
 Nothing in a file says whether a picture is colour art or line work, so `BookImages` reads it off the
 pixels. A picture counts as colour when more than a fiftieth of its solid pixels carry any.
 

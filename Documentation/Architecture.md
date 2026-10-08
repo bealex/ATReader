@@ -561,8 +561,10 @@ cover stands off the spine; past upright the two pages meet at the gutter and it
 between them.
 
 The back of the leaf shows the reader's own drawn page. A text page's body is one layer, and its
-contents go straight onto the back strips, with nothing drawn again; the running head and page number
-sit in labels of their own and don't come with it. Each back strip is laid from its outer end towards
+contents go straight onto the back strips; the running head and page number sit in labels of their
+own and don't come with it. The layer is drawn afresh as it's handed over. The page before stands at
+no opacity until a turn brings it in, and the contents of a layer that has only ever stood that way
+show nothing on the strips that borrow them. Each back strip is laid from its outer end towards
 the spine, so it faces the eye the right way round and shows those contents unmirrored. A title page,
 a page in two pieces or a spread is drawn instead, once, onto the paper the reader paints behind its
 sheets. The paper is asked of the settings each time the book opens or shuts, since the theme can

@@ -162,6 +162,9 @@ extension ReaderScreen {
 
             guard shown.count == 1 else { return nil }
 
+            // Drawn afresh: a page that has only ever stood at no opacity hands over contents that show
+            // nothing once another layer borrows them.
+            shown[0].layer.setNeedsDisplay()
             shown[0].layer.displayIfNeeded()
 
             return shown[0].layer.contents.map { ($0, shown[0].frame) }

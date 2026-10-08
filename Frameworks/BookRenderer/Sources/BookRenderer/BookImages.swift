@@ -64,6 +64,10 @@ public struct DrawnPicture: Sendable {
 
 /// One picture from a book, decoded once and ready for a page to draw.
 ///
+/// Its size is known from the start, which is all setting a page asks of it. A picture read off a file
+/// decodes the first time a page is made ready with it or draws it, so a chapter of plates opens on its
+/// first page without reading the rest.
+///
 /// A picture is either colour art, which the page shows as it is, or monochrome: line art, a scan,
 /// anything grey. A monochrome picture is redrawn in the page's own two colours, so an illustration is
 /// set in the same ink as the text around it rather than carrying its own paper onto the page. Which of
@@ -82,29 +86,67 @@ public final class PageImage: Sendable {
     public let size: CGSize
     /// Pixels to the point at the picture's own size: more than one for a picture drawn by the app.
     public let scale: CGFloat
-    public let kind: Kind
 
-    /// The picture's own pixels. Only colour art keeps them.
-    private let colour: CGImage?
-    /// How dark each pixel is, white for black: what the page paints its deeper colour through.
-    private let darkness: CGImage?
+    /// What the picture is made of, which decodes it where it hasn't been.
+    public var kind: Kind { decoded()?.kind ?? .monochrome }
+
+    /// A picture decoded: what it is made of and the two renderings a page draws from.
+    fileprivate struct Pixels: Sendable {
+        var kind: Kind
+        /// The picture's own pixels. Only colour art keeps them.
+        var colour: CGImage?
+        /// How dark each pixel is, white for black: what the page paints its deeper colour through.
+        var darkness: CGImage?
+    }
+
+    private struct Held: Sendable {
+        var pixels: Pixels?
+        var isRead = false
+    }
+
+    private let held: Mutex<Held>
+    private let read: (@Sendable () -> Pixels?)?
     /// The darkness at the size it was last drawn, in pixels: a mask drawn at its own size is copied,
     /// where one drawn at another is resampled on every draw of the page.
     private let fitted = Mutex<(pixels: CGSize, mask: CGImage)?>(nil)
 
-    fileprivate init(size: CGSize, scale: CGFloat, kind: Kind, colour: CGImage?, darkness: CGImage?) {
+    /// A picture already decoded.
+    fileprivate init(size: CGSize, scale: CGFloat, pixels: Pixels) {
         self.size = size
         self.scale = scale
-        self.kind = kind
-        self.colour = colour
-        self.darkness = darkness
+        held = Mutex(Held(pixels: pixels, isRead: true))
+        read = nil
+    }
+
+    /// A picture whose size is known and whose pixels `read` decodes when first asked for.
+    fileprivate init(size: CGSize, scale: CGFloat, read: @escaping @Sendable () -> Pixels?) {
+        self.size = size
+        self.scale = scale
+        held = Mutex(Held())
+        self.read = read
+    }
+
+    /// The picture's pixels, decoded once. Whoever asks while it is decoding waits for that one decode.
+    private func decoded() -> Pixels? {
+        held.withLock { held in
+            if !held.isRead {
+                held.pixels = read?()
+                held.isRead = true
+            }
+
+            return held.pixels
+        }
     }
 
     /// Resamples the picture for a draw at `size` and `scale` away from the main actor, where it is drawn
     /// in the page's colours, so that draw copies it.
     @concurrent
     public nonisolated func ready(fitting size: CGSize, at scale: CGFloat, inPageColours: Bool) async {
-        guard let darkness, kind == .monochrome || inPageColours else { return }
+        guard
+            let pixels = decoded(),
+            let darkness = pixels.darkness,
+            pixels.kind == .monochrome || inPageColours
+        else { return }
 
         _ = mask(darkness, fitting: size, at: scale)
     }
@@ -182,8 +224,9 @@ public final class PageImage: Sendable {
         drawing.scaleBy(x: 1, y: -1)
 
         let target = CGRect(origin: .zero, size: rect.size)
+        let pixels = decoded()
 
-        if let darkness, kind == .monochrome || palette.isMonochrome {
+        if let darkness = pixels?.darkness, pixels?.kind == .monochrome || palette.isMonochrome {
             // The picture keeps its own light and dark; only the two colours they land on change. The
             // pale colour is laid down whole and the deep one painted over it through the picture's own
             // shading, which is what turns a grey into a mixture of the two rather than one or other.
@@ -193,7 +236,7 @@ public final class PageImage: Sendable {
             drawing.clip(to: target, mask: mask(darkness, fitting: target.size, at: scale))
             drawing.setFillColor(palette.darker.resolvedColor(with: .current).cgColor)
             drawing.fill(target)
-        } else if let colour {
+        } else if let colour = pixels?.colour {
             drawing.setAlpha(palette.isDark ? Self.dimming : 1)
             drawing.draw(colour, in: target)
         }
@@ -237,7 +280,8 @@ public final class BookImages {
     private var unresolved: Set<String> = []
 
     public init() {
-        cache.countLimit = 64
+        // A picture not yet decoded is its size and nothing more, and a chapter can hold a hundred.
+        cache.countLimit = 512
         cache.totalCostLimit = 64 * 1024 * 1024
     }
 
@@ -261,19 +305,22 @@ public final class BookImages {
 
         guard !wanted.isEmpty else { return ready }
 
-        let read = await Task.detached(priority: .userInitiated) { Self.read(wanted) }.value
+        // Only how large each is: a page is set from that, and the pixels wait for a page to show them.
+        let sizes = await Task.detached(priority: .userInitiated) { wanted.compactMapValues(Self.size(ofPictureAt:)) }
+            .value
 
         for (source, url) in wanted {
             guard
-                let ingredients = read[source],
-                let picture = Self.picture(ingredients)
+                let size = sizes[source]
             else {
                 Self.memoir.debug("no picture at \(safe: url.lastPathComponent)")
                 unresolved.insert(source)
                 continue
             }
 
-            cache.setObject(picture, forKey: source as NSString, cost: ingredients.cost)
+            let picture = PageImage(size: size, scale: 1) { Self.read(url).flatMap(Self.pixels) }
+
+            cache.setObject(picture, forKey: source as NSString, cost: Self.cost(ofPictureSized: size))
             ready[source] = picture
         }
 
@@ -349,10 +396,25 @@ public final class BookImages {
         var cost: Int { darkness.count + (colour?.count ?? 0) }
     }
 
-    private nonisolated static func read(_ sources: [String: URL]) -> [String: Ingredients] {
-        sources.reduce(into: [String: Ingredients]()) { result, entry in
-            result[entry.key] = read(entry.value)
-        }
+    /// How large the picture in a file is, in pixels, read off its header without decoding it.
+    private nonisolated static func size(ofPictureAt url: URL) -> CGSize? {
+        guard
+            let source = CGImageSourceCreateWithURL(url as CFURL, nil),
+            let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any],
+            let width = properties[kCGImagePropertyPixelWidth] as? CGFloat,
+            let height = properties[kCGImagePropertyPixelHeight] as? CGFloat,
+            width > 0,
+            height > 0
+        else { return nil }
+
+        return CGSize(width: width, height: height)
+    }
+
+    /// About what a picture of `size` weighs once decoded and shrunk to what a page uses.
+    private nonisolated static func cost(ofPictureSized size: CGSize) -> Int {
+        let scale = min(1, CGFloat(maximumPixelSize) / max(1, max(size.width, size.height)))
+
+        return Int(size.width * scale * size.height * scale)
     }
 
     private nonisolated static func read(_ url: URL) -> Ingredients? {
@@ -500,7 +562,11 @@ public final class BookImages {
 
     // MARK: - Bytes back into a picture
 
-    private static func picture(_ ingredients: Ingredients) -> PageImage? {
+    private nonisolated static func picture(_ ingredients: Ingredients) -> PageImage? {
+        pixels(ingredients).map { PageImage(size: ingredients.size, scale: ingredients.scale, pixels: $0) }
+    }
+
+    private nonisolated static func pixels(_ ingredients: Ingredients) -> PageImage.Pixels? {
         let darkness = image(ingredients.darkness, width: ingredients.width, height: ingredients.height, components: 1)
         let colour = ingredients.colour.flatMap {
             image($0, width: ingredients.width, height: ingredients.height, components: 4)
@@ -508,17 +574,11 @@ public final class BookImages {
 
         guard darkness != nil || colour != nil else { return nil }
 
-        return PageImage(
-            size: ingredients.size,
-            scale: ingredients.scale,
-            kind: ingredients.kind,
-            colour: colour,
-            darkness: darkness
-        )
+        return PageImage.Pixels(kind: ingredients.kind, colour: colour, darkness: darkness)
     }
 
     /// Wraps a buffer as a picture. No decoding happens here: the bytes are already pixels.
-    private static func image(_ bytes: Data, width: Int, height: Int, components: Int) -> CGImage? {
+    private nonisolated static func image(_ bytes: Data, width: Int, height: Int, components: Int) -> CGImage? {
         guard let provider = CGDataProvider(data: bytes as CFData) else { return nil }
 
         let isGrey = components == 1

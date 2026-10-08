@@ -230,6 +230,9 @@ licensing rather than secrecy. An unconfigured build must keep working for every
   to the other appearance and photographs it as it leaves the screen, waiting for nothing, so a theme
   has to be a redraw. Set pages with `ReaderSettings.layoutStyle` and hand the palette to
   `ChapterLayout.draw(_:palette:)`; a colour written into the lines brings back a page half changed.
+- **A layer that has only ever stood at no opacity lends out empty contents.** Its `contents` are
+  there, and another layer given them shows nothing. Mark it for display and draw it again before
+  borrowing, as `PageSlot.drawnText` does for the page on the back of an opening book's cover.
 - **A `.task` on the window group's content runs once a window.** So does everything else hung there,
   and each window's models are copies of the one store. Gate launch work by hand, write only what a
   window changed, and say so through `BookInbox.libraryChanged(by:)`. See "Several windows" in

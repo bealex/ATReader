@@ -53,6 +53,22 @@ struct ImageTests {
         #expect(picture?.kind == .colour)
     }
 
+    /// Setting a page asks a picture only how large it is, so a chapter of plates opens without
+    /// decoding them. With the file gone before anything draws, the size is still known.
+    @Test
+    func knowsAPicturesSizeWithoutDecodingIt() async throws {
+        let art = Self.colourArt()
+        let source = try #require(await write(art, named: "sized"))
+        let picture = try #require(await BookImages.shared.prepare(sources: [ source ])[source])
+        let file = try #require(BookImages.pictures?.fileURL(forPicture: source))
+
+        try FileManager.default.removeItem(at: file)
+
+        #expect(picture.size == CGSize(width: art.size.width * art.scale, height: art.size.height * art.scale))
+        // Nothing was read while the file was there, so there is nothing to say what it is made of.
+        #expect(picture.kind == .monochrome)
+    }
+
     // MARK: - Drawing it
 
     /// Ink is drawn in the page's own colour, and where the picture was dark is where the ink lands.
