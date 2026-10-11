@@ -24,6 +24,8 @@ struct BookBadges: View {
     var costsMoney: Bool?
     /// Where this copy came from, for a screen that says so. A list leaves it out.
     var origin: CoverOrigin?
+    /// The book's page where it came from, which the origin's pill then opens.
+    var originPage: URL?
 
     var body: some View {
         FlowLayout {
@@ -47,7 +49,16 @@ struct BookBadges: View {
             }
 
             if let origin {
-                Pill(title: origin.name, systemImage: origin.systemImage, label: origin.name)
+                let pill = Pill(title: origin.name, systemImage: origin.systemImage, label: origin.name)
+
+                if let originPage {
+                    Link(destination: originPage) { pill }
+                        .accessibilityIdentifier("work.origin.link")
+                        .accessibilityLabel(origin.name)
+                        .accessibilityHint("Opens the book’s page in the browser")
+                } else {
+                    pill
+                }
             }
         }
     }

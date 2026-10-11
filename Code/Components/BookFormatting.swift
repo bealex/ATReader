@@ -34,6 +34,26 @@ enum BookFormatting {
             case .service, nil: String(localized: "Updated \(when)")
         }
     }
+
+    private static let links = try? NSDataDetector(types: NSTextCheckingResult.CheckingType.link.rawValue)
+
+    /// A book's blurb as text to read, with every web address in it a link.
+    static func blurb(_ html: String) -> AttributedString {
+        let plain = BookHTML.paragraphs(from: html).map(\.text).joined(separator: "\n\n")
+        var blurb = AttributedString(plain)
+
+        for found in links?.matches(in: plain, range: NSRange(plain.startIndex..., in: plain)) ?? [] {
+            guard
+                let url = found.url,
+                url.scheme == "http" || url.scheme == "https",
+                let range = Range(found.range, in: blurb)
+            else { continue }
+
+            blurb[range].link = url
+        }
+
+        return blurb
+    }
 }
 
 /// What a shelf is called and what it looks like, which is the app's wording rather than the service's.

@@ -11,7 +11,7 @@ import SwiftUI
 /// a hidden copy with no limit is laid out at the same width, and being taller than the visible one is
 /// what says the visible one was cut.
 public struct ExpandableText: View {
-    public let text: String
+    public let text: AttributedString
     public var lineLimit: Int
 
     @State
@@ -24,6 +24,11 @@ public struct ExpandableText: View {
     private var isCut: Bool { fullHeight > clampedHeight + 1 }
 
     public init(_ text: String, lineLimit: Int = 5) {
+        self.init(AttributedString(text), lineLimit: lineLimit)
+    }
+
+    /// Text whose links open when touched.
+    public init(_ text: AttributedString, lineLimit: Int = 5) {
         self.text = text
         self.lineLimit = lineLimit
     }

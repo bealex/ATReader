@@ -2537,6 +2537,17 @@
         }
       }
     },
+    "Opens the book’s page in the browser": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Открывает страницу книги в браузере"
+          }
+        }
+      }
+    },
     "Opens the chapter": {
       "extractionState": "manual",
       "localizations": {

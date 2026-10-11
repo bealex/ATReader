@@ -224,6 +224,11 @@ extension WorkScreen {
         /// True for a book that came from a file. The service has nothing to say about one.
         var isLocal: Bool { BookNumbering.isLocal(workId) }
 
+        /// The book's page on the service's website. A book from a file has none.
+        var sitePage: URL? {
+            isLocal ? nil : session.client.configuration.siteURL.appending(path: "work/\(workId)")
+        }
+
         /// Asks the service for the book again, behind whatever the store already put on screen.
         func reload() async {
             guard !isLocal else { return }

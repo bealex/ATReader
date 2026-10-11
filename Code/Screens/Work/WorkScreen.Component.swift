@@ -130,7 +130,7 @@ enum WorkScreen {
 
                 if let annotation = model.summary?.annotation, !annotation.isEmpty {
                     section("Blurb") {
-                        ExpandableText(BookHTML.paragraphs(from: annotation).map(\.text).joined(separator: "\n\n"))
+                        ExpandableText(BookFormatting.blurb(annotation))
                             .font(Design.Style.item)
                     }
                 }
@@ -179,7 +179,7 @@ enum WorkScreen {
                         .font(Design.Style.label)
                         .foregroundStyle(.secondary)
 
-                    statistics(work, costsMoney: model.isLockedByPrice, origin: model.origin)
+                    statistics(model, work: work)
                 }
                 .multilineTextAlignment(.center)
                 .accessibilityElement(children: .combine)
@@ -297,9 +297,16 @@ enum WorkScreen {
             .accessibilityElement(children: .combine)
         }
 
-        private func statistics(_ work: Book, costsMoney: Bool, origin: CoverOrigin) -> some View {
-            BookBadges(work: work, showsProgress: true, showsUpdated: true, costsMoney: costsMoney, origin: origin)
-                .padding(.top, Design.Space.extraSmall)
+        private func statistics(_ model: Model, work: Book) -> some View {
+            BookBadges(
+                work: work,
+                showsProgress: true,
+                showsUpdated: true,
+                costsMoney: model.isLockedByPrice,
+                origin: model.origin,
+                originPage: model.sitePage
+            )
+            .padding(.top, Design.Space.extraSmall)
         }
 
         @ViewBuilder
