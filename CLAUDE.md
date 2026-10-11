@@ -208,9 +208,10 @@ licensing rather than secrecy. An unconfigured build must keep working for every
   CoreText pick the breaks would split a word at a soft hyphen without drawing the hyphen. Drawn text
   is invisible to VoiceOver, so `ChapterPageView` publishes the page's text as its own accessibility
   label. Keep that in step with any drawing change.
-- **Reading position never syncs to the service.** `/v1/reader/update-progress` returns 200 and stores
-  nothing; see the note in `Documentation/API.md`. The position a device shows comes from `LocalStore`,
-  which is the only place it survives. Don't "fix" the call.
+- **The service hands a device's own reading position back to it.** `/v1/reader/update-progress` is
+  kept, as a percentage dated a moment after the device's own write, and adopting it puts the reader a
+  page back. The position a device shows comes from `LocalStore`; `LibraryScreen.Model.adopts` takes
+  the service's only for reading done elsewhere. See the note in `Documentation/API.md`.
 - **A book from a file is numbered below zero.** The service counts works up from one, so imported
   books count down from minus one and take their chapter ids from a block beneath their own. Ask
   `LocalBooks.isLocal` before calling the service about a book: its text is on the device and nowhere

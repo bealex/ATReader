@@ -30,8 +30,8 @@ public struct ServiceBookLoader: BookLoader {
         ChapterBody(try await client.chapterText(workId: bookId, chapterId: chapterId))
     }
 
-    /// Sent and forgotten. The endpoint answers 200 and stores nothing, so where a reader got to lives
-    /// on the device; see the note in Documentation/API.md. Nothing here waits on it or reads it back.
+    /// Sent and not waited on. The service keeps it as a percentage of the chapter, so where a reader
+    /// got to exactly lives on the device; see the note in Documentation/API.md.
     public func report(
         _ position: ReadingPosition,
         chapterProgress: Double,

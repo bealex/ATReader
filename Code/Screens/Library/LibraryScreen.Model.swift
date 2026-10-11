@@ -1285,8 +1285,8 @@ extension LibraryScreen {
 
         /// Adopts the positions the service holds where they are newer than this device's own.
         ///
-        /// The service records nothing this app sends, but it does record what its own site does, so a
-        /// book read on author.today opens here where it was left. Progress comes back as a percentage
+        /// A book read on author.today or on another device opens here where it was left. Progress comes
+        /// back as a percentage
         /// of the chapter, which the chapter's own length turns into the offset the reader works in.
         private func adoptServerPositions() async {
             guard session.isSignedIn else { return }
@@ -1300,8 +1300,17 @@ extension LibraryScreen {
                 guard let chapterId = entry.chapterId, let readAt = entry.lastReadTime else { continue }
 
                 let mine = await store.position(workId: entry.workId)
+                let sent = await store.reported(workId: entry.workId)
 
-                guard (mine?.updatedAt ?? .distantPast) < readAt else { continue }
+                guard
+                    Self.adopts(
+                        chapterId: chapterId,
+                        percent: entry.chapterProgress ?? 0,
+                        readAt: readAt,
+                        over: mine,
+                        sent: sent
+                    )
+                else { continue }
 
                 let length =
                     await store.chapters(workId: entry.workId)
@@ -1315,6 +1324,23 @@ extension LibraryScreen {
                     updatedAt: readAt
                 ))
             }
+        }
+
+        /// Whether a position the service holds replaces the device's own: one read later, and not the
+        /// device's own report come back.
+        ///
+        /// The service dates what this app sends a moment after the device wrote it, and its percentage
+        /// turned back into an offset lands short of the page the reader was on.
+        static func adopts(
+            chapterId: Int,
+            percent: Double,
+            readAt: Date,
+            over mine: ReadingPosition?,
+            sent: ReportedPosition?
+        ) -> Bool {
+            guard (mine?.updatedAt ?? .distantPast) < readAt else { return false }
+
+            return !(sent?.isEchoed(byChapter: chapterId, percent: percent) ?? false)
         }
 
         /// How far back to ask for positions. The service answers with everything touched since.

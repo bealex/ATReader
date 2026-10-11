@@ -227,17 +227,18 @@ part of this API and the part most likely to break.
 
 Report progress in coarse steps (this client uses 5%) rather than on every scroll event.
 
-> **The service keeps positions. It just won't take ours.**
+> **The service keeps positions, ours among them.**
 >
-> `GET /v1/account/reading-progress?lastSyncTime=` returns real positions: 20 entries for a live
-> account, with chapter ids and timestamps months apart, written by the website's own reader. This app
-> adopts them, which is how a book read on the site opens here where it was left.
+> `GET /v1/account/reading-progress?lastSyncTime=` returns real positions, with chapter ids and
+> timestamps. The website's own reader writes them, and so does `POST /v1/reader/update-progress`: a
+> report from this app comes back from `reading-progress` with the chapter and percentage it sent, dated
+> by the service about a second after the device wrote its own copy.
 >
-> `POST /v1/reader/update-progress` still records nothing. Tested with every variable eliminated: a
-> value the service had not seen (1.0 → 2.0), in its own percent units, carrying a `sessionId` from a
-> live `reader/start`, spaced out so the rate limit could not interfere. The call succeeds and the
-> position stays where it was. Earlier rounds covered a work with an existing position and one without,
-> with and without a session, and with the full Android impersonation restored.
+> A position this app reported is no use to the device that sent it. The percentage is of the chapter
+> as the reader set it, and the library can only turn it back into an offset with the service's
+> `textLength`, which runs shorter. At 100% that lands a page before the last one. So the device keeps
+> what it last reported and leaves that entry alone when it comes back; see
+> `LibraryScreen.Model.adopts`. Reading done anywhere else is still adopted.
 >
 > **`reading-progress` allows one call a second per IP** and says so: `Too many requests! Rate limimt
 > by your ip to this endpoint allow only 1 per Second` (its spelling). Two calls close together read as

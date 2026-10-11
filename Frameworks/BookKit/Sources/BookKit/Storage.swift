@@ -38,6 +38,26 @@ public struct ReadingPosition: Sendable, Equatable {
     }
 }
 
+/// What this device last told the service about where a book is being read.
+public struct ReportedPosition: Sendable, Equatable {
+    public let workId: Int
+    public let chapterId: Int
+    /// How far into the chapter, `0…1`.
+    public let chapterProgress: Double
+
+    public init(workId: Int, chapterId: Int, chapterProgress: Double) {
+        self.workId = workId
+        self.chapterId = chapterId
+        self.chapterProgress = chapterProgress
+    }
+
+    /// True where a position the service holds is this report come back, `percent` being the `0…100`
+    /// the service answers in.
+    public func isEchoed(byChapter chapterId: Int, percent: Double) -> Bool {
+        chapterId == self.chapterId && abs(percent - chapterProgress * 100) < 0.001
+    }
+}
+
 /// A book as this device knows it: what the lists draw, plus the tags the book page shows.
 public struct StoredBook: Sendable {
     public let summary: Book

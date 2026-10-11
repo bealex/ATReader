@@ -156,9 +156,8 @@ public actor SQLiteBookStore {
 
     /// How far this device knows the reader has got.
     ///
-    /// Its own figure wins outright wherever it has one. The service stores nothing it is sent, so what
-    /// it reports is only ever what the reader did somewhere else, and that reaches this device as a
-    /// position instead, which the column is derived from. Taking the larger of the two was what let one
+    /// Its own figure wins outright wherever it has one. What the reader did somewhere else reaches this
+    /// device as a position instead, which the column is derived from. Taking the larger of the two was what let one
     /// bad reading pin a book at 100% for good.
     private func progress(_ stored: Double?, or reported: Double?) -> Double? { stored ?? reported }
 
@@ -710,7 +709,7 @@ public actor SQLiteBookStore {
     /// putting it back doesn't cost a fresh download.
     public func removeBook(id: Int) {
         transaction {
-            for table in [ "chapter_body", "chapter_content", "chapter", "reading_position" ] {
+            for table in [ "chapter_body", "chapter_content", "chapter", "reading_position", "reported_position" ] {
                 if let statement = Statement(open(), "DELETE FROM \(table) WHERE work_id = ?") {
                     statement.bind(1, id)
                     statement.execute()
@@ -1042,6 +1041,41 @@ public actor SQLiteBookStore {
         statement.bind(4, position.updatedAt.timeIntervalSince1970)
         statement.execute()
         recomputeProgress(workId: position.workId)
+    }
+
+    /// What this device last told the service about a book, so the same position coming back from the
+    /// service is known for its own.
+    public func reported(workId: Int) -> ReportedPosition? {
+        let query = "SELECT chapter_id, chapter_progress FROM reported_position WHERE work_id = ?"
+
+        guard let statement = Statement(open(), query) else { return nil }
+
+        statement.bind(1, workId)
+
+        guard statement.step() else { return nil }
+
+        return ReportedPosition(
+            workId: workId,
+            chapterId: statement.integer(0),
+            chapterProgress: statement.number(1) ?? 0
+        )
+    }
+
+    public func store(reported: ReportedPosition) {
+        let query = """
+            INSERT INTO reported_position (work_id, chapter_id, chapter_progress)
+            VALUES (?, ?, ?)
+            ON CONFLICT(work_id) DO UPDATE SET
+                chapter_id = excluded.chapter_id,
+                chapter_progress = excluded.chapter_progress
+            """
+
+        guard let statement = Statement(open(), query) else { return }
+
+        statement.bind(1, reported.workId)
+        statement.bind(2, reported.chapterId)
+        statement.bind(3, reported.chapterProgress)
+        statement.execute()
     }
 
     // MARK: - Bookmarks
@@ -1642,6 +1676,15 @@ public actor SQLiteBookStore {
                 chapter_id INTEGER NOT NULL,
                 character_offset INTEGER NOT NULL,
                 updated_at REAL NOT NULL
+            )
+            """
+        )
+        execute(
+            """
+            CREATE TABLE IF NOT EXISTS reported_position (
+                work_id INTEGER PRIMARY KEY,
+                chapter_id INTEGER NOT NULL,
+                chapter_progress REAL NOT NULL
             )
             """
         )

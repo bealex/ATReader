@@ -204,8 +204,8 @@ re-import does and doesn't touch.
 Everything the app shows comes from one SQLite file under Application Support before the service is
 asked: books and their shelves, tables of contents, chapter bodies and reading positions. Screens paint
 what the device has and replace it when the network answers, so the app opens and reads with no network
-at all. Reading positions live there and nowhere else, since the service accepts the position it is
-sent and stores nothing.
+at all. Reading positions live there, since the service keeps only a percentage of the chapter, which
+doesn't say which page.
 
 Once a day a `BGAppRefresh` task walks the library, counts the chapters this device has never seen,
 downloads them and then backfills whatever else is still missing, within a budget per sweep, and puts

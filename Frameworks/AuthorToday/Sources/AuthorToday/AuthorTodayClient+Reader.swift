@@ -13,8 +13,8 @@ extension AuthorTodayClient {
 
     /// The positions the service holds, changed since `date`.
     ///
-    /// This is the read half of the position sync. The service records nothing this client sends, but
-    /// it does record what its own site does, so this is how reading done elsewhere gets here.
+    /// This is the read half of the position sync, and how reading done elsewhere gets here. What
+    /// ``updateProgress(workId:chapterId:workProgress:chapterProgress:sessionId:)`` sent comes back too.
     public func readingProgress(since date: Date) async throws -> [ReadingProgressInfo] {
         guard credentials.isAuthenticated else { throw AuthorTodayError.notAuthenticated }
 

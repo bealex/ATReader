@@ -1679,8 +1679,8 @@ extension ReaderScreen {
 
         // MARK: - Progress
 
-        /// Keeps the device's own copy of the reading position, which is the only one that works: the
-        /// service accepts the position and stores nothing. See `Documentation/API.md`.
+        /// Keeps the device's own copy of the reading position, which is the only exact one: the service
+        /// keeps a percentage of the chapter. See `Documentation/API.md`.
         /// - Parameter now: true to write without waiting, for a move the wait would lose. Leaving a
         ///   chapter is one: the mark jumps by a whole chapter, and the reader may be gone before the
         ///   wait is out.
@@ -1760,7 +1760,14 @@ extension ReaderScreen {
             lastReportedProgress = chapterProgress
             let overall = progress(at: position)
 
-            Task { [session, workId, sessionId] in
+            Task { [session, store, workId, sessionId] in
+                // Kept before it is sent: the service hands this position back dated a moment after
+                // the device's own, and the library would take it for reading done elsewhere.
+                await store.store(reported: .init(
+                    workId: workId,
+                    chapterId: position.chapterId,
+                    chapterProgress: chapterProgress
+                ))
                 await session.loaders.report(
                     ReadingPosition(workId: workId, chapterId: position.chapterId, characterOffset: 0, updatedAt: .now),
                     chapterProgress: chapterProgress,
@@ -1771,7 +1778,7 @@ extension ReaderScreen {
         }
 
         /// How far into the whole book the reader is: the end of the sheet in front of them. The library
-        /// draws its ring from this, since the service keeps no progress of its own.
+        /// draws its ring from this, since the service's own figure is a chapter's rather than the book's.
         var bookProgress: Double { currentSheet.map { progress(at: $0.end) } ?? 0 }
     }
 }

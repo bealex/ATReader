@@ -1054,7 +1054,7 @@ Re-pagination runs whenever the page size or the style changes, and the old layo
 until the new one is ready. The reader's position survives it because the model keeps a character
 offset rather than a page number: a larger font means the same text spans more pages, so a page index
 means nothing across a restyle. That offset is also the only reading position that survives a
-relaunch, since the service accepts the one it is sent and stores nothing.
+relaunch exactly: the service keeps a percentage of the chapter, which doesn't say which page.
 
 A page turn writes it 400ms later, so a run of turns writes once. Leaving the reader and the app
 leaving the screen give that wait up: `flushPosition` writes at once and reports upstream whatever the

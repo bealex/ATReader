@@ -765,8 +765,8 @@ own, which is how a book read on the website opens here where it was left. Progr
 percentage of the chapter, and the chapter's stored length turns it into the offset the reader works
 in; where the device has no contents for that book yet, the position lands at the chapter's start.
 
-Reading progress is otherwise the device's own. The service accepts what it is sent and stores nothing, so its
-figure only moves when the reader reads somewhere else; `LocalStore` keeps a column beside each book
+Reading progress is otherwise the device's own. What the service hands back of this device's own reports is
+left alone, so its figure only counts when the reader reads somewhere else; `LocalStore` keeps a column beside each book
 that the reader writes as it goes and that "mark as read" fills.
 
 That column is worked out again rather than remembered. A fraction goes stale the moment the author
