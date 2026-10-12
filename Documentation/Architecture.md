@@ -541,9 +541,11 @@ settling back. The cover swings open about the spine over the first 85% of the r
 the page before it swings. Shutting runs the same frames backwards. A book opened out of anything else
 still zooms: a spine, a cover partly scrolled off the screen, and every book while Reduce Motion is on.
 
-A drag down the page takes the book in hand. Its middle stays under the finger and it shrinks as the
-finger goes down; let go, it carries on at the finger's speed and settles onto its own path home, or back
-open, along a cubic Hermite from where it was let go.
+A drag down the page takes the book in hand. `DownwardPan` reads the finger's direction over its first
+24 points and takes the drag only within fifteen degrees of straight down, so a page turn that starts
+at a slant never shuts the book. Its middle stays under the finger and it shrinks as the finger goes
+down; let go, it carries on at the finger's speed and settles onto its own path home, or back open,
+along a cubic Hermite from where it was let go.
 
 `BookOpening` is the presented screen's transitioning delegate, and `OpeningBook` draws each frame from
 one number, how open the book is. A `UIUpdateLink` moves that number: a `CADisplayLink` added in the

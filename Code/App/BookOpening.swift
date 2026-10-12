@@ -32,9 +32,9 @@ final class BookOpening: NSObject {
         self.read = read
     }
 
-    /// Lets a drag down `screen` shut the book.
+    /// Lets a drag straight down `screen` shut the book.
     func shuts(_ screen: UIViewController) {
-        let drag = UIPanGestureRecognizer(target: self, action: #selector(dragged))
+        let drag = DownwardPan(target: self, action: #selector(dragged))
 
         drag.delegate = self
         drag.maximumNumberOfTouches = 1
@@ -76,6 +76,7 @@ final class BookOpening: NSObject {
 
         switch drag.state {
             case .began:
+                drag.setTranslation(.zero, in: view)
                 dragging = Run(source: source, paper: paper(), read: read, opens: false)
                 screen?.dismiss(animated: true)
             case .changed:
@@ -111,14 +112,8 @@ extension BookOpening: UIGestureRecognizerDelegate {
         return true
     }
 
-    /// Only a drag down, and never one from the top edge, which is the system's.
-    func gestureRecognizerShouldBegin(_ recognizer: UIGestureRecognizer) -> Bool {
-        guard let drag = recognizer as? UIPanGestureRecognizer, !beganAtTopEdge else { return false }
-
-        let velocity = drag.velocity(in: drag.view)
-
-        return velocity.y > abs(velocity.x)
-    }
+    /// Never a drag from the top edge, which is the system's.
+    func gestureRecognizerShouldBegin(_ recognizer: UIGestureRecognizer) -> Bool { !beganAtTopEdge }
 
     func gestureRecognizer(
         _ recognizer: UIGestureRecognizer,
