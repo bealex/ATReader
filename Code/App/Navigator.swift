@@ -50,6 +50,10 @@ final class Navigator {
     @ObservationIgnored
     var aboutToGo: (@MainActor () -> Void)?
 
+    /// True while a book is open over the tab. A screen underneath holds back anything it would put
+    /// up meanwhile, since SwiftUI shuts whatever is over it to show an alert of its own.
+    private(set) var isUnderABook = false
+
     @ObservationIgnored
     fileprivate weak var controller: UINavigationController?
 
@@ -80,7 +84,82 @@ final class Navigator {
     /// the jump the transition had. A presented screen covers them instead, so nothing underneath
     /// moves at all.
     func present(_ route: AppRoute, from source: (@MainActor @Sendable (BookZoom) -> UIView?)? = nil) {
-        guard let controller, let dressing else { return }
+        guard let controller, let screen = covering(route) else { return }
+
+        if let source { attach(source, to: screen, read: route.readingProgress ?? 0) }
+
+        controller.present(screen, animated: true)
+    }
+
+    /// Opens the book the last launch was closed on, already open: no opening to watch, and shutting
+    /// it puts it back on the shelf under it.
+    ///
+    /// Waits for the stack to reach a window, since nothing can be presented from one that hasn't.
+    fileprivate func openKeptBook() {
+        guard let book = OpenBook.takeForLaunch() else { return }
+
+        // From now rather than from when the book is up: an alert raised in between would be in its way.
+        isUnderABook = true
+
+        Task { [weak self] in
+            for _ in 0 ..< Self.windowWaits {
+                guard let self, let controller = self.controller else { return }
+
+                if controller.view.window != nil { break }
+
+                try? await Task.sleep(for: Self.windowWait)
+            }
+
+            guard let self else { return }
+            guard
+                let controller = self.controller,
+                controller.view.window != nil,
+                controller.presentedViewController == nil,
+                let screen = self.covering(.reader(.init(workId: book.workId, title: book.title)))
+            else {
+                self.isUnderABook = false
+                return
+            }
+
+            controller.present(screen, animated: false)
+            self.findWayHome(for: screen, workId: book.workId)
+        }
+    }
+
+    /// A frame at 120 Hz, and how many of them a window is waited for.
+    private static let windowWait = Duration.microseconds(8_333)
+    private static let windowWaits = 600
+
+    /// Gives a book opened at launch its way back onto the shelf, once the shelf has stood it.
+    ///
+    /// The shelf is still reading the library when the book opens, so there is no cover yet to shut
+    /// into. A book that never comes to stand there is one the shelf doesn't hold, and zooms away.
+    private func findWayHome(for screen: any PresentedScreenReporting, workId: Int) {
+        let source: @MainActor @Sendable (BookZoom) -> UIView? = { ShelfView.face(ofBook: workId, during: $0) }
+
+        Task { [weak self, weak screen] in
+            for _ in 0 ..< Self.shelfWaits {
+                guard let screen, screen.presentingViewController != nil else { return }
+
+                // Covered rather than running: the reader is over the book for as long as this asks.
+                if let face = source(.covered), face.window != nil, face.bounds.width > 0 { break }
+
+                try? await Task.sleep(for: Self.shelfWait)
+            }
+
+            guard let self, let screen, screen.presentingViewController != nil else { return }
+
+            self.attach(source, to: screen, read: 0)
+            _ = source(.covered)
+        }
+    }
+
+    private static let shelfWait = Duration.milliseconds(100)
+    private static let shelfWaits = 50
+
+    /// A screen made ready to cover everything, with its coming and going reported.
+    private func covering(_ route: AppRoute) -> (any PresentedScreenReporting)? {
+        guard let dressing else { return nil }
 
         let screen = presented(route, dressed: dressing)
 
@@ -95,41 +174,61 @@ final class Navigator {
         // reader's own `.statusBarHidden` would go unread and the bar stay up over a hidden toolbar.
         screen.modalPresentationCapturesStatusBarAppearance = true
 
-        // Asked afresh each time, on the way in and on the way out. A shelf lays itself out again
-        // around whatever the reading changed, so the board a book stood on when it opened is the
-        // wrong size by the time the book closes, and the zoom landed on one and left the other.
-        if let source {
-            // A cover in full view opens onto the page; anything else, a spine among them, zooms.
-            if let opening = BookOpening(
-                from: source,
-                paper: { [settings = dressing.settings] in UIColor(settings.theme.background) },
-                read: route.readingProgress ?? 0
-            ) {
-                screen.opening = opening
-                screen.transitioningDelegate = opening
-                opening.shuts(screen)
-            } else {
-                // Asked for on the way in and again on the way out, a drag to dismiss included, and
-                // answered the same way both times: the stand-in, standing exactly where the cover stands.
-                screen.preferredTransition = .zoom(options: Self.zoom(for: screen)) { _ in source(.running) }
-            }
-            // The book is taken down once the reader is over it, so it is never standing there behind
-            // its own transition, and put back when the zoom has finished bringing it home.
-            screen.onArrived = { _ = source(.covered) }
-        }
-
         // The going is reported twice, and the two are different moments. This one is the transition
         // starting, which is the last chance to put right what the zoom is about to take a picture of.
         screen.onGoing = { [weak self] in self?.aboutToGo?() }
 
         // A screen that covers the stack never pops it, so the delegate that reports a return never
         // hears of this one and a list would go on showing what it read before the reading.
-        screen.onGone = { [weak self] in
-            _ = source?(.done)
+        screen.onGone = { [weak self, weak screen] in
+            if let screen { _ = screen.source?(.done) }
+            // Another screen over the reader takes it off the window too, and the book is still open.
+            let hasShut = screen.map { $0.isBeingDismissed || $0.presentingViewController == nil } ?? true
+
+            if case let .reader(book) = route, hasShut {
+                OpenBook.forget(workId: book.workId)
+                self?.isUnderABook = false
+            }
+
             self?.cameBack()
         }
 
-        controller.present(screen, animated: true)
+        if case let .reader(book) = route {
+            OpenBook.keep(.init(workId: book.workId, title: book.title))
+            isUnderABook = true
+        }
+
+        return screen
+    }
+
+    /// Says where a screen came from, which is how it comes and where it goes back to.
+    ///
+    /// Asked afresh each time, on the way in and on the way out. A shelf lays itself out again around
+    /// whatever the reading changed, so the board a book stood on when it opened is the wrong size by
+    /// the time the book closes, and the zoom landed on one and left the other.
+    private func attach(
+        _ source: @escaping @MainActor @Sendable (BookZoom) -> UIView?,
+        to screen: any PresentedScreenReporting,
+        read: Double
+    ) {
+        let settings = dressing?.settings
+        let paper: @MainActor () -> UIColor = { settings.map { UIColor($0.theme.background) } ?? .systemBackground }
+
+        // A cover in full view opens onto the page; anything else, a spine among them, zooms.
+        if let opening = BookOpening(from: source, paper: paper, read: read) {
+            screen.opening = opening
+            screen.transitioningDelegate = opening
+            opening.shuts(screen)
+        } else {
+            // Asked for on the way in and again on the way out, a drag to dismiss included, and
+            // answered the same way both times: the stand-in, standing exactly where the cover stands.
+            screen.preferredTransition = .zoom(options: Self.zoom(for: screen)) { _ in source(.running) }
+        }
+
+        screen.source = source
+        // The book is taken down once the reader is over it, so it is never standing there behind
+        // its own transition, and put back when the zoom has finished bringing it home.
+        screen.onArrived = { _ = source(.covered) }
     }
 
     /// The screen a route opens over everything. The reader is built by hand, so that opening a book
@@ -157,6 +256,7 @@ final class Navigator {
     /// again, which is the answer wanted there too.
     private final class PresentedScreen<Content: View>: UIHostingController<Content>, PresentedScreenReporting {
         var opening: BookOpening?
+        var source: (@MainActor @Sendable (BookZoom) -> UIView?)?
         var onArrived: (@MainActor () -> Void)?
         var onGoing: (@MainActor () -> Void)?
         var onGone: (@MainActor () -> Void)?
@@ -209,6 +309,8 @@ final class Navigator {
 protocol PresentedScreenReporting: UIViewController {
     /// Held here since a transitioning delegate is held weakly.
     var opening: BookOpening? { get set }
+    /// The view the screen grew out of and goes back to, where it has one.
+    var source: (@MainActor @Sendable (BookZoom) -> UIView?)? { get set }
     var onArrived: (@MainActor () -> Void)? { get set }
     /// The transition beginning, a drag's included: a drag let go half way is answered by
     /// `viewDidAppear` coming round again.
@@ -258,8 +360,12 @@ final class NavigatorDelegate: NSObject, UINavigationControllerDelegate {
 
 extension Navigator {
     /// Hands this navigator the stack it pushes onto, and what to dress a pushed screen in.
-    func drive(_ controller: UINavigationController, dressing: AppDressing) {
+    ///
+    /// - Parameter opensKeptBook: true for the one stack a book left open at the last launch opens over.
+    func drive(_ controller: UINavigationController, dressing: AppDressing, opensKeptBook: Bool = false) {
         self.controller = controller
         self.dressing = dressing
+
+        if opensKeptBook { openKeptBook() }
     }
 }

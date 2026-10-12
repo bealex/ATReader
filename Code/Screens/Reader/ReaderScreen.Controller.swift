@@ -16,6 +16,7 @@ extension ReaderScreen {
     final class Controller: UIViewController, PresentedScreenReporting {
         let model: Model
         var opening: BookOpening?
+        var source: (@MainActor @Sendable (BookZoom) -> UIView?)?
         var onArrived: (@MainActor () -> Void)?
         var onGoing: (@MainActor () -> Void)?
         var onGone: (@MainActor () -> Void)?

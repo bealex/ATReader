@@ -84,6 +84,25 @@ and has no equivalent from outside a `TabView`.
 A hosting controller built inside a representable inherits no environment, so `AppDressing` carries
 what the app hands its screens and hands it to each of them again, every push included.
 
+### An app closed on a book
+
+`OpenBook` keeps which book the reader has open, written as the book opens and taken back as it
+shuts, so an app killed mid-book has nothing left to write. Where in the book is the reading
+position's business.
+
+At launch the library's navigator takes the kept book and presents the reader over the shelf with no
+animation, as soon as its stack is in a window. One window takes it; the others open on the shelf.
+The shelf is still reading the library at that point, so the reader goes up with no way home, and
+`findWayHome` gives it one once the shelf has stood the book: the cover it shuts into where that's in
+full view, a zoom otherwise.
+
+SwiftUI shuts whatever is presented over a screen to put up an alert of its own, and the library
+raises one when an empty shelf can't be loaded or a book can't be taken off it. `Navigator.isUnderABook` is true from the moment a
+kept book is taken, and the library holds its alert until the book has shut.
+
+A launch carrying any `-at-` argument opens on the shelf, so a test starts where it expects to.
+`-at-restores-book YES` asks for the kept book anyway.
+
 ### Session
 
 `SessionStore` owns the client and the signed-in user, and is the only thing that touches

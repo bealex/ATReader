@@ -94,8 +94,10 @@ final class ShelfView: UIView {
     ///
     /// The stage is remembered whether or not there is a view to hand it to. A book whose row has been
     /// scrolled away has none, and the one built for it next has to take up where this left off.
-    static func face(of work: Book, during zoom: BookZoom) -> UIView? {
-        let place = SeriesSlot.id(ofBook: work.id)
+    static func face(of work: Book, during zoom: BookZoom) -> UIView? { face(ofBook: work.id, during: zoom) }
+
+    static func face(ofBook id: Int, during zoom: BookZoom) -> UIView? {
+        let place = SeriesSlot.id(ofBook: id)
 
         zooming[place] = zoom == .done ? nil : zoom
 

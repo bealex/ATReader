@@ -110,7 +110,8 @@ private struct Tabs: UIViewControllerRepresentable {
                 stack(
                     LibraryScreen.Component(model: coordinator.shelves),
                     navigator: coordinator.library,
-                    in: coordinator
+                    in: coordinator,
+                    opensKeptBook: true
                 )
             },
             // The search role is what puts search on the bar itself rather than in a field above each
@@ -143,14 +144,19 @@ private struct Tabs: UIViewControllerRepresentable {
     }
 
     /// A tab's screen at the root of a stack of its own.
-    private func stack(_ screen: some View, navigator: Navigator, in coordinator: Coordinator) -> UIViewController {
+    private func stack(
+        _ screen: some View,
+        navigator: Navigator,
+        in coordinator: Coordinator,
+        opensKeptBook: Bool = false
+    ) -> UIViewController {
         let controller = UINavigationController(rootViewController: hosted(screen, navigator: navigator))
         let delegate = NavigatorDelegate(navigator)
 
         controller.navigationBar.prefersLargeTitles = true
         controller.delegate = delegate
         coordinator.delegates.append(delegate)
-        navigator.drive(controller, dressing: dressing)
+        navigator.drive(controller, dressing: dressing, opensKeptBook: opensKeptBook)
 
         return controller
     }

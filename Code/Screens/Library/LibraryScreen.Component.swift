@@ -52,7 +52,11 @@ enum LibraryScreen {
                 }
                 .alert(
                     "Error",
-                    isPresented: .init(get: { model.errorMessage != nil }, set: { _ in model.dismissError() }),
+                    // Held until a book open over the shelf has shut, which the alert would shut itself.
+                    isPresented: .init(
+                        get: { model.errorMessage != nil && !navigator.isUnderABook },
+                        set: { _ in model.dismissError() }
+                    ),
                     actions: { Button("OK", role: .cancel, action: {}) },
                     message: { Text(model.errorMessage ?? "") }
                 )
