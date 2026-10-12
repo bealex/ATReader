@@ -70,6 +70,9 @@ What's still open, roughly in the order it would bite. Finished work isn't liste
 - [ ] **Pictures from the service are dropped.** A chapter body's `<img>` is read as a block and then
       goes nowhere, because only a file's own pictures are on the device. Fetching and caching a remote
       one would need the layout to be redone when it lands.
+- [ ] **A drawing that fades to white stands on a dark page as a pale block.** Replacing the paper
+      under it with the page's colour works in a prototype and isn't in the app. What was tried, what
+      it breaks and what comes next are in `Documentation/History/2026-10/2026-10-09.md`.
 - [ ] **A book imported before its file was kept can't re-read itself.** The book screen's menu asks
       for the file instead of re-reading one it holds, so those books need finding once by hand.
 - [ ] The running head is the book's title on every page. A chapter title on the verso, the way a
