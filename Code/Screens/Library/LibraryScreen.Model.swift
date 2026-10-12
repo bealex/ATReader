@@ -1481,7 +1481,9 @@ extension LibraryScreen {
                 hasLoaded = true
                 startSweep(since: previous, in: entries, library: library.worksInLibrary)
             } catch let error as AuthorTodayError where error.requiresReauthentication {
-                errorMessage = error.localizedDescription
+                // No alert: the shelf the device holds is on screen and reads without an account,
+                // and signing in again is offered from the profile.
+                isOffline = true
             } catch {
                 // The stored library is already on screen; say the list is stale rather than replacing
                 // it with an error.
