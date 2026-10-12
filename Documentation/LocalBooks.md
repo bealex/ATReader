@@ -262,6 +262,21 @@ The walk runs at utility priority and yields between chapters, so a book being p
 a page turn. A book opens on its first chapter as soon as that one chapter is ready; the shelf shows a
 bar under the book while the rest arrives, and it stays readable throughout.
 
+### The library, before anyone opens it
+
+A chapter's first setting costs twenty times a read of one already set, so the library is set ahead of
+its reader. `BookProcessor.catchUp()` asks the store for every chapter whose text is held and not yet
+prepared, and sets them at utility priority. The chapter each book would open on comes first: the one
+its reader stopped in, or its first. After those the walk goes chapter by chapter across the books, so
+every book has its opening before any has its second.
+
+It runs once a launch, behind the housekeeping, and again when a sweep ends, which is when new text
+arrives. A run with nothing to do costs one query.
+
+`catchUpWithTheLibrary()` in the app drops every prepared chapter first when `Typography.version` has
+moved since the last run. A stale chapter is otherwise one the query can't see: it's there, under a
+hash nothing asks for any more.
+
 ### Rules count as input
 
 What is stored is the output of the rules on the source, so both are in the key: `Typography.version`
@@ -270,7 +285,8 @@ rides in the content hash, and it is bumped by hand whenever a rule changes what
 Without it the store is a trap rather than a saving. Correcting the dashes changed the prepared text
 without touching a byte of any chapter's source, so every book already on the device would have gone on
 showing the marks an older typesetter chose, with nothing in the source to say it was stale. Bumping
-the version makes every book prepare itself once more, and be quick again after that.
+the version makes the whole library prepare itself once more, behind the reader, and be quick again
+after that.
 
 Nothing about pages is stored. The reader cuts a book into pages around wherever the reader is, a few
 milliseconds a page, so a change of font or of screen costs the page in front of them and nothing else.

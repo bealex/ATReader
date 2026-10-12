@@ -246,6 +246,7 @@ public enum BookHTML {
     /// one holds is never asked: a row of stars is a title because the book wrote it as one, not
     /// because of the characters in it.
     private static func titleLevel(inside attributes: String) -> Int? {
+        guard attributes.contains("data-title") else { return nil }
         guard let found = attributes.range(of: "data-title=\"[1-6]\"", options: .regularExpression) else { return nil }
 
         return Int(attributes[found].suffix(2).prefix(1))
@@ -253,6 +254,7 @@ public enum BookHTML {
 
     /// How deep in a list a block stands, or nothing where it is ordinary text.
     private static func listLevel(inside attributes: String) -> Int? {
+        guard attributes.contains("data-list") else { return nil }
         guard let found = attributes.range(of: "data-list=\"[1-9]\"", options: .regularExpression) else { return nil }
 
         return Int(attributes[found].suffix(2).prefix(1))
@@ -261,6 +263,7 @@ public enum BookHTML {
     /// What the book knows this block by, where something in it points here.
     private static func anchor(inside attributes: String) -> String? {
         guard
+            attributes.contains("data-anchor"),
             let found = attributes.range(of: "data-anchor=\"[^\"]+\"", options: .regularExpression)
         else {
             return nil
@@ -510,28 +513,51 @@ public enum BookHTML {
 
         // A line of its own inside the paragraph, which is what the book asked for. Not a newline:
         // that ends the paragraph as far as the typesetter is concerned.
-        text = text.replacingOccurrences(
-            of: "<br\\s*/?>",
-            with: String(lineSeparator),
-            options: [ .regularExpression, .caseInsensitive ]
-        )
+        if text.contains("<") {
+            text = text.replacingOccurrences(
+                of: "<br\\s*/?>",
+                with: String(lineSeparator),
+                options: [ .regularExpression, .caseInsensitive ]
+            )
+            text = text.replacingOccurrences(of: "<[^>]+>", with: "", options: .regularExpression)
+        }
 
-        text = text.replacingOccurrences(of: "<[^>]+>", with: "", options: .regularExpression)
         text = decodeEntities(in: text)
-        // HTML reads any run of these as one space. The non-breaking space is left alone, being the one
-        // piece of white space the text means.
-        text = text.replacingOccurrences(of: "[ \t\n\r\u{000B}\u{000C}]+", with: " ", options: .regularExpression)
-        // A run of them is a publisher indenting a line, which is the page's business rather than the
-        // text's. One on its own still binds the words either side of it and is left alone.
-        text = text.replacingOccurrences(of: "[ \u{00A0}]{2,}", with: " ", options: .regularExpression)
-        // A line the book broke itself starts where it starts: the space that ended the line before it
-        // and whatever was used to indent the new one are the book's own setting, not its words.
-        text = text.replacingOccurrences(
-            of: "[ \u{00A0}]*\(lineSeparator)[ \u{00A0}]*",
-            with: String(lineSeparator),
-            options: .regularExpression
-        )
+        if needsSpacing(text) {
+            // HTML reads any run of these as one space. The non-breaking space is left alone, being the one
+            // piece of white space the text means.
+            text = text.replacingOccurrences(of: "[ \t\n\r\u{000B}\u{000C}]+", with: " ", options: .regularExpression)
+            // A run of them is a publisher indenting a line, which is the page's business rather than the
+            // text's. One on its own still binds the words either side of it and is left alone.
+            text = text.replacingOccurrences(of: "[ \u{00A0}]{2,}", with: " ", options: .regularExpression)
+            // A line the book broke itself starts where it starts: the space that ended the line before it
+            // and whatever was used to indent the new one are the book's own setting, not its words.
+            text = text.replacingOccurrences(
+                of: "[ \u{00A0}]*\(lineSeparator)[ \u{00A0}]*",
+                with: String(lineSeparator),
+                options: .regularExpression
+            )
+        }
+
         return text.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    /// True where the text holds white space the page won't keep as it stands: anything but a lone space.
+    private static func needsSpacing(_ text: String) -> Bool {
+        var wasSpace = false
+
+        for unit in text.utf16 {
+            switch unit {
+                case 0x09 ... 0x0D, 0x2028: return true
+                case 0x20, 0xA0:
+                    if wasSpace { return true }
+
+                    wasSpace = true
+                default: wasSpace = false
+            }
+        }
+
+        return false
     }
 
     /// What a `<br>` becomes: a line of its own inside the paragraph. Kept in the text, since a
@@ -574,9 +600,15 @@ public enum BookHTML {
     /// way, so reading it as ordinary words puts a stray glyph on a line of its own a hundred times
     /// over.
     public static func isSceneBreak(_ text: String) -> Bool {
-        let marks = text.filter { !$0.isWhitespace }
+        var marks = 0
 
-        return !marks.isEmpty && marks.count <= separatorMarks && marks.allSatisfy(breakMarks.contains)
+        for character in text where !character.isWhitespace {
+            guard breakMarks.contains(character), marks < separatorMarks else { return false }
+
+            marks += 1
+        }
+
+        return marks > 0
     }
 
     /// The marks a book parts its scenes with: a row of asterisks, or the asterism that means exactly
@@ -754,7 +786,7 @@ public enum BookHTML {
         var targets: [String] = []
         var cursor = fragment.startIndex
 
-        while let anchor = anchor(in: fragment, from: cursor) {
+        while fragment.contains("<"), let anchor = anchor(in: fragment, from: cursor) {
             fenced += fragment[cursor ..< anchor.range.lowerBound]
             cursor = anchor.range.upperBound
 
@@ -793,20 +825,21 @@ public enum BookHTML {
         let flattened = plainText(from: fenced)
 
         guard
-            !ids.isEmpty || !targets.isEmpty || flattened.contains(where: isFence)
+            !ids.isEmpty || !targets.isEmpty || flattened.utf16.contains(where: fenceUnits.contains)
         else { return ReadText(text: flattened, marks: []) }
 
         return placing(ids, targets: targets, in: flattened, notes: &notes)
     }
 
-    private static func isFence(_ character: Character) -> Bool {
-        fences.contains { $0.open == character || $0.close == character }
-    }
+    /// Every fence is one UTF-16 unit, in a row of the private-use block.
+    private static let fenceUnits: ClosedRange<UInt16> = 0xE002 ... 0xE009
 
     /// Fences every stretch a paragraph sets apart before the markup is flattened, so where each one
     /// stood is still known afterwards. The fences are private-use characters, which the tag stripper
     /// has no opinion about.
     private static func fencing(in fragment: String) -> String {
+        guard fragment.contains("<") else { return fragment }
+
         var result = fragment
 
         for fence in fences {

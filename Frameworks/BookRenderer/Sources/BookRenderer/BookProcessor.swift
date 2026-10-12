@@ -33,6 +33,7 @@ public actor BookProcessor {
     private let store: any ChapterBodyStore & PreparedChapterStore
     private var walks: [Int: Task<Void, Never>] = [:]
     private var progress: [Int: Progress] = [:]
+    private var catchingUp: Task<Void, Never>?
 
     public init(store: any ChapterBodyStore & PreparedChapterStore) {
         self.store = store
@@ -47,6 +48,10 @@ public actor BookProcessor {
     /// This is the reader's way in, and it never waits for the rest of the book. The chain is left
     /// empty because only a walk in order can know it, and ``process(workId:chapters:)`` fills it in.
     public func content(workId: Int, chapterId: Int) async -> ChapterContent? {
+        await content(workId: workId, chapterId: chapterId, priority: .userInitiated)
+    }
+
+    private func content(workId: Int, chapterId: Int, priority: TaskPriority) async -> ChapterContent? {
         guard let body = await store.body(workId: workId, chapterId: chapterId) else { return nil }
 
         let hash = Self.hash(body.html)
@@ -55,13 +60,52 @@ public actor BookProcessor {
             return cached.content
         }
 
-        let prepared = await ChapterContent.prepare(html: body.html)
+        let prepared = await ChapterContent.prepare(html: body.html, priority: priority)
 
         await store.store(
             prepared: .init(chapterId: chapterId, contentHash: hash, chainHash: "", content: prepared),
             workId: workId
         )
         return prepared
+    }
+
+    // MARK: - The whole library, before anyone opens it
+
+    /// Prepares every chapter the device holds the text of, so a book's first opening is a read too.
+    ///
+    /// A second call while one is running joins it.
+    @discardableResult
+    public func catchUp() -> Task<Void, Never> {
+        if let catchingUp { return catchingUp }
+
+        let walk = Task(priority: .utility) { [weak self] in
+            guard let self else { return }
+
+            await prepareWhatIsHeld()
+            await caughtUp()
+        }
+
+        catchingUp = walk
+        return walk
+    }
+
+    private func caughtUp() {
+        catchingUp = nil
+    }
+
+    private func prepareWhatIsHeld() async {
+        let waiting = await store.unpreparedChapters()
+
+        guard !waiting.isEmpty else { return }
+
+        for place in waiting {
+            guard !Task.isCancelled else { return }
+
+            _ = await content(workId: place.workId, chapterId: place.chapterId, priority: .utility)
+            await Task.yield()
+        }
+
+        Self.memoir.info("prepared \(safe: waiting.count) chapters ahead of their books")
     }
 
     // MARK: - The whole book, behind the reader

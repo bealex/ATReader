@@ -24,6 +24,20 @@ public protocol PreparedChapterStore: Sendable {
     func preparedChapter(workId: Int, chapterId: Int, contentHash: String) async -> PreparedChapter?
 
     func store(prepared: PreparedChapter, workId: Int) async
+
+    /// Every chapter whose text is held and not prepared, the one each book opens on first.
+    func unpreparedChapters() async -> [ChapterPlace]
+}
+
+/// A chapter, and the book it stands in.
+public struct ChapterPlace: Sendable, Hashable {
+    public let workId: Int
+    public let chapterId: Int
+
+    public init(workId: Int, chapterId: Int) {
+        self.workId = workId
+        self.chapterId = chapterId
+    }
 }
 
 /// How large a picture standing in a book is worth keeping.

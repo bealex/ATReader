@@ -923,6 +923,38 @@ public actor SQLiteBookStore {
         return statement.string(0)
     }
 
+    /// Every chapter whose text is held and not prepared, the one each book opens on first.
+    ///
+    /// After those, in the order the books run: every book's first chapter before any book's second.
+    public func unpreparedChapters() -> [ChapterPlace] {
+        let query = """
+            SELECT body.work_id, body.chapter_id FROM chapter_body body
+            LEFT JOIN chapter_content content ON content.chapter_id = body.chapter_id
+            LEFT JOIN reading_position position ON position.work_id = body.work_id
+            LEFT JOIN chapter ON chapter.id = body.chapter_id
+            WHERE content.chapter_id IS NULL
+            ORDER BY
+                CASE WHEN position.chapter_id = body.chapter_id THEN 0 ELSE 1 END,
+                chapter.sort_order,
+                body.work_id
+            """
+
+        guard let statement = Statement(open(), query) else { return [] }
+
+        var result: [ChapterPlace] = []
+
+        while statement.step() {
+            result.append(ChapterPlace(workId: statement.integer(0), chapterId: statement.integer(1)))
+        }
+
+        return result
+    }
+
+    /// Drops every prepared chapter, for a typesetter whose rules have moved on from the ones that made them.
+    public func forgetPreparedChapters() {
+        execute("DELETE FROM chapter_content")
+    }
+
     /// Packs every chapter an earlier build kept as JSON, once: the file's version says so afterwards.
     ///
     /// A chapter at a time, giving the store up between them, so a library's worth of it never holds

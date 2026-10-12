@@ -14,6 +14,19 @@ import Foundation
 /// both are the one SQLite file and the folder an imported book unpacked into.
 extension BookProcessor {
     static let shared = BookProcessor(store: SQLiteBookStore.shared)
+
+    /// Prepares the library ahead of its reader, dropping first what an older typesetter made of it.
+    func catchUpWithTheLibrary() async {
+        let defaults = UserDefaults.standard
+        let made = defaults.string(forKey: Self.madeByKey)
+
+        if let made, made != Typography.version { await SQLiteBookStore.shared.forgetPreparedChapters() }
+        if made != Typography.version { defaults.set(Typography.version, forKey: Self.madeByKey) }
+
+        catchUp()
+    }
+
+    private static let madeByKey = "processor.typography"
 }
 
 /// The page's covers, from the shelf the app keeps them on.

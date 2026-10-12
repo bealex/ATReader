@@ -829,8 +829,11 @@ beats a message about refreshing it.
 the chapters the device has never seen, downloads their bodies and then spends what's left of its
 budget backfilling chapters that are still missing, so a book being read converges on being readable
 offline. It sweeps the books the reader has started and not finished, which is the set that can have a
-chapter they haven't seen. The budget is smaller in the background, where the window is short and overrunning it
-gets the app killed.
+chapter they haven't seen. What's left of the budget after that goes on the books nobody has opened:
+each one's contents and the chapter it would open on, so a first opening asks the service nothing. A
+book that already holds its opening costs no request. The sweep ends by having the typesetter catch up
+with whatever text arrived; see "The library, before anyone opens it" in `LocalBooks.md`. The budget is
+smaller in the background, where the window is short and overrunning it gets the app killed.
 
 Two things drive it:
 

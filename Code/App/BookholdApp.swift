@@ -83,6 +83,10 @@ struct BookholdApp: App {
                     // the quick reading and not only the ones opened since.
                     await SQLiteBookStore.shared.packKeptChapters()
 
+                    // Every chapter held and not yet set is set now, so no book's first opening
+                    // waits for it.
+                    await BookProcessor.shared.catchUpWithTheLibrary()
+
                     // Left for the reader to ask for until a library's worth of it has been watched:
                     // a re-read that loses one reading position loses it for good.
                     _ = inbox

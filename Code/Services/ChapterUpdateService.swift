@@ -6,6 +6,7 @@
 import AuthorToday
 import AuthorTodayBooks
 import BookKit
+import BookRenderer
 import BookStorage
 import Foundation
 import UserNotifications
@@ -90,10 +91,47 @@ struct ChapterUpdateService: Sendable {
             budget -= await download(chapters: missing.prefix(budget), workId: work.id)
         }
 
+        let started = Set(reading.map(\.id))
+
+        await fetchOpenings(of: works.filter { !started.contains($0.id) && !$0.isFinishedReading }, budget: budget)
+        await BookProcessor.shared.catchUpWithTheLibrary()
+
         let result = Result(newChaptersByWork: counts, titlesByWork: titles)
         await UpdateBadge.record(result, isComplete: isComplete)
         await UpdateNotices.post(result)
         return result
+    }
+
+    /// Fetches the chapter each of these books would open on, so a first opening asks the service nothing.
+    ///
+    /// A book already holding it costs no request, and each request made comes out of the budget.
+    private func fetchOpenings(of works: [Book], budget: Int) async {
+        var budget = budget
+
+        for work in works where budget > 0 {
+            var contents = await store.chapters(workId: work.id)
+
+            if contents.isEmpty {
+                budget -= 1
+
+                guard let fetched = try? await client.workContents(id: work.id).map(BookChapter.init) else { continue }
+
+                await store.store(chapters: fetched, workId: work.id)
+                contents = fetched
+            }
+
+            guard let opening = await Self.opening(of: work.id, among: contents, in: store) else { continue }
+
+            budget -= await download(chapters: [ opening ], workId: work.id)
+        }
+    }
+
+    /// The chapter a book opens on: the one its reader stopped in, or its first.
+    static func opening(of workId: Int, among contents: [BookChapter], in store: SQLiteBookStore) async -> Int? {
+        let readable = contents.filter(\.isReadable).sorted { ($0.sortOrder ?? 0) < ($1.sortOrder ?? 0) }
+        let stopped = await store.position(workId: workId)?.chapterId
+
+        return readable.first { $0.id == stopped }?.id ?? readable.first?.id
     }
 
     /// Downloads chapter bodies, reporting how many actually landed.

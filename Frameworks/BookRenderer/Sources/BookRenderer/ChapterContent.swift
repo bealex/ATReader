@@ -9,8 +9,8 @@ import NaturalLanguage
 
 /// Everything that makes a ``ChapterContent``. Moves to BookRenderer with the typesetter.
 public extension ChapterContent {
-    static func prepare(html: String) async -> ChapterContent {
-        await Task.detached(priority: .userInitiated) {
+    static func prepare(html: String, priority: TaskPriority = .userInitiated) async -> ChapterContent {
+        await Task.detached(priority: priority) {
             let chapter = BookHTML.chapter(from: html)
             let paragraphs = chapter.paragraphs
             let language = Self.language(of: paragraphs)
