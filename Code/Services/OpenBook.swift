@@ -31,6 +31,7 @@ enum OpenBook {
 
         defaults.removeObject(forKey: workIdKey)
         defaults.removeObject(forKey: titleKey)
+        PagePicture.forget(in: defaults)
     }
 
     static func kept(in defaults: UserDefaults = .standard) -> Kept? {
@@ -48,6 +49,11 @@ enum OpenBook {
 
         hasBeenTaken = true
 
+        return forLaunch
+    }
+
+    /// The book a launch opens on, whether or not a window has taken it yet.
+    static var forLaunch: Kept? {
         #if DEBUG
             // A launch driven by a test or a debug switch starts where that switch says, unless it
             // asks for this with `-at-restores-book YES`.

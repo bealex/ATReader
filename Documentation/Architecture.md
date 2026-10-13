@@ -100,6 +100,15 @@ SwiftUI shuts whatever is presented over a screen to put up an alert of its own,
 raises one when an empty shelf can't be loaded or a book can't be taken off it. `Navigator.isUnderABook` is true from the moment a
 kept book is taken, and the library holds its alert until the book has shut.
 
+The page takes a moment to set, so the launch shows a picture of it meanwhile. The reader photographs
+its sheets, without the controls, as the app stops being in front, and `PagePicture` keeps the picture
+with what it was drawn for: the book, the theme and the window's size. `LaunchPage` hands it to the
+root, which shows it from the first frame over whatever is being built, and then to the reader, which
+fades it out once its own sheet is drawn. A launch in another theme or a window of another size shows
+no picture, since a light page flashed under a dark one is worse than bare paper. The root reads the
+theme off its own colour scheme, which at launch is still the system's. The picture goes when the
+book shuts.
+
 A launch carrying any `-at-` argument opens on the shelf, so a test starts where it expects to.
 `-at-restores-book YES` asks for the kept book anyway.
 

@@ -18,6 +18,13 @@ enum RootScreen {
         @Environment(\.scenePhase)
         private var phase
 
+        /// The system's light or dark at launch, before any book has held the window to its own.
+        @Environment(\.colorScheme)
+        private var colorScheme
+
+        @State
+        private var launchPage = LaunchPage.shared
+
         var body: some View {
             Group {
                 #if DEBUG
@@ -31,6 +38,7 @@ enum RootScreen {
                 #endif
             }
             .animation(.default, value: session.state)
+            .overlay { pageLeftOpen }
             // Not from this view's own colour scheme: the reader holds the window to the page's light
             // or dark while a book is open, and every view in it then answers with the page.
             .onChange(of: phase, initial: true) { _, now in
@@ -49,6 +57,26 @@ enum RootScreen {
                 #endif
 
                 await session.restore()
+            }
+        }
+
+        /// The page the app was closed on, as a picture, until the reader has set it again. Only at
+        /// the size it was drawn for: a window turned since would stretch it.
+        @ViewBuilder
+        private var pageLeftOpen: some View {
+            let theme = settings.theme(underDarkSystem: colorScheme == .dark)
+
+            if let picture = launchPage.covering(theme: theme.rawValue) {
+                GeometryReader { window in
+                    if window.size == picture.size {
+                        Image(uiImage: picture)
+                            .accessibilityHidden(true)
+                    }
+                }
+                .ignoresSafeArea()
+                .allowsHitTesting(false)
+                // There from the first frame and gone in one: a fade either way shows the shelf through it.
+                .transition(.identity)
             }
         }
 

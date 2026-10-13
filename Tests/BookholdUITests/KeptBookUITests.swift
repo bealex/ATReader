@@ -33,6 +33,10 @@ final class KeptBookUITests: XCTestCase {
 
         let stoppedAt = place(in: app)
 
+        // Put away first, as an app is before it is closed: that is when the page's picture is taken,
+        // and the next launch opens on it.
+        XCUIDevice.shared.press(.home)
+        sleep(2)
         app.terminate()
         app = launch(fresh: false)
         page = try openPage(in: app)

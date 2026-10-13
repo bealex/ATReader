@@ -30,6 +30,8 @@ extension ReaderScreen {
         /// Which sheet view stands at each step from the one in front of the reader.
         private var atStep: [Int: SheetView] = [:]
         private var failure: UIContentUnavailableView?
+        /// The picture of this page kept at the last launch, over the sheets until one of them is drawn.
+        private var pageLeftOpen: UIImageView?
         private var chrome: ChromeLayer?
         private var loading: Task<Void, Never>?
         private var wayBackFade: Task<Void, Never>?
@@ -73,6 +75,15 @@ extension ReaderScreen {
                 sheetViews.append(SheetView(model: model, stage: stage, pictures: pictures))
             }
 
+            if let picture = LaunchPage.shared.take(for: model.workId) {
+                let shown = UIImageView(image: picture)
+
+                shown.frame = view.bounds
+                shown.autoresizingMask = [ .flexibleWidth, .flexibleHeight ]
+                view.addSubview(shown)
+                pageLeftOpen = shown
+            }
+
             turner.sheet = { [weak self] step in self?.atStep[step] }
             turner.onForward = { [weak self] in self?.turned { $0.turnForward() } }
             turner.onBack = { [weak self] in self?.turned { $0.turnBack() } }
@@ -89,6 +100,15 @@ extension ReaderScreen {
             for name in [ UIApplication.willResignActiveNotification, UIApplication.didEnterBackgroundNotification ] {
                 center.addObserver(self, selector: #selector(leaving), name: name, object: nil)
             }
+
+            // The page's picture is taken as the app stops being in front and not again in the
+            // background: the system turns the app to the other appearance there to photograph it.
+            center.addObserver(
+                self,
+                selector: #selector(keepPagePicture),
+                name: UIApplication.willResignActiveNotification,
+                object: nil
+            )
 
             if #available(iOS 27.1, *) {
                 registerForTraitChanges(UITraitCollection.systemTraitsAffectingVerticalBarEdge) { (self: Self, _) in
@@ -150,6 +170,60 @@ extension ReaderScreen {
         @objc
         private func leaving() { model.flushPosition() }
 
+        /// Photographs the sheets, without the controls over them, for the next launch to open on.
+        @objc
+        private func keepPagePicture() {
+            guard
+                view.window != nil,
+                pageLeftOpen == nil,
+                model.currentSheet != nil,
+                turner.bounds.width > 0
+            else { return }
+
+            let theme = settings.theme
+            let bounds = turner.bounds
+            let picture = UIGraphicsImageRenderer(bounds: bounds).image { drawn in
+                UIColor(theme.background).setFill()
+                drawn.fill(bounds)
+                turner.drawHierarchy(in: bounds, afterScreenUpdates: false)
+            }
+            let subject = PagePicture.Subject(workId: model.workId, theme: theme.rawValue, size: bounds.size)
+
+            Task { await PagePicture.keep(picture, of: subject) }
+        }
+
+        /// Takes the kept picture down once the page it stood for is on screen, or at once where the
+        /// window is no longer the size it was drawn for.
+        private func followPageLeftOpen() {
+            guard let shown = pageLeftOpen else { return }
+
+            let fits = shown.image.map { $0.size == view.bounds.size } ?? false
+
+            guard
+                fits
+            else {
+                shown.removeFromSuperview()
+                pageLeftOpen = nil
+                return
+            }
+            guard model.currentSheet != nil || model.errorMessage != nil else { return }
+
+            pageLeftOpen = nil
+
+            Task {
+                // The sheet is drawn in the frame after it is placed.
+                try? await Task.sleep(for: Self.arrivingFrame * 2)
+
+                UIView.animate(withDuration: Self.pictureFade) {
+                    shown.alpha = 0
+                } completion: { _ in
+                    shown.removeFromSuperview()
+                }
+            }
+        }
+
+        private static let pictureFade: TimeInterval = 0.12
+
         // MARK: - Following the book
 
         override func updateProperties() {
@@ -177,6 +251,7 @@ extension ReaderScreen {
             showFailure(model.currentSheet == nil ? model.errorMessage : nil)
             followPicking()
             placeSheets()
+            followPageLeftOpen()
         }
 
         /// Fades the status bar with the controls, and tells it only when something it shows has changed.

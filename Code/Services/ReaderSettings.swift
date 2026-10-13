@@ -183,6 +183,13 @@ final class ReaderSettings {
         return systemIsDark ? darkTheme : lightTheme
     }
 
+    /// The theme a page takes under a system showing light or dark, whatever this has been told so far.
+    func theme(underDarkSystem isDark: Bool) -> Theme {
+        guard followsSystem else { return fixedTheme }
+
+        return isDark ? darkTheme : lightTheme
+    }
+
     /// A tap on the left of the page turns forward, as a tap on the right does.
     ///
     /// Off, the two sides part: the left goes back a page and the right goes on. Which one a reader

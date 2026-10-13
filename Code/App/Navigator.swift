@@ -118,6 +118,7 @@ final class Navigator {
                 let screen = self.covering(.reader(.init(workId: book.workId, title: book.title)))
             else {
                 self.isUnderABook = false
+                LaunchPage.shared.drop()
                 return
             }
 
