@@ -4,6 +4,7 @@
 //
 
 import CoreGraphics
+import CoreImage
 import Foundation
 import Vision
 
@@ -62,7 +63,7 @@ enum PictureSubject {
         else {
             return .unavailable
         }
-        guard let looked = foreground(of: paper, width: width, height: height) else { return .unavailable }
+        guard let looked = foreground(of: softened(paper), width: width, height: height) else { return .unavailable }
         guard let found = looked else { return .nothing }
 
         let whole = withEnclosedPaper(found, light: light, width: width, height: height)
@@ -78,6 +79,21 @@ enum PictureSubject {
     }
 
     // MARK: - The model
+
+    /// How far the copy the model sees is blurred, in pixels: hatching and open strokes read as the
+    /// tone and shape they draw, and the model takes in more of a figure.
+    private static let softening = 1.5
+
+    /// The picture as the model sees it. Only the model: the cut to the ink reads the sharp picture.
+    private static func softened(_ picture: CGImage) -> CGImage {
+        let extent = CGRect(x: 0, y: 0, width: picture.width, height: picture.height)
+        let blurred = CIImage(cgImage: picture)
+            .clampedToExtent()
+            .applyingFilter("CIGaussianBlur", parameters: [ kCIInputRadiusKey: softening ])
+            .cropped(to: extent)
+
+        return CIContext().createCGImage(blurred, from: extent) ?? picture
+    }
 
     /// Vision's foreground mask for a picture drawn dark on light, top row first: nil inside where it
     /// found nothing, and nil outside where it couldn't look.

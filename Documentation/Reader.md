@@ -310,7 +310,8 @@ the deeper of the page's two colours and what is white lands on the paler one.
 A dark page turns the picture over and keeps its subject the way round it was drawn. The paper around
 the figures takes the page's colour and the ink there takes the text's, so the picture sits in the
 page instead of standing on it as a pale block. The figures, creatures and machines stay pale paper
-with dark ink. `PictureSubject` finds them with Vision's foreground model, puts back any paper the drawing shuts in
+with dark ink. `PictureSubject` finds them with Vision's foreground model, shown a copy blurred by a pixel and a
+half so hatching and open strokes read as the shapes they draw, puts back any paper the drawing shuts in
 beside them (the model misses a face drawn in profile with open strokes), and cuts the mask's edge back
 through the paper to the first ink, since the model's edge falls just outside the outline and the
 paper it took in would show as a white rim. A picture where the model finds nothing is turned over
