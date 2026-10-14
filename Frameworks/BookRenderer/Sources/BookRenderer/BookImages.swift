@@ -106,9 +106,16 @@ public final class PageImage: Sendable {
 
     private let held: Mutex<Held>
     private let read: (@Sendable () -> Pixels?)?
+    /// The picture at its own size, read again for the one thing that wants it: looking for its subject.
+    private let original: (@Sendable () -> CGImage?)?
     /// The darkness at the size it was last drawn, in pixels: a mask drawn at its own size is copied,
     /// where one drawn at another is resampled on every draw of the page.
     private let fitted = Mutex<(pixels: CGSize, mask: CGImage)?>(nil)
+
+    /// Where the subject stands, once looked for: what a dark page keeps as drawn.
+    private let subject = Mutex<PictureSubject.Outcome?>(nil)
+    /// The subject's mask at the size it was last drawn, kept for the same reason the darkness is.
+    private let fittedSubject = Mutex<(pixels: CGSize, mask: CGImage)?>(nil)
 
     /// A picture already decoded.
     fileprivate init(size: CGSize, scale: CGFloat, pixels: Pixels) {
@@ -116,14 +123,21 @@ public final class PageImage: Sendable {
         self.scale = scale
         held = Mutex(Held(pixels: pixels, isRead: true))
         read = nil
+        original = nil
     }
 
     /// A picture whose size is known and whose pixels `read` decodes when first asked for.
-    fileprivate init(size: CGSize, scale: CGFloat, read: @escaping @Sendable () -> Pixels?) {
+    fileprivate init(
+        size: CGSize,
+        scale: CGFloat,
+        read: @escaping @Sendable () -> Pixels?,
+        original: (@Sendable () -> CGImage?)? = nil
+    ) {
         self.size = size
         self.scale = scale
         held = Mutex(Held())
         self.read = read
+        self.original = original
     }
 
     /// The picture's pixels, decoded once. Whoever asks while it is decoding waits for that one decode.
@@ -139,7 +153,8 @@ public final class PageImage: Sendable {
     }
 
     /// Resamples the picture for a draw at `size` and `scale` away from the main actor, where it is drawn
-    /// in the page's colours, so that draw copies it.
+    /// in the page's colours, so that draw copies it. Its subject is looked for here too, since a dark
+    /// page keeps it as drawn and finding it is far too slow for a draw.
     @concurrent
     public nonisolated func ready(fitting size: CGSize, at scale: CGFloat, inPageColours: Bool) async {
         guard
@@ -149,13 +164,37 @@ public final class PageImage: Sendable {
         else { return }
 
         _ = mask(darkness, fitting: size, at: scale)
+
+        if case let .found(found) = lookForSubject(in: darkness) {
+            _ = mask(found, fitting: size, at: scale, isSubject: true)
+        }
+    }
+
+    /// What looking for the subject came to, looked for the first time it is asked.
+    private func lookForSubject(in darkness: CGImage) -> PictureSubject.Outcome {
+        if let looked = subject.withLock({ $0 }) { return looked }
+
+        let outcome =
+            original?().map { PictureSubject.look(original: $0, scaledTo: darkness.width, height: darkness.height) }
+            ?? PictureSubject.look(darkness: darkness)
+
+        subject.withLock { $0 = outcome }
+        return outcome
     }
 
     /// The darkness resampled once to `size` at `scale`, and kept for the next draw at that size.
-    private func mask(_ darkness: CGImage, fitting size: CGSize, at scale: CGFloat) -> CGImage {
+    private func mask(
+        _ darkness: CGImage,
+        fitting size: CGSize,
+        at scale: CGFloat,
+        isSubject: Bool = false
+    ) -> CGImage {
         let pixels = CGSize(width: (size.width * scale).rounded(), height: (size.height * scale).rounded())
+        let kept = isSubject
+            ? fittedSubject.withLock { $0?.pixels == pixels ? $0?.mask : nil }
+            : fitted.withLock { $0?.pixels == pixels ? $0?.mask : nil }
 
-        if let kept = fitted.withLock({ $0?.pixels == pixels ? $0?.mask : nil }) { return kept }
+        if let kept { return kept }
 
         guard
             pixels.width > 0, pixels.height > 0,
@@ -175,8 +214,26 @@ public final class PageImage: Sendable {
 
         guard let mask = context.makeImage() else { return darkness }
 
-        fitted.withLock { $0 = (pixels, mask) }
+        if isSubject { fittedSubject.withLock { $0 = (pixels, mask) } } else { fitted.withLock { $0 = (pixels, mask) } }
         return mask
+    }
+
+    /// Lays `paper` down whole and paints `ink` over it through the picture's own shading, which is what
+    /// turns a grey into a mixture of the two rather than one or other.
+    private static func paint(
+        _ paper: CGColor,
+        over ink: CGColor,
+        through shading: CGImage,
+        in target: CGRect,
+        into drawing: CGContext
+    ) {
+        drawing.saveGState()
+        drawing.setFillColor(paper)
+        drawing.fill(target)
+        drawing.clip(to: target, mask: shading)
+        drawing.setFillColor(ink)
+        drawing.fill(target)
+        drawing.restoreGState()
     }
 
     /// How far a colour picture is faded on a dark page, so it doesn't glare beside the text.
@@ -227,15 +284,28 @@ public final class PageImage: Sendable {
         let pixels = decoded()
 
         if let darkness = pixels?.darkness, pixels?.kind == .monochrome || palette.isMonochrome {
-            // The picture keeps its own light and dark; only the two colours they land on change. The
-            // pale colour is laid down whole and the deep one painted over it through the picture's own
-            // shading, which is what turns a grey into a mixture of the two rather than one or other.
-            drawing.setFillColor(palette.lighter.resolvedColor(with: .current).cgColor)
-            drawing.fill(target)
+            let shading = mask(darkness, fitting: target.size, at: scale)
+            let lighter = palette.lighter.resolvedColor(with: .current).cgColor
+            let darker = palette.darker.resolvedColor(with: .current).cgColor
+
             drawing.interpolationQuality = .none
-            drawing.clip(to: target, mask: mask(darkness, fitting: target.size, at: scale))
-            drawing.setFillColor(palette.darker.resolvedColor(with: .current).cgColor)
-            drawing.fill(target)
+
+            // A dark page turns the picture over, so its paper is the page's and its ink the text's,
+            // and keeps its subject the way round it was drawn on top. Both stay in the page's two
+            // colours. Where the subject couldn't be looked for, or hasn't been yet, the picture is drawn
+            // the way a light page draws it.
+            switch palette.isDark ? subject.withLock({ $0 }) : nil {
+                case let .found(found):
+                    Self.paint(darker, over: lighter, through: shading, in: target, into: drawing)
+                    drawing.saveGState()
+                    drawing.clip(to: target, mask: mask(found, fitting: target.size, at: scale, isSubject: true))
+                    Self.paint(lighter, over: darker, through: shading, in: target, into: drawing)
+                    drawing.restoreGState()
+                case .nothing:
+                    Self.paint(darker, over: lighter, through: shading, in: target, into: drawing)
+                case .unavailable, nil:
+                    Self.paint(lighter, over: darker, through: shading, in: target, into: drawing)
+            }
         } else if let colour = pixels?.colour {
             drawing.setAlpha(palette.isDark ? Self.dimming : 1)
             drawing.draw(colour, in: target)
@@ -318,7 +388,12 @@ public final class BookImages {
                 continue
             }
 
-            let picture = PageImage(size: size, scale: 1) { Self.read(url).flatMap(Self.pixels) }
+            let picture = PageImage(
+                size: size,
+                scale: 1,
+                read: { Self.read(url).flatMap(Self.pixels) },
+                original: { Self.original(at: url) }
+            )
 
             cache.setObject(picture, forKey: source as NSString, cost: Self.cost(ofPictureSized: size))
             ready[source] = picture
@@ -415,6 +490,16 @@ public final class BookImages {
         let scale = min(1, CGFloat(maximumPixelSize) / max(1, max(size.width, size.height)))
 
         return Int(size.width * scale * size.height * scale)
+    }
+
+    /// A picture off the device at its own size, however large.
+    private nonisolated static func original(at url: URL) -> CGImage? {
+        guard
+            let data = try? Data(contentsOf: url, options: .mappedIfSafe),
+            let source = CGImageSourceCreateWithData(data as CFData, nil)
+        else { return nil }
+
+        return CGImageSourceCreateImageAtIndex(source, 0, nil)
     }
 
     private nonisolated static func read(_ url: URL) -> Ingredients? {

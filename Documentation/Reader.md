@@ -304,10 +304,26 @@ pixels. A picture counts as colour when more than a fiftieth of its solid pixels
 - **Anything monochrome is redrawn in the page's own two colours.** Line art, a grey scan and a black
   plate on nothing all go this way.
 
-A monochrome picture keeps its own light and dark. What is black in the file lands on the deeper of the
-page's two colours and what is white lands on the paler one, whichever of the foreground and the
-background each of those happens to be. So a drawing is never turned into a negative of itself: on a
-night page it comes out as pale paper with dark ink, in the theme's own colours rather than the file's.
+On a light page a monochrome picture keeps its own light and dark. What is black in the file lands on
+the deeper of the page's two colours and what is white lands on the paler one.
+
+A dark page turns the picture over and keeps its subject the way round it was drawn. The paper around
+the figures takes the page's colour and the ink there takes the text's, so the picture sits in the
+page instead of standing on it as a pale block. The figures, creatures and machines stay pale paper
+with dark ink. `PictureSubject` finds them with Vision's foreground model, puts back any paper the drawing shuts in
+beside them (the model misses a face drawn in profile with open strokes), and cuts the mask's edge back
+through the paper to the first ink, since the model's edge falls just outside the outline and the
+paper it took in would show as a white rim. A picture where the model finds nothing is turned over
+whole, and one it couldn't look at is drawn as a light page draws it. Either way the picture stays in
+the theme's two colours.
+
+The subject is looked for in the picture at its own size, read again from the file for just that,
+and only the mask is scaled to the size the picture is kept at. A picture shrunk first would lose the
+line the edge is cut back to. Past 4,096 pixels on its longest side even the original is shrunk.
+Finding the subject takes 30 to 180 ms a picture on a Mac, so it happens once a picture as a page is
+made ready, never in a draw. A picture drawn before that, such as the cover on the title page, is drawn
+as a light page draws it. The model doesn't run in the simulator ("Could not create inference
+context"), so there every picture takes that fallback.
 
 What is kept is how dark each pixel is, alpha included, as a grey picture of its own. Whatever was
 never drawn on counts as light, since the paper is what showed through there. The page lays its paler
