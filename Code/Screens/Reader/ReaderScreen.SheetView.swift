@@ -397,7 +397,17 @@ extension ReaderScreen {
 
             wasChromeHidden = stage.isChromeHidden
 
-            let setting = { self.set(model: model, stage: stage, at: position, isCurrent: isCurrent, in: container) }
+            let setting = {
+                // Everything stands where it will before the fade starts: only the change of look fades.
+                // Laid out inside the animation, the bar slid in from nowhere and its fill grew.
+                UIView.performWithoutAnimation {
+                    CATransaction.begin()
+                    CATransaction.setDisableActions(true)
+                    self.set(model: model, stage: stage, at: position, isCurrent: isCurrent, in: container)
+                    self.layoutIfNeeded()
+                    CATransaction.commit()
+                }
+            }
 
             // The figures take on the book's length and a bar as the controls come up, and give them back.
             if changing, window != nil {
