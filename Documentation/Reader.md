@@ -383,10 +383,11 @@ the line and hangs the note's id on them, the way a picture hangs on the charact
 The raise is short of a printed superscript's, because the column takes its line height and its
 baseline from the body font and a marker climbing past the body's own ascent would foul the line above.
 
-**The offset is negative.** The page draws through a flipped text matrix, so CoreText's own upwards is
-the page's downwards, and asking for a positive rise sinks every marker below its line.
-`NoteMarker.baselineOffset(forFontSize:)` is where that sign lives, so there is one place to read it
-and one thing to test.
+**The offset's sign depends on how a line is drawn.** The page draws each run with `CTRunDraw` under a
+flipped text matrix, and there a positive `.baselineOffset` lifts a marker. Drawn whole with
+`CTLineDraw` it sank them, so a change to how lines are drawn can turn every marker upside down.
+`NoteMarker.baselineOffset(forFontSize:)` and `ScriptMarker` are where the sign lives, and
+`NoteMarkerTests` draws a page and checks where the ink lands.
 
 Markers travel as offsets into the text as it arrived, not as it was set. Binding and hyphenation both
 put characters in, so a mark counted straight through would drift a little further with every word

@@ -37,11 +37,8 @@ public enum NoteMarker {
     /// above it.
     public static let rise = 0.25
 
-    /// What a marker's `.baselineOffset` is set to against a given type size.
-    ///
-    /// Negative. The page draws through a flipped text matrix, so CoreText's own upwards is the page's
-    /// downwards and a positive offset sinks the marker below the line instead of lifting it clear.
-    public static func baselineOffset(forFontSize size: Double) -> Double { -size * rise }
+    /// What a marker's `.baselineOffset` is set to against a given type size: positive, which lifts it.
+    public static func baselineOffset(forFontSize size: Double) -> Double { size * rise }
 
     /// How wide a marker is treated as being when a finger goes for it, whatever it measures.
     ///
@@ -60,14 +57,12 @@ public enum ScriptMarker {
     /// lift above it, because the line below is closer than the line above.
     public static let drop = 0.14
 
-    /// What a figure's `.baselineOffset` is set to against a given type size.
-    ///
-    /// The page draws through a flipped text matrix, so CoreText's own upwards is the page's
-    /// downwards: lifting a figure takes a negative offset and dropping one takes a positive.
+    /// What a figure's `.baselineOffset` is set to against a given type size: positive lifts it,
+    /// negative drops it.
     public static func baselineOffset(_ place: ScriptMark.Place, forFontSize size: Double) -> Double {
         switch place {
-            case .below: size * drop
-            case .above: -size * NoteMarker.rise
+            case .below: -size * drop
+            case .above: size * NoteMarker.rise
         }
     }
 }
