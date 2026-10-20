@@ -222,6 +222,10 @@ enum LibraryScreen {
         @State
         private var correcting: Book?
 
+        /// The book waiting on the reader to say it really goes.
+        @State
+        private var removing: Book?
+
         /// What the list has to lay cards out in, measured once rather than guessed at.
         @State
         private var listWidth: CGFloat = 0
@@ -258,6 +262,7 @@ enum LibraryScreen {
                 listWidth = $0
             }
             .modifier(SeriesEditing(model: model, reordering: $reordering, correcting: $correcting))
+            .modifier(BookRemoval(model: model, removing: $removing))
         }
 
         private var shelves: [Model.AuthorShelf] { model.shelves(matching: search) }
@@ -439,7 +444,7 @@ enum LibraryScreen {
                     systemImage: "trash",
                     isDestructive: true
                 ) {
-                    hand.settled { Task { await model.remove(work) } }
+                    removing = work
                 },
             ]
 
@@ -503,6 +508,42 @@ private struct SeriesEditing: ViewModifier {
                     Task { await model.correctSeries(of: work, to: edit) }
                 }
             }
+    }
+}
+
+/// Asks before a book leaves the shelf: a file's text is on this device alone, and a service book
+/// leaves the reader's library there too.
+private struct BookRemoval: ViewModifier {
+    let model: LibraryScreen.Model
+
+    @Binding
+    var removing: Book?
+
+    func body(content: Content) -> some View {
+        content
+            .confirmationDialog(
+                isLocal ? "Delete this book?" as LocalizedStringKey : "Remove from library?",
+                isPresented: isAsking,
+                titleVisibility: .visible,
+                presenting: removing
+            ) { work in
+                Button(isLocal ? "Delete" as LocalizedStringKey : "Remove", role: .destructive) {
+                    Task { await model.remove(work) }
+                }
+                Button("Keep", role: .cancel) {}
+            } message: { _ in
+                Text(
+                    isLocal
+                        ? "Its text is on this device only. You would need the file again to read it."
+                        : "It leaves your library on author.today too." as LocalizedStringKey
+                )
+            }
+    }
+
+    private var isLocal: Bool { removing.map(model.isLocal) ?? false }
+
+    private var isAsking: Binding<Bool> {
+        Binding(get: { removing != nil }, set: { if !$0 { removing = nil } })
     }
 }
 

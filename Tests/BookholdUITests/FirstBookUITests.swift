@@ -30,6 +30,11 @@ final class FirstBookUITests: XCTestCase {
         XCTAssertTrue(delete.waitForExistence(timeout: 10), "the book offered no way out of the library")
         delete.tap()
 
+        let confirm = app.buttons["Delete"]
+
+        XCTAssertTrue(confirm.waitForExistence(timeout: 10), "the book went without asking")
+        confirm.tap()
+
         XCTAssertTrue(emptied(in: app), "the book stayed on the shelf")
 
         // Launched as the app is every other time, so the mark it left behind is the one that counts.

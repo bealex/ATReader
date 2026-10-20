@@ -1785,6 +1785,17 @@
         }
       }
     },
+    "It leaves your library on author.today too.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Книга уйдёт и из вашей библиотеки на author.today."
+          }
+        }
+      }
+    },
     "Its text is on this device only. You would need the file again to read it.": {
       "extractionState": "manual",
       "localizations": {
@@ -2977,6 +2988,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Убрать из библиотеки"
+          }
+        }
+      }
+    },
+    "Remove from library?": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Убрать из библиотеки?"
           }
         }
       }
