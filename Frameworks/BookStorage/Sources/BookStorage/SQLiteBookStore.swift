@@ -320,6 +320,13 @@ public actor SQLiteBookStore {
                 WHEN excluded.is_finished = 0 THEN NULL
                 ELSE COALESCE(work.finished_at, excluded.finished_at)
             END,
+            -- A reader caught up when the author finishes has just read a finished book.
+            read_at = CASE
+                WHEN work.is_finished = 0 AND excluded.is_finished = 1
+                    AND COALESCE(work.reading_progress, excluded.reading_progress, 0) >= 1
+                    THEN excluded.updated_at
+                ELSE work.read_at
+            END,
             -- A book the reader only looked at arrives when it reaches a shelf, not when it was seen.
             taken_down_at = CASE
                 WHEN work.library_state IS NULL AND excluded.library_state IS NOT NULL

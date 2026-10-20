@@ -66,8 +66,15 @@ struct ChapterUpdateService: Sendable {
         isComplete: Bool = true
     ) async -> Result {
         // Started, and with something still to come: a book nobody has opened has no chapters to
-        // miss, and one written and read to its end has none left.
-        let reading = works.filter { $0.hasStartedReading && !$0.isFinishedReading }
+        // miss, and one written and read to its end has none left. Judged by the stored copy: the
+        // service knows nothing of reading done here, and a book finished in this very refresh is still
+        // asked for the chapters its author posted with it.
+        let held = Dictionary(await store.books().map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        let reading = works.filter { work in
+            let book = held[work.id] ?? work
+
+            return book.isOpened && !book.isDone()
+        }
         var counts: [Int: Int] = [:]
         var titles: [Int: String] = [:]
         var budget = chapterBudget
@@ -93,7 +100,10 @@ struct ChapterUpdateService: Sendable {
 
         let started = Set(reading.map(\.id))
 
-        await fetchOpenings(of: works.filter { !started.contains($0.id) && !$0.isFinishedReading }, budget: budget)
+        await fetchOpenings(
+            of: works.filter { !started.contains($0.id) && !(held[$0.id] ?? $0).isFinishedReading },
+            budget: budget
+        )
         await BookProcessor.shared.catchUpWithTheLibrary()
 
         let result = Result(newChaptersByWork: counts, titlesByWork: titles)

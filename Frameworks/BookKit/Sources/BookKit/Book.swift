@@ -43,7 +43,8 @@ public struct Book: Codable, Identifiable, Hashable, Sendable {
     public let lastReadTime: Date?
     public let lastChapterId: Int?
     public var libraryState: BookShelf?
-    /// When this device last saw the reader get to the end of it.
+    /// When this device last saw the reader get to the end of it, or saw it finished with the reader
+    /// already at its end.
     public var readAt: Date?
     /// When it was last put out as a cover: arriving in the library, or asked for by name.
     public var takenDownAt: Date?

@@ -148,6 +148,23 @@ struct ReadingMarkTests {
     }
 
     @Test
+    func aBookFinishedWithTheReaderCaughtUpIsJustRead() async throws {
+        let store = try Self.store()
+
+        await store.replaceLibrary(with: [
+            Self.book(id: 1, read: 1, isFinished: false), Self.book(id: 2, read: 0.5, isFinished: false),
+        ])
+        await store.replaceLibrary(with: [ Self.book(id: 1, read: 1), Self.book(id: 2, read: 0.5) ])
+
+        let caughtUp = try #require(await store.book(id: 1)?.summary)
+
+        #expect(caughtUp.isJustRead(), "a book finished under a caught-up reader was not dated as read")
+        #expect(!caughtUp.standsOnItsEdge(), "a book finished under a caught-up reader was put away at once")
+        #expect(ReadingMark(caughtUp)?.kind == .read)
+        #expect(await store.book(id: 2)?.summary.readAt == nil)
+    }
+
+    @Test
     func onlyBooksArrivingAfterTheFirstLibraryAreTakenDown() async throws {
         let store = try Self.store()
 
