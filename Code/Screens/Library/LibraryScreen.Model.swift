@@ -1373,20 +1373,23 @@ extension LibraryScreen {
         /// Looks for chapters published since the device last looked.
         ///
         /// The shelf carries no chapters, so reloading it cannot answer "is there anything new to
-        /// read?" on its own. What it does carry is each book's update time, and a book whose time has
-        /// moved is the only one worth asking for a table of contents. Once a day everything is walked
-        /// instead, which is also what fills the offline cache.
-        private func findNewChapters(since previous: [Book], in entries: [Book]) async {
+        /// read?" on its own. What it does carry is each book's update time, and a book updated since its
+        /// contents were last asked for is the only one worth asking again. Judged against the store
+        /// rather than the shelf on screen: a background refresh moves the time and can be stopped before
+        /// it reaches the contents. Once a day everything is walked instead, which also fills the offline
+        /// cache.
+        private func findNewChapters(in entries: [Book]) async {
             let lastChecked = UpdateBadge.lastCheckedAt
             let isDue = lastChecked.map { Date.now.timeIntervalSince($0) > BackgroundRefresh.interval } ?? true
-            let books = isDue ? entries : Self.changed(from: previous, to: entries)
+            let service = ChapterUpdateService(client: session.client)
+            let books = isDue ? entries : await service.unchecked(entries)
 
             guard !books.isEmpty else { return }
 
             // Asked here rather than at launch: a signed-in reader with a shelf is who the badge is for.
             await UpdateBadge.requestPermission()
 
-            _ = await ChapterUpdateService(client: session.client).sweep(
+            _ = await service.sweep(
                 works: books,
                 // A partial pass is for the badge alone; downloading bodies is the daily pass's job.
                 chapterBudget: isDue ? ChapterUpdateService.foregroundChapterBudget : 0,
@@ -1405,28 +1408,31 @@ extension LibraryScreen {
             await reload()
         }
 
-        /// The books the service has touched since this device last saw them, plus the ones it has
-        /// never seen.
-        private static func changed(from previous: [Book], to entries: [Book]) -> [Book] {
-            let before = Dictionary(previous.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
-
-            return entries.filter { before[$0.id]?.lastUpdateTime != $0.lastUpdateTime }
-        }
-
         /// One sweep at a time; a second pull while one is walking would only ask the same questions.
         @ObservationIgnored
         private var sweepTask: Task<Void, Never>?
 
         /// The walk runs behind the list rather than under the refresh spinner: it is one request per
         /// changed book, and the shelf is already on screen.
-        private func startSweep(since previous: [Book], in entries: [Book], library: [WorkMetaInfo]) {
+        private func startSweep(in entries: [Book], library: [WorkMetaInfo]? = nil) {
             guard sweepTask == nil else { return }
 
             sweepTask = Task { [weak self] in
-                await self?.findNewBooks(of: library)
-                await self?.findNewChapters(since: previous, in: entries)
+                if let library { await self?.findNewBooks(of: library) }
+
+                await self?.findNewChapters(in: entries)
                 self?.sweepTask = nil
             }
+        }
+
+        /// Draws what a background refresh left in the store, and asks for the contents it was stopped
+        /// before reaching.
+        func cameBack() async {
+            await refreshFromStore()
+
+            guard hasLoaded, session.isSignedIn else { return }
+
+            startSweep(in: works.filter { !$0.isLocal })
         }
 
         /// The asking already under way, which a second reload waits for rather than starting another.
@@ -1467,7 +1473,6 @@ extension LibraryScreen {
             defer { isLoading = false }
 
             do {
-                let previous = works
                 let library = try await session.client.fullUserLibrary()
                 let entries = library.worksInLibrary.map(Book.init)
                 await store.replaceLibrary(with: entries)
@@ -1479,7 +1484,7 @@ extension LibraryScreen {
                 apply(entries: merged.isEmpty ? entries : merged)
                 isOffline = false
                 hasLoaded = true
-                startSweep(since: previous, in: entries, library: library.worksInLibrary)
+                startSweep(in: entries, library: library.worksInLibrary)
             } catch let error as AuthorTodayError where error.requiresReauthentication {
                 // No alert: the shelf the device holds is on screen and reads without an account,
                 // and signing in again is offered from the profile.

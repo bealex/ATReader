@@ -70,11 +70,15 @@ struct ChapterUpdateService: Sendable {
         // service knows nothing of reading done here, and a book finished in this very refresh is still
         // asked for the chapters its author posted with it.
         let held = Dictionary(await store.books().map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
-        let reading = works.filter { work in
+        let opened = works.filter { work in
             let book = held[work.id] ?? work
 
             return book.isOpened && !book.isDone()
         }
+        // A background run is cut short without warning, so the books updated since their contents were
+        // last asked for go first.
+        let unchecked = Set(await unchecked(opened).map(\.id))
+        let reading = opened.filter { unchecked.contains($0.id) } + opened.filter { !unchecked.contains($0.id) }
         var counts: [Int: Int] = [:]
         var titles: [Int: String] = [:]
         var budget = chapterBudget
@@ -110,6 +114,18 @@ struct ChapterUpdateService: Sendable {
         await UpdateBadge.record(result, isComplete: isComplete)
         await UpdateNotices.post(result)
         return result
+    }
+
+    /// The books the service has updated since their contents were last asked for, or that have never
+    /// had them asked for at all.
+    func unchecked(_ works: [Book]) async -> [Book] {
+        let checked = await store.contentsCheckedAt()
+
+        return works.filter { work in
+            guard let updated = work.lastUpdateTime else { return false }
+
+            return checked[work.id].map { updated > $0 } ?? true
+        }
     }
 
     /// Fetches the chapter each of these books would open on, so a first opening asks the service nothing.

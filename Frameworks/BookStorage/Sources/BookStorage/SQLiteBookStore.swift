@@ -785,6 +785,32 @@ public actor SQLiteBookStore {
         if !held.isEmpty, chapters.contains(where: { !held.contains($0.id) }) { unfinish(workId: workId) }
 
         recomputeProgress(workId: workId)
+        markContentsChecked(workId: workId)
+    }
+
+    private func markContentsChecked(workId: Int) {
+        guard let statement = Statement(open(), "UPDATE work SET contents_checked_at = ? WHERE id = ?") else { return }
+
+        statement.bind(1, Date.now.timeIntervalSince1970)
+        statement.bind(2, workId)
+        statement.execute()
+    }
+
+    /// When each book's contents were last stored, for the books that have any.
+    public func contentsCheckedAt() -> [Int: Date] {
+        let query = "SELECT id, contents_checked_at FROM work WHERE contents_checked_at IS NOT NULL"
+
+        guard let statement = Statement(open(), query) else { return [:] }
+
+        var result: [Int: Date] = [:]
+
+        while statement.step() {
+            guard let date = statement.date(1) else { continue }
+
+            result[statement.integer(0)] = date
+        }
+
+        return result
     }
 
     /// Takes a book off Finished, leaving it where one still being read stands.
@@ -1297,6 +1323,7 @@ public actor SQLiteBookStore {
         addCompletionColumns()
         addReadingDates()
         addPutAwayDate()
+        addContentsCheckedDate()
         addProvenanceColumns()
         addReadingVersion()
         addBookmarkText()
@@ -1403,6 +1430,14 @@ public actor SQLiteBookStore {
         guard !workColumns().contains("put_away_at") else { return }
 
         execute("ALTER TABLE work ADD COLUMN put_away_at REAL")
+    }
+
+    /// Adds the column that dates a book's contents being asked for. Nothing already here has one, so
+    /// every book with an update time is asked once.
+    private func addContentsCheckedDate() {
+        guard !workColumns().contains("contents_checked_at") else { return }
+
+        execute("ALTER TABLE work ADD COLUMN contents_checked_at REAL")
     }
 
     private func workColumns() -> Set<String> { columns(of: "work") }
@@ -1657,7 +1692,8 @@ public actor SQLiteBookStore {
                 finished_at REAL,
                 read_at REAL,
                 taken_down_at REAL,
-                put_away_at REAL
+                put_away_at REAL,
+                contents_checked_at REAL
             )
             """
         )

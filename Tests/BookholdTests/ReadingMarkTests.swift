@@ -165,6 +165,23 @@ struct ReadingMarkTests {
     }
 
     @Test
+    func storingContentsDatesTheirCheck() async throws {
+        let store = try Self.store()
+        let before = Date.now
+
+        await store.replaceLibrary(with: [ Self.book(id: 1, read: 0.5), Self.book(id: 2, read: 0.5) ])
+        await store.store(
+            chapters: [ BookChapter(id: 10, workId: 1, title: "Глава", sortOrder: 0, textLength: 1000) ],
+            workId: 1
+        )
+
+        let checked = await store.contentsCheckedAt()
+
+        #expect(try #require(checked[1]) >= before)
+        #expect(checked[2] == nil, "a book whose contents were never stored was dated as checked")
+    }
+
+    @Test
     func onlyBooksArrivingAfterTheFirstLibraryAreTakenDown() async throws {
         let store = try Self.store()
 

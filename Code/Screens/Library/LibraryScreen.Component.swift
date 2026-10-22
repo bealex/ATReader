@@ -101,7 +101,7 @@ enum LibraryScreen {
                 .onChange(of: scenePhase) { _, phase in
                     guard phase == .active else { return }
 
-                    Task { await model.refreshFromStore() }
+                    Task { await model.cameBack() }
                 }
                 .onChange(of: navigator.returnedAt) { _, _ in
                     // Reading fills the rings, and only the store knows it. Coming back off a book redraws
