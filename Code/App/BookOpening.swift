@@ -19,7 +19,7 @@ final class BookOpening: NSObject {
 
     /// An opening out of `source` onto a page of `paper`, asked for afresh each run, `read` of the way into
     /// the book; nothing where what it stands for is not a cover in full view.
-    init?(
+    convenience init?(
         from source: @escaping @MainActor @Sendable (BookZoom) -> UIView?,
         paper: @escaping @MainActor () -> UIColor,
         read: Double
@@ -27,6 +27,16 @@ final class BookOpening: NSObject {
         guard !UIAccessibility.isReduceMotionEnabled, let face = source(.running) else { return nil }
         guard let window = face.window, Self.cover(in: face, seenFrom: window) != nil else { return nil }
 
+        self.init(awaiting: source, paper: paper, read: read)
+    }
+
+    /// The same, for a book already open before `source` has anything to show: until it has, the page
+    /// shuts away from the screen rather than onto its cover.
+    init(
+        awaiting source: @escaping @MainActor @Sendable (BookZoom) -> UIView?,
+        paper: @escaping @MainActor () -> UIColor,
+        read: Double
+    ) {
         self.source = source
         self.paper = paper
         self.read = read
@@ -265,7 +275,7 @@ private final class Run: NSObject {
 
         let face = source(.running)
         let cover = BookOpening.cover(in: face, seenFrom: container)
-        let frame = cover?.frame ?? face.map { $0.convert($0.bounds, to: container) }
+        let frame = cover?.frame ?? face.map { $0.convert($0.bounds, to: container) } ?? Self.away(in: container)
         let ground = context.viewController(forKey: opens ? .from : .to)?.view
 
         CATransaction.begin()
@@ -373,6 +383,28 @@ private final class Run: NSObject {
 
     /// The least share of a whole run a book let go by a finger takes to settle.
     private static let leastLetGoRun: CGFloat = 0.4
+
+    /// Where a book with no cover on the shelf shuts to: low in the middle of the screen, a fraction of its
+    /// size, or nowhere at all for a reader who wants nothing moving, which leaves the page to fade.
+    private static func away(in container: UIView) -> CGRect? {
+        guard !UIAccessibility.isReduceMotionEnabled else { return nil }
+
+        let bounds = container.bounds
+        let size = CGSize(width: bounds.width * awaySize, height: bounds.height * awaySize)
+
+        return CGRect(
+            x: bounds.midX - size.width / 2,
+            y: bounds.maxY * awayDepth - size.height / 2,
+            width: size.width,
+            height: size.height
+        )
+    }
+
+    /// How large a book shut away from the screen ends, as a share of the screen.
+    private static let awaySize: CGFloat = 0.3
+
+    /// How far down the screen it ends, as a share of its height.
+    private static let awayDepth: CGFloat = 0.8
 
     /// Puts everything back as the run left it: the screen in place, or the cover on the shelf again.
     private func end() {

@@ -29,6 +29,12 @@ final class ShelfView: UIView {
         /// Whether there is anything to turn round: a shelf with no book standing on its edge looks the
         /// same either way, so nothing offers to turn it.
         var turns: Bool { runs.flatMap(\.slots).contains(where: \.isShelved) || alone.contains(where: \.isShelved) }
+
+        func holds(_ workId: Int) -> Bool {
+            let place = SeriesSlot.id(ofBook: workId)
+
+            return (runs.flatMap(\.slots) + alone).contains { $0.id == place }
+        }
     }
 
     /// One place on the shelf: a slot and the run it stands in.
@@ -103,6 +109,9 @@ final class ShelfView: UIView {
 
         return standing[place]?.view?.face(during: zoom)
     }
+
+    /// The view a book stands in, wherever on whatever shelf it now stands.
+    static func view(ofBook id: Int) -> UIView? { standing[SeriesSlot.id(ofBook: id)]?.view }
 
     /// Gives up every picture on its way, for a shelf that has left the screen.
     func pauseLoading() {

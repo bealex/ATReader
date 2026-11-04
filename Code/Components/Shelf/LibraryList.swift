@@ -40,6 +40,10 @@ struct LibraryList: UIViewControllerRepresentable {
     let authorMenu: (String) -> UIMenu?
     let onRefresh: () async -> Void
 
+    /// The book open over the shelf since launch, which the shelf brings into view once it holds it so
+    /// the book has its cover to shut onto.
+    static var awaited: Int?
+
     func makeCoordinator() -> Coordinator { Coordinator(self) }
 
     func makeUIViewController(context: Context) -> UICollectionViewController {
@@ -235,6 +239,34 @@ struct LibraryList: UIViewControllerRepresentable {
             }
 
             markFloatingHeaders()
+            bringAwaitedIntoView()
+        }
+
+        /// Stands the awaited book in the middle of the screen, once its card is on the list.
+        private func bringAwaitedIntoView() {
+            guard
+                let workId = LibraryList.awaited,
+                let collection = controller?.collectionView,
+                let card = list.cards.first(where: { $0.shelf.holds(workId) }),
+                let index = source?.indexPath(for: .author(card.id))
+            else { return }
+
+            LibraryList.awaited = nil
+            collection.layoutIfNeeded()
+            // The card first, which builds the book's view; then the book itself, which a tall card may not show.
+            collection.scrollToItem(at: index, at: .centeredVertically, animated: false)
+            collection.layoutIfNeeded()
+
+            guard let book = ShelfView.view(ofBook: workId) else { return }
+
+            let frame = book.convert(book.bounds, to: collection)
+            let inset = collection.adjustedContentInset
+            let lowest = -inset.top
+            let highest = max(lowest, collection.contentSize.height + inset.bottom - collection.bounds.height)
+            let middle = frame.midY - (collection.bounds.height + inset.top - inset.bottom) / 2
+
+            collection.contentOffset.y = min(max(middle, lowest), highest)
+            collection.layoutIfNeeded()
         }
 
         /// Turns every card whose books have changed which way they stand, and says which those were.

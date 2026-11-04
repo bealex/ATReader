@@ -58,6 +58,52 @@ final class KeptBookUITests: XCTestCase {
         )
     }
 
+    /// Dragged shut the moment it shows, before the shelf behind it can have stood its cover.
+    func testABookOpenedAtLaunchShutsAtOnce() throws {
+        var app = launch(fresh: true)
+        let cover = app.collectionViews["library.list"].cells.firstMatch.buttons.firstMatch
+
+        XCTAssertTrue(cover.waitForExistence(timeout: 30), "the shelf stood no book on its face")
+        cover.tap()
+        _ = try openPage(in: app)
+        XCUIDevice.shared.press(.home)
+        sleep(2)
+        app.terminate()
+
+        app = XCUIApplication()
+        app.launchArguments = [ "-at-ui-test-guest", "-at-restores-book", "YES" ]
+        app.launch()
+
+        let page = app.descendants(matching: .any)["reader.page"]
+
+        XCTAssertTrue(page.waitForExistence(timeout: 30), "no book was open")
+        page.swipeDown(velocity: .fast)
+
+        XCTAssertTrue(page.waitForNonExistence(timeout: 5), "the book stayed open after a drag down the page")
+    }
+
+    /// A book the shelf doesn't hold has no cover to shut onto, and a drag down still shuts it.
+    func testABookTheShelfDoesNotHoldShutsWithADragDown() throws {
+        let app = XCUIApplication()
+
+        app.launchArguments = [
+            "-at-ui-test-guest", "-at-restores-book", "YES", "-firstBook.offered", "YES",
+            "-openBook.workId", "424242", "-openBook.title", "Zzyx",
+        ]
+        app.launch()
+
+        let list = app.collectionViews["library.list"]
+
+        XCTAssertTrue(list.waitForExistence(timeout: 30), "the library never showed")
+        waitUntil("opened the book over the shelf") { !list.isHittable }
+        // Long enough for the shelf to have stood the cover, were there one.
+        sleep(2)
+        app.windows.firstMatch.swipeDown(velocity: .fast)
+
+        waitUntil("shut the book", within: 5) { list.isHittable }
+        XCTAssertTrue(list.isHittable, "the book stayed open after a drag down the page")
+    }
+
     private func launch(fresh: Bool) -> XCUIApplication {
         let app = XCUIApplication()
 

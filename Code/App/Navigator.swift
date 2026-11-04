@@ -134,29 +134,32 @@ final class Navigator {
     /// Gives a book opened at launch its way back onto the shelf, once the shelf has stood it.
     ///
     /// The shelf is still reading the library when the book opens, so there is no cover yet to shut
-    /// into. A book that never comes to stand there is one the shelf doesn't hold, and zooms away.
+    /// into: the book shuts away from the screen until one stands there, and onto it from then on.
     private func findWayHome(for screen: any PresentedScreenReporting, workId: Int) {
         let source: @MainActor @Sendable (BookZoom) -> UIView? = { ShelfView.face(ofBook: workId, during: $0) }
 
-        Task { [weak self, weak screen] in
-            for _ in 0 ..< Self.shelfWaits {
-                guard let screen, screen.presentingViewController != nil else { return }
+        attach(source, to: screen, read: 0, awaiting: true)
+        LibraryList.awaited = workId
 
+        Task { [weak screen] in
+            var waits = 0
+
+            while let screen, screen.presentingViewController != nil {
                 // Covered rather than running: the reader is over the book for as long as this asks.
-                if let face = source(.covered), face.window != nil, face.bounds.width > 0 { break }
+                if let face = source(.covered), face.window != nil, face.bounds.width > 0 { return }
 
-                try? await Task.sleep(for: Self.shelfWait)
+                waits += 1
+                try? await Task.sleep(for: waits < Self.shelfWaits ? Self.shelfWait : Self.slowShelfWait)
             }
 
-            guard let self, let screen, screen.presentingViewController != nil else { return }
-
-            self.attach(source, to: screen, read: 0)
-            _ = source(.covered)
+            // Shut before the shelf held it: the reader is back on the shelf, and moving it would lose their place.
+            if LibraryList.awaited == workId { LibraryList.awaited = nil }
         }
     }
 
     private static let shelfWait = Duration.milliseconds(100)
     private static let shelfWaits = 50
+    private static let slowShelfWait = Duration.seconds(1)
 
     /// A screen made ready to cover everything, with its coming and going reported.
     private func covering(_ route: AppRoute) -> (any PresentedScreenReporting)? {
@@ -210,13 +213,21 @@ final class Navigator {
     private func attach(
         _ source: @escaping @MainActor @Sendable (BookZoom) -> UIView?,
         to screen: any PresentedScreenReporting,
-        read: Double
+        read: Double,
+        awaiting: Bool = false
     ) {
         let settings = dressing?.settings
         let paper: @MainActor () -> UIColor = { settings.map { UIColor($0.theme.background) } ?? .systemBackground }
+        let opening: BookOpening?
+
+        if awaiting {
+            opening = BookOpening(awaiting: source, paper: paper, read: read)
+        } else {
+            opening = BookOpening(from: source, paper: paper, read: read)
+        }
 
         // A cover in full view opens onto the page; anything else, a spine among them, zooms.
-        if let opening = BookOpening(from: source, paper: paper, read: read) {
+        if let opening {
             screen.opening = opening
             screen.transitioningDelegate = opening
             opening.shuts(screen)
