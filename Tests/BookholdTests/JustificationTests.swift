@@ -104,6 +104,16 @@ struct JustificationTests {
         #expect(last.width < Self.measure * Self.fills, "the last line was stretched to the measure")
     }
 
+    /// A no-break space the book wrote is bound like one the binder puts in: no line breaks there, and
+    /// the gap still stretches when the line is justified.
+    @Test
+    func aNoBreakSpaceInTheBookStretches() {
+        let bound = Typography.bound("— Ыв\u{00A0}вапр пролд\u{00A0}жэ\u{00A0}хщз", language: "ru")
+
+        #expect(!bound.contains("\u{00A0}"), "a no-break space was left rigid")
+        #expect(bound.components(separatedBy: Typography.boundSpace).count == 4)
+    }
+
     // MARK: - Reading the column
 
     static let measure: CGFloat = 402 - 48

@@ -23,7 +23,7 @@ public enum Typography {
     /// A rule in this file is one reason. A new field on `Paragraph` is another, and the easier one to
     /// forget: the title levels were added without this moving, so every chapter already on a device
     /// went on being read back with no levels on it and the air around its titles never appeared.
-    public static let version = "11"
+    public static let version = "12"
 
     /// A space that cannot be broken at, and that still stretches when a line is justified.
     ///
@@ -44,7 +44,14 @@ public enum Typography {
     public static func isRussian(_ language: String?) -> Bool { language?.hasPrefix("ru") ?? false }
 
     /// Binds the words that must not be parted, in whichever language the text is written.
+    ///
+    /// A no-break space the book wrote itself becomes a bound space, so the gap still takes its share
+    /// when a line is justified.
     public static func bound(_ text: String, language: String?) -> String {
+        bindingWords(text, language: language).replacingOccurrences(of: "\u{00A0}", with: boundSpace)
+    }
+
+    private static func bindingWords(_ text: String, language: String?) -> String {
         guard text.contains(" ") else { return text }
 
         let russian = isRussian(language)
