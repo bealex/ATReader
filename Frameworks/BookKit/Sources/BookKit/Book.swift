@@ -50,6 +50,8 @@ public struct Book: Codable, Identifiable, Hashable, Sendable {
     public var takenDownAt: Date?
     /// When the reader put it away by hand, rather than waiting for its day as a cover to run out.
     public var putAwayAt: Date?
+    /// How many of its chapters the reader can't open, as the contents last stored say.
+    public var closedChapterCount: Int?
 
     /// How long a book stays out as a cover after it's read through, arrives, or is asked for.
     public static let standingOut: TimeInterval = 24 * 60 * 60
@@ -77,7 +79,8 @@ public struct Book: Codable, Identifiable, Hashable, Sendable {
         libraryState: BookShelf? = nil,
         readAt: Date? = nil,
         takenDownAt: Date? = nil,
-        putAwayAt: Date? = nil
+        putAwayAt: Date? = nil,
+        closedChapterCount: Int? = nil
     ) {
         self.id = id
         self.title = title
@@ -102,6 +105,7 @@ public struct Book: Codable, Identifiable, Hashable, Sendable {
         self.readAt = readAt
         self.takenDownAt = takenDownAt
         self.putAwayAt = putAwayAt
+        self.closedChapterCount = closedChapterCount
     }
 
     /// The author is still adding chapters.
@@ -118,8 +122,14 @@ public struct Book: Codable, Identifiable, Hashable, Sendable {
     /// Only the last page of the last chapter comes to a whole one; the shelf the book is filed on is
     /// what the reader said, and outranks a count that is derived and can be lost.
     public var isReadToTheEnd: Bool {
-        libraryState == .finished || (readingProgress ?? 0) >= 1
+        libraryState == .finished || ((readingProgress ?? 0) >= 1 && !waitsOnPurchase)
     }
+
+    /// Sold, with chapters this reader can't open: what they can read of it is not the whole book.
+    public var waitsOnPurchase: Bool { isPaid && (closedChapterCount ?? 0) > 0 }
+
+    /// Bought, with chapters its stored contents still have closed: they were stored before the purchase.
+    public var isBoughtSinceItsContents: Bool { isPurchased == true && (closedChapterCount ?? 0) > 0 }
 
     /// Written to its end and read to its end. Only both together finish a book.
     public var isFinishedReading: Bool { isComplete && isReadToTheEnd }
@@ -218,7 +228,8 @@ public struct Book: Codable, Identifiable, Hashable, Sendable {
             libraryState: libraryState,
             readAt: readAt,
             takenDownAt: takenDownAt,
-            putAwayAt: putAwayAt
+            putAwayAt: putAwayAt,
+            closedChapterCount: closedChapterCount
         )
     }
 
@@ -255,7 +266,8 @@ public struct Book: Codable, Identifiable, Hashable, Sendable {
             libraryState: libraryState ?? previous.libraryState,
             readAt: readAt ?? previous.readAt,
             takenDownAt: takenDownAt ?? previous.takenDownAt,
-            putAwayAt: putAwayAt ?? previous.putAwayAt
+            putAwayAt: putAwayAt ?? previous.putAwayAt,
+            closedChapterCount: closedChapterCount ?? previous.closedChapterCount
         )
     }
 }

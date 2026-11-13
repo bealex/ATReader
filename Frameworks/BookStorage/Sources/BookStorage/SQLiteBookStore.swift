@@ -72,11 +72,11 @@ public actor SQLiteBookStore {
         let query =
             shelf == nil
             ? """
-            SELECT payload, reading_progress, read_at, taken_down_at, put_away_at FROM work
+            SELECT payload, reading_progress, read_at, taken_down_at, put_away_at, \(Self.closedChapters) FROM work
             WHERE library_state IS NOT NULL ORDER BY last_read_time DESC
             """
             : """
-            SELECT payload, reading_progress, read_at, taken_down_at, put_away_at FROM work
+            SELECT payload, reading_progress, read_at, taken_down_at, put_away_at, \(Self.closedChapters) FROM work
             WHERE library_state = ? ORDER BY last_read_time DESC
             """
 
@@ -95,6 +95,7 @@ public actor SQLiteBookStore {
             summary.readAt = statement.date(2)
             summary.takenDownAt = statement.date(3)
             summary.putAwayAt = statement.date(4)
+            summary.closedChapterCount = statement.integer(5)
             result.append(filed(summary, by: custom, edits: edits))
         }
 
@@ -103,7 +104,8 @@ public actor SQLiteBookStore {
 
     public func book(id: Int) -> StoredBook? {
         let query = """
-            SELECT payload, tags, reading_progress, read_at, taken_down_at, put_away_at FROM work WHERE id = ?
+            SELECT payload, tags, reading_progress, read_at, taken_down_at, put_away_at, \(Self.closedChapters)
+            FROM work WHERE id = ?
             """
 
         guard let statement = Statement(open(), query) else { return nil }
@@ -116,11 +118,18 @@ public actor SQLiteBookStore {
         summary.readAt = statement.date(3)
         summary.takenDownAt = statement.date(4)
         summary.putAwayAt = statement.date(5)
+        summary.closedChapterCount = statement.integer(6)
         return StoredBook(
             summary: filed(summary, by: customSeries(), edits: seriesEdits()),
             tags: decode([ String ].self, statement.string(1)) ?? []
         )
     }
+
+    /// How many of a work's stored chapters the service says this reader can't open.
+    private static let closedChapters = """
+        (SELECT COUNT(*) FROM chapter WHERE chapter.work_id = work.id
+            AND json_extract(chapter.payload, '$.isAvailable') = 0)
+        """
 
     /// The book under the series the reader gave it and the series the reader filed it in, where they
     /// did either.

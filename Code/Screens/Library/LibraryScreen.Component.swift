@@ -289,7 +289,7 @@ enum LibraryScreen {
                     shelves.first { $0.id == author }
                         .map { authorDeeds(shelf: $0).offered } ?? nil
                 },
-                onRefresh: { await model.reload() }
+                onRefresh: { await model.refresh() }
             )
         }
 

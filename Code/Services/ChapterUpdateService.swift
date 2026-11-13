@@ -73,7 +73,7 @@ struct ChapterUpdateService: Sendable {
         let opened = works.filter { work in
             let book = held[work.id] ?? work
 
-            return book.isOpened && !book.isDone()
+            return book.isOpened && (!book.isDone() || book.isBoughtSinceItsContents)
         }
         // A background run is cut short without warning, so the books updated since their contents were
         // last asked for go first.
@@ -116,12 +116,15 @@ struct ChapterUpdateService: Sendable {
         return result
     }
 
-    /// The books the service has updated since their contents were last asked for, or that have never
-    /// had them asked for at all.
+    /// The books the service has updated since their contents were last asked for, that have never had
+    /// them asked for at all, or that were bought since: a purchase opens chapters and moves no date.
     func unchecked(_ works: [Book]) async -> [Book] {
         let checked = await store.contentsCheckedAt()
+        let bought = Set(await store.books().filter(\.isBoughtSinceItsContents).map(\.id))
 
         return works.filter { work in
+            if bought.contains(work.id) { return true }
+
             guard let updated = work.lastUpdateTime else { return false }
 
             return checked[work.id].map { updated > $0 } ?? true

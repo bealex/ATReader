@@ -20,6 +20,8 @@ struct ReadingMark: Hashable {
         case read
         /// Waiting on the author, in grey with a pencil: nothing read yet, or everything there is.
         case waiting
+        /// Read as far as this reader can, the rest of it sold, in orange with a dollar sign.
+        case paid
     }
 
     let kind: Kind
@@ -37,7 +39,9 @@ struct ReadingMark: Hashable {
         // book as finished and doesn't unfile it when the author writes again.
         let isReadToTheEnd = showsProgress && work.isReadToTheEnd && !isFresh
 
-        if progress > 0, !isReadToTheEnd {
+        if showsProgress, work.waitsOnPurchase, progress >= 1, work.libraryState != .finished, !isFresh {
+            self.init(kind: .paid, reached: 1)
+        } else if progress > 0, !isReadToTheEnd {
             self.init(kind: .reading, reached: progress)
         } else if work.isOngoing {
             self.init(kind: .waiting, reached: isReadToTheEnd ? 1 : 0)
@@ -59,6 +63,7 @@ struct ReadingMark: Hashable {
             case .reading: .figure(min(99, max(1, Int(reached * 100))))
             case .read: .glyph("checkmark")
             case .waiting: .glyph("pencil")
+            case .paid: .glyph("dollarsign")
         }
     }
 
@@ -68,6 +73,7 @@ struct ReadingMark: Hashable {
             case .reading: BookmarkMark.reading
             case .read: BookmarkMark.read
             case .waiting: BookmarkMark.waiting
+            case .paid: BookmarkMark.paid
         }
     }
 }

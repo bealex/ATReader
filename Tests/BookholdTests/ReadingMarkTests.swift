@@ -202,7 +202,115 @@ struct ReadingMarkTests {
         #expect(await store.book(id: 1)?.summary.takenDownAt != nil)
     }
 
+    // MARK: - A book sold past its free chapters
+
+    @Test
+    func aSoldBookReadThroughItsFreeChaptersAsksToBeBought() async throws {
+        let store = try Self.store()
+
+        await store.replaceLibrary(with: [ Self.sold(id: 1, status: .sales) ])
+        await store.store(chapters: Self.chapters(closingAfter: 2), workId: 1)
+        await store.store(progress: 1, workId: 1)
+
+        let book = try #require(await store.book(id: 1)?.summary)
+
+        #expect(book.closedChapterCount == 1)
+        #expect(ReadingMark(book)?.kind == .paid)
+        #expect(!book.isReadToTheEnd, "the free chapters were taken for the whole book")
+        #expect(!book.standsOnItsEdge(), "a book waiting to be bought was put away")
+    }
+
+    @Test
+    func aSoldBookPartReadShowsHowFarItGot() async throws {
+        let store = try Self.store()
+
+        await store.replaceLibrary(with: [ Self.sold(id: 1, status: .sales) ])
+        await store.store(chapters: Self.chapters(closingAfter: 2), workId: 1)
+        await store.store(progress: 0.4, workId: 1)
+
+        #expect(try ReadingMark(#require(await store.book(id: 1)?.summary))?.kind == .reading)
+    }
+
+    @Test
+    func aBoughtBookReadThroughIsRead() async throws {
+        let store = try Self.store()
+
+        await store.replaceLibrary(with: [ Self.sold(id: 1, status: .sales) ])
+        await store.store(chapters: Self.chapters(closingAfter: 3), workId: 1)
+        await store.store(progress: 1, workId: 1)
+
+        let book = try #require(await store.book(id: 1)?.summary)
+
+        #expect(book.closedChapterCount == 0)
+        #expect(ReadingMark(book)?.kind == .read)
+    }
+
+    /// Bought after its contents were stored: the library says so before the contents do.
+    @Test
+    func aBookBoughtSinceItsContentsAsksForThemAgain() async throws {
+        let store = try Self.store()
+        var bought = Self.sold(id: 1, status: .sales)
+
+        await store.replaceLibrary(with: [ bought ])
+        await store.store(chapters: Self.chapters(closingAfter: 2), workId: 1)
+
+        #expect(try #require(await store.book(id: 1)?.summary).isBoughtSinceItsContents == false)
+
+        bought = Book(
+            id: 1, title: bought.title, authorLine: bought.authorLine, coverURL: nil, annotation: nil,
+            textLength: 3000, isFinished: true, status: .sales, isPurchased: true, libraryState: .finished
+        )
+        await store.replaceLibrary(with: [ bought ])
+
+        #expect(try #require(await store.book(id: 1)?.summary).isBoughtSinceItsContents)
+
+        await store.store(chapters: Self.chapters(closingAfter: 3), workId: 1)
+
+        #expect(try #require(await store.book(id: 1)?.summary).isBoughtSinceItsContents == false)
+    }
+
+    @Test
+    func aFreeBookWithAClosedChapterIsNotForSale() async throws {
+        let store = try Self.store()
+
+        await store.replaceLibrary(with: [ Self.sold(id: 1, status: .free) ])
+        await store.store(chapters: Self.chapters(closingAfter: 2), workId: 1)
+        await store.store(progress: 1, workId: 1)
+
+        #expect(try ReadingMark(#require(await store.book(id: 1)?.summary))?.kind == .read)
+    }
+
     // MARK: - Books to test with
+
+    private static func sold(id: Int, status: BookPricing) -> Book {
+        Book(
+            id: id,
+            title: "Книга",
+            authorLine: "Автор",
+            coverURL: nil,
+            annotation: nil,
+            textLength: 3000,
+            isFinished: true,
+            status: status,
+            readingProgress: 0.5,
+            hasStartedReading: true,
+            libraryState: .reading
+        )
+    }
+
+    /// Three chapters, the ones past `open` closed to this reader.
+    private static func chapters(closingAfter open: Int) -> [BookChapter] {
+        (1 ... 3).map { index in
+            BookChapter(
+                id: 100 + index,
+                workId: 1,
+                title: "Глава",
+                sortOrder: index,
+                textLength: 1000,
+                isAvailable: index <= open
+            )
+        }
+    }
 
     private static let twoDaysAgo = Date.now.addingTimeInterval(-2 * Book.standingOut)
 

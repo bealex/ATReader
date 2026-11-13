@@ -1376,11 +1376,12 @@ extension LibraryScreen {
         /// read?" on its own. What it does carry is each book's update time, and a book updated since its
         /// contents were last asked for is the only one worth asking again. Judged against the store
         /// rather than the shelf on screen: a background refresh moves the time and can be stopped before
-        /// it reaches the contents. Once a day everything is walked instead, which also fills the offline
-        /// cache.
-        private func findNewChapters(in entries: [Book]) async {
+        /// it reaches the contents. Once a day, or when the reader asks, everything is walked instead, which
+        /// also fills the offline cache and catches chapters opened by a purchase.
+        private func findNewChapters(in entries: [Book], isForced: Bool = false) async {
             let lastChecked = UpdateBadge.lastCheckedAt
-            let isDue = lastChecked.map { Date.now.timeIntervalSince($0) > BackgroundRefresh.interval } ?? true
+            let isDue =
+                isForced || lastChecked.map { Date.now.timeIntervalSince($0) > BackgroundRefresh.interval } ?? true
             let service = ChapterUpdateService(client: session.client)
             let books = isDue ? entries : await service.unchecked(entries)
 
@@ -1408,21 +1409,40 @@ extension LibraryScreen {
             await reload()
         }
 
-        /// One sweep at a time; a second pull while one is walking would only ask the same questions.
+        /// One sweep at a time; a second one while one is walking would only ask the same questions.
         @ObservationIgnored
         private var sweepTask: Task<Void, Never>?
+        @ObservationIgnored
+        private var sweepRun = UUID()
 
         /// The walk runs behind the list rather than under the refresh spinner: it is one request per
-        /// changed book, and the shelf is already on screen.
-        private func startSweep(in entries: [Book], library: [WorkMetaInfo]? = nil) {
-            guard sweepTask == nil else { return }
+        /// changed book, and the shelf is already on screen. A forced walk waits out the one under way.
+        private func startSweep(in entries: [Book], library: [WorkMetaInfo]? = nil, isForced: Bool = false) {
+            guard sweepTask == nil || isForced else { return }
 
+            let running = sweepTask
+            let run = UUID()
+
+            sweepRun = run
             sweepTask = Task { [weak self] in
+                await running?.value
+
                 if let library { await self?.findNewBooks(of: library) }
 
-                await self?.findNewChapters(in: entries)
-                self?.sweepTask = nil
+                await self?.findNewChapters(in: entries, isForced: isForced)
+
+                if self?.sweepRun == run { self?.sweepTask = nil }
             }
+        }
+
+        /// A pull on the shelf: the library asked for again, and every book's contents with it, since a
+        /// purchase opens chapters without moving the book's update time.
+        func refresh() async {
+            await reload()
+
+            guard hasLoaded, session.isSignedIn else { return }
+
+            startSweep(in: works.filter { !$0.isLocal }, isForced: true)
         }
 
         /// Draws what a background refresh left in the store, and asks for the contents it was stopped

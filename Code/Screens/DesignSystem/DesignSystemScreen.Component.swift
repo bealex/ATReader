@@ -364,6 +364,7 @@ enum DesignSystemScreen {
                             BookmarkMark(.figure(47), tint: BookmarkMark.reading)
                             BookmarkMark(.glyph("checkmark"), tint: BookmarkMark.read)
                             BookmarkMark(.glyph("pencil"), tint: BookmarkMark.waiting)
+                            BookmarkMark(.glyph("dollarsign"), tint: BookmarkMark.paid)
                             LibraryMark(inLibrary: true)
                             LibraryMark(inLibrary: false)
                         }

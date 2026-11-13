@@ -381,8 +381,10 @@ a red bookmark carries the percentage. A book still being written gets a grey bo
 at the start before it's opened and at the end once it's caught up, and a finished book read in the
 last day gets a green one with a tick. A chapter nobody has read leaves a book part read whatever the
 service says, so a book the reader was caught up with goes back to its percentage the moment the author
-writes past it: a pencil there says they're waiting on a chapter that has already landed. Anything else
-carries none. The line runs from the cover's own edge and is cut with
+writes past it: a pencil there says they're waiting on a chapter that has already landed. A sold book
+read through every chapter the reader can open gets an orange bookmark with a dollar sign, and isn't
+read to the end until it's bought: the closed chapters are counted from the stored contents, which a
+pull on the shelf asks for again. Anything else carries none. The line runs from the cover's own edge and is cut with
 the board, so it rounds where the board rounds. The line and the bookmark are one
 shape, with a white line of shade run round the whole of it, which lifts it off the artwork; the
 binding's own shadow falls across all three. A cover carries no other mark.

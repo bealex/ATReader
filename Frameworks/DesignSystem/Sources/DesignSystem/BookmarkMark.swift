@@ -42,6 +42,7 @@ public struct BookmarkMark: View {
     public static let read = Design.Palette.positive
     /// Opaque, since the ribbon hangs over the artwork.
     public static let waiting = Color(.systemGray)
+    public static let paid = Design.Palette.caution
 
     public var body: some View {
         ZStack {
