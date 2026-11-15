@@ -89,7 +89,7 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: com.lonelybytes.atreader
         PRODUCT_NAME: Bookhold
         MARKETING_VERSION: "1.0"
-        CURRENT_PROJECT_VERSION: "1"
+        CURRENT_PROJECT_VERSION: "13"
         SWIFT_VERSION: "6.0"
         SWIFT_STRICT_CONCURRENCY: complete
         TARGETED_DEVICE_FAMILY: "1,2"
@@ -100,8 +100,8 @@ targets:
         SWIFT_EMIT_LOC_STRINGS: "YES"
         LOCALIZATION_PREFERS_STRING_CATALOGS: "YES"
       configs:
-        # No distribution profile exists yet, so Release signs with the development one, which is what
-        # puts an optimised build on a device. Point it at a distribution profile when there is one.
+        # Release signs through two variables of Bookhold.xcconfig: development by default, which is what
+        # puts an optimised build on a device, and the store's when `Scripts/app.sh archive` sets them.
         Debug:
           CODE_SIGN_IDENTITY: "Apple Development"
           "CODE_SIGN_IDENTITY[sdk=iphoneos*]": "iPhone Developer"
@@ -109,9 +109,9 @@ targets:
           "PROVISIONING_PROFILE_SPECIFIER[sdk=iphoneos*]": "$(AT_PROVISIONING_PROFILE_DEV)"
         Release:
           CODE_SIGN_IDENTITY: "Apple Development"
-          "CODE_SIGN_IDENTITY[sdk=iphoneos*]": "iPhone Developer"
-          PROVISIONING_PROFILE_SPECIFIER: "$(AT_PROVISIONING_PROFILE_DEV)"
-          "PROVISIONING_PROFILE_SPECIFIER[sdk=iphoneos*]": "$(AT_PROVISIONING_PROFILE_DEV)"
+          "CODE_SIGN_IDENTITY[sdk=iphoneos*]": "$(AT_RELEASE_IDENTITY)"
+          PROVISIONING_PROFILE_SPECIFIER: "$(AT_RELEASE_PROFILE)"
+          "PROVISIONING_PROFILE_SPECIFIER[sdk=iphoneos*]": "$(AT_RELEASE_PROFILE)"
     info:
       path: Code/Info.plist
       properties:

@@ -27,6 +27,9 @@ Local.xcconfig
 .env
 Code/Generated/
 
+# The App Store Connect API key the upload signs in with; .env names it.
+Keys/
+
 # Misc
 *.swp
 *~

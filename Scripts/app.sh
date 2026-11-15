@@ -10,6 +10,9 @@
 #   Scripts/app.sh build  [target] [config] [selector]
 #   Scripts/app.sh deploy [target] [config] [selector]
 #   Scripts/app.sh test   [--unit | --ui] [config] [selector] [test options]
+#   Scripts/app.sh archive [--no-bump]
+#   Scripts/app.sh upload  [--archive PATH]
+#   Scripts/app.sh testflight [--no-bump]
 #   Scripts/app.sh clean
 #
 # Target:    -s, --simulator (default)      -d, --device
@@ -29,8 +32,13 @@
 # Two runs at once need separate derived data, or each fails the other's build: pass it as DD=...,
 # for example `DD=build/dd-ui Scripts/app.sh test --ui`.
 #
-# Release signs with the development profile, there being no distribution one yet, so it installs on a
-# device. `--optimized` compiles Debug at speed instead, keeping the Debug configuration otherwise.
+# Release signs with the development profile, so it installs on a device. `--optimized` compiles Debug
+# at speed instead, keeping the Debug configuration otherwise.
+#
+# archive raises the build number in project.yml and archives Release signed for the App Store, with the
+# profile `.env` names as AT_PROVISIONING_PROFILE_STORE, into Xcode's archive folder. upload sends an
+# archive, the newest by default, to TestFlight with the App Store Connect API key `.env` names as
+# ASC_KEY_ID, ASC_ISSUER_ID and ASC_KEY_PATH. testflight does both.
 #
 # Copyright © 2026 Alexander Babaev. MIT licence — see LICENSE.
 set -uo pipefail
@@ -62,6 +70,8 @@ ONLY=()
 PARALLEL=0
 PARALLEL_FLAGS=()
 VERBOSE=0
+BUMP=1
+ARCHIVE=""
 
 usage() {
   sed -n '2,${/^[^#]/q;/^# Copyright/q;s/^# \{0,1\}//;p;}' "$0"
@@ -88,7 +98,7 @@ die() {
 
 while [ $# -gt 0 ]; do
   case "$1" in
-    build | deploy | test | clean)
+    build | deploy | test | archive | upload | testflight | clean)
       [ -n "$COMMAND" ] && die "more than one command given: $COMMAND and $1"
       COMMAND="$1"
       ;;
@@ -136,6 +146,12 @@ while [ $# -gt 0 ]; do
         "GCC_OPTIMIZATION_LEVEL=s"
       )
       ;;
+    --no-bump) BUMP=0 ;;
+    --archive)
+      shift
+      [ $# -gt 0 ] || die "--archive needs a path"
+      ARCHIVE="$1"
+      ;;
     -v | --verbose) VERBOSE=1 ;;
     -h | --help)
       usage
@@ -148,10 +164,11 @@ done
 
 [ -n "$COMMAND" ] || die "no command given (try --help)"
 
-# One value out of the gitignored .env, read as data rather than sourced.
+# One value out of the gitignored .env, read as data rather than sourced, without the quotes a shell would
+# have taken off it.
 env_value() {
   [ -f "$REPO/.env" ] || return 0
-  sed -n "s/^$1=//p" "$REPO/.env" | tail -1
+  sed -n "s/^$1=//p" "$REPO/.env" | tail -1 | sed -e 's/^"\(.*\)"$/\1/' -e "s/^'\(.*\)'$/\1/"
 }
 
 if [ "$COMMAND" = deploy ] && [ -z "$DEVICE_ID" ] && [ "$TARGET" != simulator ]; then
@@ -417,6 +434,138 @@ cmd_test() {
   return "$rc"
 }
 
+# The first value a key has in project.yml, which is the app's: its target comes before PageProof's.
+spec_value() {
+  sed -n "s/^ *$1: \"\([^\"]*\)\".*/\1/p" "$REPO/project.yml" | head -1
+}
+
+# Raises the app's build number in project.yml, leaving PageProof's alone, and prints the new one.
+raise_build_number() {
+  local current next
+  current="$(spec_value CURRENT_PROJECT_VERSION)"
+  [[ "$current" =~ ^[0-9]+$ ]] || return 1
+  next=$((current + 1))
+  awk -v from="CURRENT_PROJECT_VERSION: \"$current\"" -v to="CURRENT_PROJECT_VERSION: \"$next\"" '
+    !done && index($0, from) { sub(from, to); done = 1 }
+    { print }
+  ' "$REPO/project.yml" >"$REPO/project.yml.next" || return 1
+  mv "$REPO/project.yml.next" "$REPO/project.yml" || return 1
+  [ "$(spec_value CURRENT_PROJECT_VERSION)" = "$next" ] || return 1
+  printf '%s' "$next"
+}
+
+# Archives Release signed for the App Store into Xcode's archive folder, where the Organizer shows it.
+cmd_archive() {
+  CONFIG="Release"
+  TARGET="device"
+
+  local profile
+  profile="$(env_value AT_PROVISIONING_PROFILE_STORE)"
+  if [ -z "$profile" ] || [ -z "$(env_value AT_DEVELOPMENT_TEAM)" ]; then
+    printf '%s❌ .env needs AT_DEVELOPMENT_TEAM and AT_PROVISIONING_PROFILE_STORE%s\n' "$RED" "$RST" >&2
+    return 1
+  fi
+
+  local build
+  if [ "$BUMP" = 1 ]; then
+    build="$(raise_build_number)" || {
+      printf '%s❌ could not raise CURRENT_PROJECT_VERSION in project.yml%s\n' "$RED" "$RST" >&2
+      return 1
+    }
+  else
+    build="$(spec_value CURRENT_PROJECT_VERSION)"
+  fi
+  ensure_project || return 1
+
+  local version
+  version="$(spec_value MARKETING_VERSION)"
+  ARCHIVE="$HOME/Library/Developer/Xcode/Archives/$(date '+%Y-%m-%d')/$SCHEME $version ($build).xcarchive"
+  mkdir -p "$(dirname "$ARCHIVE")" || return 1
+  rm -rf "$ARCHIVE"
+
+  # Its own derived data: a store-signed build in build/dd would be signed again on the next deploy.
+  # The two variables reach the app alone, where signing set outright would reach the packages too.
+  run_phase "archive · $version ($build)" \
+    xcodebuild -project "$PROJECT" -scheme "$SCHEME" -configuration Release \
+    -destination "generic/platform=iOS" -derivedDataPath "$REPO/build/dd-archive" \
+    -archivePath "$ARCHIVE" archive \
+    AT_RELEASE_IDENTITY="Apple Distribution" AT_RELEASE_PROFILE="$profile"
+}
+
+# What -exportArchive is told: upload to App Store Connect, signed with the store's profile. Written
+# under build/ from .env rather than committed, since it names the team.
+export_options() {
+  local bundle="$1" out="$REPO/build/ExportOptions.plist"
+  mkdir -p "$REPO/build" || return 1
+  cat >"$out" <<PLIST || return 1
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>method</key>
+  <string>app-store-connect</string>
+  <key>destination</key>
+  <string>upload</string>
+  <key>teamID</key>
+  <string>$(env_value AT_DEVELOPMENT_TEAM)</string>
+  <key>signingStyle</key>
+  <string>manual</string>
+  <key>provisioningProfiles</key>
+  <dict>
+    <key>$bundle</key>
+    <string>$(env_value AT_PROVISIONING_PROFILE_STORE)</string>
+  </dict>
+  <key>uploadSymbols</key>
+  <true/>
+  <key>manageAppVersionAndBuildNumber</key>
+  <false/>
+</dict>
+</plist>
+PLIST
+  printf '%s' "$out"
+}
+
+# Sends an archive to TestFlight with the App Store Connect API key .env names.
+cmd_upload() {
+  CONFIG="Release"
+  TARGET="device"
+
+  local key_id issuer key
+  key_id="$(env_value ASC_KEY_ID)"
+  issuer="$(env_value ASC_ISSUER_ID)"
+  key="$(env_value ASC_KEY_PATH)"
+  if [ -z "$key_id" ] || [ -z "$issuer" ] || [ -z "$key" ]; then
+    printf '%s❌ .env needs ASC_KEY_ID, ASC_ISSUER_ID and ASC_KEY_PATH%s\n' "$RED" "$RST" >&2
+    return 1
+  fi
+  case "$key" in /*) ;; *) key="$REPO/$key" ;; esac
+  [ -f "$key" ] || {
+    printf '%s❌ no API key at %s%s\n' "$RED" "${key#"$REPO"/}" "$RST" >&2
+    return 1
+  }
+
+  if [ -z "$ARCHIVE" ]; then
+    ARCHIVE="$(find "$HOME/Library/Developer/Xcode/Archives" -maxdepth 2 -name "$SCHEME *.xcarchive" -print0 2>/dev/null |
+      xargs -0 ls -dt 2>/dev/null | head -1)"
+  fi
+  if [ -z "$ARCHIVE" ] || [ ! -d "$ARCHIVE" ]; then
+    printf '%s❌ no archive to send; run Scripts/app.sh archive%s\n' "$RED" "$RST" >&2
+    return 1
+  fi
+
+  local info="$ARCHIVE/Info.plist" version build bundle options
+  version="$(/usr/libexec/PlistBuddy -c 'Print :ApplicationProperties:CFBundleShortVersionString' "$info" 2>/dev/null)"
+  build="$(/usr/libexec/PlistBuddy -c 'Print :ApplicationProperties:CFBundleVersion' "$info" 2>/dev/null)"
+  bundle="$(/usr/libexec/PlistBuddy -c 'Print :ApplicationProperties:CFBundleIdentifier' "$info" 2>/dev/null)"
+  options="$(export_options "$bundle")" || return 1
+
+  rm -rf "$REPO/build/Export"
+  run_phase "upload · $version ($build) to TestFlight" \
+    xcodebuild -exportArchive -archivePath "$ARCHIVE" -exportOptionsPlist "$options" \
+    -exportPath "$REPO/build/Export" \
+    -authenticationKeyPath "$key" -authenticationKeyID "$key_id" -authenticationKeyIssuerID "$issuer"
+}
+
 cmd_clean() {
   run_phase "clean · build output" rm -rf "$REPO/build"
 }
@@ -425,6 +574,9 @@ case "$COMMAND" in
   build) cmd_build ;;
   deploy) cmd_deploy ;;
   test) cmd_test ;;
+  archive) cmd_archive ;;
+  upload) cmd_upload ;;
+  testflight) cmd_archive && cmd_upload ;;
   clean) cmd_clean ;;
 esac
 RC=$?
@@ -438,6 +590,8 @@ FIELDS="status=$STATUS command=$COMMAND"
 # A unit-only run never picks a destination, so naming one would claim more than the run did.
 if [ "$COMMAND" = build ] || [ "$COMMAND" = deploy ] || { [ "$COMMAND" = test ] && [ "$TESTS" != unit ]; }; then
   FIELDS="$FIELDS target=$TARGET"
+elif [ -n "$ARCHIVE" ]; then
+  FIELDS="$FIELDS archive=\"$ARCHIVE\""
 fi
 
 printf '\n%sRESULT%s %s duration=%ds log=%s\n' "$BOLD" "$RST" "$FIELDS" "$SECONDS" "$LOG"

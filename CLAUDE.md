@@ -30,8 +30,9 @@ service draws one, only `AuthorTodayBooks` meets `AuthorToday`, and `BookRendere
 - New files need no project edit, since `Code/` and `Tests/` are directory-globbed. A new *directory*
   outside those roots does.
 - Signing is manual everywhere and must stay that way. The team ID lives in the gitignored
-  `Local.xcconfig`, never in `project.yml`; Debug carries the development profile and Release
-  deliberately carries none. See the README's Signing section.
+  `Local.xcconfig`, never in `project.yml`. Debug and Release both sign for development, so a Release
+  build installs on a device; only `app.sh archive` signs for the App Store. See the README's Signing
+  section.
 
 ## Building, running and testing
 
@@ -52,6 +53,9 @@ its own.
   tests are a target in the project, so `BookholdTests` runs under `--ui`, and `--only BookholdTests`
   is how to run them without waiting out the UI suite. The UI tests always run on a simulator, `-d`
   or not.
+- `Scripts/app.sh testflight` raises the build number in `project.yml`, archives for the App Store and
+  uploads to TestFlight; `archive` and `upload` do the two halves. Commit the raised build number
+  afterwards, since App Store Connect refuses one it has seen.
 - `Scripts/app.sh clean` removes `build/`.
 
 **Timing something on the phone** can't go through Instruments from here: `xctrace` sees the phone as

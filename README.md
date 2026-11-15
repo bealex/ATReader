@@ -117,12 +117,19 @@ is committed, and neither is the file they are written to.
 | Configuration | Identity | Profile |
 | --- | --- | --- |
 | Debug | `Apple Development` (`iPhone Developer` on device) | `$(AT_PROVISIONING_PROFILE_DEV)` |
-| Release | `Apple Development` (`iPhone Developer` on device) | `$(AT_PROVISIONING_PROFILE_DEV)` |
+| Release | `$(AT_RELEASE_IDENTITY)`, `iPhone Developer` by default | `$(AT_RELEASE_PROFILE)`, the development one by default |
 
-No distribution profile exists yet, so Release signs with the development one. That is what puts an
-optimised build on a device, and it is not what a build for anyone else should be signed with: add a
-third variable to `.env`, write it out of `gen-signing.sh`, and point Release at it in `project.yml`
-before shipping anything.
+Release signs for development, so an optimised build installs on a device. `Scripts/app.sh archive`
+sets the two variables to `Apple Distribution` and the profile `.env` names as
+`AT_PROVISIONING_PROFILE_STORE`. It passes them on the command line, where they reach only the app:
+signing settings passed there would reach the package targets too, which reject a profile.
+
+### Shipping to TestFlight
+
+`Scripts/app.sh testflight` raises the build number, archives into the folder Xcode's Organizer reads
+and uploads the result. Uploading needs an App Store Connect API key: `.env` names it as `ASC_KEY_ID`,
+`ASC_ISSUER_ID` and `ASC_KEY_PATH`, and the `.p8` file goes in the gitignored `Keys/`. It writes the
+export options into `build/` from `.env`, so the team ID stays out of the repository.
 
 ## The AuthorToday package
 

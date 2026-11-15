@@ -11,5 +11,10 @@
 DEVELOPMENT_TEAM =
 AT_PROVISIONING_PROFILE_DEV =
 
+// What Release signs with: development, so an optimised build installs on a device. `Scripts/app.sh
+// archive` sets the store's for the one build that goes to App Store Connect.
+AT_RELEASE_IDENTITY = iPhone Developer
+AT_RELEASE_PROFILE = $(AT_PROVISIONING_PROFILE_DEV)
+
 // Optional include (note the `?`): no error if the file is missing.
 #include? "Local.xcconfig"
