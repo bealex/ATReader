@@ -98,8 +98,8 @@ final class LibraryBackup {
 
             defer { self.restored = nil }
 
-            let manifest = try await LibraryArchive.read(from: folder, store: .shared) { share in
-                Task { @MainActor [weak self] in
+            let manifest = try await LibraryArchive.read(from: folder, store: .shared) { [weak self] share in
+                Task { @MainActor in
                     // Told from off the main actor, so a later share can land before an earlier one.
                     guard let self, let restored = self.restored, share > restored else { return }
 
