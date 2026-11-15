@@ -63,6 +63,10 @@ public struct PageSpread: Equatable, Sendable {
         inset = safeArea.leading + air - margins
     }
 
+    /// How far above the bottom edge the page's foot stands: the device's band there, but no deeper
+    /// than the head stands from the top, since a home indicator needs less room than it reserves.
+    public var footBand: CGFloat { min(pageSafeArea.bottom, pageSafeArea.top) }
+
     /// Where one of the pages stands on the sheet.
     public func origin(ofColumn column: Int) -> CGFloat {
         inset + (pageSize.width + gutter) * CGFloat(column)

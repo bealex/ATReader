@@ -69,6 +69,14 @@ struct PageSpreadTests {
         #expect(one.gutter == 0)
     }
 
+    /// The foot stands over the home indicator's band on a phone whose head stands lower still, and no
+    /// higher than the head where the top keeps nothing, as an unfolded phone's does.
+    @Test
+    func standsTheFootNoHigherThanTheHead() {
+        #expect(spread(Self.phone, safeArea: bands(top: 59, bottom: 34)).footBand == 34)
+        #expect(spread(CGSize(width: 466, height: 678), safeArea: bands(top: 0, bottom: 34)).footBand == 20)
+    }
+
     /// A phone is narrower than any measure, at every size the reader can set the text to, so nothing
     /// about the measure ever reaches it.
     @Test

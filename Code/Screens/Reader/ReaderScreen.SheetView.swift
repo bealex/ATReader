@@ -431,7 +431,7 @@ extension ReaderScreen {
             let hidden = stage.isChromeHidden
             let context = stage.layoutContext
             let line = RunningHead.line(size)
-            let bottom = stage.spread.pageSafeArea.bottom + RunningHead.air(context.runningHeadBand, size)
+            let bottom = stage.spread.footBand + RunningHead.air(context.runningHeadBand, size)
 
             frame = CGRect(
                 x: container.width / 2 - context.textSize.width / 2,

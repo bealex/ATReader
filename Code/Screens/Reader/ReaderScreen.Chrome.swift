@@ -231,7 +231,7 @@ extension ReaderScreen {
                 .padding(
                     .bottom,
                     Self.controlsBottom(
-                        over: stage.spread.pageSafeArea.bottom,
+                        over: stage.spread.footBand,
                         headSize: stage.runningHeadSize,
                         band: stage.layoutContext.runningHeadBand
                     )
