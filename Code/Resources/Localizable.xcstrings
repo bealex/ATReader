@@ -3102,6 +3102,17 @@
         }
       }
     },
+    "Restoring": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Восстановление"
+          }
+        }
+      }
+    },
     "Restoring your session": {
       "extractionState": "manual",
       "localizations": {

@@ -37,7 +37,21 @@ struct BackupSection: View {
                 // everything below out from under the finger that asked for it.
                 if backup.isWorking {
                     LabeledContent {
-                        ProgressView()
+                        if let restored = backup.restored {
+                            RowStack(spacing: Design.Space.medium) {
+                                ProgressBar(value: restored)
+
+                                Text(restored, format: .percent.precision(.fractionLength(0)))
+                                    .monospacedDigit()
+                                    .foregroundStyle(.secondary)
+                                    .fixedSize()
+                            }
+                            .accessibilityElement(children: .ignore)
+                            .accessibilityLabel("Restoring")
+                            .accessibilityValue(Text(restored, format: .percent.precision(.fractionLength(0))))
+                        } else {
+                            ProgressView()
+                        }
                     } label: {
                         Label("Working:", systemImage: "clock")
                     }

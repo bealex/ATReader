@@ -31,6 +31,8 @@ final class LibraryBackup {
     private(set) var writtenAt: Date?
     /// How much the backup in the folder holds.
     private(set) var bytes: Int64?
+    /// How far a restore has got, `0…1`; nothing while no restore is running.
+    private(set) var restored: Double?
 
     var isWorking: Bool { stage == .working }
     var hasFolder: Bool { folderPath != nil }
@@ -92,7 +94,18 @@ final class LibraryBackup {
             // A folder in iCloud may hold nothing but placeholders until somebody asks for the files.
             try? FileManager.default.startDownloadingUbiquitousItem(at: LibraryArchive.home(in: folder))
 
-            let manifest = try await LibraryArchive.read(from: folder, store: .shared)
+            self.restored = 0
+
+            defer { self.restored = nil }
+
+            let manifest = try await LibraryArchive.read(from: folder, store: .shared) { share in
+                Task { @MainActor [weak self] in
+                    // Told from off the main actor, so a later share can land before an earlier one.
+                    guard let self, let restored = self.restored, share > restored else { return }
+
+                    self.restored = share
+                }
+            }
 
             let written = manifest.writtenAt.formatted(date: .abbreviated, time: .shortened)
 
