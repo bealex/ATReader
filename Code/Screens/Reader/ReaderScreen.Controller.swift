@@ -348,7 +348,10 @@ extension ReaderScreen {
 
             if stage.band != band { stage.band = band }
             if stage.safeArea != safeArea { stage.safeArea = safeArea }
-            if stage.sheetSize != window.bounds.size { stage.sheetSize = window.bounds.size }
+            if stage.sheetSize != window.bounds.size {
+                stage.sheetSize = window.bounds.size
+                stage.settings.adopt(stage.screen)
+            }
         }
 
         private func showFailure(_ message: String?) {

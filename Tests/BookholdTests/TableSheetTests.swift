@@ -17,7 +17,8 @@ struct TableSheetTests {
     private func height(of table: BookTable) throws -> CGFloat {
         let defaults = try #require(UserDefaults(suiteName: "TableSheetTests"))
         let settings = ReaderSettings(defaults: defaults)
-        let renderer = ImageRenderer(content: ReaderScreen.TableGrid(table: table).environment(settings))
+        let renderer = ImageRenderer(content: ReaderScreen.TableGrid(table: table, screen: ReadingScreen(windowSize: CGSize(width: 440, height: 956)))
+            .environment(settings))
 
         renderer.scale = 2
 

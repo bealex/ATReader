@@ -115,11 +115,70 @@ struct ReaderAppearanceTests {
     func hyphenationReachesTheTypesetter() {
         let settings = Self.settings()
 
-        settings.hyphenates = false
-        #expect(!settings.textStyle.hyphenates)
+        settings.adjust(Self.folded) { $0.hyphenates = false }
+        #expect(!settings.textStyle(on: Self.folded).hyphenates)
 
-        settings.hyphenates = true
-        #expect(settings.textStyle.hyphenates)
+        settings.adjust(Self.folded) { $0.hyphenates = true }
+        #expect(settings.textStyle(on: Self.folded).hyphenates)
+    }
+
+    // MARK: - Each screen set apart
+
+    private static let folded = ReadingScreen(windowSize: CGSize(width: 466, height: 678))
+    private static let unfolded = ReadingScreen(windowSize: CGSize(width: 820, height: 678))
+
+    /// Margins set for the open book stay with it: folded, the page is set as it was.
+    @Test
+    func aScreenKeepsItsOwnTypesetting() {
+        let settings = Self.settings()
+
+        settings.adopt(Self.folded)
+        settings.adopt(Self.unfolded)
+        settings.adjust(Self.unfolded) { $0.margins = 60 }
+
+        #expect(settings.typesetting(for: Self.unfolded).margins == 60)
+        #expect(settings.typesetting(for: Self.folded).margins == 24, "setting one screen moved another")
+    }
+
+    @Test
+    func aScreenSeenForTheFirstTimeStartsFromTheLastOneSet() {
+        let settings = Self.settings()
+
+        settings.adjust(Self.folded) { $0.fontSize = 23 }
+
+        #expect(settings.typesetting(for: Self.unfolded).fontSize == 23)
+    }
+
+    @Test
+    func eachScreenIsKeptAcrossLaunches() throws {
+        let suite = "appearance-\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+
+        ReaderSettings(defaults: defaults).adjust(Self.unfolded) { $0.face = .charter }
+
+        let again = ReaderSettings(defaults: defaults)
+
+        #expect(again.typesetting(for: Self.unfolded).face == .charter)
+    }
+
+    /// What was set before screens were set apart is where every screen starts.
+    @Test
+    func theOneSettingKeptBeforeIsWhereEveryScreenStarts() {
+        let settings = Self.settings([ "reader.fontSize": 25.0, "reader.margins": 0.0 ])
+
+        #expect(settings.typesetting(for: Self.folded).fontSize == 25)
+        #expect(settings.typesetting(for: Self.folded).margins == 0)
+    }
+
+    /// The page waits for the slider to stop before it is set at the new margin.
+    @Test
+    func aMarginWaitsForTheSliderToStop() {
+        let settings = Self.settings()
+
+        settings.adjust(Self.folded) { $0.margins = 40 }
+
+        #expect(settings.typesetting(for: Self.folded).margins == 40)
+        #expect(settings.settledMargins(on: Self.folded) == 24)
     }
 
     /// It reaches the column: the same text breaks into different lines with it and without it.

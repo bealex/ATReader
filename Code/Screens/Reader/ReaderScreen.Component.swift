@@ -103,6 +103,23 @@ enum ReaderScreen {
         @State
         private var panel: Panel = .type
 
+        /// The window the form stands in, which says which screen's type it sets.
+        @State
+        private var windowSize: CGSize = .zero
+
+        private var screen: ReadingScreen { ReadingScreen(windowSize: windowSize) }
+
+        private var typesetting: ReaderSettings.Typesetting { settings.typesetting(for: screen) }
+
+        /// One value of this screen's typesetting, read and written through the settings.
+        private func typeset<Value>(_ path: WritableKeyPath<ReaderSettings.Typesetting, Value>) -> Binding<Value> {
+            Binding {
+                settings.typesetting(for: screen)[keyPath: path]
+            } set: { value in
+                settings.adjust(screen) { $0[keyPath: path] = value }
+            }
+        }
+
         var body: some View {
             Form {
                 switch panel {
@@ -113,6 +130,10 @@ enum ReaderScreen {
                 }
             }
             .safeAreaInset(edge: .top, spacing: 0) { panels }
+            .onWindowSize { size in
+                windowSize = size
+                settings.adopt(ReadingScreen(windowSize: size))
+            }
             .navigationTitle("Appearance")
             .navigationBarTitleDisplayMode(.inline)
         }
@@ -136,10 +157,8 @@ enum ReaderScreen {
 
         @ViewBuilder
         private var typePanel: some View {
-            @Bindable var settings = settings
-
             Section {
-                Picker("Typeface", selection: $settings.face) {
+                Picker("Typeface", selection: typeset(\.face)) {
                     ForEach(ReaderSettings.Face.allCases) { face in
                         Text(face.title)
                             .font(Font(face.font(size: 17)))
@@ -150,10 +169,10 @@ enum ReaderScreen {
                 .accessibilityIdentifier("reader.face")
                 .accessibilityLabel("Typeface")
 
-                Picker("Weight", selection: $settings.weight) {
-                    ForEach(settings.face.weights) { weight in
-                        Text(settings.face.title(for: weight))
-                            .font(Font(settings.face.font(size: 17, weight: weight.uiWeight)))
+                Picker("Weight", selection: typeset(\.weight)) {
+                    ForEach(typesetting.face.weights) { weight in
+                        Text(typesetting.face.title(for: weight))
+                            .font(Font(typesetting.face.font(size: 17, weight: weight.uiWeight)))
                             .tag(weight)
                     }
                 }
@@ -164,65 +183,65 @@ enum ReaderScreen {
 
             Section {
                 SteppedSlider(
-                    value: $settings.fontSize,
+                    value: typeset(\.fontSize),
                     in: ReaderSettings.fontSizeRange,
                     step: 1,
                     nudge: 1,
                     identifier: "reader.fontSize",
                     label: "Text size",
-                    spoken: "\(Int(settings.fontSize)) points"
+                    spoken: "\(Int(typesetting.fontSize)) points"
                 )
             } header: {
-                setting("Text size", at: settings.fontSize)
+                setting("Text size", at: typesetting.fontSize)
             }
 
             Section {
                 SteppedSlider(
-                    value: $settings.lineSpacing,
+                    value: typeset(\.lineSpacing),
                     in: ReaderSettings.lineSpacingRange,
                     step: 1,
                     nudge: 1,
                     identifier: "reader.lineSpacing",
                     label: "Line spacing",
-                    spoken: "\(Int(settings.lineSpacing))"
+                    spoken: "\(Int(typesetting.lineSpacing))"
                 )
             } header: {
-                setting("Line spacing", at: settings.lineSpacing)
+                setting("Line spacing", at: typesetting.lineSpacing)
             }
 
             Section {
                 SteppedSlider(
-                    value: $settings.letterSpacing,
+                    value: typeset(\.letterSpacing),
                     in: ReaderSettings.letterSpacingRange,
                     step: 0.1,
                     nudge: 0.1,
                     identifier: "reader.letterSpacing",
                     label: "Letter spacing",
-                    spoken: "\(settings.letterSpacing.formatted(.number.precision(.fractionLength(1)))) points"
+                    spoken: "\(typesetting.letterSpacing.formatted(.number.precision(.fractionLength(1)))) points"
                 )
             } header: {
-                setting("Letter spacing", at: settings.letterSpacing, fraction: 1)
+                setting("Letter spacing", at: typesetting.letterSpacing, fraction: 1)
             }
 
             Section {
                 SteppedSlider(
-                    value: $settings.margins,
+                    value: typeset(\.margins),
                     in: ReaderSettings.marginRange,
                     step: 1,
                     nudge: 4,
                     identifier: "reader.margins",
                     label: "Page margins",
-                    spoken: "\(Int(settings.margins)) points"
+                    spoken: "\(Int(typesetting.margins)) points"
                 )
             } header: {
-                setting("Page margins", at: settings.margins)
+                setting("Page margins", at: typesetting.margins)
             }
 
             Section("Alignment") {
-                alignmentPicker("Russian", selection: $settings.russianAlignment, key: "ru")
-                alignmentPicker("English", selection: $settings.englishAlignment, key: "en")
+                alignmentPicker("Russian", selection: typeset(\.russianAlignment), key: "ru")
+                alignmentPicker("English", selection: typeset(\.englishAlignment), key: "en")
 
-                Toggle("Hyphenation", isOn: $settings.hyphenates)
+                Toggle("Hyphenation", isOn: typeset(\.hyphenates))
                     .accessibilityIdentifier("reader.hyphenates")
                     .accessibilityHint("Lets a word break at the end of a line")
             }

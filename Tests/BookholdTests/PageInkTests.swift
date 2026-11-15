@@ -34,12 +34,13 @@ struct PageInkTests {
         settings.followsSystem = true
         settings.systemIsDark = false
 
-        let light = settings.layoutStyle
+        let screen = ReadingScreen(windowSize: CGSize(width: 440, height: 956))
+        let light = settings.layoutStyle(on: screen)
 
         settings.systemIsDark = true
 
-        #expect(settings.layoutStyle == light)
-        #expect(settings.textStyle.palette.isDark)
+        #expect(settings.layoutStyle(on: screen) == light)
+        #expect(settings.textStyle(on: screen).palette.isDark)
     }
 
     private static func layout() async -> ChapterLayout {

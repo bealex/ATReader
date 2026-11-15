@@ -696,7 +696,7 @@ own and meant exactly what the switch does; a reader who chose it keeps what the
 A theme is no part of how a page is set. The lines carry no colour: `ParagraphRuler` marks every run
 to take its ink from the drawing context, and keeps only how much of that ink a fainter run takes.
 `ChapterLayout.draw(_:palette:)` lays the colours on, pictures included, so the reader sets the book
-with `ReaderSettings.layoutStyle`, whose colours are fixed, and hands each page the theme's palette
+with `ReaderSettings.layoutStyle(on:)`, whose colours are fixed, and hands each page the theme's palette
 when it draws. A theme turning is one redraw, in the same pass that changes the paper.
 
 It has to be that fast. As the app leaves the screen the system turns it to the other appearance,

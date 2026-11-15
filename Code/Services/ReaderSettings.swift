@@ -7,7 +7,37 @@ import BookRenderer
 import SwiftUI
 import UIKit
 
+/// One screen as reading sees it: this kind of device, at this window size.
+///
+/// Folded and unfolded, upright and on its side, and each width a window is split to are screens of their
+/// own, since type that reads well on one is too big or too small on another.
+struct ReadingScreen: Hashable, Sendable {
+    let id: String
+
+    init(windowSize: CGSize) {
+        id = "\(Self.model) \(Int(windowSize.width.rounded()))x\(Int(windowSize.height.rounded()))"
+    }
+
+    /// A window not yet on a screen has no size to be told apart by.
+    var isKnown: Bool { !id.hasSuffix(" 0x0") }
+
+    /// The device's model, `iPhone19,4`: a library restored onto another device starts from its own.
+    private static let model: String = {
+        if let simulated = ProcessInfo.processInfo.environment["SIMULATOR_MODEL_IDENTIFIER"] { return simulated }
+
+        var system = utsname()
+
+        uname(&system)
+
+        return withUnsafeBytes(of: &system.machine) { bytes in
+            String(bytes: bytes.prefix { $0 != 0 }, encoding: .utf8) ?? "device"
+        }
+    }()
+}
+
 /// Typography, margins and page tint for the reader, persisted across launches.
+///
+/// How the text is set is kept for each screen apart; the colours and what a tap does are kept once.
 @Observable @MainActor
 final class ReaderSettings {
     /// A page's two colours. What the reader chooses is one of these for the light hours and one for
@@ -59,7 +89,7 @@ final class ReaderSettings {
     public typealias Weight = BookWeight
 
     /// Left-aligned keeps an even word spacing; justified keeps an even right edge.
-    enum Alignment: String, CaseIterable, Identifiable {
+    enum Alignment: String, CaseIterable, Identifiable, Codable {
         case justified
         case leading
 
@@ -86,71 +116,131 @@ final class ReaderSettings {
     /// Tracking in points. A little either way is all a text face can take before it stops reading well.
     static let letterSpacingRange: ClosedRange<Double> = -0.5 ... 2
 
-    var fontSize: Double {
-        didSet { defaults.set(fontSize, forKey: Keys.fontSize) }
+    /// How the text is set on one screen.
+    struct Typesetting: Codable, Equatable {
+        var fontSize: Double
+        var lineSpacing: Double
+        /// Space added between letters, in points.
+        var letterSpacing: Double
+        /// Page inset in points, applied on every edge.
+        var margins: Double
+        var face: Face
+        var weight: Weight
+        /// Russian sets well justified: its hyphenation dictionary is good and its words are long enough
+        /// to fill a line. English justified in a narrow column pulls the words apart instead.
+        var russianAlignment: Alignment
+        /// Used for every language that isn't Russian.
+        var englishAlignment: Alignment
+        /// Words may be broken at the end of a line. A justified column reads far better for it: the
+        /// only other way to reach the measure is to pull the words apart.
+        var hyphenates: Bool
     }
 
-    var lineSpacing: Double {
-        didSet { defaults.set(lineSpacing, forKey: Keys.lineSpacing) }
+    /// Each screen's typesetting, by ``ReadingScreen/id``.
+    private var typesettings: [String: Typesetting]
+
+    /// The screen last adjusted, whose typesetting a screen seen for the first time starts from.
+    @ObservationIgnored
+    private var lastAdjusted: String?
+
+    /// What a screen starts from where none has been adjusted yet.
+    @ObservationIgnored
+    private let firstTypesetting: Typesetting
+
+    /// How the text is set on a screen.
+    func typesetting(for screen: ReadingScreen) -> Typesetting {
+        typesettings[screen.id] ?? lastAdjusted.flatMap { typesettings[$0] } ?? firstTypesetting
     }
 
-    /// Space added between letters, in points.
-    var letterSpacing: Double {
-        didSet { defaults.set(letterSpacing, forKey: Keys.letterSpacing) }
+    /// Keeps a screen's own copy of how it is set the first time it is seen, so adjusting another
+    /// screen later doesn't move this one.
+    func adopt(_ screen: ReadingScreen) {
+        guard screen.isKnown, typesettings[screen.id] == nil else { return }
+
+        typesettings[screen.id] = typesetting(for: screen)
+        keepTypesettings()
     }
 
-    /// Page inset in points, applied on every edge.
-    var margins: Double {
-        didSet {
-            defaults.set(margins, forKey: Keys.margins)
-            settleMargins()
-        }
+    /// Changes how the text is set on one screen.
+    func adjust(_ screen: ReadingScreen, _ change: (inout Typesetting) -> Void) {
+        let was = typesetting(for: screen)
+        var typesetting = was
+
+        change(&typesetting)
+
+        // A face that hasn't got the weight in hand would silently draw another one.
+        if !typesetting.face.weights.contains(typesetting.weight) { typesetting.weight = .regular }
+
+        guard typesetting != was else { return }
+
+        if typesetting.margins != was.margins { settleMargins(on: screen, from: was.margins) }
+
+        typesettings[screen.id] = typesetting
+        lastAdjusted = screen.id
+        keepTypesettings()
     }
 
-    /// The margin the page is actually set to, which follows the slider rather than keeping up with it.
+    /// The margin a screen's page is actually set to, which follows the slider rather than keeping up
+    /// with it.
     ///
     /// Setting a book costs a pass over the whole of it, and a slider dragged across its range would ask
     /// for one at every step. The page waits until the reader has stopped moving it.
-    private(set) var settledMargins: Double
+    func settledMargins(on screen: ReadingScreen) -> Double {
+        unsettledMargins[screen.id] ?? typesetting(for: screen).margins
+    }
+
+    /// The margins a screen's page stays at while its slider is moving.
+    private var unsettledMargins: [String: Double] = [:]
 
     @ObservationIgnored
-    private var marginSettling: Task<Void, Never>?
+    private var marginSettling: [String: Task<Void, Never>] = [:]
 
-    private func settleMargins() {
-        marginSettling?.cancel()
-        marginSettling = Task { [weak self] in
+    private func settleMargins(on screen: ReadingScreen, from margins: Double) {
+        if unsettledMargins[screen.id] == nil { unsettledMargins[screen.id] = margins }
+
+        marginSettling[screen.id]?.cancel()
+        marginSettling[screen.id] = Task { [weak self] in
             try? await Task.sleep(for: .seconds(Self.marginsSettle))
 
             guard !Task.isCancelled, let self else { return }
 
-            settledMargins = margins
+            unsettledMargins[screen.id] = nil
         }
     }
 
     /// How long the reader has to leave the slider alone before the book is set again.
     static let marginsSettle: Double = 2
 
-    var face: Face {
-        didSet {
-            defaults.set(face.rawValue, forKey: Keys.face)
-            // A face that hasn't got the weight in hand would silently draw another one.
-            if !face.weights.contains(weight) { weight = .regular }
+    private func keepTypesettings() {
+        defaults.set(try? JSONEncoder().encode(typesettings), forKey: Keys.typesettings)
+        defaults.set(lastAdjusted, forKey: Keys.lastAdjusted)
+    }
+
+    /// A typesetting with whatever the launch arguments name laid over it, which is how a test or
+    /// `simctl` sets the page without touching the form. Laid over at launch only, so the form still
+    /// moves what they set.
+    private static func driven(_ kept: Typesetting, by launchArguments: [String: Any]) -> Typesetting {
+        guard !launchArguments.isEmpty else { return kept }
+
+        var typesetting = kept
+        let number = { (key: String) in launchArguments[key].flatMap { Double("\($0)") } }
+        let text = { (key: String) in launchArguments[key].map { "\($0)" } }
+
+        if let value = number(Keys.fontSize) { typesetting.fontSize = value }
+        if let value = number(Keys.lineSpacing) { typesetting.lineSpacing = value }
+        if let value = number(Keys.letterSpacing) { typesetting.letterSpacing = value }
+        if let value = number(Keys.margins) { typesetting.margins = value }
+        if let value = text(Keys.face).flatMap(Face.init(rawValue:)) { typesetting.face = value }
+        if let value = text(Keys.weight).flatMap(Weight.init(rawValue:)) { typesetting.weight = value }
+        if let value = text(Keys.russianAlignment).flatMap(Alignment.init(rawValue:)) {
+            typesetting.russianAlignment = value
         }
-    }
+        if let value = text(Keys.englishAlignment).flatMap(Alignment.init(rawValue:)) {
+            typesetting.englishAlignment = value
+        }
+        if let value = text(Keys.hyphenates) { typesetting.hyphenates = value == "YES" || value == "1" }
 
-    var weight: Weight {
-        didSet { defaults.set(weight.rawValue, forKey: Keys.weight) }
-    }
-
-    /// Russian sets well justified: its hyphenation dictionary is good and its words are long enough
-    /// to fill a line. English justified in a narrow column pulls the words apart instead.
-    var russianAlignment: Alignment {
-        didSet { defaults.set(russianAlignment.rawValue, forKey: Keys.russianAlignment) }
-    }
-
-    /// Used for every language that isn't Russian.
-    var englishAlignment: Alignment {
-        didSet { defaults.set(englishAlignment.rawValue, forKey: Keys.englishAlignment) }
+        return typesetting
     }
 
     /// True where the page turns with the system: one theme for its light hours and another for its
@@ -198,12 +288,6 @@ final class ReaderSettings {
         didSet { defaults.set(advancesOnLeftTap, forKey: Keys.advancesOnLeftTap) }
     }
 
-    /// Words may be broken at the end of a line. A justified column reads far better for it: the only
-    /// other way to reach the measure is to pull the words apart.
-    var hyphenates: Bool {
-        didSet { defaults.set(hyphenates, forKey: Keys.hyphenates) }
-    }
-
     /// Draws every picture in the page's own two colours, colour art included.
     ///
     /// Line art and scans take them anyway, since a sheet of white paper in the middle of a night page
@@ -229,24 +313,15 @@ final class ReaderSettings {
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
 
-        let storedSize = defaults.double(forKey: Keys.fontSize)
-        let storedSpacing = defaults.double(forKey: Keys.lineSpacing)
+        let launchArguments = defaults.volatileDomain(forName: UserDefaults.argumentDomain)
 
-        fontSize = storedSize > 0 ? storedSize : 19
-        lineSpacing = storedSpacing > 0 ? storedSpacing : 7
-        // `double(forKey:)` coerces whatever type the value was stored as, but returns 0 when absent —
-        // and 0 is a legitimate margin, so presence has to be checked separately.
-        let storedMargins = defaults.object(forKey: Keys.margins) == nil ? 24 : defaults.double(forKey: Keys.margins)
+        let kept =
+            defaults.data(forKey: Keys.typesettings)
+            .flatMap { try? JSONDecoder().decode([ String: Typesetting ].self, from: $0) } ?? [:]
 
-        margins = storedMargins
-        settledMargins = storedMargins
-        letterSpacing = defaults.double(forKey: Keys.letterSpacing)
-        face = defaults.string(forKey: Keys.face).flatMap(Face.init(rawValue:)) ?? .serif
-        weight = defaults.string(forKey: Keys.weight).flatMap(Weight.init(rawValue:)) ?? .regular
-        russianAlignment =
-            defaults.string(forKey: Keys.russianAlignment).flatMap(Alignment.init(rawValue:)) ?? .justified
-        englishAlignment =
-            defaults.string(forKey: Keys.englishAlignment).flatMap(Alignment.init(rawValue:)) ?? .leading
+        typesettings = kept.mapValues { Self.driven($0, by: launchArguments) }
+        lastAdjusted = defaults.string(forKey: Keys.lastAdjusted)
+        firstTypesetting = Self.driven(Self.typesettingKeptOnce(in: defaults), by: launchArguments)
         // "system" was a theme of its own before it was a switch, and it meant exactly what the switch
         // does. A reader who chose it keeps what they chose.
         let stored = defaults.string(forKey: Keys.theme)
@@ -258,7 +333,6 @@ final class ReaderSettings {
             : defaults.bool(forKey: Keys.followsSystem)
         lightTheme = defaults.string(forKey: Keys.lightTheme).flatMap(Theme.init(rawValue:)) ?? .paper
         darkTheme = defaults.string(forKey: Keys.darkTheme).flatMap(Theme.init(rawValue:)) ?? .night
-        hyphenates = defaults.object(forKey: Keys.hyphenates) == nil || defaults.bool(forKey: Keys.hyphenates)
         advancesOnLeftTap =
             defaults.object(forKey: Keys.advancesOnLeftTap) == nil
             || defaults.bool(forKey: Keys.advancesOnLeftTap)
@@ -283,17 +357,19 @@ final class ReaderSettings {
         watchTheSystem()
     }
 
-    /// Everything the layout engine needs; changing any of it invalidates pagination.
-    var textStyle: ChapterTextStyle {
-        ChapterTextStyle(
-            face: face,
-            weight: weight,
-            fontSize: fontSize,
-            lineSpacing: lineSpacing,
-            letterSpacing: letterSpacing,
-            justifiesRussian: russianAlignment == .justified,
-            justifiesEnglish: englishAlignment == .justified,
-            hyphenates: hyphenates,
+    /// Everything the layout engine needs on a screen; changing any of it invalidates pagination.
+    func textStyle(on screen: ReadingScreen) -> ChapterTextStyle {
+        let typesetting = typesetting(for: screen)
+
+        return ChapterTextStyle(
+            face: typesetting.face,
+            weight: typesetting.weight,
+            fontSize: typesetting.fontSize,
+            lineSpacing: typesetting.lineSpacing,
+            letterSpacing: typesetting.letterSpacing,
+            justifiesRussian: typesetting.russianAlignment == .justified,
+            justifiesEnglish: typesetting.englishAlignment == .justified,
+            hyphenates: typesetting.hyphenates,
             textColor: UIColor(theme.foreground),
             backgroundColor: UIColor(theme.background),
             monochromeImages: monochromeImages
@@ -302,16 +378,34 @@ final class ReaderSettings {
 
     /// The style a page is set in, which is everything but its colours: those are laid on when the
     /// page is drawn, so the theme turning doesn't set the book again.
-    var layoutStyle: ChapterTextStyle {
-        var style = textStyle
+    func layoutStyle(on screen: ReadingScreen) -> ChapterTextStyle {
+        var style = textStyle(on: screen)
 
         style.textColor = .black
         style.backgroundColor = .white
         return style
     }
 
-    /// A preview of the current face for the settings sheet.
-    var previewFont: Font { Font(face.font(size: fontSize, weight: weight.uiWeight)) }
+    /// How the text was set before it was set for each screen apart, which is where every screen starts.
+    private static func typesettingKeptOnce(in defaults: UserDefaults) -> Typesetting {
+        let size = defaults.double(forKey: Keys.fontSize)
+        let spacing = defaults.double(forKey: Keys.lineSpacing)
+
+        return Typesetting(
+            fontSize: size > 0 ? size : 19,
+            lineSpacing: spacing > 0 ? spacing : 7,
+            letterSpacing: defaults.double(forKey: Keys.letterSpacing),
+            // `double(forKey:)` reads 0 for a missing value, and 0 is a margin a reader may choose.
+            margins: defaults.object(forKey: Keys.margins) == nil ? 24 : defaults.double(forKey: Keys.margins),
+            face: defaults.string(forKey: Keys.face).flatMap(Face.init(rawValue:)) ?? .serif,
+            weight: defaults.string(forKey: Keys.weight).flatMap(Weight.init(rawValue:)) ?? .regular,
+            russianAlignment:
+                defaults.string(forKey: Keys.russianAlignment).flatMap(Alignment.init(rawValue:)) ?? .justified,
+            englishAlignment:
+                defaults.string(forKey: Keys.englishAlignment).flatMap(Alignment.init(rawValue:)) ?? .leading,
+            hyphenates: defaults.object(forKey: Keys.hyphenates) == nil || defaults.bool(forKey: Keys.hyphenates)
+        )
+    }
 
     private enum Keys {
         static let fontSize = "reader.fontSize"
@@ -330,5 +424,7 @@ final class ReaderSettings {
         static let advancesOnLeftTap = "reader.advancesOnLeftTap"
         static let monochromeImages = "reader.monochromeImages"
         static let portraitOnly = "reader.portraitOnly"
+        static let typesettings = "reader.typesettings"
+        static let lastAdjusted = "reader.typesettings.lastAdjusted"
     }
 }

@@ -232,7 +232,7 @@ extension ReaderScreen {
                 texts.append(text)
             }
 
-            let palette = stage.settings.textStyle.palette
+            let palette = stage.textStyle.palette
 
             // Two pieces where a chapter starts on the page the one before it ended on. Each draws only
             // its own lines, in its own place on the page.
@@ -328,8 +328,8 @@ extension ReaderScreen {
                 author: model.book?.authorLine ?? "",
                 seriesTitle: model.book?.seriesTitle,
                 coverURL: model.book?.coverURL,
-                style: stage.settings.textStyle,
-                margins: stage.settings.settledMargins,
+                style: stage.textStyle,
+                margins: stage.margins,
                 safeArea: UIEdgeInsets(top: pageSafeArea.top, left: 0, bottom: pageSafeArea.bottom, right: 0)
             ))
         }
@@ -506,7 +506,7 @@ extension ReaderScreen.Stage {
 
         let size = runningHeadSize
         let context = layoutContext
-        let margins = settings.settledMargins
+        let margins = self.margins
 
         head.isHidden = text.isEmpty
         head.text = text

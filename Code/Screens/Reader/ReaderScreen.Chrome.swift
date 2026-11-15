@@ -57,7 +57,7 @@ extension ReaderScreen {
                     shown != nil ? .impact(flexibility: .soft) : nil
                 }
                 .sheet(item: $stage.lookedUp) { DictionaryView(term: $0.term) }
-                .fullScreenCover(item: $stage.table) { TableSheet(table: $0.table) }
+                .fullScreenCover(item: $stage.table) { TableSheet(table: $0.table, screen: stage.screen) }
                 .translationPresentation(isPresented: $stage.isTranslating, text: stage.translating)
                 #if DEBUG
                     .sheet(item: $stage.report) { ShareSheet(url: $0.url) }
@@ -367,7 +367,7 @@ extension ReaderScreen {
 
         /// A note is set the way the page is and only a shade smaller, being an aside.
         private var noteStyle: ChapterTextStyle {
-            var style = settings.textStyle
+            var style = stage.textStyle
 
             style.fontSize *= Self.noteScale
             style.lineSpacing *= Self.noteScale
@@ -470,7 +470,8 @@ extension ReaderScreen {
             }
 
             private var settingsReport: String {
-                let style = settings.textStyle
+                let style = stage.textStyle
+                let typesetting = stage.typesetting
                 let context = stage.layoutContext
                 let language = model.chapterLanguage
 
@@ -479,9 +480,10 @@ extension ReaderScreen {
                     fontSize: \(style.fontSize)
                     lineSpacing: \(style.lineSpacing)
                     letterSpacing: \(style.letterSpacing)
-                    margins: \(settings.margins)
-                    alignment.ru: \(settings.russianAlignment.rawValue)
-                    alignment.en: \(settings.englishAlignment.rawValue)
+                    margins: \(typesetting.margins)
+                    alignment.ru: \(typesetting.russianAlignment.rawValue)
+                    alignment.en: \(typesetting.englishAlignment.rawValue)
+                    screen: \(stage.screen.id)
                     theme: \(settings.theme.rawValue)
                     language: \(language ?? "nil")
                     justifies: \(style.justifies(language))

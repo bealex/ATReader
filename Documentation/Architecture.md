@@ -895,4 +895,11 @@ release builds.
 Reader settings are read through `UserDefaults`, which also reads `-key value` launch arguments, so a
 test pins the typography it depends on rather than inheriting whatever the last run left behind.
 
+Each screen keeps its own typesetting: face, weight, size, spacing, margins, alignment and
+hyphenation. A `ReadingScreen` is the device's model plus the window's size in points, so folded and
+unfolded, upright and sideways, and every split width are separate screens. The reader and the
+appearance form both find the screen from their window. The first time either sees a screen, it
+stores a copy of the last-adjusted one, so adjusting another screen later won't change it. Themes,
+taps, the upright lock and monochrome pictures are shared by every screen.
+
 See [Testing.md](Testing.md).

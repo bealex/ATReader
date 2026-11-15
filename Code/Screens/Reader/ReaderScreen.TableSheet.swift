@@ -15,6 +15,8 @@ extension ReaderScreen {
     /// underneath is never set sideways.
     struct TableSheet: View {
         let table: BookTable
+        /// The screen the reader is on, whose type the table is set in.
+        let screen: ReadingScreen
 
         @Environment(ReaderSettings.self)
         private var settings
@@ -31,7 +33,7 @@ extension ReaderScreen {
         var body: some View {
             NavigationStack {
                 ScrollView([ .horizontal, .vertical ]) {
-                    TableGrid(table: table)
+                    TableGrid(table: table, screen: screen)
                         .padding(Design.Space.large)
                 }
                 .background(settings.theme.background)
@@ -78,12 +80,13 @@ extension ReaderScreen {
     /// for before the words wrap, and a row sized that way is one line deep whatever its cells hold.
     struct TableGrid: View {
         let table: BookTable
+        let screen: ReadingScreen
 
         @Environment(ReaderSettings.self)
         private var settings
 
         var body: some View {
-            let widths = table.columnWidths(font: settings.textStyle.font).map { $0 + Self.slack }
+            let widths = table.columnWidths(font: settings.textStyle(on: screen).font).map { $0 + Self.slack }
 
             return Grid(
                 alignment: .topLeading,
@@ -109,14 +112,14 @@ extension ReaderScreen {
             let alignment = table.alignment(ofColumn: column)
 
             return Text(column < cells.count ? Self.text(cells[column]) : AttributedString())
-                .font(Font(settings.textStyle.font))
+                .font(Font(settings.textStyle(on: screen).font))
                 .bold(isHeader)
                 .foregroundStyle(settings.theme.foreground)
                 .multilineTextAlignment(alignment.text)
                 .fixedSize(horizontal: false, vertical: true)
                 .frame(width: width, alignment: alignment.frame)
-                .padding(.horizontal, settings.textStyle.fontSize * Self.cellInset)
-                .padding(.vertical, settings.textStyle.fontSize * Self.cellInset / 2)
+                .padding(.horizontal, settings.textStyle(on: screen).fontSize * Self.cellInset)
+                .padding(.vertical, settings.textStyle(on: screen).fontSize * Self.cellInset / 2)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: alignment.frame)
                 .background(isHeader ? settings.theme.foreground.opacity(Self.headerShade) : .clear)
                 .background(settings.theme.background)

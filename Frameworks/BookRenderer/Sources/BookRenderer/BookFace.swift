@@ -10,7 +10,7 @@ import UIKit
 ///
 /// The raw values are written into `UserDefaults` and into the key a book's measurements are filed
 /// under. Change one and every device silently sets every book again.
-public enum BookFace: String, CaseIterable, Identifiable, Sendable {
+public enum BookFace: String, CaseIterable, Identifiable, Sendable, Codable {
     case serif
     case system
     case rounded
@@ -91,7 +91,7 @@ public enum BookFace: String, CaseIterable, Identifiable, Sendable {
 /// little more weight than a light one.
 ///
 /// The raw values are persisted and filed under, as ``BookFace``'s are.
-public enum BookWeight: String, CaseIterable, Identifiable, Sendable {
+public enum BookWeight: String, CaseIterable, Identifiable, Sendable, Codable {
     case light
     case regular
     case medium

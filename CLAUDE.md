@@ -229,7 +229,7 @@ licensing rather than secrecy. An unconfigured build must keep working for every
   and a page index means nothing across a restyle.
 - **A page's colours are laid on when it is drawn, never when it is set.** The system turns the app
   to the other appearance and photographs it as it leaves the screen, waiting for nothing, so a theme
-  has to be a redraw. Set pages with `ReaderSettings.layoutStyle` and hand the palette to
+  has to be a redraw. Set pages with `ReaderSettings.layoutStyle(on:)` and hand the palette to
   `ChapterLayout.draw(_:palette:)`; a colour written into the lines brings back a page half changed.
 - **A prepared chapter is kept as bytes in a layout of our own.** Adding a field to `Paragraph`,
   `BookTable` or `ChapterContent` means writing and reading it in `ChapterContent+Packed.swift` and
@@ -265,7 +265,8 @@ licensing rather than secrecy. An unconfigured build must keep working for every
   places; the rest of the UI suite is still written for a phone-shaped screen.
 - **`UserDefaults` reads `-key value` launch arguments,** which is the easy way to drive reader
   settings from `simctl` without touching the UI. It only works if the default is read with a coercing
-  accessor like `double(forKey:)` rather than `object(forKey:) as? Double`.
+  accessor like `double(forKey:)` rather than `object(forKey:) as? Double`. The typesetting ones are
+  laid over every screen's values at launch, so the appearance form still moves them afterwards.
 - **Form cells aren't instantiated offscreen.** A UI test looking for a control below the fold has to
   scroll first; `waitForExistence` alone won't find it.
 

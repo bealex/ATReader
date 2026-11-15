@@ -74,14 +74,21 @@ extension ReaderScreen {
         /// True while an aside covers the page, which then takes every touch to put it away.
         var hasAside: Bool { note != nil || picked != nil }
 
+        /// The screen this window is, which is what the text is set for.
+        var screen: ReadingScreen { ReadingScreen(windowSize: sheetSize) }
+
+        /// How the text is set on this screen.
+        var typesetting: ReaderSettings.Typesetting { settings.typesetting(for: screen) }
+
+        /// The page's style on this screen, colours and all.
+        var textStyle: ChapterTextStyle { settings.textStyle(on: screen) }
+
+        /// The margin the page is set to on this screen, which waits for the slider to stop.
+        var margins: Double { settings.settledMargins(on: screen) }
+
         /// How the sheet is divided: one page, or two with the binding between them.
         var spread: PageSpread {
-            PageSpread(
-                sheet: sheetSize,
-                safeArea: safeArea,
-                margins: settings.settledMargins,
-                textSize: settings.fontSize
-            )
+            PageSpread(sheet: sheetSize, safeArea: safeArea, margins: margins, textSize: typesetting.fontSize)
         }
 
         /// Everything pagination depends on. A change to any of it re-lays the chapter.
@@ -89,15 +96,15 @@ extension ReaderScreen {
             let spread = spread
 
             return ChapterLayout.Context(
-                style: settings.layoutStyle,
-                margins: settings.settledMargins,
+                style: settings.layoutStyle(on: screen),
+                margins: margins,
                 pageSize: spread.pageSize,
                 safeArea: spread.pageSafeArea
             )
         }
 
         /// The type size of the running head, which the layout's head band is read off as well.
-        var runningHeadSize: CGFloat { settings.fontSize * ChapterLayout.Context.runningHeadScale }
+        var runningHeadSize: CGFloat { typesetting.fontSize * ChapterLayout.Context.runningHeadScale }
 
         /// Whether the status bar goes away with the controls: only where that moves nothing, under a
         /// notch or in a vertical bar the page makes no room for.
