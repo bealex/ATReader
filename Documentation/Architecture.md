@@ -546,11 +546,15 @@ sitting still while the books either side of it move.
 ### Opening a book from its cover
 
 A book opened out of a cover in full view opens like one. `OpeningBook` sweeps the book from where its
-cover stands to the whole screen in one move, easing in and out. It flies low, dipping below the straight
-line and rising into place whichever shelf it left, and runs a little past the middle across before
-settling back. The cover swings open about the spine over the first 85% of the run, lifting slowly off
-the page before it swings. Shutting runs the same frames backwards. A book opened out of anything else
-still zooms: a spine, a cover partly scrolled off the screen, and every book while Reduce Motion is on.
+cover stands to the whole screen in one move, easing in and out. It flies low, dipping below the
+straight line and rising into place whichever shelf it left, and runs a little past the middle across
+before settling back. The cover swings open about the spine over the first 85% of the run, lifting
+slowly off the page before it swings. Shutting runs the same frames backwards. A screen of two pages is
+a book already open. The book grows into the screen right of the binding, with the rest of the live
+screen clipped off, and the cover lies down over the left of it with the left page on its inside. The
+cover thins to nothing as it lands, so it meets the page under it exactly. `OpensOntoPage.spine` says
+where the binding stands. A book opened out of anything else still zooms: a spine, a cover
+partly scrolled off the screen, and every book while Reduce Motion is on.
 
 A drag down the page takes the book in hand. `DownwardPan` reads the finger's direction over its first
 24 points and takes the drag only within fifteen degrees of straight down, so a page turn that starts

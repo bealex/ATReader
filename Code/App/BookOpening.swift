@@ -168,6 +168,10 @@ protocol OpensOntoPage: AnyObject {
 
     /// Draws the page before the one shown into `context`, at the screen's size.
     func drawPageBefore(in context: CGContext)
+
+    /// Where the binding stands across the screen while two pages are open, which the book opens about;
+    /// nothing for a screen of one page.
+    var spine: CGFloat? { get }
 }
 
 /// One opening or shutting, run against a clock or by a finger.
@@ -302,8 +306,11 @@ private final class Run: NSObject {
                 isReady: { [weak reader] in reader?.isPageBeforeReady ?? false },
                 face: { [weak reader] in reader?.facePageBefore() },
                 draw: { [weak reader] context in reader?.drawPageBefore(in: context) }
-            )
+            ),
+            spine: { [weak reader] in reader?.spine }
         )
+        // Shut from the screen as it stands, before anything of it moves.
+        if !opens { book?.takeLeafBackFromScreen() }
         book?.draw(open: open)
         CATransaction.commit()
     }

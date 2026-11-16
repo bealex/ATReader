@@ -588,10 +588,25 @@ extension ReaderScreen {
 extension ReaderScreen.Controller: OpensOntoPage {
     var readShare: Double? { model.currentSheet == nil ? nil : model.bookProgress }
 
-    var isPageBeforeReady: Bool { model.canTurnBack && (turnerSheet(at: -1)?.bounds.width ?? 0) > 0 }
+    var spine: CGFloat? {
+        let spread = stage.spread
+
+        guard stage.sheetSize != .zero, spread.columns == 2 else { return nil }
+
+        return spread.origin(ofColumn: 1) - spread.gutter / 2
+    }
+
+    /// Where two pages are open, the leaf's inside is this sheet's left page rather than the sheet before.
+    private var leafSheet: UIView? { turnerSheet(at: spine == nil ? -1 : 0) }
+
+    var isPageBeforeReady: Bool {
+        guard spine == nil else { return (leafSheet?.bounds.width ?? 0) > 0 }
+
+        return model.canTurnBack && (turnerSheet(at: -1)?.bounds.width ?? 0) > 0
+    }
 
     func facePageBefore() -> (contents: Any, frame: CGRect)? {
-        guard let before = turnerSheet(at: -1) as? ReaderScreen.SheetView else { return nil }
+        guard let before = leafSheet as? ReaderScreen.SheetView else { return nil }
 
         before.updatePropertiesIfNeeded()
         before.layoutIfNeeded()
@@ -600,7 +615,7 @@ extension ReaderScreen.Controller: OpensOntoPage {
     }
 
     func drawPageBefore(in context: CGContext) {
-        guard let before = turnerSheet(at: -1) else { return }
+        guard let before = leafSheet else { return }
 
         before.updatePropertiesIfNeeded()
         before.layoutIfNeeded()

@@ -10,7 +10,8 @@ import UIKit
 ///
 /// The book grows in one sweep from where its cover stands to the whole screen, and its cover swings open
 /// about the spine as it sets off, bending as a thin board does. The page under it is the screen being
-/// opened, live, scaled to fit the book.
+/// opened, live, scaled to fit the book. A screen of two pages is a book already open: it grows into the
+/// screen right of the binding, and the cover lies down over the rest, which its inside shows.
 @MainActor
 final class OpeningBook {
     private let page: UIView
@@ -33,6 +34,11 @@ final class OpeningBook {
     private let pageBefore: PageBefore?
     /// The page the reader turned last, mirrored, as the back of the leaf shows it.
     private var before: Back?
+    /// Where the binding stands across the screen while two pages are open, asked afresh each frame: the
+    /// screen may not have set its pages out when the book sets off.
+    private let spine: @MainActor () -> CGFloat?
+    /// What hides the left of the live screen while the book is one page wide.
+    private var onePage: CALayer?
 
     /// The page before the one being opened: whether it is set yet, the drawn layer that holds all of it
     /// and where that stands on the screen, where one does, and how to draw it at the screen's size.
@@ -62,7 +68,8 @@ final class OpeningBook {
     ///   - picture: the cover as drawn there; without one the page grows out of `cover` with nothing over it.
     ///   - paper: the colour of the page.
     ///   - read: how much of the book lies before the page, from nought to one.
-    ///   - pageBefore: the page before the one being opened, asked after until it is ready.
+    ///   - pageBefore: what the back of the leaf shows, asked after until it is ready.
+    ///   - spine: where the binding stands across the screen while two pages are open.
     init(
         page: UIView,
         in container: UIView,
@@ -70,13 +77,15 @@ final class OpeningBook {
         picture: UIImage?,
         paper: UIColor,
         read: CGFloat = 0,
-        pageBefore: PageBefore? = nil
+        pageBefore: PageBefore? = nil,
+        spine: @escaping @MainActor () -> CGFloat? = { nil }
     ) {
         self.page = page
         self.screen = container.bounds
         self.cover = cover
         self.picture = picture?.cgImage
         self.pageBefore = pageBefore
+        self.spine = spine
         self.paper = Self.opaque(paper.resolvedColor(with: container.traitCollection))
         depth = Self.boardDepth + Self.bookDepth * min(max(read, 0), 1)
         inside = UIColor.secondarySystemBackground.resolvedColor(with: container.traitCollection).cgColor
@@ -135,6 +144,23 @@ final class OpeningBook {
         }
     }
 
+    /// Takes the leaf's inside from the screen as it stands, for a spread about to shut: the reader's
+    /// controls are the screen's rather than the page's, and a picture of the page alone loses them the
+    /// moment the cover takes over from it.
+    func takeLeafBackFromScreen() {
+        guard spine() != nil, page.window != nil else { return }
+
+        let format = UIGraphicsImageRendererFormat.preferred()
+
+        format.opaque = true
+
+        let picture = UIGraphicsImageRenderer(bounds: page.bounds, format: format).image { _ in
+            page.drawHierarchy(in: page.bounds, afterScreenUpdates: false)
+        }
+
+        before = picture.cgImage.map(Back.picture)
+    }
+
     /// Takes the book away, leaving the page standing on its own, or taking it too where the book shut.
     func remove(withPage: Bool) {
         CATransaction.begin()
@@ -146,6 +172,7 @@ final class OpeningBook {
         // SwiftUI hears where the page stands only through the view's own transform, which the run left
         // alone; without a change there, it keeps the tiny page it laid out on the way.
         page.layer.setAffineTransform(.identity)
+        page.layer.mask = nil
         page.transform = CGAffineTransform(scaleX: 0.5, y: 0.5)
         page.transform = .identity
         page.alpha = 1
@@ -171,7 +198,7 @@ final class OpeningBook {
         let grown = Self.settle(open)
         // Lifted slowly off the page before it swings, and still settling gently at the far side.
         let opened = Self.ease(pow(min(max(open / Self.opening, 0), 1), Self.lifting))
-        let size = Self.mix(cover, screen, by: grown).size
+        let size = Self.mix(cover, opensOnto, by: grown).size
         let middle = middle(at: open)
         let spread = CGRect(
             x: middle.x + shift.dx - size.width / 2,
@@ -196,16 +223,40 @@ final class OpeningBook {
         hang(Leaf(width: spread.width, turned: opened), over: spread)
     }
 
-    /// The live page scaled to fit inside `rect`, on a sheet of its own paper that fills the rest.
+    /// What the book grows into: the screen right of the binding while two pages are open, the whole
+    /// screen otherwise. Edge to edge, so the last frame is the screen the book hands over to.
+    private var opensOnto: CGRect {
+        guard let spine = spine() else { return screen }
+
+        return CGRect(x: spine, y: screen.minY, width: screen.maxX - spine, height: screen.height)
+    }
+
+    /// Where the leaf's back lies once the book is open: as much of the screen left of the binding as the
+    /// book is wide, or the whole screen for a book of one page.
+    private var leafSpan: CGRect {
+        let target = opensOnto
+
+        guard target != screen else { return screen }
+
+        return CGRect(x: target.minX - target.width, y: target.minY, width: target.width, height: target.height)
+    }
+
+    /// The live page scaled so the part the book opens onto fits inside `rect`, on a sheet of its own
+    /// paper that fills the rest.
     private func place(page rect: CGRect, cornered radius: CGFloat) {
-        let scale = min(rect.width / screen.width, rect.height / screen.height)
+        let target = opensOnto
+        let scale = min(rect.width / target.width, rect.height / target.height)
 
         // On the layer: a view's own transform tells SwiftUI its geometry moved, and the page lays itself
-        // out again every frame.
+        // out again every frame. About the layer's own middle, so the target's middle is carried to the rect's.
         page.layer.setAffineTransform(
-            CGAffineTransform(translationX: rect.midX - screen.midX, y: rect.midY - screen.midY)
-                .scaledBy(x: scale, y: scale)
+            CGAffineTransform(
+                translationX: rect.midX - screen.midX - scale * (target.midX - screen.midX),
+                y: rect.midY - screen.midY - scale * (target.midY - screen.midY)
+            )
+            .scaledBy(x: scale, y: scale)
         )
+        clip(to: target)
 
         // The layer's frame skips the safe-area pass a view's frame runs, for a sheet with nothing inside.
         sheet.layer.frame = rect
@@ -218,6 +269,26 @@ final class OpeningBook {
             ).cgPath
     }
 
+    /// Shows only `target` of the live page where it is less than the whole screen, since the rest of a
+    /// spread lies under the cover's inside.
+    private func clip(to target: CGRect) {
+        guard
+            target != screen
+        else {
+            page.layer.mask = nil
+            onePage = nil
+            return
+        }
+
+        let mask = onePage ?? CALayer()
+
+        mask.backgroundColor = UIColor.black.cgColor
+        mask.frame = target
+        onePage = mask
+
+        if page.layer.mask !== mask { page.layer.mask = mask }
+    }
+
     /// Hangs the cover from the spine of the book standing at `book`, one strip at a time, each seen from
     /// an eye straight in front of the book, as a book turning on the shelf is.
     private func hang(_ leaf: Leaf, over book: CGRect) {
@@ -226,8 +297,10 @@ final class OpeningBook {
         let distance = book.width * Self.perspective
         let height = book.height
         let seam = Self.seam / max(leaf.width, 1)
-        // Grown in as the cover lifts, so the shut book stands exactly where its cover did.
-        let thickness = depth * leaf.width * Self.ease(leaf.turned / Self.thickening)
+        // Grown in as the cover lifts, so the shut book stands exactly where its cover did, and gone again as
+        // it lands, so a cover laid flat over a spread's left page meets that page exactly.
+        let landing = 1 - Self.ease((leaf.turned - (1 - Self.thickening)) / Self.thickening)
+        let thickness = depth * leaf.width * Self.ease(leaf.turned / Self.thickening) * landing
         // Hinged at the gutter by the page face, with the cover standing out from it.
         let cut = leaf.strips(strips.count)
         let covers = leaf.back(of: cut, depth: -thickness)
@@ -319,17 +392,21 @@ final class OpeningBook {
         )
     }
 
-    /// The part `across` of the screen, fitted inside a leaf `size` large as the page stands on it.
+    /// The part `across` of the leaf as shares of the screen, with what the leaf stands for fitted inside
+    /// a leaf `size` large as the page stands on it.
     private func fitted(_ across: CGRect, in size: CGSize) -> CGRect {
-        let scale = min(size.width / screen.width, size.height / screen.height)
-        let shown = CGSize(width: screen.width * scale, height: screen.height * scale)
-        let margin = CGSize(width: (size.width - shown.width) / 2, height: (size.height - shown.height) / 2)
+        let span = leafSpan
+        let scale = min(size.width / span.width, size.height / span.height)
+        let margin = CGSize(
+            width: (size.width - span.width * scale) / 2,
+            height: (size.height - span.height * scale) / 2
+        )
 
         return CGRect(
-            x: (across.minX * size.width - margin.width) / shown.width,
-            y: -margin.height / shown.height,
-            width: across.width * size.width / shown.width,
-            height: size.height / shown.height
+            x: (span.minX + (across.minX * size.width - margin.width) / scale) / screen.width,
+            y: (span.minY - margin.height / scale) / screen.height,
+            width: across.width * size.width / scale / screen.width,
+            height: size.height / scale / screen.height
         )
     }
 
@@ -486,15 +563,17 @@ final class OpeningBook {
     /// Across it runs a little past where it is going and settles back. Down it dips below the straight
     /// line and rises back into place, so a book flies low whichever shelf it left.
     func middle(at open: CGFloat) -> CGPoint {
-        guard let cover else { return CGPoint(x: screen.midX, y: screen.midY) }
+        let target = opensOnto
+
+        guard let cover else { return CGPoint(x: target.midX, y: target.midY) }
 
         let along = Self.settle(open)
         let held = min(max(open, 0), 1)
         let dip = screen.height * Self.dipping * Self.dipShape * pow(held, 3) * pow(1 - held, 2)
 
         return CGPoint(
-            x: cover.midX + (screen.midX - cover.midX) * Self.overshooting(open),
-            y: cover.midY + (screen.midY - cover.midY) * along + dip
+            x: cover.midX + (target.midX - cover.midX) * Self.overshooting(open),
+            y: cover.midY + (target.midY - cover.midY) * along + dip
         )
     }
 
@@ -502,8 +581,9 @@ final class OpeningBook {
     /// its own path at `open`, for the book to stay under the finger.
     func shift(following moved: CGVector, at open: CGFloat) -> CGVector {
         let path = middle(at: open)
+        let stood = opensOnto
 
-        return CGVector(dx: screen.midX + moved.dx - path.x, dy: screen.midY + moved.dy - path.y)
+        return CGVector(dx: stood.midX + moved.dx - path.x, dy: stood.midY + moved.dy - path.y)
     }
 
     /// How open the book is when it has grown `grown` of the way to its full size.
