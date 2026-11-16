@@ -34,17 +34,20 @@ enum DeviceBand: Equatable {
 
     var isDownASide: Bool { self != .top }
 
-    /// The insets a page is set against, which leave the bar's own column out.
-    ///
-    /// The bar goes away with the reader's controls and takes its inset with it, so a page that made
-    /// room for it would be set again at every tap.
+    /// The insets a page is set against, without the bar's column, which comes and goes with the controls.
+    /// The top goes too: the column holds the status and camera, and a window back from the other posture
+    /// reports a stale top for as long as the hinge stays part way open.
     func pageInsets(from insets: EdgeInsets) -> EdgeInsets {
         var page = insets
 
         switch self {
             case .top: break
-            case .leading: page.leading = 0
-            case .trailing: page.trailing = 0
+            case .leading:
+                page.leading = 0
+                page.top = 0
+            case .trailing:
+                page.trailing = 0
+                page.top = 0
         }
 
         return page

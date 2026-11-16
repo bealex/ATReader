@@ -45,6 +45,16 @@ struct DeviceBandTests {
         #expect(DeviceBand.leading.pageInsets(from: unfolded) == insets(bottom: 34, trailing: 84))
     }
 
+    /// Back from the posture with the bar across the top, the window reports that bar's depth while the
+    /// hinge stays part way open, though the bar is down the side again; the page keeps its top.
+    @Test
+    func ignoresAStaleTopBesideABarDownASide() {
+        let stale = insets(top: 82, bottom: 34)
+
+        #expect(DeviceBand.trailing.pageInsets(from: stale) == insets(bottom: 34))
+        #expect(DeviceBand.leading.pageInsets(from: stale) == insets(bottom: 34))
+    }
+
     /// A phone on its side has the sensor housing down one edge, which is not a bar and is kept clear.
     @Test
     func keepsEveryInsetWithNoBarDownASide() {
