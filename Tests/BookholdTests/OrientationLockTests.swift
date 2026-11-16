@@ -13,14 +13,14 @@ import UIKit
 struct OrientationLockTests {
     @Test
     func releasesALockedScreenUntilHeld() {
-        let wasPortraitOnly = OrientationLock.isPortraitOnly
+        let was = OrientationLock.choice
 
         defer {
             OrientationLock.hold()
-            OrientationLock.apply(portraitOnly: wasPortraitOnly)
+            OrientationLock.apply(was)
         }
 
-        OrientationLock.apply(portraitOnly: true)
+        OrientationLock.apply(.portrait)
         #expect(OrientationLock.mask == .portrait)
 
         OrientationLock.release()
@@ -31,14 +31,29 @@ struct OrientationLockTests {
         #expect(OrientationLock.mask == .portrait)
     }
 
+    /// Held on its side, the page stays that side up, and a wide table has nothing to turn back from.
+    @Test
+    func holdsTheScreenTurnedWhicheverWayTheReaderChose() {
+        let was = OrientationLock.choice
+
+        defer { OrientationLock.apply(was) }
+
+        OrientationLock.apply(.turnedLeft)
+        #expect(OrientationLock.mask == .landscapeRight)
+        #expect(!OrientationLock.holdsUpright)
+
+        OrientationLock.apply(.turnedRight)
+        #expect(OrientationLock.mask == .landscapeLeft)
+    }
+
     /// Unlocked, holding changes nothing: the screen already turns.
     @Test
     func leavesAnUnlockedScreenAlone() {
-        let wasPortraitOnly = OrientationLock.isPortraitOnly
+        let was = OrientationLock.choice
 
-        defer { OrientationLock.apply(portraitOnly: wasPortraitOnly) }
+        defer { OrientationLock.apply(was) }
 
-        OrientationLock.apply(portraitOnly: false)
+        OrientationLock.apply(.free)
         OrientationLock.release()
         OrientationLock.hold()
         #expect(OrientationLock.mask.contains(.landscapeLeft))

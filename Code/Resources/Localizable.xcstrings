@@ -1862,6 +1862,28 @@
         }
       }
     },
+    "Landscape, turned left": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Горизонтально, повёрнуто влево"
+          }
+        }
+      }
+    },
+    "Landscape, turned right": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Горизонтально, повёрнуто вправо"
+          }
+        }
+      }
+    },
     "Last checked for updates": {
       "extractionState": "manual",
       "localizations": {
@@ -2592,6 +2614,17 @@
         }
       }
     },
+    "Orientation": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ориентация"
+          }
+        }
+      }
+    },
     "Other": {
       "extractionState": "manual",
       "localizations": {
@@ -2713,6 +2746,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Часть %lld"
+          }
+        }
+      }
+    },
+    "Portrait": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Вертикально"
           }
         }
       }
@@ -4137,6 +4181,17 @@
         }
       }
     },
+    "Turns with the device": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Поворачивается вместе с устройством"
+          }
+        }
+      }
+    },
     "Type": {
       "extractionState": "manual",
       "localizations": {
@@ -4210,6 +4265,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Загружено %@"
+          }
+        }
+      }
+    },
+    "Upside down": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Вверх ногами"
           }
         }
       }

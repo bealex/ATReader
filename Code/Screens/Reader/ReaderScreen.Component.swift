@@ -283,9 +283,14 @@ enum ReaderScreen {
             @Bindable var settings = settings
 
             Section("Screen") {
-                Toggle("Keep the page upright", isOn: $settings.isPortraitOnly)
-                    .accessibilityIdentifier("reader.portraitOnly")
-                    .accessibilityHint("Holds the page still when the device is turned")
+                Picker("Orientation", selection: $settings.orientation) {
+                    ForEach(OrientationLock.Choice.offered) { choice in
+                        Text(choice.title).tag(choice)
+                    }
+                }
+                .pickerStyle(.menu)
+                .accessibilityIdentifier("reader.orientation")
+                .accessibilityHint("Holds the page still when the device is turned")
             }
 
             Section("Pictures") {

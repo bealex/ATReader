@@ -65,7 +65,7 @@ extension ReaderScreen {
         private func close() {
             OrientationLock.hold()
 
-            guard isWide, OrientationLock.mask == .portrait else { return dismiss() }
+            guard isWide, OrientationLock.holdsUpright else { return dismiss() }
 
             isClosing = true
         }

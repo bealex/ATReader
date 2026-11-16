@@ -12,26 +12,69 @@ import UIKit
 /// rather than told one, so the setting is kept here where the delegate can read it.
 @MainActor
 enum OrientationLock {
-    private(set) static var isPortraitOnly = false
+    /// The way round the reader holds the page, or none.
+    enum Choice: String, CaseIterable, Identifiable {
+        case free
+        case portrait
+        /// Landscape with the device's top turned to the left.
+        case turnedLeft
+        /// Landscape with the device's top turned to the right.
+        case turnedRight
+        case upsideDown
+
+        var id: String { rawValue }
+
+        var title: String {
+            switch self {
+                case .free: String(localized: "Turns with the device")
+                case .portrait: String(localized: "Portrait")
+                case .turnedLeft: String(localized: "Landscape, turned left")
+                case .turnedRight: String(localized: "Landscape, turned right")
+                case .upsideDown: String(localized: "Upside down")
+            }
+        }
+
+        /// The one way round this holds the page to, nothing for a page that turns.
+        var held: UIInterfaceOrientationMask? {
+            switch self {
+                case .free: nil
+                case .portrait: .portrait
+                // The interface turns against the device: its top turned left stands the interface's right edge up.
+                case .turnedLeft: .landscapeRight
+                case .turnedRight: .landscapeLeft
+                case .upsideDown: .portraitUpsideDown
+            }
+        }
+
+        /// What this device offers. A phone upside down puts its own camera at the bottom and won't turn
+        /// that way.
+        static var offered: [Self] {
+            UIDevice.current.userInterfaceIdiom == .pad ? allCases : allCases.filter { $0 != .upsideDown }
+        }
+    }
+
+    private(set) static var choice: Choice = .free
     /// True while something over the page turns with the device whatever the reader locked.
     private static var isReleased = false
 
-    /// A tablet has no way up of its own, so it may be held any way round. A phone upside down puts
-    /// its own camera at the bottom and is left out.
+    /// A tablet has no way up of its own, so it may be held any way round.
     static var mask: UIInterfaceOrientationMask {
-        guard !isPortraitOnly || isReleased else { return .portrait }
+        if !isReleased, let held = choice.held { return held }
 
         return UIDevice.current.userInterfaceIdiom == .pad ? .all : .allButUpsideDown
     }
 
+    /// True where the reader's lock stands the page upright, which a wide table has to turn back from.
+    static var holdsUpright: Bool { choice == .portrait || choice == .upsideDown }
+
     /// Called before any scene exists, so it only records the answer.
-    static func seed(portraitOnly: Bool) {
-        isPortraitOnly = portraitOnly
+    static func seed(_ choice: Choice) {
+        self.choice = choice
     }
 
-    /// Records the answer and asks the scene to act on it, which turns a landscape page back upright.
-    static func apply(portraitOnly: Bool) {
-        isPortraitOnly = portraitOnly
+    /// Records the answer and asks the scene to act on it, which turns the page round to it.
+    static func apply(_ choice: Choice) {
+        self.choice = choice
         settle()
     }
 
@@ -41,7 +84,7 @@ enum OrientationLock {
         settle()
     }
 
-    /// Puts the reader's own lock back, turning the screen upright where it was locked so.
+    /// Puts the reader's own lock back, turning the screen round to it.
     static func hold() {
         isReleased = false
         settle()
@@ -60,7 +103,9 @@ enum OrientationLock {
                 }
             }
 
-            if mask == .portrait { scene.requestGeometryUpdate(.iOS(interfaceOrientations: .portrait)) }
+            if !isReleased, let held = choice.held {
+                scene.requestGeometryUpdate(.iOS(interfaceOrientations: held))
+            }
         }
     }
 }

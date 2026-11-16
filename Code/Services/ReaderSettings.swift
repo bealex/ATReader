@@ -296,11 +296,11 @@ final class ReaderSettings {
         didSet { defaults.set(monochromeImages, forKey: Keys.monochromeImages) }
     }
 
-    /// Holds the page upright however the device is held, which is what reading lying down asks for.
-    var isPortraitOnly: Bool {
+    /// Holds the page one way round however the device is held, which is what reading lying down asks for.
+    var orientation: OrientationLock.Choice {
         didSet {
-            defaults.set(isPortraitOnly, forKey: Keys.portraitOnly)
-            OrientationLock.apply(portraitOnly: isPortraitOnly)
+            defaults.set(orientation.rawValue, forKey: Keys.orientation)
+            OrientationLock.apply(orientation)
         }
     }
 
@@ -337,8 +337,11 @@ final class ReaderSettings {
             defaults.object(forKey: Keys.advancesOnLeftTap) == nil
             || defaults.bool(forKey: Keys.advancesOnLeftTap)
         monochromeImages = defaults.bool(forKey: Keys.monochromeImages)
-        isPortraitOnly = defaults.bool(forKey: Keys.portraitOnly)
-        OrientationLock.seed(portraitOnly: isPortraitOnly)
+        // The lock was a switch that held the page upright before it could hold it any way round.
+        orientation =
+            defaults.string(forKey: Keys.orientation).flatMap(OrientationLock.Choice.init(rawValue:))
+            ?? (defaults.bool(forKey: Keys.portraitOnly) ? .portrait : .free)
+        OrientationLock.seed(orientation)
         // Before there is a scene to ask, so the first page isn't set light and then again dark.
         systemIsDark = UITraitCollection.current.userInterfaceStyle == .dark
     }
@@ -424,6 +427,7 @@ final class ReaderSettings {
         static let advancesOnLeftTap = "reader.advancesOnLeftTap"
         static let monochromeImages = "reader.monochromeImages"
         static let portraitOnly = "reader.portraitOnly"
+        static let orientation = "reader.orientation"
         static let typesettings = "reader.typesettings"
         static let lastAdjusted = "reader.typesettings.lastAdjusted"
     }
