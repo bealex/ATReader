@@ -67,6 +67,16 @@ extension ReaderScreen {
         override func viewDidLoad() {
             super.viewDidLoad()
 
+            if #available(iOS 27.1, *) {
+                view.addInteraction(UIHingeInteraction { [weak self] _, update in
+                    let isHalfOpen = update.hinge?.status == .partiallyOpen
+
+                    guard let self, self.stage.isHalfOpen != isHalfOpen else { return }
+
+                    self.stage.isHalfOpen = isHalfOpen
+                })
+            }
+
             turner.frame = view.bounds
             turner.autoresizingMask = [ .flexibleWidth, .flexibleHeight ]
             view.addSubview(turner)

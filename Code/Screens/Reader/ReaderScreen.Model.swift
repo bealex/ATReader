@@ -179,6 +179,15 @@ extension ReaderScreen {
             readableChapters.first { $0.id == currentChapterId }?.displayTitle
         }
 
+        /// The title a chapter stands under at the head of a page: nothing for a piece of a file its book
+        /// gave no name, which the contents can only list as untitled.
+        func chapterTitle(of chapterId: Int) -> String? {
+            guard let chapter = readableChapters.first(where: { $0.id == chapterId }) else { return nil }
+            guard !chapter.carriesItsOwnStructure || !(chapter.title ?? "").isEmpty else { return nil }
+
+            return chapter.displayTitle
+        }
+
         /// How many pages stand side by side on one sheet. Told by the view, which is the only thing
         /// that knows how much room the window has, and never below one.
         private(set) var columns = 1

@@ -374,8 +374,9 @@ The character standing for the picture carries the `BookTable` on `.bookTable`, 
 `ChapterLayout.table(at:on:)` walks the page's lines the way a note tap does. The controller asks after
 a note and before a link, and `ReaderScreen.TableSheet` opens full screen: the same table as a SwiftUI
 grid in the page's face and colours, scrolled both ways, its text selectable. It turns with the device
-even when the reader has locked the page upright: `OrientationLock.release()` lifts the lock while it's
-open. Done puts the lock back and waits for the screen to stand up before closing, since the page under
+even when the reader has locked the page one way round: `OrientationLock.release()` lifts the lock while
+it's open. Done puts the lock back and, where the lock holds the page upright, waits for the screen to
+stand up before closing, since the page under
 a full-screen cover isn't laid out until the cover goes, and a reader that saw landscape would set a
 spread and then set the page again. VoiceOver gets the table
 read out row by row in the page's text, and an action per table on the page to open it.
@@ -779,7 +780,8 @@ A turn back corrects nothing: those pages were numbered on the way out, and coun
 move the numbers under a reader going over what they just read. A fresh estimate, from a chapter
 arriving or a page of another size, puts the count back to `BookLength`.
 
-On a spread the line stands once, under both pages, as the title stands once over them.
+On a spread the line stands once, under both pages, as the title stands once over them. A book held
+open is the exception: each page carries its own head and number, centred on it.
 
 ## The page
 
@@ -837,6 +839,13 @@ side has the width for two pages and just enough depth to keep them page-shaped,
 small book. Flatten that window further and the two halves would each come out landscape, which reads
 as a screen split down the middle rather than as a book, so one page is kept and held to a measure
 instead.
+
+A folding phone on its side with its hinge part way open reads like a book, and the reader sets it as
+one. `UIHingeInteraction` says when the hinge is partly open, and the stage then has `PageSpread` put a
+page either side of the fold, each in its own half and mirrored about it, whatever band the device keeps
+down one side. The left page carries the book's title and the right one the chapter's. Each has its own
+number: the left page's is worked out, and the right page's is the one after it. `-at-reads-as-a-book
+YES` stands any wide window in for one held open, which is how the simulator shows it.
 
 ### The measure, and the air around it
 

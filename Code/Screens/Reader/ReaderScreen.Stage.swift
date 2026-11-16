@@ -26,6 +26,19 @@ extension ReaderScreen {
         /// A page fills the screen, and the controls are a tap in the middle away.
         var isChromeHidden = true
 
+        /// The device's hinge stands part way open.
+        var isHalfOpen = false
+
+        /// Held as an open book: on its side with the hinge part way open, a page either side of the fold.
+        var readsAsABook: Bool { (isHalfOpen || Self.posesAsABook) && sheetSize.width > sheetSize.height }
+
+        #if DEBUG
+            /// `-at-reads-as-a-book YES` stands any wide window in for one held half open.
+            private static let posesAsABook = UserDefaults.standard.bool(forKey: "at-reads-as-a-book")
+        #else
+            private static let posesAsABook = false
+        #endif
+
         /// True while the way back is on its way out.
         var fading = false
 
@@ -88,7 +101,13 @@ extension ReaderScreen {
 
         /// How the sheet is divided: one page, or two with the binding between them.
         var spread: PageSpread {
-            PageSpread(sheet: sheetSize, safeArea: safeArea, margins: margins, textSize: typesetting.fontSize)
+            PageSpread(
+                sheet: sheetSize,
+                safeArea: safeArea,
+                margins: margins,
+                textSize: typesetting.fontSize,
+                bindsAtMiddle: readsAsABook
+            )
         }
 
         /// Everything pagination depends on. A change to any of it re-lays the chapter.

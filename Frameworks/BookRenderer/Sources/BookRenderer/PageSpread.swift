@@ -26,8 +26,10 @@ public struct PageSpread: Equatable, Sendable {
     /// The air between two pages, which is the binding of the book.
     public let gutter: CGFloat
 
-    /// - Parameter textSize: the size the book is set at, which is what the measure is held against.
-    public init(sheet: CGSize, safeArea: EdgeInsets, margins: Double, textSize: Double) {
+    /// - Parameters:
+    ///   - textSize: the size the book is set at, which is what the measure is held against.
+    ///   - bindsAtMiddle: two pages either side of the sheet's middle, for a screen folded there.
+    public init(sheet: CGSize, safeArea: EdgeInsets, margins: Double, textSize: Double, bindsAtMiddle: Bool = false) {
         let room = sheet.width - safeArea.leading - safeArea.trailing
         let widest = Self.mostMeasure * textSize
         // A spread has three bands of air: the two edges and the binding. Both pages' margins meet in
@@ -48,6 +50,24 @@ public struct PageSpread: Equatable, Sendable {
             bottom: max(safeArea.bottom, Self.leastBand),
             trailing: 0
         )
+
+        guard
+            !bindsAtMiddle
+        else {
+            // Each page has its own half and mirrors the other about the fold, whichever side the
+            // device keeps a band on.
+            let half = sheet.width / 2
+            let halfRoom = half - max(safeArea.leading, safeArea.trailing)
+            let measure = max(0, min(widest, halfRoom - margins * 2))
+            let air = max(0, (halfRoom - measure - margins * 2) / 2)
+
+            columns = 2
+            pageSize = CGSize(width: measure + margins * 2, height: sheet.height)
+            gutter = air * 2
+            inset = half - air - pageSize.width
+            return
+        }
+
         columns = twoUp ? 2 : 1
 
         // The margins act on the measure, not on the page: the text is what the sheet has room for less

@@ -67,7 +67,11 @@ extension ReaderScreen {
             let theme = stage.settings.theme
             let spread = stage.spread
             let alone = spread.columns == 1
+            let isBook = !alone && stage.readsAsABook
             let pages = sheet?.pages ?? []
+            // The left page's number from where it ends, and the right one the next: two estimates rounded
+            // apart could name one page twice.
+            let leftNumber = pages.first.flatMap { model.pageNumber(at: $0.end) }
 
             backgroundColor = UIColor(theme.background)
 
@@ -87,7 +91,16 @@ extension ReaderScreen {
                 }
 
                 slot.isHidden = false
-                slot.show(pages[column], alone: alone, isCurrent: isCurrent)
+
+                let role: PageSlot.Role =
+                    if alone { .alone } else if isBook { column == 0 ? .left : .right } else { .inSpread }
+
+                slot.show(
+                    pages[column],
+                    as: role,
+                    number: isBook ? leftNumber.map { $0 + column } : nil,
+                    isCurrent: isCurrent
+                )
                 slot.frame = CGRect(
                     x: spread.origin(ofColumn: column),
                     y: 0,
@@ -98,13 +111,13 @@ extension ReaderScreen {
 
             // One title over a spread rather than the same words twice, set across the opening the way
             // a printed book sets it, and one caption under it.
-            let showsHead = !alone && sheet?.showsTitle == true
+            let showsHead = !alone && !isBook && sheet?.showsTitle == true
 
             head.isHidden = !showsHead
-            caption.isHidden = alone || sheet == nil
+            caption.isHidden = alone || isBook || sheet == nil
 
             if showsHead { stage.dressHead(head, text: model.bookTitle, in: bounds.width) }
-            if !alone, let sheet {
+            if !alone, !isBook, let sheet {
                 caption.apply(model: model, stage: stage, at: sheet.end, isCurrent: isCurrent, in: bounds)
             }
         }
@@ -118,15 +131,28 @@ extension ReaderScreen {
     }
 
     /// One page of a sheet: its text or its title page, what is painted under the words, the marks in
-    /// its gutter, and the running head and caption where it stands alone.
+    /// its gutter, and the running head and caption where it carries its own.
     @MainActor
     private final class PageSlot: UIView {
+        /// The part a page plays on its sheet, which decides what it names at its head and foot.
+        enum Role {
+            /// The only page: the book's title over it and its number under it.
+            case alone
+            /// One of two under a head and a number the sheet sets across both.
+            case inSpread
+            /// The left of a book held open: the book's title over it and its own number under it.
+            case left
+            /// The right of a book held open: the chapter's title over it and its own number under it.
+            case right
+        }
+
         private let model: Model
         private let stage: Stage
         private let pictures: (any PagePictureLoading)?
 
         private var page: BookPage?
-        private var alone = true
+        private var role = Role.alone
+        private var number: Int?
         private var isCurrent = false
 
         private var texts: [ChapterPageView.PageView] = []
@@ -170,11 +196,15 @@ extension ReaderScreen {
             return shown[0].layer.contents.map { ($0, shown[0].frame) }
         }
 
-        func show(_ page: BookPage, alone: Bool, isCurrent: Bool) {
-            guard page != self.page || alone != self.alone || isCurrent != self.isCurrent else { return }
+        /// - Parameter number: the page's number where the sheet settled it, nothing to work it out here.
+        func show(_ page: BookPage, as role: Role, number: Int?, isCurrent: Bool) {
+            guard
+                page != self.page || role != self.role || number != self.number || isCurrent != self.isCurrent
+            else { return }
 
             self.page = page
-            self.alone = alone
+            self.role = role
+            self.number = number
             self.isCurrent = isCurrent
             setNeedsUpdateProperties()
         }
@@ -193,13 +223,30 @@ extension ReaderScreen {
                 case .missing: showMissing()
             }
 
-            let showsHead = alone && page.isText
+            let headline: String? =
+                switch role {
+                    case .alone, .left: model.bookTitle
+                    case .right: model.chapterTitle(of: page.start.chapterId)
+                    case .inSpread: nil
+                }
 
-            head.isHidden = !showsHead
-            caption.isHidden = !alone
+            head.isHidden = headline == nil || !page.isText
+            caption.isHidden = role == .inSpread
 
-            if showsHead { stage.dressHead(head, text: model.bookTitle, in: bounds.width) }
-            if alone { caption.apply(model: model, stage: stage, at: page.end, isCurrent: isCurrent, in: bounds) }
+            if let headline, page.isText { stage.dressHead(head, text: headline, in: bounds.width) }
+            if role != .inSpread {
+                caption.apply(
+                    model: model,
+                    stage: stage,
+                    at: page.end,
+                    // The right page of an open book is the left one's neighbour, and only one of the two
+                    // answers to its name.
+                    isCurrent: isCurrent && role != .right,
+                    in: bounds,
+                    isPlain: role == .left || role == .right,
+                    number: number
+                )
+            }
 
             bringSubviewToFront(head)
             bringSubviewToFront(caption)
@@ -399,7 +446,18 @@ extension ReaderScreen {
 
         private var wasChromeHidden: Bool?
 
-        func apply(model: Model, stage: Stage, at position: BookPosition, isCurrent: Bool, in container: CGRect) {
+        /// - Parameters:
+        ///   - isPlain: the figures alone, without the bar, for one of two pages each carrying its own.
+        ///   - number: the page's number where the sheet settled it.
+        func apply(
+            model: Model,
+            stage: Stage,
+            at position: BookPosition,
+            isCurrent: Bool,
+            in container: CGRect,
+            isPlain: Bool = false,
+            number: Int? = nil
+        ) {
             let changing = wasChromeHidden.map { $0 != stage.isChromeHidden } ?? false
 
             wasChromeHidden = stage.isChromeHidden
@@ -410,7 +468,15 @@ extension ReaderScreen {
                 UIView.performWithoutAnimation {
                     CATransaction.begin()
                     CATransaction.setDisableActions(true)
-                    self.set(model: model, stage: stage, at: position, isCurrent: isCurrent, in: container)
+                    self.set(
+                        model: model,
+                        stage: stage,
+                        at: position,
+                        isCurrent: isCurrent,
+                        in: container,
+                        isPlain: isPlain,
+                        number: number
+                    )
                     self.layoutIfNeeded()
                     CATransaction.commit()
                 }
@@ -429,10 +495,18 @@ extension ReaderScreen {
             }
         }
 
-        private func set(model: Model, stage: Stage, at position: BookPosition, isCurrent: Bool, in container: CGRect) {
+        private func set(
+            model: Model,
+            stage: Stage,
+            at position: BookPosition,
+            isCurrent: Bool,
+            in container: CGRect,
+            isPlain: Bool,
+            number: Int?
+        ) {
             let size = stage.runningHeadSize * Stage.captionScale
             let share = model.progress(at: position)
-            let page = model.pageNumber(at: position)
+            let page = number ?? model.pageNumber(at: position)
             let percent = share.formatted(.percent.precision(.fractionLength(0)))
             let foreground = stage.settings.theme.foreground
             let hidden = stage.isChromeHidden
@@ -454,12 +528,12 @@ extension ReaderScreen {
                 : page.map { "\($0.formatted(.number))/\(model.bookPages?.formatted(.number) ?? "")" } ?? percent
             figures.sizeToFit()
 
-            bar.isHidden = hidden
+            bar.isHidden = hidden || isPlain
             bar.value = share
             bar.tint = UIColor(foreground.opacity(Stage.readInk))
             bar.track = UIColor(foreground.opacity(Stage.trackInk))
 
-            if hidden {
+            if hidden || isPlain {
                 figures.frame = CGRect(x: 0, y: 0, width: bounds.width, height: line)
                 figures.textAlignment = .center
             } else {

@@ -69,6 +69,27 @@ struct PageSpreadTests {
         #expect(one.gutter == 0)
     }
 
+    /// A phone folded part way and held on its side is a book: a page either side of the fold, mirrored
+    /// about it, whichever side the device keeps its band on.
+    @Test
+    func bindsTwoPagesAtTheFold() {
+        let sheet = CGSize(width: 678, height: 466)
+        let book = PageSpread(
+            sheet: sheet,
+            safeArea: EdgeInsets(top: 0, leading: 84, bottom: 34, trailing: 0),
+            margins: 24,
+            textSize: Self.textSize,
+            bindsAtMiddle: true
+        )
+        let middle = sheet.width / 2
+
+        #expect(book.columns == 2)
+        #expect(book.origin(ofColumn: 0) + book.pageSize.width <= middle)
+        #expect(book.origin(ofColumn: 1) >= middle)
+        #expect(middle - (book.origin(ofColumn: 0) + book.pageSize.width) == book.origin(ofColumn: 1) - middle)
+        #expect(book.origin(ofColumn: 0) >= 84, "the left page stood under the device's band")
+    }
+
     /// The foot stands over the home indicator's band on a phone whose head stands lower still, and no
     /// higher than the head where the top keeps nothing, as an unfolded phone's does.
     @Test
