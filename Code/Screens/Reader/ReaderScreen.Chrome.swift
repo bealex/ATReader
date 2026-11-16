@@ -136,16 +136,24 @@ extension ReaderScreen {
                 GlassRow(.down) { more }
                     .touchArea("more", on: stage)
             }
-            .padding(.top, Self.statusColumnDepth)
+            .padding(.top, Self.statusColumnDepth(across: stage.sheetSize))
             .padding([ .bottom, stage.band == .leading ? .leading : .trailing ], Design.Space.huge)
             .frame(maxWidth: .infinity, alignment: stage.band.alignment)
             .ignoresSafeArea()
         }
 
-        /// How far down its column the system's status items reach, which no inset reports and the status
-        /// bar's frame doesn't either. The time and signal stand in a pill to about 157 points down on a
-        /// folded phone; this clears it with room for one more status item.
-        private static let statusColumnDepth: CGFloat = 184
+        /// How far down its column the system's status items reach, with room for one more item, which no
+        /// inset, status bar frame or vertical bar API reports. A folded screen stands its pill lower, under
+        /// its camera.
+        private static func statusColumnDepth(across sheet: CGSize) -> CGFloat {
+            min(sheet.width, sheet.height) < foldedScreen ? statusColumnFolded : statusColumnOpen
+        }
+
+        private static let statusColumnFolded: CGFloat = 184
+        private static let statusColumnOpen: CGFloat = 120
+
+        /// Narrower than any open folding screen and wider than any folded one.
+        private static let foldedScreen: CGFloat = 560
 
         /// The way out, since a presented screen has no back button of its own. The glyph is the
         /// gesture: a drag down the page does the same thing.
