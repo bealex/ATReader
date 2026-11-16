@@ -142,8 +142,10 @@ extension ReaderScreen {
             .ignoresSafeArea()
         }
 
-        /// How far down its column the system's status items reach, which no inset reports.
-        private static let statusColumnDepth: CGFloat = 120
+        /// How far down its column the system's status items reach, which no inset reports and the status
+        /// bar's frame doesn't either. The time and signal stand in a pill to about 157 points down on a
+        /// folded phone; this clears it with room for one more status item.
+        private static let statusColumnDepth: CGFloat = 184
 
         /// The way out, since a presented screen has no back button of its own. The glyph is the
         /// gesture: a drag down the page does the same thing.
