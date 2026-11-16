@@ -96,18 +96,24 @@ public final class TitlePageView: UIView {
         let side = max(contents.margins, Self.leastMargin)
         let width = max(0, bounds.width - side * 2)
         let fit = CGSize(width: width, height: .greatestFiniteMagnitude)
-        let coverSize = cover.size(forWidth: Self.coverWidth)
         let titleHeight = title.sizeThatFits(fit).height
         let authorHeight = author.sizeThatFits(fit).height
         let seriesHeight = series.isHidden ? 0 : series.sizeThatFits(fit).height
-        let total =
-            coverSize.height + Self.coverGap + titleHeight + Self.titleGap + authorHeight
-            + (series.isHidden ? 0 : Self.seriesGap + seriesHeight)
+        let words = titleHeight + Self.titleGap + authorHeight + (series.isHidden ? 0 : Self.seriesGap + seriesHeight)
         let room = bounds.height - contents.safeArea.top - contents.safeArea.bottom
+        // The cover gives way to the words: a page too short for both stands a smaller cover over them, and
+        // none where even a small one won't fit.
+        let natural = cover.size(forWidth: Self.coverWidth)
+        let coverHeight = min(natural.height, max(0, room - words - Self.coverGap))
+        let showsCover = coverHeight >= Self.leastCoverHeight && natural.height > 0
+        let coverSize =
+            showsCover ? CGSize(width: natural.width * coverHeight / natural.height, height: coverHeight) : .zero
+        let total = (showsCover ? coverSize.height + Self.coverGap : 0) + words
         var y = contents.safeArea.top + (room - total) / 2
 
+        cover.isHidden = !showsCover
         cover.frame = CGRect(origin: CGPoint(x: (bounds.width - coverSize.width) / 2, y: y), size: coverSize)
-        y += coverSize.height + Self.coverGap
+        y += showsCover ? coverSize.height + Self.coverGap : 0
         title.frame = CGRect(x: side, y: y, width: width, height: titleHeight)
         y += titleHeight + Self.titleGap
         author.frame = CGRect(x: side, y: y, width: width, height: authorHeight)
@@ -116,6 +122,8 @@ public final class TitlePageView: UIView {
     }
 
     private static let coverWidth: CGFloat = 255
+    /// Below this a cover is a thumbnail, and the page reads better with the title alone.
+    private static let leastCoverHeight: CGFloat = 96
     private static let coverGap: CGFloat = 32
     private static let titleGap: CGFloat = 14
     private static let seriesGap: CGFloat = 18

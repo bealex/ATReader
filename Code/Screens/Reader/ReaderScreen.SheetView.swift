@@ -320,6 +320,8 @@ extension ReaderScreen {
             }
 
             let pageSafeArea = stage.spread.pageSafeArea
+            // Clear of the head and foot bands as the text is, or the page number lands on the author.
+            let band = stage.layoutContext.runningHeadBand
 
             title.isHidden = false
             title.frame = bounds
@@ -330,7 +332,12 @@ extension ReaderScreen {
                 coverURL: model.book?.coverURL,
                 style: stage.textStyle,
                 margins: stage.margins,
-                safeArea: UIEdgeInsets(top: pageSafeArea.top, left: 0, bottom: pageSafeArea.bottom, right: 0)
+                safeArea: UIEdgeInsets(
+                    top: pageSafeArea.top + band,
+                    left: 0,
+                    bottom: pageSafeArea.bottom + band,
+                    right: 0
+                )
             ))
         }
 
